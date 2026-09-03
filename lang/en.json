@@ -94,6 +94,11 @@
       "Dismiss": "Dismiss",
       "DismissTooltip": "Resolve without posting anything (Director only).",
       "Empty": "No pending triggers.",
+      "ShowAbility": "Show ability",
+      "Release": "Release Now",
+      "ReleaseTooltip": "Resume the held ability immediately (Director only). Undecided triggers become simple prompts.",
+      "WaitingOn": "Waiting on {count} triggers",
+      "GraceCountdown": "Resumes in {seconds}s",
       "State": {
         "pending": "Pending",
         "used": "Used",

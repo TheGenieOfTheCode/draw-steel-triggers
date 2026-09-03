@@ -1,6 +1,6 @@
 import { getSetting, dbg } from "../../util.mjs";
 import { collectTriggerMatches } from "../dispatch.mjs";
-import { enqueueLockEntries, consumeRollBypass } from "../queue.mjs";
+import { enqueueLockEntries, consumeRollBypass, hasHeldEntry } from "../queue.mjs";
 
 const STRIKE_EVENTS = new Set(["TARGETED_BY_STRIKE", "MAKES_STRIKE"]);
 
@@ -28,6 +28,11 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   const rollerActor = ability.actor;
   if (!rollerActor) return;
   if (!game.combat?.started) return;
+  
+  if (hasHeldEntry(ability.uuid)) {
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollHeld", { name: ability.name }));
+    return false;
+  }
 
   const strike = _isStrike(ability);
   const hasRoll = !!ability.system.power?.roll?.enabled;
@@ -64,6 +69,12 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
     event: "ROLL_LOCK",
     causeLabel,
     resume: { userId: game.user.id, itemUuid: ability.uuid },
+    held: {
+      itemUuid: ability.uuid,
+      itemName: ability.name,
+      ownerActorUuid: rollerActor.uuid,
+      ownerName: rollerActor.name,
+    },
   });
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollHeld", { name: ability.name }));
   return false;

@@ -64,11 +64,19 @@ async function _onQueueResolve(id, outcome, userName) {
       const group = _queue.filter((e) => e.resumeId === entry.resumeId);
       const resume = group[0]?.resume;
       const usedItems = new Set(group.filter((e) => e.state === "used").map((e) => e.itemUuid));
-      _queue = _queue.filter((e) => e.resumeId !== entry.resumeId);
-      if (!usedItems.size) _dispatchResume(resume);
-      else {
+      
+      _queue = _queue.filter((e) => e.resumeId !== entry.resumeId || e.kind === "held");
+      if (!usedItems.size) {
+        _removeHeld(entry.resumeId);
+        _dispatchResume(resume);
+      } else {
         const grace = Math.max(1, Number(getSetting("rollLockGrace")) || 15) * 1000;
         const resumeId = entry.resumeId;
+        const held = _queue.find((e) => e.resumeId === resumeId && e.kind === "held");
+        if (held) {
+          held.state = "grace";
+          held.graceUntil = Date.now() + grace;
+        }
         _pendingResumes.set(resumeId, {
           resume,
           awaiting: usedItems,
@@ -89,12 +97,32 @@ function _dispatchResume(resume) {
   else socket.executeAsGM("resumeRoll", resume.itemUuid);
 }
 
+function _removeHeld(resumeId) {
+  _queue = _queue.filter((e) => !(e.resumeId === resumeId && e.kind === "held"));
+}
+
 function _fireResume(resumeId) {
   const pending = _pendingResumes.get(resumeId);
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  _pendingResumes.delete(resumeId);
-  _dispatchResume(pending.resume);
+  const held = _queue.find((e) => e.resumeId === resumeId && e.kind === "held");
+  _removeHeld(resumeId);
+  if (pending) {
+    clearTimeout(pending.timer);
+    _pendingResumes.delete(resumeId);
+    _dispatchResume(pending.resume);
+  } else if (held) {
+    
+    
+    for (const e of _queue) {
+      if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
+    }
+    _dispatchResume(held.resume);
+  }
+  _broadcast();
+}
+
+function _onReleaseHeld(resumeId) {
+  if (!game.users.activeGM?.isSelf) return;
+  _fireResume(resumeId);
 }
 
 Hooks.on("createChatMessage", (message) => {
@@ -124,7 +152,7 @@ function _onQueueSync(entries) {
 }
 
 function _pendingForMe(entries) {
-  return entries.filter((e) => e.state === "pending" && canActOn(e));
+  return entries.filter((e) => (e.state === "pending" || e.kind === "held") && canActOn(e));
 }
 
 export function canActOn(entry) {
@@ -133,7 +161,11 @@ export function canActOn(entry) {
   return !!owner && owner.testUserPermission(game.user, "OWNER");
 }
 
-export function enqueueLockEntries(matches, { event, causeLabel, resume }) {
+export function hasHeldEntry(itemUuid) {
+  return _mirror.some((e) => e.kind === "held" && e.itemUuid === itemUuid);
+}
+
+export function enqueueLockEntries(matches, { event, causeLabel, resume, held }) {
   const resumeId = foundry.utils.randomID();
   const entries = matches.map((m) => ({
     id: foundry.utils.randomID(),
@@ -148,8 +180,28 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume }) {
     resumeId,
     resume,
   }));
+  
+  entries.push({
+    id: foundry.utils.randomID(),
+    kind: "held",
+    itemUuid: held.itemUuid,
+    itemName: held.itemName,
+    ownerActorUuid: held.ownerActorUuid,
+    ownerName: held.ownerName,
+    event,
+    causeLabel,
+    lock: false,
+    state: "held",
+    graceUntil: null,
+    resumeId,
+    resume,
+  });
   socket.executeAsGM("queueAdd", entries);
   return entries;
+}
+
+export function releaseHeld(resumeId) {
+  socket.executeAsGM("releaseHeld", resumeId);
 }
 
 export function enqueuePromptEntries(matches, { event, causeLabel }) {
@@ -179,4 +231,5 @@ Hooks.once("socketlib.ready", () => {
   socket.register("queueResolve", _onQueueResolve);
   socket.register("queueSync", _onQueueSync);
   socket.register("resumeRoll", _onResumeRoll);
+  socket.register("releaseHeld", _onReleaseHeld);
 });
