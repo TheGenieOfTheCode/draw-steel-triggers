@@ -1,0 +1,99 @@
+<div class="dst-editor">
+  <p class="dst-editor-trigger-text">{{#if triggerText}}<em>"{{triggerText}}"</em>{{else}}<em>{{noTriggerText}}</em>{{/if}}</p>
+  <p class="dst-editor-status">{{statusLine}}</p>
+
+  <div class="dst-editor-clauses">
+    {{#each clauses}}
+    <fieldset class="dst-editor-clause" data-index="{{index}}">
+      <legend>{{legend}}
+        <button type="button" class="dst-editor-clause-remove" data-action="removeClause" data-index="{{index}}" data-tooltip="{{@root.removeTooltip}}"><i class="fa-solid fa-trash"></i></button>
+      </legend>
+      <div class="form-group">
+        <label>{{@root.labels.event}}</label>
+        <div class="form-fields">
+          <select data-field="event" data-index="{{index}}">
+            {{#each eventOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+          </select>
+        </div>
+      </div>
+      <p class="dst-hint">{{@root.hints.event}}</p>
+      <div class="form-group">
+        <label>{{@root.labels.scope}}</label>
+        <div class="form-fields">
+          <select data-field="scope" data-index="{{index}}">
+            {{#each scopeOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+          </select>
+        </div>
+      </div>
+      <p class="dst-hint">{{@root.hints.scope}}</p>
+      <div class="form-group">
+        <label>{{@root.labels.qualifiers}}</label>
+        <div class="form-fields">
+          <input type="text" data-field="qualifiers" data-index="{{index}}" value="{{qualifiers}}" placeholder="{{@root.labels.qualifiersPh}}">
+        </div>
+      </div>
+      <p class="dst-hint">{{@root.hints.qualifiers}}</p>
+
+      <div class="dst-damage-wrap" {{#unless showDamageTypes}}hidden{{/unless}}>
+        <div class="form-group">
+          <label>{{@root.labels.damageTypes}}</label>
+          <div class="form-fields">
+            <multi-select data-field="damageTypes" data-index="{{index}}">
+              {{#each damageTypeOptions}}<option value="{{value}}" {{#if active}}selected{{/if}}>{{label}}</option>{{/each}}
+            </multi-select>
+          </div>
+        </div>
+        <p class="dst-hint">{{@root.hints.damageTypes}}</p>
+      </div>
+
+      <div class="dst-group-wrap" {{#unless showGroup}}hidden{{/unless}}>
+        <div class="form-group">
+          <label>{{@root.labels.groupName}}</label>
+          <div class="form-fields">
+            <select data-field="groupSelect" data-index="{{index}}">
+              <option value="">{{@root.labels.groupNone}}</option>
+              {{#each groupOptions}}<option value="{{value}}" {{#if active}}selected{{/if}}>{{label}}</option>{{/each}}
+              {{#each customOptions}}<option value="{{value}}" {{#if active}}selected{{/if}}>{{value}}*</option>{{/each}}
+              <option value="__custom__">{{@root.labels.customEllipsis}}</option>
+            </select>
+            {{#if customPending}}<input type="text" class="dst-custom-input" data-index="{{index}}" placeholder="{{@root.labels.customPh}}">{{/if}}
+          </div>
+        </div>
+        <p class="dst-hint">{{@root.hints.groupName}}</p>
+      </div>
+
+      <div class="form-group">
+        <label>{{@root.labels.abilityDsid}}</label>
+        <div class="form-fields">
+          <input type="text" data-field="abilityDsid" data-index="{{index}}" value="{{abilityDsid}}">
+        </div>
+      </div>
+      <p class="dst-hint">{{@root.hints.abilityDsid}}</p>
+      <label class="dst-section-label">{{@root.labels.availability}}</label>
+      <div class="dst-editor-checks">
+        <label class="checkbox"><input type="checkbox" data-field="edgeRequired" data-index="{{index}}" {{#if edgeRequired}}checked{{/if}}> {{@root.labels.edgeRequired}}</label>
+        <label class="checkbox"><input type="checkbox" data-field="ownerUnacted" data-index="{{index}}" {{#if ownerUnacted}}checked{{/if}}> {{@root.labels.ownerUnacted}}</label>
+        <label class="checkbox"><input type="checkbox" data-field="anyHeroUnacted" data-index="{{index}}" {{#if anyHeroUnacted}}checked{{/if}}> {{@root.labels.anyHeroUnacted}}</label>
+      </div>
+      <p class="dst-hint">{{@root.hints.checks}}</p>
+    </fieldset>
+    {{/each}}
+  </div>
+
+  <button type="button" class="dst-editor-add" data-action="addClause"><i class="fa-solid fa-plus"></i> {{labels.addClause}}</button>
+
+  <div class="form-group dst-editor-malice">
+    <label>{{labels.malice}}</label>
+    <div class="form-fields">
+      <select data-field="malice">
+        {{#each maliceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
+  </div>
+  <p class="dst-hint">{{hints.malice}}</p>
+
+  <footer class="dst-editor-footer">
+    <button type="button" data-action="saveOverride" data-tooltip="{{hints.save}}"><i class="fa-solid fa-floppy-disk"></i> {{labels.save}}</button>
+    <button type="button" data-action="resetParser" data-tooltip="{{hints.reset}}" {{#unless isManual}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> {{labels.reset}}</button>
+  </footer>
+</div>

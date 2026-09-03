@@ -13,6 +13,7 @@ import {
 import { dispatchTriggerEvent } from "./triggers/dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spent-tracking.mjs";
 import { computeAutomationLevel } from "./ui/badge.mjs";
+import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 
@@ -48,6 +49,7 @@ Hooks.once("init", () => {
     isTriggeredActionSpent,
     setTriggeredActionSpent,
     computeAutomationLevel,
+    TriggerEditor,
     parseTrigger,
     generateDSID,
     SPECIAL_CASES,

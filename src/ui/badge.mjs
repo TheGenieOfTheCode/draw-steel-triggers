@@ -55,9 +55,28 @@ function buildBadge(item) {
   return badge;
 }
 
+function ensureTriggerRow(app, element, item) {
+  if (element.querySelector('input[name="system.trigger"]')) return;
+  if (!isMaliceAbility(item)) return;
+  const typeGroup = element.querySelector('select[name="system.type"]')?.closest(".form-group");
+  if (!typeGroup) return;
+  const after = element.querySelector('input[name="system.resource"]')?.closest(".form-group") ?? typeGroup;
+  const row = document.createElement("div");
+  row.className = "form-group";
+  const fieldLabel = item.system.schema.fields.trigger?.label;
+  const labelText = fieldLabel ? game.i18n.localize(fieldLabel) : game.i18n.localize("DS_TRIGGERS.Editor.TriggerLabel");
+  row.innerHTML = `<label>${labelText}</label><div class="form-fields"><input type="text" name="system.trigger"></div>`;
+  const input = row.querySelector("input");
+  input.value = item.system.trigger ?? "";
+  input.placeholder = game.i18n.localize("DS_TRIGGERS.Reminder.ImplicitMaliceTrigger");
+  input.disabled = !app.isEditable;
+  after.insertAdjacentElement("afterend", row);
+}
+
 Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   const item = app.document;
   if (item?.type !== "ability") return;
+  ensureTriggerRow(app, element, item);
   
   const anchor = element.querySelector('input[name="system.trigger"]')
     ?? element.querySelector('select[name="system.type"]');

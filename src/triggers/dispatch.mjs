@@ -17,7 +17,16 @@ function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor, subjec
     case "SELF_OR_ALLY": return isSelf || sameSide;
     case "ENEMY": return !isSelf && !sameSide;
     case "ANY": return true;
-    case "GROUP": return !!clause.groupName && subjectActor.name.toLowerCase().includes(clause.groupName.toLowerCase());
+    case "GROUP": {
+      if (!clause.groupName) return false;
+      const kw = clause.groupName;
+      
+      if (subjectActor.system?.monster?.keywords?.has?.(kw)) return true;
+      const name = subjectActor.name.toLowerCase();
+      if (name.includes(kw.toLowerCase())) return true;
+      const kwLabel = ds.CONFIG.monsters?.keywords?.[kw]?.label;
+      return !!kwLabel && name.includes(game.i18n.localize(kwLabel).toLowerCase());
+    }
     default: return false;
   }
 }

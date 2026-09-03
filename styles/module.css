@@ -29,6 +29,146 @@
   position: relative;
 }
 
+.dst-input-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.dst-input-wrap > input,
+.dst-input-wrap > select {
+  flex: 1;
+  padding-right: 30px;
+}
+
+.dst-trigger-edit-btn {
+  position: absolute;
+  right: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: calc(100% - 4px);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  box-shadow: none;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.dst-trigger-edit-btn:hover {
+  opacity: 1;
+  box-shadow: none;
+}
+
+.dst-trigger-editor:not(.minimized) {
+  min-width: 420px;
+  min-height: 320px;
+}
+
+.dst-trigger-editor .window-content,
+.dst-trigger-editor form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.dst-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.dst-editor .dst-editor-clauses {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.dst-editor .dst-editor-trigger-text {
+  margin: 0 0 2px;
+}
+
+.dst-editor .dst-editor-status {
+  margin: 0 0 8px;
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.dst-editor .dst-editor-clause {
+  margin-bottom: 8px;
+  padding: 4px 8px 8px;
+}
+
+.dst-editor .dst-editor-clause legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dst-editor .dst-editor-clause-remove {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8em;
+}
+
+.dst-editor .dst-hint {
+  margin: 1px 0 8px;
+  font-size: 0.8em;
+  opacity: 0.65;
+  line-height: 1.25;
+}
+
+.dst-editor .dst-custom-input {
+  flex: 0 0 120px;
+}
+
+.dst-editor .dst-section-label {
+  display: block;
+  font-weight: bold;
+  margin: 4px 0 2px;
+}
+
+.dst-editor .dst-editor-checks {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 2px;
+}
+
+.dst-editor .dst-editor-checks label.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  text-align: left;
+}
+
+.dst-editor .dst-editor-add {
+  margin-bottom: 10px;
+}
+
+.dst-editor .dst-editor-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dst-editor .dst-editor-footer button {
+  flex: 1;
+}
+
 .dst-auto-badge {
   position: absolute;
   left: -34px;
