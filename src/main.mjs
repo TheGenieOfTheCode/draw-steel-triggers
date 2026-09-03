@@ -12,6 +12,7 @@ import {
 } from "./triggers/registry.mjs";
 import { dispatchTriggerEvent } from "./triggers/dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spent-tracking.mjs";
+import { computeAutomationLevel } from "./ui/badge.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 
@@ -46,6 +47,7 @@ Hooks.once("init", () => {
     dispatchTriggerEvent,
     isTriggeredActionSpent,
     setTriggeredActionSpent,
+    computeAutomationLevel,
     parseTrigger,
     generateDSID,
     SPECIAL_CASES,

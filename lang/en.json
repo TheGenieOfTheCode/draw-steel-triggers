@@ -14,6 +14,25 @@
         "Hint": "Track when a combatant spends their triggered action and stop reminding them about non-free triggers until the next round."
       }
     },
+    "Badge": {
+      "Level": {
+        "full": "Fully automated",
+        "partial": "Partially automated",
+        "none": "Not automated yet",
+        "manual": "Manual trigger override",
+        "unknown": "Unrecognized trigger"
+      },
+      "Detail": {
+        "Manual": "This trigger was configured by hand and skips the parser.",
+        "MaliceImplicit": "Malice feature: offered at the start of the creature's turn.",
+        "Unrecognized": "The parser could not confidently read this trigger. Reminders only.",
+        "Detected": "{event} for {scope}: detected.",
+        "EventNeedsTier": "{event}: needs a compatibility tier to detect.",
+        "ScopeNeedsTier": "Scope {scope}: needs a compatibility tier to resolve.",
+        "Revisit": "Marked for a later revisit; not detected yet.",
+        "DsctOnly": "Needs Draw Steel: Combat Tools data to detect."
+      }
+    },
     "Reminder": {
       "Speaker": "Draw Steel: Triggers",
       "Header": "Triggered Ability Reminder",

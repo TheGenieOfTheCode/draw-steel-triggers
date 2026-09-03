@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, emblemHTML } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 
@@ -142,7 +142,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
       return `<li>${link}${ownerPart}${freeTag}<br><em>${trigger}</em></li>`;
     }).join("");
     ChatMessage.create({
-      content: `<div class="dst-reminder"><p class="dst-reminder-header">${game.i18n.localize("DS_TRIGGERS.Reminder.Header")}</p><p>${causeLabel}</p><ul>${items}</ul></div>`,
+      content: `<div class="dst-reminder"><p class="dst-reminder-header"><span class="dst-emblem">${emblemHTML()}</span>${game.i18n.localize("DS_TRIGGERS.Reminder.Header")}</p><p>${causeLabel}</p><ul>${items}</ul></div>`,
       whisper: group.recipients,
       speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
       flags: { [MODULE_ID]: { reminder: { event } } },

@@ -5,6 +5,51 @@
   padding-bottom: 2px;
 }
 
+.dst-emblem {
+  position: relative;
+  display: inline-block;
+  font-size: 18px;
+  width: 1em;
+  height: 1em;
+  margin-right: 5px;
+  vertical-align: -0.22em;
+}
+
+.dst-emblem-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  box-shadow: none;
+  background: none;
+}
+
+.dst-badge-host {
+  position: relative;
+}
+
+.dst-auto-badge {
+  position: absolute;
+  left: -34px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  font-size: 26px;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  cursor: help;
+  background: var(--dst-badge-color, #666);
+}
+
+.dst-auto-badge--full    { --dst-badge-color: #3d7a3d; }
+.dst-auto-badge--partial { --dst-badge-color: #a87f16; }
+.dst-auto-badge--none    { --dst-badge-color: #9c3535; }
+.dst-auto-badge--manual  { --dst-badge-color: #3f6db0; }
+.dst-auto-badge--unknown { --dst-badge-color: #8a4fa8; }
+
 .dst-reminder ul {
   margin: 4px 0 0;
   padding-left: 16px;
