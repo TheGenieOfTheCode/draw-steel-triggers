@@ -1,10 +1,13 @@
 import { parseTrigger, generateDSID, SPECIAL_CASES } from "./parser/trigger-parser.mjs";
-
-export const MODULE_ID = "draw-steel-triggers";
-
-export function getSetting(key) {
-  return game.settings.get(MODULE_ID, key);
-}
+import { MODULE_ID, getSetting, dbg } from "./util.mjs";
+import {
+  isTriggeredAbility,
+  getParsedTrigger,
+  getTriggeredAbilities,
+  clearParseCache,
+  registerSpecialCase,
+  scanWorld,
+} from "./triggers/registry.mjs";
 
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "debugMode", {
@@ -17,9 +20,20 @@ Hooks.once("init", () => {
   });
 
   const module = game.modules.get(MODULE_ID);
-  module.api = { parseTrigger, generateDSID, SPECIAL_CASES };
+  module.api = {
+    parseTrigger,
+    generateDSID,
+    SPECIAL_CASES,
+    isTriggeredAbility,
+    getParsedTrigger,
+    getTriggeredAbilities,
+    clearParseCache,
+    registerSpecialCase,
+    scanWorld,
+  };
 });
 
 Hooks.once("ready", () => {
   console.log(`${MODULE_ID} | ready (v${game.modules.get(MODULE_ID).version})`);
+  if (getSetting("debugMode")) scanWorld();
 });
