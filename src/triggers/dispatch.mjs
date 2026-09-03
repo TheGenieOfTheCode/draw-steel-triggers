@@ -1,5 +1,6 @@
 import { MODULE_ID, getSetting, dbg } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
+import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
 
@@ -72,10 +73,12 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
 
   for (const { actor, disposition } of candidates) {
     if (actor.statuses?.has(defeated)) continue;
+    const spent = isTriggeredActionSpent(actor);
     for (const entry of getTriggeredAbilities(actor)) {
       if (entry.item.system.restricted) continue;
       if (!canAffordCost(actor, entry.item)) continue;
       const malice = isMaliceAbility(entry.item);
+      if (spent && !entry.free && !malice) continue;
       if (malice && subjectActor && subjectActor !== actor && !inSameCombatGroup(actor, subjectActor)) continue;
       if (malice) {
         if (maliceSeen.has(entry.item.name)) continue;

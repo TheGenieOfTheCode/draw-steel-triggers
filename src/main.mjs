@@ -11,10 +11,19 @@ import {
   scanWorld,
 } from "./triggers/registry.mjs";
 import { dispatchTriggerEvent } from "./triggers/dispatch.mjs";
+import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spent-tracking.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 
 Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, "spentTracking", {
+    name: "DS_TRIGGERS.Settings.SpentTracking.Name",
+    hint: "DS_TRIGGERS.Settings.SpentTracking.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "chatReminders", {
     name: "DS_TRIGGERS.Settings.ChatReminders.Name",
     hint: "DS_TRIGGERS.Settings.ChatReminders.Hint",
@@ -35,6 +44,8 @@ Hooks.once("init", () => {
   const module = game.modules.get(MODULE_ID);
   module.api = {
     dispatchTriggerEvent,
+    isTriggeredActionSpent,
+    setTriggeredActionSpent,
     parseTrigger,
     generateDSID,
     SPECIAL_CASES,

@@ -8,6 +8,10 @@
       "ChatReminders": {
         "Name": "Chat Reminders",
         "Hint": "Whisper a reminder to an ability's owner when its trigger condition may have occurred."
+      },
+      "SpentTracking": {
+        "Name": "Track Triggered Actions",
+        "Hint": "Track when a combatant spends their triggered action and stop reminding them about non-free triggers until the next round."
       }
     },
     "Reminder": {
