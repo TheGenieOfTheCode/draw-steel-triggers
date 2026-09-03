@@ -1,6 +1,9 @@
 import { MODULE_ID, getSetting, dbg, emblemHTML } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
+import { enqueuePromptEntries } from "./queue.mjs";
+
+const PROMPT_EVENTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING"]);
 
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
 
@@ -68,15 +71,11 @@ function canAffordCost(actor, item) {
   return current >= cost;
 }
 
-export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "" }) {
-  if (!game.users.activeGM?.isSelf) return;
-  if (!getSetting("chatReminders")) return;
-
+export function collectTriggerMatches(event, subjectActor = null, subjectToken = null) {
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   const subjectDisposition = subjectToken?.disposition ?? null;
   const matches = [];
 
-  
   const candidates = candidateEntries().sort((a, b) => (b.actor === subjectActor) - (a.actor === subjectActor));
   const maliceSeen = new Set();
 
@@ -93,11 +92,9 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
         if (maliceSeen.has(entry.item.name)) continue;
         maliceSeen.add(entry.item.name);
       }
-      
       const clause = entry.parse?.clauses?.find(c =>
         c.event === event && (malice || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition)));
       if (!clause) continue;
-      
       if (clause.ownerUnacted && game.combat?.started) {
         const combatant = game.combat.combatants.find(c => c.actor === actor);
         if (combatant && !(combatant.initiative > 0)) continue;
@@ -105,11 +102,29 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
       if (clause.anyHeroUnacted && game.combat?.started) {
         if (!game.combat.combatants.some(c => c.actor?.type === "hero" && c.initiative > 0)) continue;
       }
-      matches.push({ actor, item: entry.item, free: entry.free, malice });
+      matches.push({ actor, item: entry.item, free: entry.free, malice, clause, parse: entry.parse });
     }
+  }
+  return matches;
+}
+
+export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "" }) {
+  if (!game.users.activeGM?.isSelf) return;
+
+  let matches = collectTriggerMatches(event, subjectActor, subjectToken);
+  if (!matches.length) return;
+
+  
+  
+  if (PROMPT_EVENTS.has(event) && getSetting("damagePrompts")) {
+    const prompts = matches.filter((m) =>
+      !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+    if (prompts.length) enqueuePromptEntries(prompts, { event, causeLabel });
+    matches = matches.filter((m) => !prompts.includes(m));
   }
 
   if (!matches.length) return;
+  if (!getSetting("chatReminders")) return;
   dbg(`event ${event} matched ${matches.length} abilities`, { causeLabel, matches });
 
   

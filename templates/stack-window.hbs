@@ -1,0 +1,25 @@
+<div class="dst-stack">
+  {{#if entries.length}}
+  <ul class="dst-stack-list">
+    {{#each entries}}
+    <li class="dst-stack-entry dst-stack-entry--{{state}}">
+      <div class="dst-stack-head">
+        <strong>{{itemName}}</strong>
+        <span class="dst-stack-owner">{{ownerName}}</span>
+        {{#unless isPending}}<span class="dst-stack-state">{{stateLabel}}</span>{{/unless}}
+      </div>
+      <div class="dst-stack-cause">{{causeLabel}}</div>
+      {{#if showButtons}}
+      <div class="dst-stack-buttons">
+        <button type="button" data-action="useEntry" data-id="{{id}}"><i class="fa-solid fa-bolt"></i> {{@root.labels.use}}</button>
+        <button type="button" data-action="declineEntry" data-id="{{id}}"><i class="fa-solid fa-xmark"></i> {{@root.labels.decline}}</button>
+        {{#if @root.isGM}}<button type="button" data-action="dismissEntry" data-id="{{id}}" data-tooltip="{{@root.labels.dismissTooltip}}"><i class="fa-solid fa-eye-slash"></i> {{@root.labels.dismiss}}</button>{{/if}}
+      </div>
+      {{/if}}
+    </li>
+    {{/each}}
+  </ul>
+  {{else}}
+  <p class="dst-stack-empty">{{labels.empty}}</p>
+  {{/if}}
+</div>

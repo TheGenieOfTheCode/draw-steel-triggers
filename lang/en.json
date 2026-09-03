@@ -12,6 +12,18 @@
       "SpentTracking": {
         "Name": "Track Triggered Actions",
         "Hint": "Track when a combatant spends their triggered action and stop reminding them about non-free triggers until the next round."
+      },
+      "RollLock": {
+        "Name": "Roll Lock",
+        "Hint": "Hold ability rolls while triggered abilities that could interrupt them wait for a Use or Decline decision. Only applies during combat."
+      },
+      "DamagePrompts": {
+        "Name": "Damage Prompts",
+        "Hint": "When a creature takes damage, dies, or becomes winded, matching triggered abilities appear in the Trigger Stack with Use and Decline instead of a chat reminder."
+      },
+      "RollLockGrace": {
+        "Name": "Roll Lock Grace Period",
+        "Hint": "After Use is chosen for a triggered ability, the held roll resumes when that ability's message is posted, or after this many seconds if it never posts (for cancelled flows)."
       }
     },
     "Badge": {
@@ -74,6 +86,24 @@
       "Reset": "Reset to Parser",
       "Saved": "Trigger override saved for {name}.",
       "ResetDone": "{name} uses the automatic parser again."
+    },
+    "Queue": {
+      "Title": "Trigger Stack",
+      "Use": "Use",
+      "Decline": "Decline",
+      "Dismiss": "Dismiss",
+      "DismissTooltip": "Resolve without posting anything (Director only).",
+      "Empty": "No pending triggers.",
+      "State": {
+        "pending": "Pending",
+        "used": "Used",
+        "declined": "Declined",
+        "dismissed": "Dismissed"
+      },
+      "LockCause": "{roller} is using {ability}.",
+      "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
+      "RollReleased": "The triggers are decided. {name} continues.",
+      "DeclineRecord": "{owner} declined to use {ability}."
     },
     "Reminder": {
       "Speaker": "Draw Steel: Triggers",

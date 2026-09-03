@@ -14,8 +14,11 @@ import { dispatchTriggerEvent } from "./triggers/dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spent-tracking.mjs";
 import { computeAutomationLevel } from "./ui/badge.mjs";
 import { TriggerEditor } from "./ui/trigger-editor.mjs";
+import { StackWindow } from "./ui/stack-window.mjs";
+import { getQueueMirror } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
+import "./triggers/detectors/roll-lock.mjs";
 
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "spentTracking", {
@@ -25,6 +28,30 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true
+  });
+  game.settings.register(MODULE_ID, "rollLock", {
+    name: "DS_TRIGGERS.Settings.RollLock.Name",
+    hint: "DS_TRIGGERS.Settings.RollLock.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "damagePrompts", {
+    name: "DS_TRIGGERS.Settings.DamagePrompts.Name",
+    hint: "DS_TRIGGERS.Settings.DamagePrompts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "rollLockGrace", {
+    name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
+    hint: "DS_TRIGGERS.Settings.RollLockGrace.Hint",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 15
   });
   game.settings.register(MODULE_ID, "chatReminders", {
     name: "DS_TRIGGERS.Settings.ChatReminders.Name",
@@ -50,6 +77,8 @@ Hooks.once("init", () => {
     setTriggeredActionSpent,
     computeAutomationLevel,
     TriggerEditor,
+    StackWindow,
+    getQueueMirror,
     parseTrigger,
     generateDSID,
     SPECIAL_CASES,

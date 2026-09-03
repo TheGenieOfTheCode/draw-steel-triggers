@@ -5,12 +5,24 @@ function combatantFor(actor, combat = game.combat) {
   return combat?.combatants.find(c => c.actor === actor) ?? null;
 }
 
+function dsctTriggeredEffect(actor) {
+  if (!game.modules.get("draw-steel-combat-tools")?.active) return null;
+  return actor?.effects.find((e) => e.getFlag("draw-steel-combat-tools", "effectType") === "triggered-action") ?? null;
+}
+
 export function isTriggeredActionSpent(actor) {
   if (!getSetting("spentTracking")) return false;
+  const effect = dsctTriggeredEffect(actor);
+  if (effect) return effect.disabled;
   return !!combatantFor(actor)?.getFlag(MODULE_ID, "spent");
 }
 
 export async function setTriggeredActionSpent(actor, spent = true) {
+  const effect = dsctTriggeredEffect(actor);
+  if (effect) {
+    if (effect.disabled !== spent) await effect.update({ disabled: spent });
+    return;
+  }
   const combatant = combatantFor(actor);
   if (!combatant) return;
   if (spent) await combatant.setFlag(MODULE_ID, "spent", true);
