@@ -4,7 +4,28 @@
       "DebugMode": {
         "Name": "Debug Mode",
         "Hint": "Log trigger detection details to the console."
+      },
+      "ChatReminders": {
+        "Name": "Chat Reminders",
+        "Hint": "Whisper a reminder to an ability's owner when its trigger condition may have occurred."
       }
+    },
+    "Reminder": {
+      "Speaker": "Draw Steel: Triggers",
+      "Header": "Triggered Ability Reminder",
+      "Free": "Free",
+      "Triggered": "Triggered",
+      "Malice": "Malice",
+      "ImplicitMaliceTrigger": "Available at the start of this creature's turn.",
+      "TurnStart": "{name}'s turn is starting.",
+      "TurnEnd": "{name}'s turn is ending.",
+      "RoundStart": "Round {round} is starting.",
+      "LinkTooltip": "Click to use this ability. Shift-click to share its description to chat.",
+      "MissingAbility": "That ability no longer exists.",
+      "TakesDamage": "{name} took {amount} damage.",
+      "Dies": "{name} was reduced to 0 Stamina.",
+      "Winded": "{name} is now winded.",
+      "RegainsStamina": "{name} regained {amount} Stamina."
     }
   }
 }

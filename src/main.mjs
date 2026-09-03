@@ -2,14 +2,27 @@ import { parseTrigger, generateDSID, SPECIAL_CASES } from "./parser/trigger-pars
 import { MODULE_ID, getSetting, dbg } from "./util.mjs";
 import {
   isTriggeredAbility,
+  isMaliceAbility,
+  isImplicitMaliceTrigger,
   getParsedTrigger,
   getTriggeredAbilities,
   clearParseCache,
   registerSpecialCase,
   scanWorld,
 } from "./triggers/registry.mjs";
+import { dispatchTriggerEvent } from "./triggers/dispatch.mjs";
+import "./triggers/detectors/combat.mjs";
+import "./triggers/detectors/damage.mjs";
 
 Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, "chatReminders", {
+    name: "DS_TRIGGERS.Settings.ChatReminders.Name",
+    hint: "DS_TRIGGERS.Settings.ChatReminders.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "debugMode", {
     name: "DS_TRIGGERS.Settings.DebugMode.Name",
     hint: "DS_TRIGGERS.Settings.DebugMode.Hint",
@@ -21,10 +34,13 @@ Hooks.once("init", () => {
 
   const module = game.modules.get(MODULE_ID);
   module.api = {
+    dispatchTriggerEvent,
     parseTrigger,
     generateDSID,
     SPECIAL_CASES,
     isTriggeredAbility,
+    isMaliceAbility,
+    isImplicitMaliceTrigger,
     getParsedTrigger,
     getTriggeredAbilities,
     clearParseCache,

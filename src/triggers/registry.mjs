@@ -9,8 +9,35 @@ export function isTriggeredAbility(item) {
   return item?.type === "ability" && TRIGGERED_TYPES.has(item.system?.type);
 }
 
+const MALICE_ICON = "icons/magic/unholy/silhouette-robe-evil-power.webp";
+
+export function isMaliceAbility(item) {
+  const flag = item?.getFlag(MODULE_ID, "malice");
+  if (flag !== undefined) return !!flag;
+  if (item?.system?.category === "maliceAncestry") return true;
+  return item?.img === MALICE_ICON;
+}
+
+export function isImplicitMaliceTrigger(item) {
+  return item?.type === "ability"
+    && !TRIGGERED_TYPES.has(item.system?.type)
+    && !/malice features$/i.test(item.name ?? "")
+    && isMaliceAbility(item);
+}
+
+function implicitMaliceParse() {
+  return {
+    clauses: [{ event: "TURN_START", scope: "SELF", qualifiers: [] }],
+    confidence: "high",
+    source: "malice-implicit",
+  };
+}
+
 export function getParsedTrigger(item) {
-  if (!isTriggeredAbility(item)) return null;
+  if (!isTriggeredAbility(item)) {
+    if (isImplicitMaliceTrigger(item)) return implicitMaliceParse();
+    return null;
+  }
 
   if (item.getFlag(MODULE_ID, "manual")) {
     const stored = item.getFlag(MODULE_ID, "trigger");
@@ -31,8 +58,9 @@ export function getTriggeredAbilities(actor) {
   if (!actor) return [];
   const entries = [];
   for (const item of actor.items) {
-    if (!isTriggeredAbility(item)) continue;
-    entries.push({ item, free: item.system.type === "freeTriggered", parse: getParsedTrigger(item) });
+    const triggered = isTriggeredAbility(item);
+    if (!triggered && !isImplicitMaliceTrigger(item)) continue;
+    entries.push({ item, free: triggered && item.system.type === "freeTriggered", parse: getParsedTrigger(item) });
   }
   return entries;
 }

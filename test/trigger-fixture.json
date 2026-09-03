@@ -5259,13 +5259,14 @@
   "type": "freeTriggered",
   "trigger": "Another hero ends their turn. That hero can’t have used this ability to start their turn.",
   "expected": {
-   "source": "regex",
+   "source": "special",
    "confidence": "high",
    "clauses": [
     {
      "event": "TURN_END",
      "scope": "ALLY",
-     "qualifiers": []
+     "qualifiers": [],
+     "ownerUnacted": true
     }
    ]
   }
@@ -5368,7 +5369,7 @@
   "type": "triggered",
   "trigger": "An enemy within 10 squares starts their turn.",
   "expected": {
-   "source": "regex",
+   "source": "special",
    "confidence": "high",
    "clauses": [
     {
@@ -5376,7 +5377,8 @@
      "scope": "ENEMY",
      "qualifiers": [
       "within 10 squares"
-     ]
+     ],
+     "anyHeroUnacted": true
     }
    ]
   }
