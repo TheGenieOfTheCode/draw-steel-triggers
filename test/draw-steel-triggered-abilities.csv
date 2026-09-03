@@ -1,0 +1,298 @@
+pack,owner,ability,type,primary_category,all_categories,trigger
+monsters,Big Animal B,Animal Rally,triggered,CONDITION_GAIN,CONDITION_GAIN,The target is knocked prone.
+abilities,Advanced Tactics,Advanced Tactics,triggered,DEALS_DAMAGE,DEALS_DAMAGE,The target deals damage to another creature.
+abilities,Coordinated Execution,Coordinated Execution,freeTriggered,DEALS_DAMAGE,DEALS_DAMAGE;USES_ABILITY_OR_ACTION,The target uses an ability to deal rolled damage to a creature while hidden.
+abilities,Feedback Loop,Feedback Loop,triggered,DEALS_DAMAGE,DEALS_DAMAGE,The target deals damage to an ally.
+abilities,No Dying On My Watch,No Dying On My Watch,triggered,DEALS_DAMAGE,DEALS_DAMAGE,The target deals damage to an ally.
+monster-features,Aftershock,Aftershock,freeTriggered,DEALS_DAMAGE,DEALS_DAMAGE,A creature deals damage to the kingfissure worm or one of their tongues.
+monsters,Troll Butcher,Acquired Taste,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,"A creature within distance deals damage to the butcher with an ability that gains an edge, has a double edge, or uses a surge."
+monsters,Kingfissure Worm,Aftershock,freeTriggered,DEALS_DAMAGE,DEALS_DAMAGE,A creature deals damage to the kingfissure worm or one of their tongues.
+monsters,Xorannox the Tyract,Cower!,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to Xorannox.
+monsters,Wyvern Predator,Deterring Sting,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the predator with a melee ability.
+monsters,Olothec,Liquify,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,An enemy within distance deals damage to the olothec.
+monsters,Rival Talent,Mind Requital,triggered,DEALS_DAMAGE,DEALS_DAMAGE,A creature deals damage to the talent.
+monsters,Rival Talent,Precognitive Shift,triggered,DEALS_DAMAGE,DEALS_DAMAGE,A creature deals damage to the talent.
+monsters,Rival Talent,Precognitive Shift,triggered,DEALS_DAMAGE,DEALS_DAMAGE,A creature deals damage to the talent.
+monsters,Rival Talent,Psionic Retribution,triggered,DEALS_DAMAGE,DEALS_DAMAGE,A creature deals damage to the talent.
+monsters,Servok War Engine,Quick Blast,freeTriggered,DEALS_DAMAGE,DEALS_DAMAGE,The target deals damage to the war engine.
+monsters,Manticore,Reflexive Instinct,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the manticore.
+monsters,Omen Dragon,Repent!,freeTriggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A dragonsealed creature within distance deals damage to the dragon.
+monsters,Wyvern Lurker,Retaliatory Dive,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the lurker with a ranged ability.
+monsters,Minotaur Gorer,Retaliatory Strike,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the gorer.
+monsters,Minotaur,Retaliatory Strike,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the minotaur.
+monsters,Minotaur Sunderer,Retaliatory Strike,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the sunderer.
+monsters,Field of Growth,Rose Thorn Lash,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature or object within distance deals damage to the field.
+monsters,Essence of Tides,Sea-Salted Wounds,triggered,DEALS_DAMAGE,DEALS_DAMAGE,An ally deals rolled damage to the target.
+monsters,Time Raider Armiger,Shared Sickness,triggered,DEALS_DAMAGE,DEALS_DAMAGE,A creature deals damage to any ally of the armiger who the armiger has line of effect to.
+monsters,Servok Builder,Sputter,freeTriggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature or object within distance deals damage to the builder.
+monsters,Predator B,Swat,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature or object within distance deals damage to the predator.
+monsters,Thorn Dragon,Thorny Scales,freeTriggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the dragon with a melee strike.
+monsters,Essence of Storms,Thunderclap,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the essence.
+monsters,War Dog Taxiarch,Thunderstruck,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,An enemy within distance deals damage to the taxiarch.
+monsters,Tusker Demon,Vengeful Tusker,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,An enemy within distance deals damage to the tusker.
+monsters,Medusa,Venomous Spit,triggered,DEALS_DAMAGE,DEALS_DAMAGE;MOVES,A creature within distance deals damage to the medusa.
+abilities,Explosive Assistance,Explosive Assistance,triggered,FORCE_MOVED,FORCE_MOVED;MOVES,The target force moves a creature or object.
+abilities,Lines of Force,Lines of Force,triggered,FORCE_MOVED,FORCE_MOVED;MOVES,The target would be force moved
+abilities,Subtle Relocation,Subtle Relocation,triggered,FORCE_MOVED,FORCE_MOVED;MOVES;TURN_START,"The target starts their turn, moves, or is force moved."
+monsters,Bugbear Sneak,Catcher,freeTriggered,FORCE_MOVED,FORCE_MOVED;MOVES,"A size 1 creature or object is force moved within distance, or a size 1 ally willingly moves within distance."
+monsters,Bugbear Roughneck,Catcher,freeTriggered,FORCE_MOVED,FORCE_MOVED;MOVES,"A size 1 creature or object is force moved within distance, or a size 1 ally willingly moves within distance."
+monsters,Bugbear Channeler,Catcher,freeTriggered,FORCE_MOVED,FORCE_MOVED;MOVES,"A size 1 creature or object is force moved within distance, or a size 1 ally willingly moves within distance."
+monsters,Bugbear Commander,Catcher,freeTriggered,FORCE_MOVED,FORCE_MOVED;MOVES,"A size 1 creature or object is force moved within distance, or  a size 1 ally willingly moves within distance."
+monsters,Bugbear Commander,Catcher,freeTriggered,FORCE_MOVED,FORCE_MOVED;MOVES,"A size 1 creature or object is force moved within distance, or a size 1 ally willingly moves within distance."
+monsters,Bugbear Roughneck,Flying Sawblade,triggered,FORCE_MOVED,FORCE_MOVED;MOVES,The roughneck is vertical force moved by another creature.
+monsters,Locratix the Morningstar,Stay Back!,triggered,FORCE_MOVED,FORCE_MOVED;MOVES,A creature within distance moves or is forced moved.
+monsters,Trained Gummy Brick,You Didn't Pay Attention!,freeTriggered,FORCE_MOVED,FORCE_MOVED;MOVES,A creature moves or is force moved adjacent to the brick.
+origins,Reactive Tumble,Reactive Tumble,freeTriggered,FORCE_MOVED,FORCE_MOVED;MOVES,Whenever you are force moved
+abilities,Again,Again,triggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL,The target makes an ability roll.
+abilities,Blessing and a Curse,Blessing and a Curse,triggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL,The target makes a power roll.
+abilities,Turnabout Is Fair Play,Turnabout Is Fair Play,triggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL,"The target makes an ability roll that has an edge, a double  edge, a bane, or a double bane."
+abilities,Word of Guidance,Word of Guidance,triggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL,The target makes an ability roll for a damage-dealing ability.
+monsters,Human Bandit Chief,Bloodstones,triggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL,The bandit chief makes a power roll.
+monsters,Orc Warleader,Courtesy Call,triggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL,The target obtains a tier 1 outcome on one power roll.
+monsters,War Dog Tetrarch,Sneering Disregard,triggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL;MOVES,A creature within distance who is not taunted by the tetrarch targets the tetrarch with a power roll.
+origins,Keeper of Order,Keeper of Order,freeTriggered,MAKES_POWER_ROLL,MAKES_POWER_ROLL,Once per round when you or an adjacent creature makes a power roll
+abilities,Overwatch,Overwatch,triggered,MOVES,MOVES,The target moves.
+abilities,Stop Right There,Stop Right There,freeTriggered,MOVES,MOVES,The target willingly moves adjacent to you
+monster-features,Horn Toss,Horn Toss,freeTriggered,MOVES,MOVES,The gorer damages a creature within distance using Gore.
+monster-features,Trip of the Tongue,Trip of the Tongue,triggered,MOVES,MOVES,A creature moves within distance
+monsters,Snare Trap,Ability,freeTriggered,MOVES,MOVES,A creature or object of the appropriate size enters the trap’s space.
+monsters,Rival Tactician,Battlefield Control,triggered,MOVES,MOVES,An enemy within distance willingly moves.
+monsters,Bear Trap,Bear Trap,freeTriggered,MOVES,MOVES,A creature or object of the appropriate size enters the trap’s space.
+monsters,Mummy,Blast of Mummy Dust,triggered,MOVES,MOVES;TURN_START,The mummy comes within distance of a restrained creature or starts their turn within distance of one.
+monsters,Striped Condor Griffon,Circle and Strike,triggered,MOVES,MOVES,The griffon flies directly above a creature within distance
+monsters,Omen Dragon,Don't Turn Away,freeTriggered,MOVES,MOVES,A creature leaves the area of the dragon's Stagnant Wyrmscale Aura trait.
+monsters,Gloom Dragon,Encroaching Darkness,freeTriggered,MOVES,MOVES,A creature within 10 squares moves.
+monsters,Werewolf,Facepalm and Head Slam,triggered,MOVES,MOVES,A creature within distance targets the werewolf with a melee ability after charging or moving 2 or more squares in a straight line toward them.
+monsters,Fire Giant Chief,Fuel the Fire,triggered,MOVES,MOVES,A fire giant ally within distance makes a strike.
+monsters,Quicksand,Grasping Depths,freeTriggered,MOVES,MOVES;TURN_START,A creature or object enters the quicksand or starts their turn there.
+monsters,Crucible Dragon,Hammer and Anvil,freeTriggered,MOVES,MOVES;TURN_START,"While flying, the dragon starts their turn or moves."
+monsters,Fire Giant Red Fist,Heat and Pressure,freeTriggered,MOVES,MOVES,A creature within distance willingly moves or shifts away from the red fist.
+monsters,Frozen Pond,Icy Water,freeTriggered,MOVES,MOVES,A creature or object enters or falls prone in a square of the frozen pond.
+monsters,Ajax the Invincible,Is This What They Taught You?,triggered,MOVES,MOVES,A creature within distance marks Ajax.
+monsters,Ajax the Leader,Is This What They Taught You?,triggered,MOVES,MOVES,A creature within distance marks Ajax.
+monsters,Lava,Liquid Hot Magma,freeTriggered,MOVES,MOVES;TURN_START,"A creature or object enters the lava or starts their turn there, or starts their turn adjacent to the lava."
+monsters,Rival Tactician,Overwatch,triggered,MOVES,MOVES,An enemy within distance willingly moves.
+monsters,Granite Stone Giant,Pillar,triggered,MOVES,MOVES,A creature or object within distance moves or shifts away from the granite stone giant.
+monsters,Logostician Vesper,Portal to the Sky,triggered,MOVES,MOVES,The target moves within distance of Vesper.
+monsters,Thorn Dragon,Prickly Situation,freeTriggered,MOVES,MOVES,A dragonsealed creature within distance ends the dragonsealed effect.
+monsters,Multivok Chief,Quick Shield,triggered,MOVES,MOVES;TURN_END;SAVING_THROW,The chief or an ally within distance is subject to an effect that can be ended by a saving throw or that ends at the end of their turn.
+monsters,Predator A,Quick Strike,triggered,MOVES,MOVES,A creature or object comes within distance.
+monsters,Rival Tactician,Quickshot,triggered,MOVES,MOVES,An enemy within distance willingly moves.
+monsters,Toxic Plants,Sleep Spores,freeTriggered,MOVES,MOVES;TURN_START,"A creature starts their turn in the area of the toxic plants, or enters a square of toxic plants without shifting."
+monsters,Frozen Pond,Slippery Surface,freeTriggered,MOVES,MOVES,A creature or object enters a square of the frozen pond without shifting
+monsters,Spike Trap,Spike Trap,freeTriggered,MOVES,MOVES,A creature or object of the appropriate size enters the trap’s area.
+monsters,Column of Blades,Spinning Blades,freeTriggered,MOVES,MOVES,A creature or object moves within distance of the column.
+monsters,Soulbinder Psyche,Spirit Form,triggered,MOVES,MOVES,An enemy moves within 2 squares of Psyche.
+monsters,Archer's Stakes,Sticky Stakes,freeTriggered,MOVES,MOVES,A creature enters the stakes from the front
+monsters,Wraith,Stolen Vitality,freeTriggered,MOVES,MOVES,An enemy within distance regains Stamina.
+monsters,Lizardfolk Deathrex,Swat the Fly,triggered,MOVES,MOVES,A creature or object within distance moves or shifts away from the deathrex.
+monsters,Lizardfolk Deathrex Shedded Skin,Swat the Fly,triggered,MOVES,MOVES,A creature or object within distance moves or shifts away from the deathrex.
+monsters,Ogre Goon,Swat the Fly,triggered,MOVES,MOVES,A creature or object within distance moves or shifts away  from the goon.
+monsters,Rival Tactician,Take the Opening,triggered,MOVES,MOVES,An enemy within distance willingly moves.
+monsters,Shambling Mound,Tether Down,triggered,MOVES,MOVES,A creature within distance willingly moves.
+monsters,Column of Blades,Whirling Flails,freeTriggered,MOVES,MOVES,A creature or object moves within distance of the column
+monsters,Hill Giant Clobberer,You Ain't Getting Away,triggered,MOVES,MOVES,A creature within distance moves or shifts away from the clobberer.
+monsters,Ajax the Invincible,Your Obsession With Me Betrays You,triggered,MOVES,MOVES,Ajax causes a creature within distance to gain ferocity or wrath.
+monsters,Ajax the Leader,Your Obsession With Me Betrays You,triggered,MOVES,MOVES,Ajax causes a creature within distance to gain ferocity or wrath.
+monster-features,Fire Bad,Fire Bad,triggered,OTHER,OTHER,An ability deals acid or fire damage to the mercenary
+monsters,Myxovidan the Sintaker,Anyone Can Do That,triggered,OTHER,OTHER,An adjacent creature damages Myxovidan with a melee ability.
+monsters,Aeolyxria the Uncanny,Blood For Blood,triggered,OTHER,OTHER,An ally is made bleeding by the target.
+monsters,Voiceless Talker Invader,Brain Drain,triggered,OTHER,OTHER,A creature grabbed by the invader resists an ability's potency.
+monsters,Time Raider Cannonfall,Buss Buffer,freeTriggered,OTHER,OTHER,A creature damages the cannonfall with a ranged or area ability.
+monsters,Dart Trap,Dart,freeTriggered,OTHER,OTHER,"A pressure plate, switch, or other linked trigger is activated."
+monsters,Dart Trap,Dart (Gatling Darts),freeTriggered,OTHER,OTHER,"A pressure plate, switch, or other linked trigger is activated."
+monsters,Phantom Bredbeddle,Envious Imitation,triggered,OTHER,OTHER,A creature targets the bredbeddle with a ranged strike.
+monsters,Bredbeddle,Envious Imitation,triggered,OTHER,OTHER,A creature targets the bredbeddle with a ranged strike.
+monsters,Portcullis,Heavy Gate,triggered,OTHER,OTHER,"A pressure plate, switch, or other linked trigger is activated."
+monsters,Ram,Ram,freeTriggered,OTHER,OTHER,"A pressure plate, switch, or other linked trigger is activated."
+monsters,Phrrygalax the Subduer,Still Your Tongue!,freeTriggered,OTHER,OTHER,Phrrygalax hears a creature within 5 squares reciting the oath of Good King Omund's Dragon Phalanx.
+monsters,Soulraker Praetorian,Stinging Departure,triggered,OTHER,OTHER,A creature ends the praetorian's grab.
+monsters,Wode Hag,Turned Upside Down,triggered,OTHER,OTHER,A creature targets the hag with a melee strike.
+monsters,Lydixavus the Deadeye,Wasn't Aiming For You,triggered,OTHER,OTHER,Lydixavus obtains a tier 1 outcome on their signature ability.
+monsters,Ajax the Invincible,You Would Flounder Your Assault?,triggered,OTHER,OTHER,A creature within 10 squares regains Stamina.
+monsters,Ajax the Leader,You Would Flounder Your Assault?,triggered,OTHER,OTHER,A creature within 10 squares regains Stamina.
+monsters,The Black Obelisk,Your Fears Become Manifest,freeTriggered,OTHER,OTHER,A new round starts.
+monsters,Dwarf Marauder Lord,Your Weapon Is Useless,triggered,OTHER,OTHER,A creature makes a melee strike against the target.
+rewards,Timely Distraction,Timely Distraction,triggered,OTHER,OTHER,"An ally makes a test to lie to, pick the pocket of, hide from, or sneak by the target and doesn’t like the outcome."
+abilities,Breath of Dawn Remembered,Breath of Dawn Remembered,triggered,TAKES_DAMAGE,TAKES_DAMAGE;TURN_START,The target starts their turn or takes damage.
+abilities,Death Strike,Death Strike,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,You reduce a creature to 0 Stamina with a strike.
+abilities,Defensive Roll,Defensive Roll,triggered,TAKES_DAMAGE,TAKES_DAMAGE,Another creature damages you.
+abilities,Finish Them!,Finish Them!,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,"The target is not a leader or solo creature, and becomes winded."
+abilities,Furious Change,Furious Change,triggered,TAKES_DAMAGE,TAKES_DAMAGE,You lose Stamina and are not dying.
+abilities,In All This Confusion,In All This Confusion,triggered,TAKES_DAMAGE,TAKES_DAMAGE,You take damage.
+abilities,Inertial Absorption,Inertial Absorption,triggered,TAKES_DAMAGE,TAKES_DAMAGE,Another creature damages you using an ability.
+abilities,Inertial Shield,Inertial Shield,triggered,TAKES_DAMAGE,TAKES_DAMAGE,You take damage.
+abilities,Instant Retaliation,Instant Retaliation,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,A creature deals damage to the target.
+abilities,My Life for Yours,My Life for Yours,triggered,TAKES_DAMAGE,TAKES_DAMAGE;TURN_START,The target starts their turn or takes damage.
+abilities,My Turn!,My Turn!,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,"A creature causes you to be winded or dying, or damages you while you are winded or dying."
+abilities,Night Watch,Night Watch,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The target takes damage from another creature’s ability while you are hidden.
+abilities,Parry,Parry,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,A creature deals damage to the target.
+abilities,Repel,Repel,triggered,TAKES_DAMAGE,TAKES_DAMAGE;FORCE_MOVED;MOVES,The target takes damage or is force moved.
+abilities,Repulsive Ward - Activate,Repulsive Ward - Activate,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An adjacent creature deals damage to you
+abilities,Riposte,Riposte,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The target takes damage from a melee strike.
+abilities,Skin Like Castle Walls,Skin Like Castle Walls,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The target takes damage.
+abilities,Stasis Shield,Stasis Shield,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The target takes damage.
+abilities,Synaptic Anchor,Synaptic Anchor,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The target takes damage from another creature’s ability while in the area of your Null Field ability.
+abilities,Unearthly Reflexes,Unearthly Reflexes,triggered,TAKES_DAMAGE,TAKES_DAMAGE,You take damage.
+abilities,Word of Final Redemption,Word of Final Redemption,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The target dies.
+abilities,Word of Judgment,Word of Judgment,triggered,TAKES_DAMAGE,TAKES_DAMAGE;MAKES_POWER_ROLL,The target would take damage from an ability that uses a power roll.
+monster-features,Death Miasma,Death Miasma,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The servitor is reduced to 0 Stamina.
+monster-features,Frenzied Bite,Frenzied Bite,triggered,TAKES_DAMAGE,TAKES_DAMAGE,An enemy within 5 squares is reduced to 0 Stamina.
+monster-features,Horrific Feast,Horrific Feast,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,The gnasher reduces a creature to 0 Stamina.
+monster-features,Shield Block,Shield Block,triggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,The mentor takes damage from a strike while within distance.
+monster-features,Watch Out!,Watch Out!,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The target takes damage from a strike.
+monster-features,Withdraw,Withdraw,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The animal takes damage
+monsters,Lumbering Egress,Abyssal Protectors,triggered,TAKES_DAMAGE,TAKES_DAMAGE,"The last ally minion on the encounter map dies, or the egress is reduced below 25 Stamina."
+monsters,Lord Syuul,Adaptability,triggered,TAKES_DAMAGE,TAKES_DAMAGE,Lord Syuul takes damage that has a damage type.
+monsters,Voiceless Talker Evolutionist,Adaptability,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The evolutionist takes damage that has a damage type.
+monsters,Hobgoblin Bloodlord,An Army From Blood,triggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,A non-minion hobgoblin within distance takes damage.
+monsters,Ashen Hoarder,Armor of Corpses,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The ashen hoarder takes damage.
+monsters,Phrrygalax the Subduer,Armor of the Ancients,triggered,TAKES_DAMAGE,TAKES_DAMAGE,"Phrrygalax takes acid, cold, corruption, fire, lightning, or poison damage."
+monsters,Strategos Alkestis,Artillery Enfilade,triggered,TAKES_DAMAGE,TAKES_DAMAGE,An ally is reduced to 0 Stamina within 10 squares of Alkestis.
+monsters,Frost Giant Wind Sprinter,"Begone, Smallfolk!",triggered,TAKES_DAMAGE,TAKES_DAMAGE,The wind sprinter takes damage.
+monsters,Hulking Brain,Brawny Buffer,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,An ally voiceless talker within 5 squares takes damage from an enemy ability.
+monsters,Rival Elementalist,Breach of Nihility,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The elementalist takes damage.
+monsters,Force of Earth,Break Armor,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The force takes damage.
+monsters,Marble Stone Giant,Break Armor,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The marble stone giant takes damage.
+monsters,Slaughter Demon,Devour Soul,triggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,A creature within distance who has a soul dies.
+monsters,Fossil Cryptic,Dissipate,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The cryptic takes damage.
+monsters,Shadow Elf Moondancer,Dissolve,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The moondancer takes damage from a strike.
+monsters,Fire Giant Lightbearer,Emergency Beacon,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The lightbearer takes damage.
+monsters,Radenwight Maestro,Ever-Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE;MOVES,A creature within distance deals damage to an ally or takes  damage from an ally.
+monsters,Corrosive Pool,Explosive Reaction,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The pool takes fire damage.
+monsters,Mindkiller Whelp,Feast,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,The whelp reduces a non-minion creature to 0 Stamina.
+monsters,War Dog Hypokrite,Feign Death,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The hypokrite takes damage.
+monsters,Meteor Dragon,Field Collapse,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The dragon takes damage from an ability while the area of their Voidshroud Wyrmscale Aura is 2 or more.
+monsters,War Dog Ground Commander,Final Orders,triggered,TAKES_DAMAGE,TAKES_DAMAGE;FORCE_MOVED;MOVES,"The target takes damage, is force moved, or is reduced to 0 Stamina."
+monsters,Rival Elementalist,Fissures of Darkness,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The elementalist takes damage.
+monsters,Crux of Fire,Flame Jet,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The crux takes damage.
+monsters,Orc Juggernaut,Hrraaaaaagh!,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The juggernaut takes damage.
+monsters,Ogre Juggernaut,Hrraaaaaagh!,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The juggernaut takes damage.
+monsters,Rival Elementalist,Jaws of the Void,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The elementalist takes damage.
+monsters,Basilisk,Lash Out,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The basilisk takes damage from a melee ability.
+monsters,Rival Elementalist,Maw of the Abyss,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The elementalist takes damage.
+monsters,Mindkiller,Meat Shield,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The mindkiller takes damage.
+monsters,Basilisk Tonguesnapper,Neurotoxin Splash,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The tonguesnapper takes damage from a melee ability.
+monsters,The Throne of A’An,Nova,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The throne is destroyed or the hierophant obtains a tier 1 outcome on the test to deactivate it.
+monsters,Psionic Shard,Psionic Pulse,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The shard is destroyed.
+monsters,Radenwight Sidekick,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Radenwight Redeye,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Radenwight Bruxer,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Radenwight Ratcrobat,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Radenwight Mischiever,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Radenwight Piper,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Radenwight Scrapper,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Radenwight Swiftpaw,Ready Rodent,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,An ally deals damage to the target.
+monsters,Basalt Stone Giant,Resonate Rune,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The basalt stone giant takes damage.
+monsters,War Dog War Doc,Sanguine Stimulants,triggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,One ally within distance dies.
+monsters,Bugbear Channeler,Shadow Veil,triggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,An ally within distance takes damage.
+monsters,War Spider,Skitter,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The spider or any ally riding the spider takes damage.
+monsters,Arixx,Skitter,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The arixx takes damage.
+monsters,The Throne of A’An,Solar Accretion,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,A target within distance is made winded or is reduced to 0 Stamina by fire damage.
+monsters,Gunge,Spew Slide,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The gunge takes damage from a melee strike.
+monsters,Troll Glutton,Spiteful Retort,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,The glutton is reduced to 0 Stamina but doesn't die.
+monsters,Lightbender,Stalker's Afterimage,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The lightbender takes damage from a strike.
+monsters,Lightbender Pouncer,Striking Afterimage,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The pouncer takes damage from a strike.
+monsters,Mummy Lord,Summon My Guard,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The mummy lord is made winded for the first time in the encounter.
+monsters,Voiceless Talker Artillerist,Tactical Reposition,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The artillerist takes damage.
+monsters,Kingfissure Worm,Tearing Recoil,triggered,TAKES_DAMAGE,TAKES_DAMAGE;DEALS_DAMAGE,A tongue takes damage that doesn't reduce it to 0 Stamina.
+monsters,Devil Defector,Tempting Offer,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,A sapient enemy is reduced to 0 Stamina.
+monsters,Pillar,Toppling Pillar,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE,"The pillar is destroyed, or a pressure plate, switch, or other  linked trigger is activated."
+monsters,Soulbinder Psyche,Vengeance for the Slain,freeTriggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,A war dog within distance is made winded or reduced to 0 Stamina.
+monsters,Dorzinuuth the Base,Watch Your Six!,triggered,TAKES_DAMAGE,TAKES_DAMAGE;MOVES,An ally within distance takes damage while Dorzinuuth isn't flying.
+monsters,Griffon,Zephyr Feint,triggered,TAKES_DAMAGE,TAKES_DAMAGE,The griffon takes damage
+origins,Glowing Eyes,Glowing Eyes,triggered,TAKES_DAMAGE,TAKES_DAMAGE,Whenever you take damage from a creature.
+origins,Resist the Unnatural,Resist the Unnatural,triggered,TAKES_DAMAGE,TAKES_DAMAGE,You take damage that isn't untyped
+abilities,Clever Trick,Clever Trick,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,An enemy targets you with a strike.
+abilities,Intercede,Intercede,freeTriggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature makes a strike against the target.
+abilities,So Gullible,So Gullible,freeTriggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,Another creature targets you with a strike.
+monster-features,"'Scuse Me, Boss","'Scuse Me, Boss",triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The warrior’s mentor is targeted by a strike while within  distance.
+monster-features,Supporting Volley,Supporting Volley,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,The retainer's mentor makes a strike against a creature within distance.
+monsters,Lich,Baleful Swap,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The lich is targeted using an ability by a creature other than the target.
+monsters,Scyza,Brace and Break,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The scyza or an ally riding the scyza is targeted by an ability.
+monsters,Bugbear Sneak,Clever Trick,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The sneak is targeted by a strike.
+monsters,Devil Legate,Devilish Charm,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature targets the legate with a strike.
+monsters,Devil Magistrate,Devilish Charm,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature targets the magistrate with a strike.
+monsters,Devil Adjudicator,Devilish Charm,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature targets the adjudicator with a strike.
+monsters,Devil Jurist,Devilish Charm,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature targets the jurist with a strike.
+monsters,Devil High Judge,Devilish Suggestion,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature targets the magistrate with a strike.
+monsters,High Elf Ordinator,Enough!,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;USES_ABILITY_OR_ACTION;MOVES,An enemy within distance uses an ability against the ordinator or any ally within distance.
+monsters,Soulraker Hivequeen,For the Queen!,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,"The hivequeen is targeted by a strike for the second time on an attacker's turn, whether by the attacker or another creature acting on the attacker's turn."
+monsters,Frost Giant Storm Hurler,Frozen Retribution,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The storm hurler is targeted by a ranged strike.
+monsters,Fire Giant Red Fist,Guardian Block,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,An ally within distance is targeted by an enemy's ability.
+monsters,Chorogaunt,I Thrive on Pain,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The chorogaunt is targeted by a strike.
+monsters,Dwarf Shieldwall,Intercepting Shield,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,A creature makes a strike against an ally adjacent to the shieldwall.
+monsters,Big Animal A,Juke,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The animal is targeted by an area ability.
+monsters,Iron Champion Doru,Laugh It Off,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,An enemy makes a strike against Doru.
+monsters,Goblin Monarch,Meat Shield,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature targets the monarch with a strike.
+monsters,Servok Miner,Miner Inconvenience,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The miner is targeted by a strike.
+monsters,Orc Rampart,No.,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,A creature targets an ally adjacent to the rampart with an  ability that doesn’t also target the rampart.
+monsters,Chimeron,Pain Absorption,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The chimeron is targeted by a damage-dealing strike.
+monsters,Human Blackguard,Parry!,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,A creature makes a strike against the blackguard or an ally  adjacent to them.
+monsters,Crucible Dragon,Polarize Aura,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The dragon is targeted by two melee strikes in the current turn.
+monsters,Time Raider Tyrannis,Precog Reflexes,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,A creature within distance makes a strike against the tyrannis.
+monsters,Chimera,Ram's Defiance,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature makes a strike against the chimera and obtains a tier 1 outcome.
+monsters,Vampire,Reactive Charm,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature makes a strike against the vampire.
+monsters,Count Rhodar von Glauer,Reactive Rebuke,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,A creature within distance makes a strike against Rhodar.
+monsters,Vampire Lord,Redirected Charm,freeTriggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,A creature makes a strike against the vampire.
+monsters,Ghost,Shriek,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,A creature within distance targets the ghost with a strike.
+monsters,Castellan Hoplon,Timely Intervention,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,An enemy within 10 squares targets an ally with an ability.
+monsters,Angulotl Daybringer,Tongue Slap,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE,The target makes a strike against the daybringer or an ally that isn’t a critical hit.
+monsters,War Dog Prismite,Tractor Beam,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;USES_ABILITY_OR_ACTION;MOVES,An enemy within distance uses a melee ability against an ally.
+monsters,Shadow Elf Knightfell,Trick of the Eye,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MOVES,An enemy within distance makes a strike against the target.
+monsters,Multivok Bodyguard,Valiar Cloak,triggered,TARGETED_BY_STRIKE,TARGETED_BY_STRIKE;MAKES_POWER_ROLL;USES_ABILITY_OR_ACTION;MOVES,One ally within distance is targeted by an enemy's ability. The bodyguard can use this ability after seeing the outcome of the power roll.
+abilities,Fulfill Your Destiny,Fulfill Your Destiny,triggered,TURN_END,TURN_END,You or another hero ends their turn.
+abilities,Pain of Your Own Making,Pain of Your Own Making,freeTriggered,TURN_END,TURN_END;CONDITION_GAIN;SAVING_THROW,The target gains a condition or effect that is ended by a saving throw or that ends at the end of their turn.
+abilities,Time Loop,Time Loop,freeTriggered,TURN_END,TURN_END,Another creature on the encounter map ends their turn.
+monsters,Wode Elf Guerrilla,Do Not Hesitate in the Wode,freeTriggered,TURN_END,TURN_END,An ally ends their turn while the guerrilla hasn’t acted this round.
+monsters,Wode Elf Warleader,Wode Sickness,triggered,TURN_END,TURN_END,An ally ends their turn.
+abilities,Arrestor Cycle,Arrestor Cycle,freeTriggered,TURN_START,TURN_START,The triggering creature starts their turn.
+abilities,Hesitation is Weakness,Hesitation is Weakness,freeTriggered,TURN_START,TURN_START;TURN_END,Another hero ends their turn. That hero can’t have used this ability to start their turn.
+abilities,Prescient Grace,Prescient Grace,triggered,TURN_START,TURN_START,An enemy within 10 squares starts their turn.
+monster-features,Exploit Opening,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monster-features,Staying Power,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Giant Hawk,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Brawler,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Trickshot,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Bandit Chief,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Death Acolyte,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Apprentice Mage,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Guard,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Storm Mage,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Archer,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Death Cultist,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Raider,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Knave,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Rogue,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Scoundrel,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Scoundrel,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Human Blackguard,Exploit Opening,triggered,TURN_START,TURN_START,A human's turn starts
+monsters,Giant Zombie,Knocking Heads,triggered,TURN_START,TURN_START,"The giant zombie grabs two creatures or objects, or starts their turn with two creatures or objects grabbed."
+monsters,Giant Hawk,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Brawler,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Trickshot,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Death Acolyte,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Apprentice Mage,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Guard,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Storm Mage,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Archer,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Death Cultist,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Raider,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Knave,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Rogue,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+monsters,Human Blackguard,Staying Power,triggered,TURN_START,TURN_START,a human's turn starts
+abilities,Anticipating Strike,Anticipating Strike,freeTriggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,The target moves or uses a main action.
+abilities,Harmonize,Harmonize,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION,The target uses an ability that targets only one enemy and  costs 3 or fewer of their Heroic Resource.
+abilities,Strike For Me,Strike For Me,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION,You use a triggered action to make a free strike or use a signature ability.
+abilities,Too Slow,Too Slow,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION,You use your In All This Confusion ability.
+monsters,Meteor Dragon,A Hero Faces the Void,freeTriggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,A creature within distance spends their Heroic Resource to use an ability.
+monsters,Wode Elf Green Seer,Foreseen Punishment,freeTriggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,A creature uses a triggered action targeting the green seer or an ally within distance.
+monsters,Hobgoblin War Mage,Magic Siphon,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,A creature within distance uses a magic ability.
+monsters,Lithgekh,Mystic Battery,freeTriggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,A creature within distance uses a magic ability.
+monsters,Shadow Elf Eclipse,Put It Out!,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,"An enemy within distance uses an ability that emits light, including abilities that deal fire or lightning damage."
+monsters,Fossil Cryptic,Shatterstone,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION,The cryptic uses the Dig maneuver to resurface.
+monsters,Ajax the Invincible,Shieldbreaker Talisman,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,An enemy within distance uses an ability to reduce damage.
+monsters,Ajax the Leader,Shieldbreaker Talisman,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,An enemy within distance uses an ability to reduce damage.
+monsters,Kobold Centurion,Testudo!,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION;MOVES,A creature uses an ability that targets the centurion or an ally  of the centurion within distance.
+monsters,Ajax the Invincible,Who's Hesitating?,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION,A creature uses the Hesitation is Weakness ability.
+monsters,Ajax the Leader,Who's Hesitating?,triggered,USES_ABILITY_OR_ACTION,USES_ABILITY_OR_ACTION,A creature uses the Hesitation is Weakness ability.

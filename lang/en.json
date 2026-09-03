@@ -1,0 +1,10 @@
+{
+  "DS_TRIGGERS": {
+    "Settings": {
+      "DebugMode": {
+        "Name": "Debug Mode",
+        "Hint": "Log trigger detection details to the console."
+      }
+    }
+  }
+}
