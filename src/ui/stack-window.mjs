@@ -1,13 +1,14 @@
 import { MODULE_ID } from "../util.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld } from "../triggers/queue.mjs";
 import { maliceChipURI } from "./malice-chip.mjs";
+import { buildAbilityPreview } from "./ability-preview.mjs";
 
 export class StackWindow extends ds.applications.api.DSApplication {
   static DEFAULT_OPTIONS = {
     id: "dst-stack-window",
     classes: ["draw-steel", "dst-stack-window"],
     window: { minimizable: true, resizable: true },
-    position: { width: 380, height: "auto" },
+    position: { width: 500, height: "auto" },
     actions: {
       useEntry: StackWindow.#onUse,
       declineEntry: StackWindow.#onDecline,
@@ -41,9 +42,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const L = (k) => game.i18n.localize(`DS_TRIGGERS.Queue.${k}`);
     
     const ordered = [...getQueueMirror()].sort((a, b) => (a.kind === "held") - (b.kind === "held"));
-    const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
     const embeds = await Promise.all(ordered.map((e) =>
-      TE.enrichHTML(`@Embed[${e.itemUuid} caption=false]`).catch(() => "")));
+      buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")));
     return {
       isGM: game.user.isGM,
       maliceChipURI: maliceChipURI(),
@@ -65,16 +65,6 @@ export class StackWindow extends ds.applications.api.DSApplication {
         const item = fromUuidSync(e.itemUuid);
         const sys = item?.system;
 
-        const typeParts = [];
-        const typeLabel = sys?.type ? ds.CONFIG.abilities.types[sys.type]?.label : null;
-        if (typeLabel) typeParts.push(game.i18n.localize(typeLabel));
-        const keywords = [...(sys?.keywords ?? [])]
-          .map((k) => {
-            const kw = ds.CONFIG.abilities.keywords?.[k]?.label;
-            return kw ? game.i18n.localize(kw) : k.charAt(0).toUpperCase() + k.slice(1);
-          });
-        if (keywords.length) typeParts.push(keywords.join(", "));
-
         let costBadge = null;
         if (Number.isFinite(sys?.resource) && sys.resource > 0) {
           const malice = ownerDoc?.type !== "hero" && ownerDoc?.type !== "character";
@@ -87,28 +77,15 @@ export class StackWindow extends ds.applications.api.DSApplication {
         }
 
         
-        let labels = null;
-        try { labels = sys?.formattedLabels ?? null; } catch { labels = null; }
-        let distance = null;
-        if (sys?.distance?.type && labels?.distance) {
-          const distIcons = { melee: "fa-sword", ranged: "fa-bow-arrow", meleeRanged: "fa-swords", self: "fa-user" };
-          distance = { icon: distIcons[sys.distance.type] ?? "fa-ruler-combined", label: labels.distance };
-        }
-        const target = labels?.target && sys?.target?.type !== "self"
-          ? { label: game.i18n.localize(labels.target) }
-          : null;
-
         return {
           ...e,
           embedHTML,
           embedOpen,
+          iconSrc: item?.img ?? null,
           ownerClickable: !!ownerDoc && ownerDoc.testUserPermission(game.user, "LIMITED"),
           isHeld,
-          typeLine: typeParts.join(" · "),
           costBadge,
           isFree: sys?.type === "freeTriggered",
-          distance,
-          target,
           heldEyebrow: isHeld ? game.i18n.format("DS_TRIGGERS.Queue.HeldBy", { name: e.ownerName }) : null,
           isPending: e.state === "pending",
           showButtons: !isHeld && e.state === "pending" && canActOn(e),
@@ -129,9 +106,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const count = getQueueMirror().length;
     const titleEl = this.element.querySelector(".window-header .window-title");
     if (titleEl) {
-      titleEl.textContent = count
+      const text = count
         ? `${this.title} · ${game.i18n.format("DS_TRIGGERS.Queue.InStack", { count })}`
         : this.title;
+      titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem.svg" alt="">${text}`;
     }
     
     this._openEmbeds ??= new Set();

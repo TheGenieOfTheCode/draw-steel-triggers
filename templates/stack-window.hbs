@@ -23,7 +23,16 @@
         {{/if}}
       </div>
       <div class="dst-stack-title-row">
+        {{#if embedHTML}}
+        <a class="dst-stack-embed-toggle" data-entry-id="{{id}}">
+          <i class="fa-solid fa-chevron-{{#if embedOpen}}down{{else}}right{{/if}}"></i>
+          {{#if iconSrc}}<img class="dst-stack-icon" src="{{iconSrc}}" alt="">{{/if}}
+          <span class="dst-stack-name">{{itemName}}</span>
+        </a>
+        {{else}}
+        {{#if iconSrc}}<img class="dst-stack-icon" src="{{iconSrc}}" alt="">{{/if}}
         <span class="dst-stack-name">{{itemName}}</span>
+        {{/if}}
         {{#if ownerClickable}}
         <a class="dst-stack-owner dst-stack-owner-link" data-action="openOwner" data-uuid="{{ownerActorUuid}}">{{ownerName}}</a>
         {{else}}
@@ -33,17 +42,6 @@
         {{#if costBadge}}
         <span class="dst-stack-cost{{#if costBadge.malice}} dst-stack-cost--malice{{/if}}">
           {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}
-        </span>
-        {{/if}}
-      </div>
-      {{#if typeLine}}<div class="dst-stack-type">{{typeLine}}</div>{{/if}}
-      <div class="dst-stack-embed-row">
-        {{#if embedHTML}}
-        <a class="dst-stack-embed-toggle" data-entry-id="{{id}}"><i class="fa-solid fa-chevron-{{#if embedOpen}}down{{else}}right{{/if}}"></i> {{@root.labels.showAbility}}</a>
-        {{/if}}
-        {{#if distance}}
-        <span class="dst-stack-summary">
-          <i class="fa-solid {{distance.icon}}"></i> {{distance.label}}{{#if target}} &middot; <i class="fa-solid fa-bullseye"></i> {{target.label}}{{/if}}
         </span>
         {{/if}}
       </div>
