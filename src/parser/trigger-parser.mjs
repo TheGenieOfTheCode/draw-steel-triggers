@@ -47,22 +47,63 @@ export const DAMAGE_MODIFYING = new Set([
 // Trick of the Eye, Testudo) stay lock-only for now.
 export const TARGETED_HALVERS = new Set(["shriek", "pain-absorption", "devilish-charm"]);
 
-function damageModLayer(result, id) {
-  if (TARGETED_HALVERS.has(id)) return { ...result, damageModifying: true, targetedHalf: true };
-  if (!DAMAGE_MODIFYING.has(id)) return result;
-  return {
-    ...result,
-    damageModifying: true,
-    clauses: result.clauses.map((c) => {
-      if (c.event !== "TAKES_DAMAGE") return c;
-      const upgraded = { ...c, event: "WOULD_TAKE_DAMAGE" };
-      if (c.events) upgraded.events = c.events.map((e) => e === "TAKES_DAMAGE" ? "WOULD_TAKE_DAMAGE" : e);
-      return upgraded;
-    }),
-  };
+const DAMAGE_MOD_TEXT = [
+  /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
+  /\bhalf (?:the |that |this |of the |any )?damage\b/i,
+  /\bdamage (?:is |taken is )?halved\b/i,
+  /\b(?:reduce[sd]?|decrease[sd]?|lower[sd]?) (?:the |that |this |any |incoming )?damage\b/i,
+  /\btakes? no damage\b/i,
+  /\bignores? (?:the |that |this )?damage\b/i,
+  /\b(?:damage )?immunity (?:\d+|equal to)\b/i,
+];
+
+export function isDamageModifyingText(text) {
+  return !!text && DAMAGE_MOD_TEXT.some((rx) => rx.test(text));
 }
 
-// ---------- Layer 2: regex ----------
+// "the target" in trigger text points at the ability's own Target field, so a
+
+const TARGET_TYPE_SCOPES = {
+  self: "SELF",
+  ally: "ALLY",
+  selfAlly: "SELF_OR_ALLY",
+  selfOrAlly: "SELF_OR_ALLY",
+  selfOrCreature: "ANY",
+  creature: "ANY",
+  creatureObject: "ANY",
+  enemy: "ENEMY",
+  enemyObject: "ENEMY",
+  object: "OBJECT",
+};
+
+function resolveTargetScope(result, targetType) {
+  const scope = TARGET_TYPE_SCOPES[targetType];
+  if (!scope || !result.clauses.some((c) => c.scope === "TARGET")) return result;
+  return { ...result, clauses: result.clauses.map((c) => c.scope === "TARGET" ? { ...c, scope } : c) };
+}
+
+function damageModLayer(result, id, effectText) {
+  if (TARGETED_HALVERS.has(id)) {
+    return {
+      ...result,
+      damageModifying: true,
+      targetedHalf: true,
+      clauses: result.clauses.map((c) => c.event === "TARGETED_BY_STRIKE" ? { ...c, targetedHalf: true } : c),
+    };
+  }
+  if (!DAMAGE_MODIFYING.has(id) && !isDamageModifyingText(effectText)) return result;
+  let upgraded = 0;
+  const clauses = result.clauses.map((c) => {
+    if (c.event !== "TAKES_DAMAGE") return c;
+    upgraded++;
+    const next = { ...c, event: "WOULD_TAKE_DAMAGE" };
+    if (c.events) next.events = c.events.map((e) => e === "TAKES_DAMAGE" ? "WOULD_TAKE_DAMAGE" : e);
+    return next;
+  });
+  if (!upgraded) return result;
+  return { ...result, damageModifying: true, clauses };
+}
+
 const EVENTS = [
   ["DIES",            /\b(dies|would die|is destroyed|enough damage to (die|be destroyed)|reduced? [^,]*?to 0 stamina|reduces? [^,]*?to 0 stamina|to 0 stamina)\b/i],
   ["WINDED_OR_DYING", /\b(winded|dying)\b/i],
@@ -123,7 +164,7 @@ function splitClauses(text) {
   const t = stripPrefix(text.trim().replace(/\.$/, ""));
   
   if (/^(the [\w'’ ]+|you) or an ally\b/i.test(t)) return [t];
-  // qualifier tails ("with an ability that X, Y, or Z") belong to the preceding clause, never split inside them
+  
   const qi = t.search(/\b(that|which) \b/);
   if (qi > 0) { const inner = splitClauses(t.slice(0, qi).trim()); inner[inner.length - 1] += " " + t.slice(qi); return inner; }
   const DT = "(?!(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic|untyped)\\b)";
@@ -143,7 +184,7 @@ function scopeOf(lc, event, owner) {
   const mentionsOwner = words.some(w => new RegExp(`\\b${w}\\b`).test(lc));
   const subj = lc.match(/^(you\b|the target\b|your companion\b|the [\w'’ ]+?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|obtains?|hears|causes?))|(?:an?|one|another|any) [\w -]+?(?: or object)?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|marks|resists|within)))/);
   const s = subj ? subj[1] : "";
-  // events where the grammatical subject is the actor, not the affected party
+  
   const objectEvents = new Set(["TAKES_DAMAGE", "TARGETED_BY_STRIKE", "WINDED_OR_DYING", "DIES"]);
   const objectSide = /\b(deals? [\w, ]*damage to|damages?|targets?|strike against|strikes?|causes?|reduces?) (you|the target|an ally|any ally|an enemy|a creature|the [\w' ]+|[a-z]+)\b/;
   let affected = s;
@@ -169,11 +210,11 @@ function scopeOf(lc, event, owner) {
   return "UNKNOWN";
 }
 
-export function parseTrigger(text, { dsid, ownerName } = {}) {
+export function parseTrigger(text, { dsid, ownerName, effectText, targetType } = {}) {
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return damageModLayer({ ...special, confidence: "high", source: "special" }, id);
+  if (special) return damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText);
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -205,5 +246,5 @@ export function parseTrigger(text, { dsid, ownerName } = {}) {
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }
-  return damageModLayer({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, id);
+  return damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText);
 }

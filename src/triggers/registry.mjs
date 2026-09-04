@@ -46,12 +46,28 @@ export function getParsedTrigger(item) {
 
   const text = item.system.trigger ?? "";
   const ownerName = item.actor?.name ?? "";
+  const effectText = _effectText(item);
+  const targetType = item.system.target?.type ?? "";
   const cached = _parseCache.get(item.uuid);
-  if (cached && cached.text === text && cached.ownerName === ownerName) return cached.result;
+  if (cached && cached.text === text && cached.ownerName === ownerName && cached.effectText === effectText && cached.targetType === targetType) return cached.result;
 
-  const result = parseTrigger(text, { dsid: item.dsid, ownerName });
-  _parseCache.set(item.uuid, { text, ownerName, result });
+  const result = parseTrigger(text, { dsid: item.dsid, ownerName, effectText, targetType });
+  _parseCache.set(item.uuid, { text, ownerName, effectText, targetType, result });
   return result;
+}
+
+function _effectText(item) {
+  const sys = item.system;
+  const parts = [];
+  for (const eff of sys.effects?.contents ?? []) {
+    if (eff?.description) parts.push(eff.description);
+  }
+  for (const powerEffect of sys.power?.effects?.contents ?? []) {
+    try {
+      parts.push(JSON.stringify(powerEffect.toObject()));
+    } catch {}
+  }
+  return parts.join(" ").replace(/<[^>]+>/g, " ");
 }
 
 export function getTriggeredAbilities(actor) {

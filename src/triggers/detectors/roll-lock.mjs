@@ -44,7 +44,7 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
       if (seen.has(m.item.uuid)) continue;
       seen.add(m.item.uuid);
       m._lockEvent = event;
-      m._halvesOnUse = event === "TARGETED_BY_STRIKE" && m.parse?.targetedHalf === true;
+      m._halvesOnUse = event === "TARGETED_BY_STRIKE" && m.clause?.targetedHalf === true;
       m._causeLabel = game.i18n.format(`DS_TRIGGERS.Queue.Cause.${event}`, {
         roller: rollerActor.name, ability: ability.name, owner: m.actor.name,
       });
