@@ -2,6 +2,7 @@ import { MODULE_ID, getSetting, dbg, emblemHTML } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
+import { maliceChipURI } from "../ui/malice-chip.mjs";
 
 const PROMPT_EVENTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING"]);
 
@@ -125,6 +126,16 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
 
   if (!matches.length) return;
   if (!getSetting("chatReminders")) return;
+
+  
+  if (event === "TURN_START" && subjectActor) {
+    const maliceMatches = matches.filter((m) => m.malice);
+    if (maliceMatches.length) {
+      _sendMaliceCard(maliceMatches, subjectActor);
+      matches = matches.filter((m) => !m.malice);
+    }
+  }
+  if (!matches.length) return;
   dbg(`event ${event} matched ${matches.length} abilities`, { causeLabel, matches });
 
   
@@ -174,27 +185,133 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   }
 }
 
-Hooks.on("renderChatMessageHTML", (message, html) => {
-  if (!message.getFlag(MODULE_ID, "reminder")) return;
-  for (const link of html.querySelectorAll(".dst-ability-link")) {
-    link.addEventListener("click", async (clickEvent) => {
-      const item = await fromUuid(link.dataset.itemUuid).catch(() => null);
-      if (!item) {
-        ui.notifications.warn("DS_TRIGGERS.Reminder.MissingAbility", { localize: true });
-        return;
-      }
-      if (clickEvent.shiftKey) {
-        await ds.documents.DrawSteelChatMessage.create({
-          content: `@Embed[${item.uuid} caption=false]`,
-          type: "standard",
-          "system.parts": [{ type: "content" }],
-          speaker: ds.documents.DrawSteelChatMessage.getSpeaker({ actor: item.actor }),
-          title: item.name,
-          flags: { core: { canPopout: true } },
-        });
-      } else {
-        await item.system.use();
-      }
+function _neutralizeStatusLinks(html) {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  for (const el of div.querySelectorAll('.roll-link[data-type="status"], .roll-link[data-type="custom"]')) {
+    el.removeAttribute("data-type");
+    el.classList.add("dst-inert-link");
+  }
+  return div.innerHTML;
+}
+
+async function _sendMaliceCard(matches, subjectActor) {
+  matches.sort((a, b) => (a.item.system.resource ?? 999) - (b.item.system.resource ?? 999));
+  const L = (k) => game.i18n.localize(`DS_TRIGGERS.MaliceCard.${k}`);
+  const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
+
+  const rows = (await Promise.all(matches.map(async (m) => {
+    const sys = m.item.system;
+    const cost = Number.isFinite(sys.resource) ? sys.resource : "";
+    const actionType = sys.type;
+    let typeTag = "";
+    if (actionType && actionType !== "none") {
+      const shortKey = actionType === "triggered" ? "DS_TRIGGERS.Reminder.Triggered"
+        : actionType === "freeTriggered" ? "DS_TRIGGERS.Reminder.Free"
+          : ds.CONFIG.abilities.types[actionType]?.label;
+      if (shortKey) typeTag = `<span class="dst-malice-type-tag">${game.i18n.localize(shortKey)}</span>`;
+    }
+    const link = `<a class="dst-ability-link" data-item-uuid="${m.item.uuid}" data-tooltip="${game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip")}"><strong>${m.item.name}</strong></a>`;
+
+    
+    
+    const enrich = async (text) => {
+      if (!text) return "";
+      const html = await TE.enrichHTML(text, { relativeTo: m.item }).catch(() => text);
+      return _neutralizeStatusLinks(html);
+    };
+    let labels = null;
+    try { labels = sys.formattedLabels ?? null; } catch { labels = null; }
+
+    
+    const actionLabel = actionType && !["none", "triggered", "freeTriggered"].includes(actionType)
+      ? game.i18n.localize(ds.CONFIG.abilities.types[actionType]?.label ?? "") : "";
+    const kwPills = [...(sys.keywords ?? [])].map((k) => {
+      const kwLabel = ds.CONFIG.abilities.keywords?.[k]?.label;
+      const label = kwLabel ? game.i18n.localize(kwLabel) : k.charAt(0).toUpperCase() + k.slice(1);
+      return `<span class="dst-kw-badge">${label}</span>`;
+    }).join("");
+    const kwRow = kwPills || actionLabel
+      ? `<div class="dst-malice-embed-kw"><span class="dst-kw-badges">${kwPills}</span><span class="dst-malice-embed-action">${actionLabel}</span></div>`
+      : "";
+
+    const distIcons = { melee: "fa-sword", ranged: "fa-bow-arrow", meleeRanged: "fa-swords", self: "fa-user" };
+    const dtParts = [];
+    if (labels?.distance) dtParts.push(`<span><i class="fa-solid ${distIcons[sys.distance?.type] ?? "fa-ruler-combined"}"></i> ${labels.distance}</span>`);
+    if (labels?.target) dtParts.push(`<span><i class="fa-solid fa-bullseye"></i> ${game.i18n.localize(labels.target)}</span>`);
+    const dtRow = dtParts.length ? `<div class="dst-malice-embed-dt">${dtParts.join("")}</div>` : "";
+
+    const before = [];
+    const after = [];
+    for (const eff of sys.effects?.sortedContents ?? []) {
+      const text = await enrich(eff.description ?? "");
+      if (!text) continue;
+      (eff.before ? before : after).push(`<div class="dst-malice-embed-effect"><strong>${eff.label ?? ""}</strong>${text}</div>`);
+    }
+
+    let tiers = "";
+    if (sys.power?.roll?.enabled) {
+      const tierLines = await Promise.all([1, 2, 3].map(async (tier) => {
+        const text = await enrich(await sys.powerRollText(tier));
+        return text ? `<div class="dst-malice-embed-tier"><span class="dst-tier-badge dst-tier-badge--${tier}">${["&le;11", "12&ndash;16", "17+"][tier - 1]}</span><span>${text}</span></div>` : "";
+      }));
+      tiers = `<div class="dst-malice-embed-tiers">${tierLines.join("")}</div>`;
+    }
+
+    return `<div class="dst-malice-feature">
+      <div class="dst-malice-feature-head">
+        <a class="dst-malice-expand" data-tooltip="${L("ExpandTooltip")}"><i class="fa-solid fa-chevron-right dst-malice-chevron"></i></a>
+        ${link}${typeTag}
+        <span class="dst-malice-feature-cost"><img class="dst-malice-chip" src="${maliceChipURI()}" alt="">${cost} ${game.i18n.localize("DS_TRIGGERS.Reminder.Malice")}</span>
+      </div>
+      <div class="dst-malice-feature-embed dst-collapsed">${kwRow}${dtRow}${before.join("")}${tiers}${after.join("")}</div>
+    </div>`;
+  }))).join("");
+
+  const recipients = new Set(game.users.filter((u) => u.isGM).map((u) => u.id));
+  for (const m of matches) {
+    for (const u of game.users) if (m.actor.testUserPermission(u, "OWNER")) recipients.add(u.id);
+  }
+
+  ChatMessage.create({
+    content: `<div class="dst-malice-card">
+      <header class="dst-malice-card-hdr">${L("Header")}</header>
+      <div class="dst-malice-card-title"><span class="dst-emblem">${emblemHTML()}</span>${game.i18n.format("DS_TRIGGERS.MaliceCard.Title", { name: subjectActor.name })}</div>
+      <p class="dst-malice-card-intro">${game.i18n.format("DS_TRIGGERS.MaliceCard.Intro", { name: subjectActor.name })}</p>
+      ${rows}
+    </div>`,
+    whisper: [...recipients],
+    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
+    flags: { [MODULE_ID]: { reminder: { event: "MALICE_MENU" } } },
+  });
+}
+
+document.addEventListener("click", async (event) => {
+  const expand = event.target.closest(".dst-malice-expand");
+  if (expand) {
+    const embed = expand.closest(".dst-malice-feature")?.querySelector(".dst-malice-feature-embed");
+    if (!embed) return;
+    embed.classList.toggle("dst-collapsed");
+    expand.querySelector("i")?.classList.toggle("dst-malice-chevron--open", !embed.classList.contains("dst-collapsed"));
+    return;
+  }
+  const link = event.target.closest(".dst-ability-link");
+  if (!link) return;
+  const item = await fromUuid(link.dataset.itemUuid).catch(() => null);
+  if (!item) {
+    ui.notifications.warn("DS_TRIGGERS.Reminder.MissingAbility", { localize: true });
+    return;
+  }
+  if (event.shiftKey) {
+    await ds.documents.DrawSteelChatMessage.create({
+      content: `@Embed[${item.uuid} caption=false]`,
+      type: "standard",
+      "system.parts": [{ type: "content" }],
+      speaker: ds.documents.DrawSteelChatMessage.getSpeaker({ actor: item.actor }),
+      title: item.name,
+      flags: { core: { canPopout: true } },
     });
+  } else {
+    await item.system.use();
   }
 });

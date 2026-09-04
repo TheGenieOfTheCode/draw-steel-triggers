@@ -123,6 +123,12 @@
       "RollReleased": "The triggers are decided. {name} continues.",
       "DeclineRecord": "{owner} declined to use {ability}."
     },
+    "MaliceCard": {
+      "Header": "Malice Features",
+      "Title": "{name}'s Malice",
+      "Intro": "At the start of {name}'s turn, you can spend Malice to activate one of the following features.",
+      "ExpandTooltip": "Show what this feature does."
+    },
     "Reminder": {
       "Speaker": "Draw Steel: Triggers",
       "Header": "Triggered Ability Reminder",

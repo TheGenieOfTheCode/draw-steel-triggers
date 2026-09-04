@@ -446,6 +446,197 @@
   text-shadow: 0 0 8px var(--color-shadow-primary, #ff0000);
 }
 
+.dst-malice-card {
+  background: rgba(10, 8, 4, 0.65);
+  border: 1px solid rgba(184, 146, 46, 0.4);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.dst-malice-card .dst-malice-card-hdr {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #d4a82a;
+  padding: 5px 12px 4px;
+  border-bottom: 1px solid rgba(184, 146, 46, 0.3);
+  background: rgba(184, 146, 46, 0.07);
+}
+
+.dst-malice-card .dst-malice-card-title {
+  font-size: 1.05em;
+  font-weight: bold;
+  padding: 6px 10px 0;
+  display: flex;
+  align-items: center;
+}
+
+.dst-malice-card .dst-malice-card-intro {
+  font-size: 0.82em;
+  opacity: 0.7;
+  margin: 2px 0 4px;
+  padding: 0 10px;
+}
+
+.dst-malice-card .dst-malice-feature {
+  border-top: 1px solid rgba(184, 146, 46, 0.15);
+  padding: 5px 10px 6px;
+}
+
+.dst-malice-card .dst-malice-feature-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.dst-malice-card .dst-malice-type-tag {
+  font-size: 0.75em;
+  padding: 0 5px;
+  border: 1px solid rgba(122, 121, 113, 0.5);
+  border-radius: 8px;
+  opacity: 0.8;
+}
+
+.dst-malice-card .dst-malice-feature-cost {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 0.88em;
+  font-weight: bold;
+  color: #e05252;
+}
+
+.dst-malice-card .dst-malice-expand {
+  cursor: pointer;
+  flex: 0 0 14px;
+  text-align: center;
+  color: #d4a82a;
+  opacity: 0.8;
+}
+
+.dst-malice-card .dst-malice-expand:hover {
+  opacity: 1;
+}
+
+.dst-malice-card .dst-malice-chevron {
+  font-size: 0.75em;
+  transition: transform 0.12s;
+}
+
+.dst-malice-card .dst-malice-chevron--open {
+  transform: rotate(90deg);
+}
+
+.dst-malice-card .dst-malice-feature-embed {
+  margin-top: 4px;
+  padding: 4px 6px;
+  border: 1px solid rgba(143, 179, 204, 0.35);
+  border-radius: 4px;
+  background: rgba(143, 179, 204, 0.07);
+  font-size: 0.9em;
+}
+
+.dst-malice-card .dst-malice-feature-embed.dst-collapsed {
+  display: none;
+}
+
+.dst-malice-card .dst-malice-embed-kw {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85em;
+  border-bottom: 1px solid rgba(122, 121, 113, 0.3);
+  padding-bottom: 3px;
+  margin-bottom: 3px;
+}
+
+.dst-malice-card .dst-kw-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.dst-malice-card .dst-kw-badge {
+  font-size: 0.9em;
+  padding: 0 6px;
+  border: 1px solid rgba(184, 146, 46, 0.45);
+  border-radius: 8px;
+  background: rgba(184, 146, 46, 0.1);
+  white-space: nowrap;
+}
+
+.dst-malice-card .dst-malice-embed-action {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.dst-malice-card .dst-malice-embed-dt {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82em;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.dst-malice-card .dst-malice-embed-tiers {
+  margin: 3px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dst-malice-card .dst-malice-embed-tier {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.88em;
+}
+
+.dst-malice-card .dst-tier-badge {
+  flex: 0 0 44px;
+  text-align: center;
+  font-size: 0.82em;
+  font-weight: bold;
+  border: 1px solid rgba(184, 146, 46, 0.6);
+  border-radius: 9px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.dst-malice-card .dst-tier-badge--3 {
+  background: rgba(184, 146, 46, 0.2);
+}
+
+.dst-malice-card .dst-inert-link {
+  cursor: default;
+}
+
+.dst-malice-card .dst-malice-embed-effect {
+  font-size: 0.9em;
+}
+
+.dst-malice-card .dst-malice-embed-effect strong {
+  margin-right: 4px;
+}
+
+.dst-malice-card .dst-malice-embed-effect p {
+  margin: 2px 0;
+}
+
+.dst-malice-card .dst-malice-chip {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: none;
+}
+
 .dst-reminder .dst-free,
 .dst-reminder .dst-malice {
   font-size: 0.85em;
