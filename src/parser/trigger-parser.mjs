@@ -175,8 +175,11 @@ function splitClauses(text) {
   return parts.map((p, i) => (i === 0 || !subject || /^(the|you|an?|another|any|one) /i.test(p)) ? p.trim() : (subject + " " + p.trim()));
 }
 
+const OWNER_STOPWORDS = new Set(["the", "and", "von", "van", "der", "den", "del", "los", "las"]);
+
 function ownerWords(ownerName) {
-  return (ownerName || "").toLowerCase().replace(/[’']/g, "").split(/[^a-z0-9]+/).filter(w => w.length > 2);
+  return (ownerName || "").toLowerCase().replace(/[’']/g, "").split(/[^a-z0-9]+/)
+    .filter(w => w.length > 2 && !OWNER_STOPWORDS.has(w));
 }
 
 function scopeOf(lc, event, owner) {
