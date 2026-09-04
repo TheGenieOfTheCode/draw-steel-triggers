@@ -38,25 +38,30 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   const hasRoll = !!ability.system.power?.roll?.enabled;
   const matches = [];
   const seen = new Set();
-  const add = (list) => {
+  
+  const add = (list, event) => {
     for (const m of list) {
       if (seen.has(m.item.uuid)) continue;
       seen.add(m.item.uuid);
+      m._lockEvent = event;
+      m._causeLabel = game.i18n.format(`DS_TRIGGERS.Queue.Cause.${event}`, {
+        roller: rollerActor.name, ability: ability.name, owner: m.actor.name,
+      });
       matches.push(m);
     }
   };
 
   const rollerToken = rollerActor.getActiveTokens(true, true)[0] ?? null;
-  if (hasRoll) add(_lockMatches("POWER_ROLL", rollerActor, rollerToken, rollerActor));
-  if (strike) add(_lockMatches("MAKES_STRIKE", rollerActor, rollerToken, rollerActor));
+  if (hasRoll) add(_lockMatches("POWER_ROLL", rollerActor, rollerToken, rollerActor), "POWER_ROLL");
+  if (strike) add(_lockMatches("MAKES_STRIKE", rollerActor, rollerToken, rollerActor), "MAKES_STRIKE");
 
   const targets = Object.values(app.options?.context?.targets ?? {});
   for (const target of targets) {
     const tokenDoc = target.tokenUuid ? fromUuidSync(target.tokenUuid) : null;
     const subjectActor = tokenDoc?.actor;
     if (!subjectActor) continue;
-    if (strike) add(_lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor));
-    if (_hasDamage(ability)) add(_lockMatches("WOULD_TAKE_DAMAGE", subjectActor, tokenDoc, rollerActor));
+    if (strike) add(_lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor), "TARGETED_BY_STRIKE");
+    if (_hasDamage(ability)) add(_lockMatches("WOULD_TAKE_DAMAGE", subjectActor, tokenDoc, rollerActor), "WOULD_TAKE_DAMAGE");
   }
 
   if (!matches.length) return;

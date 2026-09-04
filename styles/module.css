@@ -144,33 +144,101 @@
 }
 
 .dst-stack .dst-stack-entry {
-  border: 1px solid var(--color-border-light-primary, #7a7971);
-  border-radius: 4px;
-  padding: 6px 8px;
+  border: 1px solid rgba(122, 121, 113, 0.5);
+  border-radius: 6px;
+  padding: 7px 10px 8px;
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .dst-stack .dst-stack-entry--held {
-  border-color: #a87f16;
-  background: rgba(168, 127, 22, 0.08);
+  border-color: rgba(217, 166, 63, 0.55);
+  background: rgba(217, 166, 63, 0.06);
 }
 
 .dst-stack .dst-stack-held-icon {
-  color: #a87f16;
+  color: #d9a63f;
 }
 
 .dst-stack .dst-stack-entry--used { opacity: 0.6; }
 .dst-stack .dst-stack-entry--declined { opacity: 0.6; }
 .dst-stack .dst-stack-entry--dismissed { opacity: 0.5; }
 
-.dst-stack .dst-stack-head {
+.dst-stack .dst-stack-eyebrow {
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: 0.8em;
+  opacity: 0.85;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(122, 121, 113, 0.3);
+}
+
+.dst-stack .dst-stack-eyebrow-icon {
+  color: #d9a63f;
+  transform: rotate(90deg);
+  font-size: 0.9em;
+}
+
+.dst-stack .dst-stack-cause-text {
+  color: #d9a63f;
+  text-wrap: balance;
+}
+
+.dst-stack .dst-stack-eyebrow-status {
+  margin-left: auto;
+  white-space: nowrap;
+  opacity: 0.85;
+  color: #d9a63f;
+}
+
+.dst-stack .dst-chip {
+  flex: 0 0 auto;
+  font-size: 0.78em;
+  font-weight: bold;
+  padding: 0 6px;
+  border-radius: 8px;
+  line-height: 1.5;
+}
+
+.dst-stack .dst-stack-age {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 0.95em;
+  opacity: 0.6;
+}
+
+.dst-stack .dst-stack-age--now {
+  opacity: 1;
+  font-size: 0.78em;
+  font-weight: bold;
+  padding: 0 6px;
+  border-radius: 8px;
+  line-height: 1.5;
+  background: #d9a63f;
+  color: #1a1408;
+  letter-spacing: 0.04em;
+}
+
+.dst-stack .dst-chip--free {
+  border: 1px solid #58b158;
+  color: #58b158;
+}
+
+.dst-stack .dst-stack-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.dst-stack .dst-stack-name {
+  font-size: 1.1em;
+  font-weight: bold;
 }
 
 .dst-stack .dst-stack-owner {
-  opacity: 0.75;
-  font-size: 0.9em;
+  opacity: 0.7;
+  font-size: 0.88em;
 }
 
 .dst-stack .dst-stack-owner-link {
@@ -182,35 +250,79 @@
   text-decoration: underline;
 }
 
-.dst-stack .dst-stack-state {
+.dst-stack .dst-stack-cost {
   margin-left: auto;
   font-size: 0.85em;
-  opacity: 0.8;
+  white-space: nowrap;
+  color: #d9a63f;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: center;
 }
 
-.dst-stack .dst-stack-cause {
-  font-size: 0.85em;
-  opacity: 0.75;
-  margin: 2px 0 4px;
+.dst-stack .dst-stack-cost--malice {
+  color: #e05252;
 }
 
-.dst-stack .dst-stack-embed {
-  margin: 2px 0 4px;
+.dst-stack .dst-malice-chip {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+  display: inline-block;
+  border: none;
+  background: none;
 }
 
-.dst-stack .dst-stack-embed summary {
+.dst-stack .dst-stack-type {
+  font-size: 0.82em;
+  opacity: 0.65;
+  margin: 1px 0 4px;
+}
+
+.dst-stack .dst-stack-embed-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 6px;
+}
+
+.dst-stack .dst-stack-embed-toggle {
+  flex: 1;
+  min-width: 0;
   cursor: pointer;
   font-size: 0.85em;
   opacity: 0.8;
+  white-space: nowrap;
+}
+
+.dst-stack .dst-stack-embed-toggle:hover {
+  opacity: 1;
+}
+
+.dst-stack .dst-stack-embed-toggle i {
+  width: 10px;
+}
+
+.dst-stack .dst-stack-summary {
+  flex: 0 0 auto;
+  font-size: 0.8em;
+  opacity: 0.65;
+  border: 1px solid rgba(122, 121, 113, 0.4);
+  border-radius: 8px;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 .dst-stack .dst-stack-embed-content {
+  width: 100%;
   max-height: 280px;
   overflow-y: auto;
-  margin-top: 4px;
-  padding: 4px 6px;
-  border: 1px solid var(--color-border-light-primary, #7a7971);
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(143, 179, 204, 0.35);
   border-radius: 4px;
+  background: rgba(143, 179, 204, 0.07);
   font-size: 0.9em;
 }
 
@@ -235,8 +347,24 @@
 .dst-stack .dst-stack-buttons button {
   flex: 1;
   height: auto;
-  padding: 2px 6px;
+  padding: 3px 6px;
   font-size: 0.9em;
+}
+
+.dst-stack .dst-stack-buttons .dst-stack-use {
+  flex: 2;
+  background: #c8942a;
+  border-color: #8a6d1f;
+  color: #14100a;
+  font-weight: bold;
+}
+
+.dst-stack .dst-stack-buttons .dst-stack-use:hover {
+  background: #d9a63f;
+}
+
+.dst-stack .dst-stack-buttons .dst-stack-dismiss {
+  flex: 0 0 36px;
 }
 
 .dst-stack .dst-stack-empty {

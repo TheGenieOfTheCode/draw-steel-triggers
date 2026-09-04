@@ -3,36 +3,58 @@
   <ul class="dst-stack-list">
     {{#each entries}}
     <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}">
-      <div class="dst-stack-head">
-        {{#if isHeld}}<i class="fa-solid fa-hourglass-half dst-stack-held-icon"></i>{{/if}}
-        <strong>{{itemName}}</strong>
+      <div class="dst-stack-eyebrow">
+        {{#if isHeld}}
+        <i class="fa-solid fa-hourglass-half dst-stack-held-icon"></i>
+        <span>{{heldEyebrow}}{{#if heldStatus}} &middot; {{heldStatus}}{{/if}}</span>
+        {{#if isGrace}}
+          <span class="dst-stack-eyebrow-status" data-grace-until="{{graceUntil}}"></span>
+        {{else}}
+          <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+        {{/if}}
+        {{else}}
+        <i class="fa-solid fa-turn-up dst-stack-eyebrow-icon"></i>
+        <span class="dst-stack-cause-text">{{causeLabel}}</span>
+        {{#if isPending}}
+        <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+        {{else}}
+        <span class="dst-stack-eyebrow-status">{{stateLabel}}</span>
+        {{/if}}
+        {{/if}}
+      </div>
+      <div class="dst-stack-title-row">
+        <span class="dst-stack-name">{{itemName}}</span>
         {{#if ownerClickable}}
         <a class="dst-stack-owner dst-stack-owner-link" data-action="openOwner" data-uuid="{{ownerActorUuid}}">{{ownerName}}</a>
         {{else}}
         <span class="dst-stack-owner">{{ownerName}}</span>
         {{/if}}
-        {{#if isHeld}}
-          {{#if isGrace}}
-            <span class="dst-stack-state" data-grace-until="{{graceUntil}}"></span>
-          {{else}}
-            <span class="dst-stack-state">{{heldStatus}}</span>
-          {{/if}}
-        {{else}}
-          {{#unless isPending}}<span class="dst-stack-state">{{stateLabel}}</span>{{/unless}}
+        {{#if isFree}}<span class="dst-chip dst-chip--free">{{@root.labels.free}}</span>{{/if}}
+        {{#if costBadge}}
+        <span class="dst-stack-cost{{#if costBadge.malice}} dst-stack-cost--malice{{/if}}">
+          {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}
+        </span>
         {{/if}}
       </div>
-      <div class="dst-stack-cause">{{causeLabel}}</div>
+      {{#if typeLine}}<div class="dst-stack-type">{{typeLine}}</div>{{/if}}
+      <div class="dst-stack-embed-row">
+        {{#if embedHTML}}
+        <a class="dst-stack-embed-toggle" data-entry-id="{{id}}"><i class="fa-solid fa-chevron-{{#if embedOpen}}down{{else}}right{{/if}}"></i> {{@root.labels.showAbility}}</a>
+        {{/if}}
+        {{#if distance}}
+        <span class="dst-stack-summary">
+          <i class="fa-solid {{distance.icon}}"></i> {{distance.label}}{{#if target}} &middot; <i class="fa-solid fa-bullseye"></i> {{target.label}}{{/if}}
+        </span>
+        {{/if}}
+      </div>
       {{#if embedHTML}}
-      <details class="dst-stack-embed" data-entry-id="{{id}}"{{#if embedOpen}} open{{/if}}>
-        <summary>{{@root.labels.showAbility}}</summary>
-        <div class="dst-stack-embed-content">{{{embedHTML}}}</div>
-      </details>
+      <div class="dst-stack-embed-content" data-embed-for="{{id}}" {{#unless embedOpen}}hidden{{/unless}}>{{{embedHTML}}}</div>
       {{/if}}
       {{#if showButtons}}
       <div class="dst-stack-buttons">
-        <button type="button" data-action="useEntry" data-id="{{id}}"><i class="fa-solid fa-bolt"></i> {{@root.labels.use}}</button>
-        <button type="button" data-action="declineEntry" data-id="{{id}}"><i class="fa-solid fa-xmark"></i> {{@root.labels.decline}}</button>
-        {{#if @root.isGM}}<button type="button" data-action="dismissEntry" data-id="{{id}}" data-tooltip="{{@root.labels.dismissTooltip}}"><i class="fa-solid fa-eye-slash"></i> {{@root.labels.dismiss}}</button>{{/if}}
+        <button type="button" class="dst-stack-use" data-action="useEntry" data-id="{{id}}"><i class="fa-solid fa-bolt"></i> {{@root.labels.use}}</button>
+        <button type="button" data-action="declineEntry" data-id="{{id}}">{{@root.labels.decline}}</button>
+        {{#if @root.isGM}}<button type="button" class="dst-stack-dismiss" data-action="dismissEntry" data-id="{{id}}" data-tooltip="{{@root.labels.dismissTooltip}}"><i class="fa-solid fa-eye-slash"></i></button>{{/if}}
       </div>
       {{/if}}
       {{#if showRelease}}

@@ -173,10 +173,11 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     itemName: m.item.name,
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
-    event,
-    causeLabel,
+    event: m._lockEvent ?? event,
+    causeLabel: m._causeLabel ?? causeLabel,
     lock: true,
     state: "pending",
+    createdAt: Date.now(),
     resumeId,
     resume,
   }));
@@ -193,6 +194,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     lock: false,
     state: "held",
     graceUntil: null,
+    createdAt: Date.now(),
     resumeId,
     resume,
   });
@@ -215,6 +217,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel }) {
     causeLabel,
     lock: false,
     state: "pending",
+    createdAt: Date.now(),
     resumeId: null,
     resume: null,
   }));

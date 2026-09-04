@@ -95,9 +95,22 @@
       "DismissTooltip": "Resolve without posting anything (Director only).",
       "Empty": "No pending triggers.",
       "ShowAbility": "Show ability",
+      "Now": "NOW",
+      "AgeSeconds": "{n}s ago",
+      "AgeMinutes": "{n}m ago",
+      "AgeHours": "{n}h ago",
+      "InStack": "{count} in stack",
+      "HeldBy": "Held by {name}",
+      "CostMalice": "{n} Malice",
+      "Cause": {
+        "POWER_ROLL": "Triggered by {roller} making a power roll ({ability}).",
+        "MAKES_STRIKE": "Triggered by {roller} making a strike ({ability}).",
+        "TARGETED_BY_STRIKE": "Triggered by {roller} targeting {owner} with a strike ({ability}).",
+        "WOULD_TAKE_DAMAGE": "Triggered by {roller} dealing damage to {owner} ({ability})."
+      },
       "Release": "Release Now",
       "ReleaseTooltip": "Resume the held ability immediately (Director only). Undecided triggers become simple prompts.",
-      "WaitingOn": "Waiting on {count} triggers",
+      "WaitingOn": "waiting on {count} more triggers",
       "GraceCountdown": "Resumes in {seconds}s",
       "State": {
         "pending": "Pending",
@@ -117,15 +130,15 @@
       "Triggered": "Triggered",
       "Malice": "Malice",
       "ImplicitMaliceTrigger": "Available at the start of this creature's turn.",
-      "TurnStart": "{name}'s turn is starting.",
-      "TurnEnd": "{name}'s turn is ending.",
-      "RoundStart": "Round {round} is starting.",
+      "TurnStart": "Triggered by {name}'s turn starting.",
+      "TurnEnd": "Triggered by {name}'s turn ending.",
+      "RoundStart": "Triggered by round {round} starting.",
       "LinkTooltip": "Click to use this ability. Shift-click to share its description to chat.",
       "MissingAbility": "That ability no longer exists.",
-      "TakesDamage": "{name} took {amount} damage.",
-      "Dies": "{name} was reduced to 0 Stamina.",
-      "Winded": "{name} is now winded.",
-      "RegainsStamina": "{name} regained {amount} Stamina."
+      "TakesDamage": "Triggered by {name} taking {amount} damage.",
+      "Dies": "Triggered by {name} being reduced to 0 Stamina.",
+      "Winded": "Triggered by {name} becoming winded.",
+      "RegainsStamina": "Triggered by {name} regaining {amount} Stamina."
     }
   }
 }
