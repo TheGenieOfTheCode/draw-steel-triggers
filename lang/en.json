@@ -25,6 +25,10 @@
         "Name": "Damage Interrupts",
         "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
       },
+      "StackDecisionTimer": {
+        "Name": "Stack Decision Timer",
+        "Hint": "Triggers on the stack auto-decline after the Roll Lock Grace Period elapses with no decision. Choosing Use grants the rest of the group fresh time."
+      },
       "RollLockGrace": {
         "Name": "Roll Lock Grace Period",
         "Hint": "After Use is chosen for a triggered ability, the held roll resumes when that ability's message is posted, or after this many seconds if it never posts (for cancelled flows)."
@@ -124,6 +128,8 @@
       "HeldDamageHint": "A triggered ability was used against this damage. Adjust the original {amount} to the final amount, then apply.",
       "HeldDamageHalf": "Half",
       "HeldDamageDouble": "Double",
+      "GraceDamageCountdown": "Damage resolves in {seconds}s",
+      "DecideCountdown": "Auto-declines in {seconds}s",
       "HeldDamageApply": "Apply",
       "HeldDamageDiscard": "Discard",
       "HeldDamageDiscarded": "Held damage for {name} discarded. No Stamina was changed.",

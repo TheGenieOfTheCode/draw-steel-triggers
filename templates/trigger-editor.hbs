@@ -12,11 +12,15 @@
         <label>{{@root.labels.event}}</label>
         <div class="form-fields">
           <select data-field="event" data-index="{{index}}">
-            {{#each eventOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            {{#each eventGroups}}
+            <optgroup label="{{label}}">
+              {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            </optgroup>
+            {{/each}}
           </select>
         </div>
       </div>
-      <p class="dst-hint">{{@root.hints.event}}</p>
+      <p class="dst-hint dst-event-desc">{{eventHint}}</p>
       <div class="form-group">
         <label>{{@root.labels.scope}}</label>
         <div class="form-fields">
@@ -33,6 +37,15 @@
         </div>
       </div>
       <p class="dst-hint">{{@root.hints.qualifiers}}</p>
+
+      <div class="dst-hold-wrap" {{#unless showHold}}hidden{{/unless}}>
+        <label class="checkbox"><input type="checkbox" data-hold-toggle data-index="{{index}}" {{#if holdChecked}}checked{{/if}}> {{@root.labels.holdDamage}}</label>
+        <p class="dst-hint">{{@root.hints.holdDamage}}</p>
+      </div>
+      <div class="dst-half-wrap" {{#unless showTargetedHalf}}hidden{{/unless}}>
+        <label class="checkbox"><input type="checkbox" data-field="targetedHalf" data-index="{{index}}" {{#if targetedHalf}}checked{{/if}}> {{@root.labels.targetedHalf}}</label>
+        <p class="dst-hint">{{@root.hints.targetedHalf}}</p>
+      </div>
 
       <div class="dst-damage-wrap" {{#unless showDamageTypes}}hidden{{/unless}}>
         <div class="form-group">

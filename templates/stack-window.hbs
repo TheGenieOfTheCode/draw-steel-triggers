@@ -7,7 +7,11 @@
         {{#if isDamageHeld}}
         <i class="fa-solid fa-hourglass-half dst-stack-held-icon"></i>
         <span>{{heldEyebrow}}{{#if heldStatus}} &middot; {{heldStatus}}{{/if}}</span>
-        <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+        {{#if isGrace}}
+          <span class="dst-stack-eyebrow-status" data-grace-until="{{graceUntil}}" data-grace-key="DS_TRIGGERS.Queue.GraceDamageCountdown"></span>
+        {{else}}
+          <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+        {{/if}}
         {{else if isHeld}}
         <i class="fa-solid fa-hourglass-half dst-stack-held-icon"></i>
         <span>{{heldEyebrow}}{{#if heldStatus}} &middot; {{heldStatus}}{{/if}}</span>
@@ -20,7 +24,11 @@
         <i class="fa-solid fa-turn-up dst-stack-eyebrow-icon"></i>
         <span class="dst-stack-cause-text">{{causeLabel}}</span>
         {{#if isPending}}
+        {{#if decideUntil}}
+        <span class="dst-stack-eyebrow-status" data-grace-until="{{decideUntil}}" data-grace-key="DS_TRIGGERS.Queue.DecideCountdown"></span>
+        {{else}}
         <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+        {{/if}}
         {{else}}
         <span class="dst-stack-eyebrow-status">{{stateLabel}}</span>
         {{/if}}

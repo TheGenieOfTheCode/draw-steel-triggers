@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld, applyHeldDamageNow } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld, applyHeldDamageNow, watchUseCancellation } from "../triggers/queue.mjs";
 import { maliceChipURI } from "./malice-chip.mjs";
 import { buildAbilityPreview } from "./ability-preview.mjs";
 
@@ -180,6 +180,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     if (item) {
 
       addRollBypass(item.uuid);
+      watchUseCancellation(item.uuid);
       item.system.use();
     }
   }

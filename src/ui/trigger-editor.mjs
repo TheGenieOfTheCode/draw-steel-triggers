@@ -1,13 +1,20 @@
 import { MODULE_ID } from "../util.mjs";
 import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility } from "../triggers/registry.mjs";
 
-const EVENTS = [
-  "TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE", "DIES", "WINDED_OR_DYING",
-  "FORCE_MOVED", "FORCE_MOVES", "MOVES", "ZONE_ENTER", "ZONE_TURN_START",
-  "TARGETED_BY_STRIKE", "MAKES_STRIKE", "POWER_ROLL", "POWER_ROLL_RESULT", "USES_ABILITY",
-  "TURN_START", "TURN_END", "ROUND_START", "CONDITION_GAIN", "EFFECT_ENDS",
-  "SAVING_THROW", "REGAINS_STAMINA", "MARKED", "RESOURCE_GAIN", "STAMINA_BELOW",
-  "MECHANISM", "NARRATIVE", "GRAB_ENDS", "RESISTS_POTENCY", "TEST_FAILED", "UNKNOWN",
+const EVENT_GROUPS = [
+  ["Common", [
+    "TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE", "DIES", "WINDED_OR_DYING",
+    "TARGETED_BY_STRIKE", "MAKES_STRIKE", "POWER_ROLL", "MOVES", "FORCE_MOVED",
+    "TURN_START", "TURN_END", "CONDITION_GAIN", "USES_ABILITY",
+  ]],
+  ["Rare", [
+    "FORCE_MOVES", "ROUND_START", "POWER_ROLL_RESULT", "ZONE_ENTER", "ZONE_TURN_START",
+    "EFFECT_ENDS", "SAVING_THROW", "REGAINS_STAMINA", "MARKED",
+  ]],
+  ["Bespoke", [
+    "RESOURCE_GAIN", "STAMINA_BELOW", "MECHANISM", "NARRATIVE",
+    "GRAB_ENDS", "RESISTS_POTENCY", "TEST_FAILED", "UNKNOWN",
+  ]],
 ];
 const SCOPES = [
   "SELF", "TARGET", "ALLY", "ENEMY", "ANY", "COMPANION", "MENTOR",
@@ -78,21 +85,31 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
         edgeRequired: L("EdgeRequired"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"),
         availability: L("Availability"),
+        holdDamage: L("HoldDamage"), targetedHalf: L("TargetedHalf"),
         addClause: L("AddClause"), malice: L("Malice"), save: L("Save"), reset: L("Reset"),
       },
       hints: {
-        event: L("EventHint"), scope: L("ScopeHint"), qualifiers: L("QualifiersHint"),
+        scope: L("ScopeHint"), qualifiers: L("QualifiersHint"),
         damageTypes: L("DamageTypesHint"), abilityDsid: L("AbilityDsidHint"),
         groupName: L("GroupNameHint"), checks: L("ChecksHint"), malice: L("MaliceHint"),
+        holdDamage: L("HoldDamageHint"), targetedHalf: L("TargetedHalfHint"),
         save: L("SaveHint"), reset: L("ResetHint"),
       },
       clauses: this._clauses.map((c, index) => ({
         index,
         legend: game.i18n.format("DS_TRIGGERS.Editor.ClauseLegend", { n: index + 1 }),
-        eventOptions: EVENTS.map((e) => ({ value: e, label: label(e), selected: e === c.event })),
+        eventGroups: EVENT_GROUPS.map(([key, list]) => ({
+          label: L(`EventGroup${key}`),
+          options: list.map((e) => ({ value: e, label: label(e), selected: e === c.event })),
+        })),
+        eventHint: game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${c.event}`),
         scopeOptions: SCOPES.map((s) => ({ value: s, label: label(s), selected: s === c.scope })),
         qualifiers: (c.qualifiers ?? []).join(", "),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
+        showHold: c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
+        holdChecked: c.event === "WOULD_TAKE_DAMAGE",
+        showTargetedHalf: c.event === "TARGETED_BY_STRIKE",
+        targetedHalf: !!c.targetedHalf,
         showGroup: c.scope === "GROUP",
         damageTypeOptions: damageTypes.map((d) => ({ ...d, active: (c.damageTypes ?? []).includes(d.value) })),
         groupOptions: keywords.map((k) => ({ ...k, active: c.groupName === k.value })),
@@ -124,8 +141,29 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     el.addEventListener("change", (event) => {
       const eventSel = event.target.closest('select[data-field="event"]');
       if (eventSel) {
-        const wrap = eventSel.closest(".dst-editor-clause")?.querySelector(".dst-damage-wrap");
+        const clauseEl = eventSel.closest(".dst-editor-clause");
+        const wrap = clauseEl?.querySelector(".dst-damage-wrap");
         if (wrap) wrap.hidden = !DAMAGE_EVENTS.has(eventSel.value);
+        const desc = clauseEl?.querySelector(".dst-event-desc");
+        if (desc) desc.textContent = game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${eventSel.value}`);
+        const holdWrap = clauseEl?.querySelector(".dst-hold-wrap");
+        if (holdWrap) {
+          holdWrap.hidden = eventSel.value !== "TAKES_DAMAGE" && eventSel.value !== "WOULD_TAKE_DAMAGE";
+          const box = holdWrap.querySelector("input");
+          if (box) box.checked = eventSel.value === "WOULD_TAKE_DAMAGE";
+        }
+        const halfWrap = clauseEl?.querySelector(".dst-half-wrap");
+        if (halfWrap) halfWrap.hidden = eventSel.value !== "TARGETED_BY_STRIKE";
+        return;
+      }
+      const holdToggle = event.target.closest("input[data-hold-toggle]");
+      if (holdToggle) {
+        // the toggle is just another view of the clause event: flip the select live
+        const sel = holdToggle.closest(".dst-editor-clause")?.querySelector('select[data-field="event"]');
+        if (sel) {
+          sel.value = holdToggle.checked ? "WOULD_TAKE_DAMAGE" : "TAKES_DAMAGE";
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+        }
         return;
       }
       const scopeSel = event.target.closest('select[data-field="scope"]');
@@ -211,6 +249,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const out = foundry.utils.deepClone(c);
       delete out._customs;
       delete out._customPending;
+      if (out.event !== "TARGETED_BY_STRIKE") delete out.targetedHalf;
       return out;
     });
   }

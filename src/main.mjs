@@ -53,6 +53,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "stackDecisionTimer", {
+    name: "DS_TRIGGERS.Settings.StackDecisionTimer.Name",
+    hint: "DS_TRIGGERS.Settings.StackDecisionTimer.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
   game.settings.register(MODULE_ID, "rollLockGrace", {
     name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
     hint: "DS_TRIGGERS.Settings.RollLockGrace.Hint",

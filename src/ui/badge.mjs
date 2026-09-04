@@ -1,43 +1,62 @@
 import { MODULE_ID, emblemHTML } from "../util.mjs";
 import { isTriggeredAbility, isMaliceAbility, getParsedTrigger } from "../triggers/registry.mjs";
 
-const BASE_EVENTS = new Set(["TURN_START", "TURN_END", "ROUND_START", "TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "REGAINS_STAMINA"]);
+// how each detectable event is automated: reminder, stack prompt, roll lock, or damage hold
+const EVENT_MODES = {
+  TURN_START: "reminder",
+  TURN_END: "reminder",
+  ROUND_START: "reminder",
+  REGAINS_STAMINA: "reminder",
+  TAKES_DAMAGE: "prompt",
+  DIES: "prompt",
+  WINDED_OR_DYING: "prompt",
+  WOULD_TAKE_DAMAGE: "hold",
+  TARGETED_BY_STRIKE: "lock",
+  MAKES_STRIKE: "lock",
+  POWER_ROLL: "lock",
+};
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
 
 export function computeAutomationLevel(item) {
   if (!isTriggeredAbility(item) && !isMaliceAbility(item)) return null;
 
-  if (item.getFlag(MODULE_ID, "manual")) {
-    return { level: "manual", detail: [game.i18n.localize("DS_TRIGGERS.Badge.Detail.Manual")] };
-  }
-
+  const manual = !!item.getFlag(MODULE_ID, "manual");
   const parse = getParsedTrigger(item);
-  if (!parse) return null;
+  if (!parse) return manual ? { level: "manual", detail: [game.i18n.localize("DS_TRIGGERS.Badge.Detail.Manual")] } : null;
 
   if (parse.source === "malice-implicit") {
     return { level: "full", detail: [game.i18n.localize("DS_TRIGGERS.Badge.Detail.MaliceImplicit")] };
   }
-  if (parse.confidence === "low") {
+  if (!manual && parse.confidence === "low") {
     return { level: "unknown", detail: [game.i18n.localize("DS_TRIGGERS.Badge.Detail.Unrecognized")] };
   }
 
   const detail = [];
   let detected = 0;
   for (const clause of parse.clauses) {
-    const eventOk = BASE_EVENTS.has(clause.event);
+    const mode = EVENT_MODES[clause.event];
     const scopeOk = BASE_SCOPES.has(clause.scope) || isMaliceAbility(item);
-    if (eventOk && scopeOk) {
+    if (mode && scopeOk) {
       detected++;
-      detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.Detected", { event: clause.event, scope: clause.scope }));
-    } else if (!eventOk) {
+      detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.Detected", {
+        event: clause.event, scope: clause.scope,
+        mode: game.i18n.localize(`DS_TRIGGERS.Badge.Mode.${mode}`),
+      }));
+    } else if (!mode) {
       detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.EventNeedsTier", { event: clause.event }));
     } else {
       detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.ScopeNeedsTier", { scope: clause.scope }));
     }
   }
+  if (parse.damageModifying) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DamageModifying"));
+  if (parse.targetedHalf || parse.clauses.some((c) => c.targetedHalf)) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.TargetedHalf"));
   if (parse.flag === "REVISIT") detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.Revisit"));
   if (parse.flag === "DSCT_ONLY") detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DsctOnly"));
 
+  if (manual) {
+    detail.unshift(game.i18n.localize("DS_TRIGGERS.Badge.Detail.Manual"));
+    return { level: "manual", detail };
+  }
   const level = detected === parse.clauses.length && parse.flag === undefined ? "full"
     : detected > 0 ? "partial" : "none";
   return { level, detail };
