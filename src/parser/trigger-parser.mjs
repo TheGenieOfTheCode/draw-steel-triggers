@@ -45,7 +45,10 @@ export const DAMAGE_MODIFYING = new Set([
 // at roll time (lock flow), so the damage button itself gets pre-halved instead of
 // holding the damage at apply time. Owner-is-not-target modifiers (Intercede,
 // Trick of the Eye, Testudo) stay lock-only for now.
+export const TARGETED_HALVERS = new Set(["shriek", "pain-absorption", "devilish-charm"]);
+
 function damageModLayer(result, id) {
+  if (TARGETED_HALVERS.has(id)) return { ...result, damageModifying: true, targetedHalf: true };
   if (!DAMAGE_MODIFYING.has(id)) return result;
   return {
     ...result,

@@ -210,6 +210,17 @@
   color: #c44a4a;
 }
 
+button.dst-dstd-held-btn,
+button.dst-dstd-held-btn:disabled {
+  background: rgba(217, 166, 63, 0.28) !important;
+  border: 1px solid #d9a63f !important;
+  opacity: 0.95 !important;
+}
+
+button.dst-dstd-held-btn > i {
+  color: #d9a63f !important;
+}
+
 .dst-held-form {
   display: flex;
   flex-direction: column;

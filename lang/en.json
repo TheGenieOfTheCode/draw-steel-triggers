@@ -133,6 +133,9 @@
       "HeldDamageApply": "Apply",
       "HeldDamageDiscard": "Discard",
       "HeldDamageDiscarded": "Held damage for {name} discarded. No Stamina was changed.",
+      "Adjusted": "adjusted",
+      "Half": "half",
+      "DstdHeldLabel": "Triggers Pending",
       "WaitingOn": "waiting on {count} more triggers",
       "GraceCountdown": "Resumes in {seconds}s",
       "State": {

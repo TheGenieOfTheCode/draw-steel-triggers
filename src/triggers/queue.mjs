@@ -113,6 +113,10 @@ export function consumeRollBypass(itemUuid) {
   return true;
 }
 
+export function getActiveDamageHolds() {
+  return _damageHolds;
+}
+
 export function consumeDamageBypass(actorUuid) {
   if (!_damageBypass.has(actorUuid)) return false;
   _damageBypass.delete(actorUuid);
@@ -159,6 +163,7 @@ function _onQueueAdd(entries) {
   const damageEntry = fresh.find((e) => e.damageId && e.heldDamage);
   if (damageEntry && !_damageHolds.has(damageEntry.damageId)) {
     _damageHolds.set(damageEntry.damageId, { ...damageEntry.heldDamage, anyUsed: false, createdAt: damageEntry.createdAt });
+    Hooks.callAll("dst.damageHoldRegistered", damageEntry.damageId);
   }
   if (getSetting("stackDecisionTimer")) {
     for (const e of fresh) {
@@ -177,6 +182,13 @@ async function _onQueueResolve(id, outcome, userName) {
   if (!entry || entry.state !== "pending") return;
   entry.state = outcome;
   if (outcome === "used") entry.usedAt = Date.now();
+  if (outcome === "used" && entry.halvesOnUse && entry.resume?.itemUuid) {
+    Hooks.callAll("dst.targetedHalfUsed", {
+      abilityUuid: entry.resume.itemUuid,
+      targetActorUuid: entry.ownerActorUuid,
+      modName: entry.itemName,
+    });
+  }
   dbg(`queue resolve ${id} -> ${outcome}`);
 
   if (outcome === "declined") _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
@@ -298,6 +310,7 @@ async function _finalizeDamageHold(damageId) {
   _damageHolds.delete(damageId);
   if (!hold.anyUsed) {
     await _applyHeldDamage(hold.actorUuid, hold.amount);
+    Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: hold.amount });
     return;
   }
 
@@ -349,9 +362,11 @@ async function _finalizeDamageHold(damageId) {
 
   if (result == null || !(Number(result) > 0)) {
     ui.notifications.warn(F("HeldDamageDiscarded", { name: actor?.name ?? "" }));
+    Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
     return;
   }
   await _applyHeldDamage(hold.actorUuid, Number(result));
+  Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: Number(result) });
 }
 
 async function _applyHeldDamage(actorUuid, amount) {
@@ -467,6 +482,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     ownerName: m.actor.name,
     event: m._lockEvent ?? event,
     causeLabel: m._causeLabel ?? causeLabel,
+    halvesOnUse: m._halvesOnUse ?? false,
     lock: true,
     state: "pending",
     createdAt: Date.now(),

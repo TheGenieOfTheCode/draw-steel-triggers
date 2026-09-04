@@ -19,6 +19,7 @@ import { getQueueMirror } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/roll-lock.mjs";
+import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "spentTracking", {
