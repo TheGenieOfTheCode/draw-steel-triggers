@@ -190,7 +190,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "MENTOR",
      "qualifiers": [
       "within distance",
@@ -267,7 +267,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -303,7 +303,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "ALLY",
      "qualifiers": []
     }
@@ -714,7 +714,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -895,7 +895,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "ALLY",
      "qualifiers": [
       "within distance"
@@ -1307,7 +1307,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": [
       "that has a damage type"
@@ -1471,7 +1471,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": [
       "while the area of their voidshroud wyrmscale aura is 2 or more"
@@ -1659,7 +1659,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -1733,7 +1733,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -1771,7 +1771,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -1827,7 +1827,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -1923,7 +1923,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -1983,7 +1983,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -2001,7 +2001,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -2286,7 +2286,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": [
       "acid, cold, corruption, fire, lightning, or poison damage"
@@ -2518,7 +2518,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -2749,7 +2749,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -2767,7 +2767,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": [
       "that has a damage type"
@@ -2847,7 +2847,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -3271,7 +3271,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -3345,7 +3345,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -3553,7 +3553,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -4882,7 +4882,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": [
       "that isn't untyped"
@@ -4980,7 +4980,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "TARGET",
      "qualifiers": []
     }
@@ -5036,7 +5036,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "TARGET",
      "qualifiers": []
     }
@@ -5243,7 +5243,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "TARGET",
      "qualifiers": [
       "while you are hidden"
@@ -5282,7 +5282,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -5637,7 +5637,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "TARGET",
      "qualifiers": []
     }
@@ -5655,7 +5655,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -5698,7 +5698,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "TARGET",
      "qualifiers": [
       "while in the area of your null field ability"
@@ -5754,7 +5754,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }
@@ -5815,7 +5815,7 @@
    "confidence": "high",
    "clauses": [
     {
-     "event": "TAKES_DAMAGE",
+     "event": "WOULD_TAKE_DAMAGE",
      "scope": "SELF",
      "qualifiers": []
     }

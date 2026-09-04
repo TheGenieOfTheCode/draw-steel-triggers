@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld, applyHeldDamageNow } from "../triggers/queue.mjs";
 import { maliceChipURI } from "./malice-chip.mjs";
 import { buildAbilityPreview } from "./ability-preview.mjs";
 
@@ -14,6 +14,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       declineEntry: StackWindow.#onDecline,
       dismissEntry: StackWindow.#onDismiss,
       releaseHeld: StackWindow.#onReleaseHeld,
+      applyHeldNow: StackWindow.#onApplyHeldNow,
       openOwner: StackWindow.#onOpenOwner,
     },
   };
@@ -41,9 +42,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
   async _prepareContext(_options) {
     const L = (k) => game.i18n.localize(`DS_TRIGGERS.Queue.${k}`);
     
-    const ordered = [...getQueueMirror()].sort((a, b) => (a.kind === "held") - (b.kind === "held"));
-    const embeds = await Promise.all(ordered.map((e) =>
-      buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")));
+    const isHeldKind = (e) => e.kind === "held" || e.kind === "damageHeld";
+    const ordered = [...getQueueMirror()].sort((a, b) => isHeldKind(a) - isHeldKind(b));
+    const embeds = await Promise.all(ordered.map((e) => e.itemUuid
+      ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
+      : Promise.resolve("")));
     return {
       isGM: game.user.isGM,
       maliceChipURI: maliceChipURI(),
@@ -51,16 +54,20 @@ export class StackWindow extends ds.applications.api.DSApplication {
         use: L("Use"), decline: L("Decline"), dismiss: L("Dismiss"),
         dismissTooltip: L("DismissTooltip"), empty: L("Empty"),
         release: L("Release"), releaseTooltip: L("ReleaseTooltip"),
+        applyNow: L("ApplyNow"), applyNowTooltip: L("ApplyNowTooltip"),
         showAbility: L("ShowAbility"),
         free: game.i18n.localize("DS_TRIGGERS.Reminder.Free"),
       },
       entries: ordered.map((e, i) => {
         const isHeld = e.kind === "held";
+        const isDamageHeld = e.kind === "damageHeld";
         const embedHTML = embeds[i];
         const embedOpen = this._openEmbeds?.has(e.id) ?? false;
         const pendingCount = isHeld
           ? getQueueMirror().filter((q) => q.resumeId === e.resumeId && q.state === "pending").length
-          : 0;
+          : isDamageHeld
+            ? getQueueMirror().filter((q) => q.damageId === e.damageId && q.state === "pending").length
+            : 0;
         const ownerDoc = fromUuidSync(e.ownerActorUuid);
         const item = fromUuidSync(e.itemUuid);
         const sys = item?.system;
@@ -84,15 +91,21 @@ export class StackWindow extends ds.applications.api.DSApplication {
           iconSrc: item?.img ?? null,
           ownerClickable: !!ownerDoc && ownerDoc.testUserPermission(game.user, "LIMITED"),
           isHeld,
+          isDamageHeld,
           costBadge,
           isFree: sys?.type === "freeTriggered",
-          heldEyebrow: isHeld ? game.i18n.format("DS_TRIGGERS.Queue.HeldBy", { name: e.ownerName }) : null,
+          heldEyebrow: isHeld
+            ? game.i18n.format("DS_TRIGGERS.Queue.HeldBy", { name: e.ownerName })
+            : isDamageHeld
+              ? game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEyebrow", { name: e.ownerName })
+              : null,
           isPending: e.state === "pending",
-          showButtons: !isHeld && e.state === "pending" && canActOn(e),
+          showButtons: !isHeld && !isDamageHeld && e.state === "pending" && canActOn(e),
           showRelease: isHeld && game.user.isGM,
+          showApplyNow: isDamageHeld && game.user.isGM,
           isGrace: e.state === "grace",
           graceRemaining: e.graceUntil ? Math.max(0, Math.ceil((e.graceUntil - Date.now()) / 1000)) : null,
-          heldStatus: isHeld
+          heldStatus: (isHeld || isDamageHeld)
             ? (e.state === "grace" ? null : game.i18n.format("DS_TRIGGERS.Queue.WaitingOn", { count: pendingCount }))
             : null,
           stateLabel: L(`State.${e.state}`),
@@ -130,7 +143,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const tick = () => {
       for (const span of this.element.querySelectorAll("[data-grace-until]")) {
         const remaining = Math.max(0, Math.ceil((Number(span.dataset.graceUntil) - Date.now()) / 1000));
-        span.textContent = game.i18n.format("DS_TRIGGERS.Queue.GraceCountdown", { seconds: remaining });
+        span.textContent = game.i18n.format(span.dataset.graceKey || "DS_TRIGGERS.Queue.GraceCountdown", { seconds: remaining });
       }
       for (const span of this.element.querySelectorAll("[data-created-at]")) {
         const age = Math.floor((Date.now() - Number(span.dataset.createdAt)) / 1000);
@@ -165,7 +178,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const item = await fromUuid(entry.itemUuid).catch(() => null);
     resolveQueueEntry(entry.id, "used");
     if (item) {
-      
+
       addRollBypass(item.uuid);
       item.system.use();
     }
@@ -181,6 +194,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static #onReleaseHeld(_event, target) {
     releaseHeld(target.dataset.resumeId);
+  }
+
+  static #onApplyHeldNow(_event, target) {
+    applyHeldDamageNow(target.dataset.damageId);
   }
 
   static async #onOpenOwner(_event, target) {

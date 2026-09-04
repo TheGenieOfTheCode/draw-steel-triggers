@@ -2,9 +2,13 @@
   {{#if entries.length}}
   <ul class="dst-stack-list">
     {{#each entries}}
-    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}">
+    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}{{#if isDamageHeld}} dst-stack-entry--held dst-stack-entry--damage{{/if}}">
       <div class="dst-stack-eyebrow">
-        {{#if isHeld}}
+        {{#if isDamageHeld}}
+        <i class="fa-solid fa-hourglass-half dst-stack-held-icon"></i>
+        <span>{{heldEyebrow}}{{#if heldStatus}} &middot; {{heldStatus}}{{/if}}</span>
+        <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+        {{else if isHeld}}
         <i class="fa-solid fa-hourglass-half dst-stack-held-icon"></i>
         <span>{{heldEyebrow}}{{#if heldStatus}} &middot; {{heldStatus}}{{/if}}</span>
         {{#if isGrace}}
@@ -30,8 +34,9 @@
           <span class="dst-stack-name">{{itemName}}</span>
         </a>
         {{else}}
+        {{#if isDamageHeld}}<span class="dst-stack-damage-icon"><i class="fa-solid fa-heart-crack"></i></span>{{/if}}
         {{#if iconSrc}}<img class="dst-stack-icon" src="{{iconSrc}}" alt="">{{/if}}
-        <span class="dst-stack-name">{{itemName}}</span>
+        <span class="dst-stack-name{{#if isDamageHeld}} dst-stack-name--damage{{/if}}">{{itemName}}</span>
         {{/if}}
         {{#if ownerClickable}}
         <a class="dst-stack-owner dst-stack-owner-link" data-action="openOwner" data-uuid="{{ownerActorUuid}}">{{ownerName}}</a>
@@ -58,6 +63,11 @@
       {{#if showRelease}}
       <div class="dst-stack-buttons">
         <button type="button" data-action="releaseHeld" data-resume-id="{{resumeId}}" data-tooltip="{{@root.labels.releaseTooltip}}"><i class="fa-solid fa-play"></i> {{@root.labels.release}}</button>
+      </div>
+      {{/if}}
+      {{#if showApplyNow}}
+      <div class="dst-stack-buttons">
+        <button type="button" data-action="applyHeldNow" data-damage-id="{{damageId}}" data-tooltip="{{@root.labels.applyNowTooltip}}"><i class="fa-solid fa-heart-crack"></i> {{@root.labels.applyNow}}</button>
       </div>
       {{/if}}
     </li>

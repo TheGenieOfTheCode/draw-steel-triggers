@@ -45,6 +45,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "damageInterrupts", {
+    name: "DS_TRIGGERS.Settings.DamageInterrupts.Name",
+    hint: "DS_TRIGGERS.Settings.DamageInterrupts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "rollLockGrace", {
     name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
     hint: "DS_TRIGGERS.Settings.RollLockGrace.Hint",

@@ -61,7 +61,11 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
     const subjectActor = tokenDoc?.actor;
     if (!subjectActor) continue;
     if (strike) add(_lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor), "TARGETED_BY_STRIKE");
-    if (_hasDamage(ability)) add(_lockMatches("WOULD_TAKE_DAMAGE", subjectActor, tokenDoc, rollerActor), "WOULD_TAKE_DAMAGE");
+    
+    
+    if (_hasDamage(ability) && !getSetting("damageInterrupts")) {
+      add(_lockMatches("WOULD_TAKE_DAMAGE", subjectActor, tokenDoc, rollerActor), "WOULD_TAKE_DAMAGE");
+    }
   }
 
   if (!matches.length) return;

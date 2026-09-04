@@ -28,6 +28,37 @@ export function generateDSID(name) {
   return name.toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+// ---------- Layer 3: damage-modifying abilities ----------
+// Curated from the 2026-09-04 compendium sweep (vault/interrupt-sweep.json): triggered
+// abilities whose effect halves, reduces, or blocks the triggering damage. Their damage
+// must be held BEFORE it lands, so TAKES_DAMAGE clauses upgrade to WOULD_TAKE_DAMAGE.
+export const DAMAGE_MODIFYING = new Set([
+  "adaptability", "armor-of-corpses", "armor-of-the-ancients", "break-armor", "buss-buffer",
+  "dissipate", "field-collapse", "in-all-this-confusion", "inertial-absorption", "inertial-shield",
+  "instant-retaliation", "meat-shield", "mind-requital", "night-watch", "parry",
+  "precognitive-shift", "psionic-retribution", "resist-the-unnatural", "shadow-veil", "shield-block",
+  "skin-like-castle-walls", "skitter", "stalkers-afterimage", "striking-afterimage", "synaptic-anchor",
+  "unearthly-reflexes", "withdraw", "zephyr-feint",
+]);
+
+// Targeting-based halvers: the owner IS the strike target and the decision happens
+// at roll time (lock flow), so the damage button itself gets pre-halved instead of
+// holding the damage at apply time. Owner-is-not-target modifiers (Intercede,
+// Trick of the Eye, Testudo) stay lock-only for now.
+function damageModLayer(result, id) {
+  if (!DAMAGE_MODIFYING.has(id)) return result;
+  return {
+    ...result,
+    damageModifying: true,
+    clauses: result.clauses.map((c) => {
+      if (c.event !== "TAKES_DAMAGE") return c;
+      const upgraded = { ...c, event: "WOULD_TAKE_DAMAGE" };
+      if (c.events) upgraded.events = c.events.map((e) => e === "TAKES_DAMAGE" ? "WOULD_TAKE_DAMAGE" : e);
+      return upgraded;
+    }),
+  };
+}
+
 // ---------- Layer 2: regex ----------
 const EVENTS = [
   ["DIES",            /\b(dies|would die|is destroyed|enough damage to (die|be destroyed)|reduced? [^,]*?to 0 stamina|reduces? [^,]*?to 0 stamina|to 0 stamina)\b/i],
@@ -139,7 +170,7 @@ export function parseTrigger(text, { dsid, ownerName } = {}) {
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return { ...special, confidence: "high", source: "special" };
+  if (special) return damageModLayer({ ...special, confidence: "high", source: "special" }, id);
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -171,5 +202,5 @@ export function parseTrigger(text, { dsid, ownerName } = {}) {
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }
-  return { clauses, confidence: ambiguous ? "low" : "high", source: "regex" };
+  return damageModLayer({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, id);
 }

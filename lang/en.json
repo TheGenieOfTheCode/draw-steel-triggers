@@ -21,6 +21,10 @@
         "Name": "Damage Prompts",
         "Hint": "When a creature takes damage, dies, or becomes winded, matching triggered abilities appear in the Trigger Stack with Use and Decline instead of a chat reminder."
       },
+      "DamageInterrupts": {
+        "Name": "Damage Interrupts",
+        "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
+      },
       "RollLockGrace": {
         "Name": "Roll Lock Grace Period",
         "Hint": "After Use is chosen for a triggered ability, the held roll resumes when that ability's message is posted, or after this many seconds if it never posts (for cancelled flows)."
@@ -110,6 +114,19 @@
       },
       "Release": "Release Now",
       "ReleaseTooltip": "Resume the held ability immediately (Director only). Undecided triggers become simple prompts.",
+      "ApplyNow": "Apply Now",
+      "ApplyNowTooltip": "Apply the held damage immediately (Director only). Undecided triggers become simple prompts.",
+      "HeldDamageCause": "Triggered by {name} being dealt {amount} damage. The damage is held.",
+      "HeldDamageNotice": "{name}'s damage is held while triggered abilities are decided. See the Trigger Stack.",
+      "HeldDamageEntry": "{amount} incoming damage",
+      "HeldDamageEyebrow": "Damage to {name} held",
+      "HeldDamageTitle": "Apply Held Damage: {name}",
+      "HeldDamageHint": "A triggered ability was used against this damage. Adjust the original {amount} to the final amount, then apply.",
+      "HeldDamageHalf": "Half",
+      "HeldDamageDouble": "Double",
+      "HeldDamageApply": "Apply",
+      "HeldDamageDiscard": "Discard",
+      "HeldDamageDiscarded": "Held damage for {name} discarded. No Stamina was changed.",
       "WaitingOn": "waiting on {count} more triggers",
       "GraceCountdown": "Resumes in {seconds}s",
       "State": {

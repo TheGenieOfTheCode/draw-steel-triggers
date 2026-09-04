@@ -5,8 +5,20 @@ let socket = null;
 let _queue = [];
 let _mirror = [];
 const _rollBypass = new Set();
+const _damageBypass = new Set();
 
 const _pendingResumes = new Map();
+const _damageHolds = new Map();
+
+async function _postDeclineRecord(ownerActorUuid, ownerName, itemName) {
+  const owner = await fromUuid(ownerActorUuid).catch(() => null);
+  const recipients = game.users.filter((u) => u.isGM || (owner && owner.testUserPermission(u, "OWNER"))).map((u) => u.id);
+  ChatMessage.create({
+    content: `<div class="dst-reminder"><em>${game.i18n.format("DS_TRIGGERS.Queue.DeclineRecord", { owner: ownerName, ability: itemName })}</em></div>`,
+    whisper: recipients,
+    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
+  });
+}
 
 export function getQueueMirror() {
   return _mirror;
@@ -22,6 +34,12 @@ export function consumeRollBypass(itemUuid) {
   return true;
 }
 
+export function consumeDamageBypass(actorUuid) {
+  if (!_damageBypass.has(actorUuid)) return false;
+  _damageBypass.delete(actorUuid);
+  return true;
+}
+
 export function queueSocket() {
   return socket;
 }
@@ -30,12 +48,23 @@ function _broadcast() {
   socket.executeForEveryone("queueSync", foundry.utils.deepClone(_queue));
 }
 
+function _graceMs() {
+  return Math.max(1, Number(getSetting("rollLockGrace")) || 15) * 1000;
+}
+
 function _onQueueAdd(entries) {
   if (!game.users.activeGM?.isSelf) return;
+
   
-  const fresh = entries.filter((e) =>
-    !_queue.some((q) => q.itemUuid === e.itemUuid && q.state === "pending"));
+  
+  const fresh = entries.filter((e) => e.damageId
+    ? true
+    : !_queue.some((q) => q.itemUuid === e.itemUuid && q.state === "pending"));
   if (!fresh.length) return;
+  const damageEntry = fresh.find((e) => e.damageId && e.heldDamage);
+  if (damageEntry && !_damageHolds.has(damageEntry.damageId)) {
+    _damageHolds.set(damageEntry.damageId, { ...damageEntry.heldDamage, anyUsed: false, createdAt: damageEntry.createdAt });
+  }
   _queue.push(...fresh);
   dbg("queue add", fresh);
   _broadcast();
@@ -48,15 +77,7 @@ async function _onQueueResolve(id, outcome, userName) {
   entry.state = outcome;
   dbg(`queue resolve ${id} -> ${outcome}`);
 
-  if (outcome === "declined") {
-    const owner = await fromUuid(entry.ownerActorUuid).catch(() => null);
-    const recipients = game.users.filter((u) => u.isGM || (owner && owner.testUserPermission(u, "OWNER"))).map((u) => u.id);
-    ChatMessage.create({
-      content: `<div class="dst-reminder"><em>${game.i18n.format("DS_TRIGGERS.Queue.DeclineRecord", { owner: entry.ownerName, ability: entry.itemName })}</em></div>`,
-      whisper: recipients,
-      speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
-    });
-  }
+  if (outcome === "declined") _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
 
   if (entry.resumeId) {
     const stillLocked = _queue.some((e) => e.resumeId === entry.resumeId && e.state === "pending");
@@ -70,7 +91,7 @@ async function _onQueueResolve(id, outcome, userName) {
         _removeHeld(entry.resumeId);
         _dispatchResume(resume);
       } else {
-        const grace = Math.max(1, Number(getSetting("rollLockGrace")) || 15) * 1000;
+        const grace = _graceMs();
         const resumeId = entry.resumeId;
         const held = _queue.find((e) => e.resumeId === resumeId && e.kind === "held");
         if (held) {
@@ -87,7 +108,95 @@ async function _onQueueResolve(id, outcome, userName) {
   } else {
     _queue = _queue.filter((e) => e.id !== id);
   }
+
+  
+  if (entry.damageId && _damageHolds.has(entry.damageId)) {
+    const hold = _damageHolds.get(entry.damageId);
+    if (outcome === "used") hold.anyUsed = true;
+    if (!_queue.some((e) => e.damageId === entry.damageId && e.state === "pending")) {
+      _removeDamageHeldEntry(entry.damageId);
+      _finalizeDamageHold(entry.damageId);
+    }
+  }
   _broadcast();
+}
+
+function _removeDamageHeldEntry(damageId) {
+  _queue = _queue.filter((e) => !(e.damageId === damageId && e.kind === "damageHeld"));
+}
+
+async function _finalizeDamageHold(damageId) {
+  const hold = _damageHolds.get(damageId);
+  if (!hold) return;
+  _damageHolds.delete(damageId);
+  if (!hold.anyUsed) {
+    await _applyHeldDamage(hold.actorUuid, hold.amount);
+    return;
+  }
+
+  
+  
+  const actor = await fromUuid(hold.actorUuid).catch(() => null);
+  const F = (k, data) => game.i18n.format(`DS_TRIGGERS.Queue.${k}`, data);
+  const result = await foundry.applications.api.DialogV2.wait({
+    window: { title: F("HeldDamageTitle", { name: actor?.name ?? "" }) },
+    position: { width: 280 },
+    content: `<p class="hint">${F("HeldDamageHint", { amount: hold.amount })}</p>
+      <div class="dst-held-form">
+        <input type="number" name="dst-held-amount" value="${hold.amount}" min="0" step="1" autofocus>
+        <div class="dst-held-adjust">
+          <button type="button" data-adjust="half">${game.i18n.localize("DS_TRIGGERS.Queue.HeldDamageHalf")}</button>
+          <button type="button" data-adjust="double">${game.i18n.localize("DS_TRIGGERS.Queue.HeldDamageDouble")}</button>
+          <button type="button" data-adjust="plus">+1</button>
+          <button type="button" data-adjust="minus">-1</button>
+        </div>
+      </div>`,
+    buttons: [
+      {
+        action: "apply",
+        label: "DS_TRIGGERS.Queue.HeldDamageApply",
+        icon: "fa-solid fa-heart-crack",
+        default: true,
+        callback: (_event, button) => Number(button.form.elements["dst-held-amount"]?.value ?? hold.amount),
+      },
+      { action: "discard", label: "DS_TRIGGERS.Queue.HeldDamageDiscard", callback: () => null },
+    ],
+    render: (_event, dialog) => {
+      const root = dialog.element ?? dialog;
+      const input = root.querySelector('input[name="dst-held-amount"]');
+      for (const btn of root.querySelectorAll("[data-adjust]")) {
+        btn.addEventListener("click", () => {
+          if (!input) return;
+          const v = Number(input.value || 0);
+          switch (btn.dataset.adjust) {
+            case "half": input.value = Math.floor(v / 2); break;
+            case "double": input.value = v * 2; break;
+            case "plus": input.value = v + 1; break;
+            case "minus": input.value = Math.max(0, v - 1); break;
+          }
+        });
+      }
+    },
+    rejectClose: false,
+  }).catch(() => null);
+
+  if (result == null || !(Number(result) > 0)) {
+    ui.notifications.warn(F("HeldDamageDiscarded", { name: actor?.name ?? "" }));
+    return;
+  }
+  await _applyHeldDamage(hold.actorUuid, Number(result));
+}
+
+async function _applyHeldDamage(actorUuid, amount) {
+  if (!(amount > 0)) return;
+  const actor = await fromUuid(actorUuid).catch(() => null);
+  if (!actor) return;
+  _damageBypass.add(actorUuid);
+  try {
+    await actor.modifyTokenAttribute("stamina", -amount, true, false);
+  } finally {
+    _damageBypass.delete(actorUuid);
+  }
 }
 
 function _dispatchResume(resume) {
@@ -224,6 +333,62 @@ export function enqueuePromptEntries(matches, { event, causeLabel }) {
   socket.executeAsGM("queueAdd", entries);
 }
 
+export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
+  const damageId = foundry.utils.randomID();
+  const entries = matches.map((m) => ({
+    id: foundry.utils.randomID(),
+    itemUuid: m.item.uuid,
+    itemName: m.item.name,
+    ownerActorUuid: m.actor.uuid,
+    ownerName: m.actor.name,
+    event: "WOULD_TAKE_DAMAGE",
+    causeLabel,
+    lock: false,
+    state: "pending",
+    createdAt: Date.now(),
+    resumeId: null,
+    resume: null,
+    damageId,
+    heldDamage,
+  }));
+  entries.push({
+    id: foundry.utils.randomID(),
+    kind: "damageHeld",
+    itemUuid: null,
+    itemName: game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEntry", { amount: heldDamage.amount }),
+    ownerActorUuid: heldDamage.actorUuid,
+    ownerName: heldDamage.actorName ?? "",
+    event: "WOULD_TAKE_DAMAGE",
+    causeLabel,
+    lock: false,
+    state: "held",
+    createdAt: Date.now(),
+    resumeId: null,
+    resume: null,
+    damageId,
+    heldDamage,
+  });
+  socket.executeAsGM("queueAdd", entries);
+}
+
+export function applyHeldDamageNow(damageId) {
+  socket.executeAsGM("applyHeldDamageNow", damageId);
+}
+
+function _onApplyHeldDamageNow(damageId) {
+  if (!game.users.activeGM?.isSelf) return;
+
+  for (const e of _queue) {
+    if (e.damageId === damageId && e.state === "pending") {
+      e.damageId = null;
+      e.heldDamage = null;
+    }
+  }
+  _removeDamageHeldEntry(damageId);
+  _finalizeDamageHold(damageId);
+  _broadcast();
+}
+
 export function resolveQueueEntry(id, outcome) {
   socket.executeAsGM("queueResolve", id, outcome, game.user.name);
 }
@@ -235,4 +400,5 @@ Hooks.once("socketlib.ready", () => {
   socket.register("queueSync", _onQueueSync);
   socket.register("resumeRoll", _onResumeRoll);
   socket.register("releaseHeld", _onReleaseHeld);
+  socket.register("applyHeldDamageNow", _onApplyHeldDamageNow);
 });

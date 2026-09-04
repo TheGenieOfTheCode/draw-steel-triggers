@@ -1,4 +1,46 @@
-import { dispatchTriggerEvent } from "../dispatch.mjs";
+import { dispatchTriggerEvent, collectTriggerMatches } from "../dispatch.mjs";
+import { enqueueDamageHold, consumeDamageBypass } from "../queue.mjs";
+import { MODULE_ID, getSetting } from "../../util.mjs";
+
+let _pendingDamageType = null;
+Hooks.once("ready", () => {
+  if (!game.modules.get("lib-wrapper")?.active) return;
+  libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
+    _pendingDamageType = options?.type ?? null;
+    try {
+      return wrapped(damage, options);
+    } finally {
+      _pendingDamageType = null;
+    }
+  }, "WRAPPER");
+});
+
+Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
+  if (change?.attribute !== "stamina" || !actor) return;
+  if (consumeDamageBypass(actor.uuid)) return;
+  if (!getSetting("damageInterrupts")) return;
+  if (!game.combat?.started) return;
+  const cur = actor.system.stamina;
+  if (!cur) return;
+  const curTotal = cur.value + (cur.temporary ?? 0);
+  const newTotal = (updates["system.stamina.value"] ?? cur.value) + (updates["system.stamina.temporary"] ?? cur.temporary ?? 0);
+  const amount = curTotal - newTotal;
+  if (amount <= 0) return;
+
+  const token = actor.getActiveTokens(true, true)[0] ?? null;
+  let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token).filter((m) =>
+    !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+  
+  if (_pendingDamageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(_pendingDamageType));
+  if (!matches.length) return;
+
+  enqueueDamageHold(matches, {
+    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.HeldDamageCause", { name: actor.name, amount }),
+    heldDamage: { actorUuid: actor.uuid, actorName: actor.name, amount },
+  });
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: actor.name }));
+  return false;
+});
 
 Hooks.on("preUpdateActor", (actor, changed, options) => {
   const stamina = changed.system?.stamina;

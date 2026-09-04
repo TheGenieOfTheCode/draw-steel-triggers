@@ -185,6 +185,57 @@
   color: #d9a63f;
 }
 
+.dst-stack .dst-stack-entry--damage {
+  border-color: rgba(196, 74, 74, 0.55);
+  background: rgba(196, 74, 74, 0.07);
+}
+
+.dst-stack .dst-stack-entry--damage .dst-stack-held-icon {
+  color: #c44a4a;
+}
+
+.dst-stack .dst-stack-damage-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(196, 74, 74, 0.6);
+  border-radius: 4px;
+  color: #c44a4a;
+}
+
+.dst-stack .dst-stack-name--damage {
+  color: #c44a4a;
+}
+
+.dst-held-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.dst-held-form input[name="dst-held-amount"] {
+  width: 100%;
+  text-align: center;
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
+.dst-held-adjust {
+  display: flex;
+  gap: 4px;
+}
+
+.dst-held-adjust button {
+  flex: 1;
+  padding: 2px 4px;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
 .dst-stack .dst-stack-entry--used { opacity: 0.6; }
 .dst-stack .dst-stack-entry--declined { opacity: 0.6; }
 .dst-stack .dst-stack-entry--dismissed { opacity: 0.5; }
