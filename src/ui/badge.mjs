@@ -1,7 +1,6 @@
 import { MODULE_ID, emblemHTML } from "../util.mjs";
 import { isTriggeredAbility, isMaliceAbility, getParsedTrigger } from "../triggers/registry.mjs";
 
-// how each detectable event is automated: reminder, stack prompt, roll lock, or damage hold
 const EVENT_MODES = {
   TURN_START: "reminder",
   TURN_END: "reminder",

@@ -4,6 +4,7 @@ import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
 import { maliceChipURI } from "../ui/malice-chip.mjs";
 import { buildAbilityPreview } from "../ui/ability-preview.mjs";
+import { isActorSnoozed } from "../ui/snooze.mjs";
 
 const PROMPT_EVENTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING"]);
 
@@ -83,6 +84,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
 
   for (const { actor, disposition } of candidates) {
     if (actor.statuses?.has(defeated)) continue;
+    if (isActorSnoozed(actor)) continue;
     const spent = isTriggeredActionSpent(actor);
     for (const entry of getTriggeredAbilities(actor)) {
       if (entry.item.system.restricted) continue;

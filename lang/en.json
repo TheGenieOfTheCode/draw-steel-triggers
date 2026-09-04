@@ -191,6 +191,9 @@
         "declined": "Declined",
         "dismissed": "Dismissed"
       },
+      "SquadHoldHeader": "Held Damage Not Available",
+      "SquadHoldBody": "{name} is part of a minion squad. Squad damage is applied through the squad's shared Stamina and cannot be held, so it was applied normally. These triggered abilities may still apply. Adjudicate manually:",
+      "SquadHoldNotice": "Damage to {name} cannot be held (minion squad). Triggers may apply, see chat.",
       "LockCause": "{roller} is using {ability}.",
       "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
       "RollReleased": "The triggers are decided. {name} continues.",
@@ -218,6 +221,11 @@
       "Dies": "Triggered by {name} being reduced to 0 Stamina.",
       "Winded": "Triggered by {name} becoming winded.",
       "RegainsStamina": "Triggered by {name} regaining {amount} Stamina."
+    },
+    "Snooze": {
+      "Button": "Snooze Triggers",
+      "On": "Triggers snoozed for your actors.",
+      "Off": "Triggers resumed for your actors."
     }
   }
 }

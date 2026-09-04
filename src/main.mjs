@@ -15,6 +15,7 @@ import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spen
 import { computeAutomationLevel } from "./ui/badge.mjs";
 import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import { StackWindow } from "./ui/stack-window.mjs";
+import { toggleSnooze, isActorSnoozed } from "./ui/snooze.mjs";
 import { getQueueMirror } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
@@ -107,6 +108,8 @@ Hooks.once("init", () => {
     clearParseCache,
     registerSpecialCase,
     scanWorld,
+    toggleSnooze,
+    isActorSnoozed,
   };
 });
 
