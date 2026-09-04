@@ -45,7 +45,7 @@ export async function buildAbilityPreview(item, { includeMeta = true, includeTri
 
   if (includeTrigger && sys.trigger) {
     const triggerLabel = sys.schema?.fields?.trigger?.label;
-    parts.push(`<div class="dst-preview-effect"><strong>${triggerLabel ? game.i18n.localize(triggerLabel) : "Trigger"}</strong>${await enrich(sys.trigger)}</div>`);
+    parts.push(`<div class="dst-preview-effect"><strong>${triggerLabel ? game.i18n.localize(triggerLabel) : "Trigger"}:</strong>${await enrich(sys.trigger)}</div>`);
   }
 
   const before = [];
@@ -53,16 +53,18 @@ export async function buildAbilityPreview(item, { includeMeta = true, includeTri
   for (const eff of sys.effects?.sortedContents ?? []) {
     const text = await enrich(eff.description ?? "");
     if (!text) continue;
-    (eff.before ? before : after).push(`<div class="dst-preview-effect"><strong>${eff.label ?? ""}</strong>${text}</div>`);
+    (eff.before ? before : after).push(`<div class="dst-preview-effect"><strong>${eff.label ? `${eff.label}:` : ""}</strong>${text}</div>`);
   }
   parts.push(...before);
 
-  if (sys.power?.roll?.enabled) {
+  
+  
+  if (typeof sys.powerRollText === "function") {
     const tierLines = await Promise.all([1, 2, 3].map(async (tier) => {
       const text = await enrich(await sys.powerRollText(tier));
       return text ? `<div class="dst-preview-tier"><span class="dst-tier-badge dst-tier-badge--${tier}">${["&le;11", "12&ndash;16", "17+"][tier - 1]}</span><span>${text}</span></div>` : "";
     }));
-    parts.push(`<div class="dst-preview-tiers">${tierLines.join("")}</div>`);
+    if (tierLines.some(Boolean)) parts.push(`<div class="dst-preview-tiers">${tierLines.join("")}</div>`);
   }
 
   parts.push(...after);

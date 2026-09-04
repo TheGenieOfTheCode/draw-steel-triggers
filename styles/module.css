@@ -634,6 +634,10 @@
   margin: 2px 0;
 }
 
+.dst-preview-effect p:first-of-type {
+  display: inline;
+}
+
 .dst-malice-card .dst-malice-chip {
   width: 16px;
   height: 16px;
