@@ -158,7 +158,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       }
       const holdToggle = event.target.closest("input[data-hold-toggle]");
       if (holdToggle) {
-        // the toggle is just another view of the clause event: flip the select live
+        
         const sel = holdToggle.closest(".dst-editor-clause")?.querySelector('select[data-field="event"]');
         if (sel) {
           sel.value = holdToggle.checked ? "WOULD_TAKE_DAMAGE" : "TAKES_DAMAGE";
@@ -209,6 +209,9 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   _syncFromDOM() {
     const el = this.element;
     for (const input of el.querySelectorAll("[data-field][data-index]")) {
+      
+      
+      if (input.localName === "multi-select" || input.dataset.field === "groupSelect") continue;
       const clause = this._clauses[Number(input.dataset.index)];
       if (!clause) continue;
       const field = input.dataset.field;

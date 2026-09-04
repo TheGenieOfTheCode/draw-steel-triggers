@@ -186,6 +186,16 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   }
 }
 
+function _maliceTypeName(actor) {
+  if (actor.system?.monster?.organization === "solo") return null;
+  const config = ds.CONFIG.monsters?.keywords ?? {};
+  for (const kw of actor.system?.monster?.keywords ?? []) {
+    const cfg = config[kw];
+    if (cfg?.group?.endsWith?.("KeywordGroups.Ancestry")) return game.i18n.localize(cfg.label ?? kw);
+  }
+  return null;
+}
+
 async function _sendMaliceCard(matches, subjectActor) {
   matches.sort((a, b) => (a.item.system.resource ?? 999) - (b.item.system.resource ?? 999));
   const L = (k) => game.i18n.localize(`DS_TRIGGERS.MaliceCard.${k}`);
@@ -219,10 +229,15 @@ async function _sendMaliceCard(matches, subjectActor) {
     for (const u of game.users) if (m.actor.testUserPermission(u, "OWNER")) recipients.add(u.id);
   }
 
+  const typeName = _maliceTypeName(subjectActor);
+  const cardTitle = typeName
+    ? game.i18n.format("DS_TRIGGERS.MaliceCard.TitleTypal", { name: typeName })
+    : game.i18n.format("DS_TRIGGERS.MaliceCard.Title", { name: subjectActor.name });
+
   ChatMessage.create({
     content: `<div class="dst-malice-card">
       <header class="dst-malice-card-hdr">${L("Header")}</header>
-      <div class="dst-malice-card-title">${game.i18n.format("DS_TRIGGERS.MaliceCard.Title", { name: subjectActor.name })}</div>
+      <div class="dst-malice-card-title">${cardTitle}</div>
       <p class="dst-malice-card-intro">${game.i18n.format("DS_TRIGGERS.MaliceCard.Intro", { name: subjectActor.name })}</p>
       ${rows}
     </div>`,
