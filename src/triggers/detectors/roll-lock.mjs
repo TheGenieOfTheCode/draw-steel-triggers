@@ -63,7 +63,8 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
     const subjectActor = tokenDoc?.actor;
     if (!subjectActor) continue;
     if (strike) {
-      const list = _lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor);
+      const list = _lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor)
+        .filter((m) => m.clause?.postRoll !== true);
       for (const m of list) m._subjectTokenUuid = tokenDoc.uuid;
       add(list, "TARGETED_BY_STRIKE");
     }

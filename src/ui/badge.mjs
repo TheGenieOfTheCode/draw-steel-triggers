@@ -33,7 +33,7 @@ export function computeAutomationLevel(item) {
   const detail = [];
   let detected = 0;
   for (const clause of parse.clauses) {
-    const mode = EVENT_MODES[clause.event];
+    const mode = clause.postRoll && clause.event === "TARGETED_BY_STRIKE" ? "resolution" : EVENT_MODES[clause.event];
     const scopeOk = BASE_SCOPES.has(clause.scope) || isMaliceAbility(item);
     if (mode && scopeOk) {
       detected++;

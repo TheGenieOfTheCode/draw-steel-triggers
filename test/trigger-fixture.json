@@ -539,7 +539,8 @@
         {
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
-          "qualifiers": []
+          "qualifiers": [],
+          "postRoll": true
         }
       ]
     }
@@ -575,11 +576,13 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "MAKES_STRIKE",
-          "scope": "ENEMY",
+          "event": "TARGETED_BY_STRIKE",
+          "scope": "TARGET",
           "qualifiers": [
-            "within distance"
-          ]
+            "within distance",
+            "while within distance"
+          ],
+          "postRoll": true
         }
       ]
     }
@@ -1536,7 +1539,8 @@
         {
           "event": "POWER_ROLL_RESULT",
           "scope": "SELF",
-          "qualifiers": []
+          "qualifiers": [],
+          "postRoll": true
         }
       ]
     }
@@ -1895,6 +1899,7 @@
           "qualifiers": [
             "adjacent to"
           ],
+          "postRoll": true,
           "redirect": "self"
         }
       ]
@@ -1915,7 +1920,8 @@
           "scope": "TARGET",
           "qualifiers": [
             "melee strike"
-          ]
+          ],
+          "postRoll": true
         }
       ]
     }
@@ -2545,11 +2551,13 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "MAKES_STRIKE",
-          "scope": "ANY",
+          "event": "TARGETED_BY_STRIKE",
+          "scope": "SELF",
           "qualifiers": [
-            "within distance"
-          ]
+            "within distance",
+            "while within distance"
+          ],
+          "postRoll": true
         }
       ]
     }
@@ -3033,14 +3041,16 @@
     "trigger": "A creature within distance makes a strike against Rhodar.",
     "expected": {
       "source": "regex",
-      "confidence": "high",
+      "confidence": "low",
       "clauses": [
         {
-          "event": "MAKES_STRIKE",
-          "scope": "ANY",
+          "event": "TARGETED_BY_STRIKE",
+          "scope": "UNKNOWN",
           "qualifiers": [
-            "within distance"
-          ]
+            "within distance",
+            "while within distance"
+          ],
+          "postRoll": true
         }
       ]
     }
@@ -3207,6 +3217,7 @@
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
           "qualifiers": [],
+          "postRoll": true,
           "redirect": "after"
         }
       ]
@@ -3226,6 +3237,7 @@
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
           "qualifiers": [],
+          "postRoll": true,
           "redirect": "after"
         }
       ]
@@ -4195,7 +4207,8 @@
           "scope": "SELF_OR_ALLY",
           "qualifiers": [
             "adjacent to"
-          ]
+          ],
+          "postRoll": true
         }
       ]
     }
@@ -5353,6 +5366,7 @@
           "event": "TARGETED_BY_STRIKE",
           "scope": "TARGET",
           "qualifiers": [],
+          "postRoll": true,
           "redirect": "self"
         }
       ]

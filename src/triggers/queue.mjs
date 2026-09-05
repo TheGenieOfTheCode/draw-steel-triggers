@@ -11,6 +11,8 @@ const _damageBypass = new Set();
 const _pendingResumes = new Map();
 const _damageHolds = new Map();
 const _pendingDamageGraces = new Map();
+const _resolutionHolds = new Map();
+const _pendingResolutionGraces = new Map();
 
 const _recentAbilityPosts = new Map();
 
@@ -87,6 +89,23 @@ function _onUseCancelled(itemUuid) {
     touched = true;
   }
 
+  for (const [resolutionId, hold] of _resolutionHolds) {
+    if (!hold.usedItems?.has(itemUuid)) continue;
+    hold.usedItems.delete(itemUuid);
+    hold.anyUsed = hold.usedItems.size > 0;
+    const u = (hold.usedEntries ?? []).find((x) => x.itemUuid === itemUuid && !x.cancelled);
+    if (u) {
+      u.cancelled = true;
+      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+    }
+    const grace = _pendingResolutionGraces.get(resolutionId);
+    if (grace) {
+      grace.awaiting.delete(itemUuid);
+      if (!grace.awaiting.size) _endResolutionGrace(resolutionId, false);
+    }
+    touched = true;
+  }
+
   if (touched) _broadcast();
 }
 
@@ -157,7 +176,7 @@ function _onQueueAdd(entries) {
 
   
   
-  const fresh = entries.filter((e) => e.damageId
+  const fresh = entries.filter((e) => (e.damageId || e.resolutionId)
     ? true
     : !_queue.some((q) => q.itemUuid === e.itemUuid && q.state === "pending"));
   if (!fresh.length) return;
@@ -165,6 +184,13 @@ function _onQueueAdd(entries) {
   if (damageEntry && !_damageHolds.has(damageEntry.damageId)) {
     _damageHolds.set(damageEntry.damageId, { ...damageEntry.heldDamage, anyUsed: false, createdAt: damageEntry.createdAt });
     Hooks.callAll("dst.damageHoldRegistered", damageEntry.damageId);
+  }
+  const resolutionEntry = fresh.find((e) => e.resolutionId && e.resolution);
+  if (resolutionEntry && !_resolutionHolds.has(resolutionEntry.resolutionId)) {
+    _resolutionHolds.set(resolutionEntry.resolutionId, { ...resolutionEntry.resolution, anyUsed: false, createdAt: resolutionEntry.createdAt });
+    const message = game.messages.get(resolutionEntry.resolution.messageId);
+    if (message) message.setFlag(MODULE_ID, "resolutionLock", true).catch(() => {});
+    Hooks.callAll("dst.resolutionHoldRegistered", resolutionEntry.resolutionId);
   }
   if (getSetting("stackDecisionTimer")) {
     for (const e of fresh) {
@@ -242,7 +268,8 @@ async function _onQueueResolve(id, outcome, userName) {
   if (outcome === "used" && getSetting("stackDecisionTimer")) {
     for (const e of _queue) {
       if (e.state !== "pending" || !e.decideUntil) continue;
-      if ((entry.resumeId && e.resumeId === entry.resumeId) || (entry.damageId && e.damageId === entry.damageId)) {
+      if ((entry.resumeId && e.resumeId === entry.resumeId) || (entry.damageId && e.damageId === entry.damageId)
+        || (entry.resolutionId && e.resolutionId === entry.resolutionId)) {
         e.decideUntil = Date.now() + _graceMs();
       }
     }
@@ -257,6 +284,23 @@ async function _onQueueResolve(id, outcome, userName) {
     }
     if (!_queue.some((e) => e.damageId === entry.damageId && e.state === "pending")) {
       _completeDamageGroup(entry.damageId);
+    }
+  }
+  if (entry.resolutionId && _resolutionHolds.has(entry.resolutionId)) {
+    const hold = _resolutionHolds.get(entry.resolutionId);
+    if (outcome === "used") {
+      hold.anyUsed = true;
+      (hold.usedItems ??= new Set()).add(entry.itemUuid);
+      (hold.usedEntries ??= []).push({
+        itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName,
+        itemName: entry.itemName, usedAt: entry.usedAt,
+        rollMod: entry.rollMod ?? null, redirect: entry.redirect ?? null,
+        halfOnUse: entry.halfOnUse ?? false,
+        subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
+      });
+    }
+    if (!_queue.some((e) => e.resolutionId === entry.resolutionId && e.state === "pending")) {
+      _completeResolutionGroup(entry.resolutionId);
     }
   }
   _broadcast();
@@ -308,6 +352,145 @@ function _endDamageGrace(damageId, expired) {
   _removeDamageHeldEntry(damageId);
   _broadcast();
   _finalizeDamageHold(damageId);
+}
+
+function _removeResolutionHeldEntry(resolutionId) {
+  _queue = _queue.filter((e) => !(e.resolutionId === resolutionId && e.kind === "resolutionHeld"));
+}
+
+function _completeResolutionGroup(resolutionId) {
+  const hold = _resolutionHolds.get(resolutionId);
+  if (!hold) return;
+  const awaiting = new Set((hold.usedEntries ?? [])
+    .filter((u) => !u.cancelled && !_postedAfterUse(u.itemUuid, u.usedAt))
+    .map((u) => u.itemUuid));
+  if (!awaiting.size) {
+    _removeResolutionHeldEntry(resolutionId);
+    _finalizeResolutionHold(resolutionId);
+    return;
+  }
+  const grace = _graceMs();
+  const heldEntry = _queue.find((e) => e.resolutionId === resolutionId && e.kind === "resolutionHeld");
+  if (heldEntry) {
+    heldEntry.state = "grace";
+    heldEntry.graceUntil = Date.now() + grace;
+  }
+  _pendingResolutionGraces.set(resolutionId, {
+    awaiting,
+    timer: setTimeout(() => _endResolutionGrace(resolutionId, true), grace),
+  });
+}
+
+function _endResolutionGrace(resolutionId, expired) {
+  const pending = _pendingResolutionGraces.get(resolutionId);
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  _pendingResolutionGraces.delete(resolutionId);
+  const hold = _resolutionHolds.get(resolutionId);
+  if (hold && expired && pending.awaiting.size) {
+    for (const u of hold.usedEntries ?? []) {
+      if (!pending.awaiting.has(u.itemUuid)) continue;
+      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+      u.cancelled = true;
+      hold.usedItems?.delete(u.itemUuid);
+    }
+    hold.anyUsed = (hold.usedItems?.size ?? 0) > 0;
+  }
+  _removeResolutionHeldEntry(resolutionId);
+  _broadcast();
+  _finalizeResolutionHold(resolutionId);
+}
+
+async function _finalizeResolutionHold(resolutionId) {
+  const hold = _resolutionHolds.get(resolutionId);
+  if (!hold) return;
+  _resolutionHolds.delete(resolutionId);
+  const message = game.messages.get(hold.messageId);
+  const used = (hold.usedEntries ?? []).filter((u) => !u.cancelled);
+  for (const u of used) {
+    if (u.rollMod) await _applyRollModOverride(hold, u).catch((err) => dbg("roll mod apply failed", err));
+  }
+  for (const u of used) {
+    if (!u.halfOnUse || !u.subjectTargetKey) continue;
+    const doc = await fromUuid(u.subjectTargetKey.replace(/__/g, ".")).catch(() => null);
+    const targetActorUuid = doc?.actor?.uuid ?? null;
+    if (!targetActorUuid) continue;
+    Hooks.callAll("dst.targetedHalfUsed", {
+      abilityUuid: hold.abilityUuid,
+      targetActorUuid,
+      modName: u.itemName,
+      messageId: hold.messageId,
+    });
+  }
+  _postRedirectReminders(used, { userId: hold.authorUserId ?? null });
+  if (message) await message.unsetFlag(MODULE_ID, "resolutionLock").catch(() => {});
+  Hooks.callAll("dst.resolutionHoldResolved", { hold, used });
+}
+
+function _findPowerRoll(message, targetActorUuid) {
+  const isPR = (r) => (globalThis.ds?.rolls?.PowerRoll && r instanceof ds.rolls.PowerRoll) || typeof r?.product !== "undefined";
+  const parts = message.system?.parts;
+  const list = parts
+    ? (Array.isArray(parts) ? parts : Array.from(parts.contents ?? (typeof parts.values === "function" ? parts.values() : Object.values(parts))))
+    : [];
+  let fallback = null;
+  for (const part of list) {
+    for (const roll of Array.from(part.rolls ?? []).reverse()) {
+      if (!isPR(roll)) continue;
+      if (targetActorUuid && roll.options?.target === targetActorUuid) return roll;
+      fallback = fallback ?? roll;
+    }
+  }
+  return fallback;
+}
+
+async function _applyRollModOverride(hold, u) {
+  const message = game.messages.get(hold.messageId);
+  if (!message || !u.subjectTargetKey) return;
+  const state = foundry.utils.deepClone(message.getFlag("draw-steel-target-damage", "state") ?? null);
+  if (!state) return;
+  const targetTokenUuid = u.subjectTargetKey.replace(/__/g, ".");
+  const targetDoc = await fromUuid(targetTokenUuid).catch(() => null);
+  const roll = _findPowerRoll(message, targetDoc?.actor?.uuid ?? null);
+  if (!roll) return;
+  const natural = Number(roll.dice?.[0]?.total ?? 0);
+  const critThreshold = Number(roll.options?.criticalThreshold ?? 19);
+  const existing = state.tierOverrides?.[u.subjectTargetKey] ?? null;
+  const baseEdges = existing?.edges != null ? Number(existing.edges) : Number(roll.options?.edges ?? 0);
+  const baseBanes = existing?.banes != null ? Number(existing.banes) : Number(roll.options?.banes ?? 0);
+  const baseBonuses = existing?.bonuses != null ? Number(existing.bonuses) : Number(roll.options?.bonuses ?? 0);
+  const edges = Math.min(2, baseEdges + (u.rollMod.edges ?? 0));
+  const banes = Math.min(2, baseBanes + (u.rollMod.banes ?? 0));
+  const bonuses = baseBonuses + (u.rollMod.bonus ?? 0);
+
+  const net0 = Number(roll.options?.edges ?? 0) - Number(roll.options?.banes ?? 0);
+  const adj0 = Math.abs(net0) === 1 ? Math.sign(net0) * 2 : 0;
+  const staticModifier = existing?.staticModifier != null
+    ? Number(existing.staticModifier)
+    : Number(roll.total ?? 0) - natural - adj0 - Number(roll.options?.bonuses ?? 0);
+
+  const net = edges - banes;
+  const adj = Math.abs(net) === 1 ? Math.sign(net) * 2 : 0;
+  const total = natural + staticModifier + adj + bonuses;
+  let tier;
+  if (natural >= critThreshold) tier = 3;
+  else {
+    tier = 1;
+    if (total >= 12) tier = 2;
+    if (total >= 17) tier = 3;
+    const shift = net - Math.sign(net);
+    tier = Math.min(3, Math.max(1, tier + shift));
+  }
+
+  state.tierOverrides = state.tierOverrides ?? {};
+  state.tierOverrides[u.subjectTargetKey] = {
+    tier, total, naturalTotal: natural, staticModifier, edges, banes, bonuses,
+    isCritical: natural >= critThreshold,
+    dstModName: u.itemName,
+  };
+  state.updatedAt = Date.now();
+  await message.setFlag("draw-steel-target-damage", "state", state);
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModApplied", { modName: u.itemName, name: u.subjectName, tier }));
 }
 
 async function _finalizeDamageHold(damageId) {
@@ -503,6 +686,11 @@ Hooks.on("createChatMessage", (message) => {
     pending.awaiting.delete(abilityUse.abilityUuid);
     if (!pending.awaiting.size) _endDamageGrace(damageId, false);
   }
+  for (const [resolutionId, pending] of _pendingResolutionGraces) {
+    if (!pending.awaiting.has(abilityUse.abilityUuid)) continue;
+    pending.awaiting.delete(abilityUse.abilityUuid);
+    if (!pending.awaiting.size) _endResolutionGrace(resolutionId, false);
+  }
 });
 
 async function _onResumeRoll(itemUuid, retargets = []) {
@@ -658,6 +846,71 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
   socket.executeAsGM("queueAdd", entries);
 }
 
+export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
+  const resolutionId = foundry.utils.randomID();
+  const entries = matches.map((m) => ({
+    id: foundry.utils.randomID(),
+    itemUuid: m.item.uuid,
+    itemName: m.item.name,
+    ownerActorUuid: m.actor.uuid,
+    ownerName: m.actor.name,
+    event: "TARGETED_BY_STRIKE",
+    causeLabel: m._causeLabel ?? causeLabel,
+    lock: false,
+    state: "pending",
+    createdAt: Date.now(),
+    resumeId: null,
+    resume: null,
+    resolutionId,
+    rollMod: m.clause?.rollMod ?? null,
+    redirect: m.clause?.redirect ?? null,
+    halfOnUse: m.clause?.halfOnUse ?? false,
+    subjectTargetKey: m._subjectTargetKey ?? null,
+    subjectName: m._subjectName ?? "",
+  }));
+  entries.push({
+    id: foundry.utils.randomID(),
+    kind: "resolutionHeld",
+    itemUuid: resolution.abilityUuid ?? null,
+    itemName: game.i18n.format("DS_TRIGGERS.Queue.ResolutionEntry", { ability: resolution.abilityName }),
+    ownerActorUuid: resolution.rollerActorUuid ?? null,
+    ownerName: resolution.rollerName ?? "",
+    event: "TARGETED_BY_STRIKE",
+    causeLabel,
+    lock: false,
+    state: "held",
+    graceUntil: null,
+    createdAt: Date.now(),
+    resumeId: null,
+    resume: null,
+    resolutionId,
+    resolution,
+  });
+  socket.executeAsGM("queueAdd", entries);
+}
+
+export function releaseResolutionNow(resolutionId) {
+  socket.executeAsGM("releaseResolutionNow", resolutionId);
+}
+
+function _onReleaseResolutionNow(resolutionId) {
+  if (!game.users.activeGM?.isSelf) return;
+  const pending = _pendingResolutionGraces.get(resolutionId);
+  if (pending) {
+    clearTimeout(pending.timer);
+    _pendingResolutionGraces.delete(resolutionId);
+  }
+  for (const e of _queue) {
+    if (e.resolutionId === resolutionId && e.state === "pending") {
+      e.resolutionId = null;
+      e.rollMod = null;
+    }
+  }
+  _removeResolutionHeldEntry(resolutionId);
+  _finalizeResolutionHold(resolutionId);
+  _broadcast();
+}
+
 export function applyHeldDamageNow(damageId) {
   socket.executeAsGM("applyHeldDamageNow", damageId);
 }
@@ -693,5 +946,6 @@ Hooks.once("socketlib.ready", () => {
   socket.register("resumeRoll", _onResumeRoll);
   socket.register("releaseHeld", _onReleaseHeld);
   socket.register("applyHeldDamageNow", _onApplyHeldDamageNow);
+  socket.register("releaseResolutionNow", _onReleaseResolutionNow);
   socket.register("useCancelled", _onUseCancelled);
 });

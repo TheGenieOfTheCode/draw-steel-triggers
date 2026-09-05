@@ -20,6 +20,7 @@ import { getQueueMirror } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/roll-lock.mjs";
+import "./triggers/detectors/resolution.mjs";
 import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
@@ -50,6 +51,14 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "damageInterrupts", {
     name: "DS_TRIGGERS.Settings.DamageInterrupts.Name",
     hint: "DS_TRIGGERS.Settings.DamageInterrupts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "resolutionHolds", {
+    name: "DS_TRIGGERS.Settings.ResolutionHolds.Name",
+    hint: "DS_TRIGGERS.Settings.ResolutionHolds.Hint",
     scope: "world",
     config: true,
     type: Boolean,

@@ -1,4 +1,4 @@
-.dst-reminder .dst-reminder-header {
+﻿.dst-reminder .dst-reminder-header {
   font-weight: bold;
   border-bottom: 1px solid var(--color-border-light-primary, #7a7971);
   margin-bottom: 4px;
@@ -739,3 +739,32 @@ button.dst-dstd-held-btn > i {
   opacity: 0.8;
   font-size: 0.92em;
 }
+
+button.dst-dstd-res-locked {
+  background: rgba(212, 168, 42, 0.22) !important;
+  border-color: rgba(212, 168, 42, 0.65) !important;
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.dst-dstd-res-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  margin: 4px 0;
+  padding: 3px 8px;
+  border: 1px solid rgba(212, 168, 42, 0.55);
+  border-radius: 4px;
+  background: rgba(212, 168, 42, 0.12);
+  color: #d4a82a;
+  font-size: 0.85em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dst-stack-entry--resolution .dst-stack-held-icon {
+  color: #d4a82a;
+}
+

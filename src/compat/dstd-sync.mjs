@@ -1,4 +1,4 @@
-import { dbg } from "../util.mjs";
+import { MODULE_ID, dbg } from "../util.mjs";
 import { getActiveDamageHolds } from "../triggers/queue.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
@@ -151,6 +151,10 @@ function _dstdOperationId(target, partId, rollIndex) {
 Hooks.on("dst.targetedHalfUsed", (data) => {
   if (!_dstdActive()) return;
   _pendingHalves.push({ ...data, expires: Date.now() + 120000 });
+  if (data.messageId && game.users.activeGM?.isSelf) {
+    const message = game.messages.get(data.messageId);
+    if (message) _tryWriteHalfOverrides(message);
+  }
 });
 
 function _tryWriteHalfOverrides(message) {
@@ -255,13 +259,47 @@ function _patchMessageLabels(message, root) {
   }
 }
 
+function _applyResolutionLock(message, root) {
+  const locked = !!message.getFlag(MODULE_ID, "resolutionLock");
+  const buttons = root.querySelectorAll("button[data-dstd-action]");
+  if (!buttons.length) return;
+
+  if (locked) {
+    for (const btn of buttons) {
+      if (btn.dataset.dstResLock === "1") continue;
+      btn.dataset.dstResLock = "1";
+      btn.classList.add("dst-dstd-res-locked");
+      btn.disabled = true;
+    }
+    if (!root.querySelector(".dst-dstd-res-banner")) {
+      const banner = document.createElement("div");
+      banner.className = "dst-dstd-res-banner";
+      banner.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> ${game.i18n.localize("DS_TRIGGERS.Queue.DstdHeldLabel")}`;
+      const anchor = buttons[0].closest(".message-content") ?? root;
+      anchor.prepend(banner);
+    }
+  } else if (root.querySelector('[data-dst-res-lock="1"], .dst-dstd-res-banner')) {
+    root.querySelector(".dst-dstd-res-banner")?.remove();
+    for (const btn of buttons) {
+      if (btn.dataset.dstResLock !== "1") continue;
+      delete btn.dataset.dstResLock;
+      btn.classList.remove("dst-dstd-res-locked");
+      btn.disabled = false;
+    }
+  }
+}
+
 function _patchMessageEl(li) {
   const message = li?.dataset?.messageId ? game.messages.get(li.dataset.messageId) : null;
-  if (message) _patchMessageLabels(message, li);
+  if (!message) return;
+  _patchMessageLabels(message, li);
+  _applyResolutionLock(message, li);
 }
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
-  if (_dstdActive()) _patchMessageLabels(message, html);
+  if (!_dstdActive()) return;
+  _patchMessageLabels(message, html);
+  _applyResolutionLock(message, html);
 });
 
 Hooks.once("ready", () => {

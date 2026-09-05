@@ -123,6 +123,43 @@ const REDIRECT_TEXT = [
   [/becomes? the target|is the (?:strike|ability)['’]?s? new target|become the target instead/i, "self"],
 ];
 
+const ROLL_MOD_TEXT = [
+  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) a double bane\b/i, { banes: 2 }],
+  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) a bane\b/i, { banes: 1 }],
+  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) a double edge\b/i, { edges: 2 }],
+  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) an edge\b/i, { edges: 1 }],
+];
+
+function rollModLayer(result, id, effectText) {
+  if (!effectText || !result.clauses.some((c) => c.postRoll)) return result;
+  let mod = null;
+  for (const [rx, m] of ROLL_MOD_TEXT) {
+    if (rx.test(effectText)) { mod = m; break; }
+  }
+  if (!mod) return result;
+  return {
+    ...result,
+    rollModifying: true,
+    clauses: result.clauses.map((c) => c.postRoll ? { ...c, rollMod: mod } : c),
+  };
+}
+
+const HALF_TEXT = [
+  /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
+  /\bhalf (?:the |that |this |of the |any )?damage\b/i,
+  /\bdamage (?:is |taken is )?halved\b/i,
+];
+
+function postRollHalfLayer(result, id, effectText) {
+  if (!effectText || !result.clauses.some((c) => c.postRoll)) return result;
+  if (!HALF_TEXT.some((rx) => rx.test(effectText))) return result;
+  return {
+    ...result,
+    damageModifying: true,
+    clauses: result.clauses.map((c) => c.postRoll ? { ...c, halfOnUse: true } : c),
+  };
+}
+
 function redirectLayer(result, id, effectText) {
   let mode = REDIRECT_ABILITIES[id] ?? null;
   if (!mode && effectText) {
@@ -149,7 +186,7 @@ const EVENTS = [
   ["FORCE_MOVES",     /\bforce moves?\b/i],
   ["TAKES_DAMAGE",    /\b(takes? (?:[\w-]+(?:,? or | ?, | ))*damage|loses? stamina|is damaged|damages? (you|the target|them|it|an ally|the \w+)|deals? ([\w, ]+ )?damage to (you|the target|an ally|any ally|an enemy|the \w+))/i],
   ["DEALS_DAMAGE",    /\b(deals? ([\w, ]+ )?damage|deals? rolled damage|damages? (a|an|another|any) )\b/i],
-  ["TARGETED_BY_STRIKE", /\b(targets? (you|them|the target|an ally|an enemy|the \w+)\b|is targeted|targeted by|makes? an? (melee |ranged )?strike against|strikes? (you|the target|the \w+))/i],
+  ["TARGETED_BY_STRIKE", /\b(targets? (you|them|the target|an ally|an enemy|the \w+)\b|is targeted|targeted by|is struck by|makes? an? (melee |ranged )?strike against|strikes? (you|the target|the \w+))/i],
   ["MAKES_STRIKE",    /\bmakes? an? (melee |ranged )?strike( against (a|an|another|any) )?\b/i],
   ["POWER_ROLL_RESULT", /\b(obtains? a tier \d outcome|tier \d (outcome|result)|(?<!isn['’]t a |not a )critical hit|natural (19|20))\b/i],
   ["POWER_ROLL",      /\b(makes? an? (ability|power) roll|power roll|ability roll)\b/i],
@@ -254,7 +291,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText);
+  if (special) return postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText);
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -264,8 +301,8 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   let normalized = clean;
   for (const w of properWords) normalized = normalized.replace(new RegExp(`\\b(Lord |Queen |King )?${w[0].toUpperCase()}${w.slice(1)}(['’]s)?\\b`, "g"), (m, t, poss) => poss ? "the self's" : "the self");
   normalized = normalized.replace(/^(a|an|one) ([\w -]+?)['’]s turn starts/i, "a $2 starts their turn");
-  normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero) makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
-    (m, kind, tgt) => `${tgt} is targeted by a ${kind ?? ""}strike`);
+  normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero)( within \d+ squares?| within (?:distance|reach)| adjacent(?: to [\w'’ ]+?)?)? makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
+    (m, qual, kind, tgt) => `${tgt} is struck by a ${kind ?? ""}strike${qual ? ` while${qual}` : ""}`);
   for (const clause of splitClauses(normalized)) {
     const lc = clause.toLowerCase();
     const hits = EVENTS.filter(([, rx]) => rx.test(clause)).map(([e]) => e);
@@ -276,6 +313,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (scope === "UNKNOWN") ambiguous = true;
     const qualifiers = QUALIFIERS.map(rx => lc.match(rx)?.[0]).filter(Boolean);
     const entry = { event: events[0] || "UNKNOWN", events, scope, qualifiers };
+    if (/\bis struck by\b/.test(lc)) entry.postRoll = true;
     // structured filters
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
     if (dmgTypes && /damage/.test(lc)) entry.damageTypes = [...new Set(dmgTypes)];
@@ -288,5 +326,5 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }
-  return redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText);
+  return postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText);
 }

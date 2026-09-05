@@ -2,9 +2,17 @@
   {{#if entries.length}}
   <ul class="dst-stack-list">
     {{#each entries}}
-    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}{{#if isDamageHeld}} dst-stack-entry--held dst-stack-entry--damage{{/if}}">
+    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}{{#if isDamageHeld}} dst-stack-entry--held dst-stack-entry--damage{{/if}}{{#if isResolutionHeld}} dst-stack-entry--held dst-stack-entry--resolution{{/if}}">
       <div class="dst-stack-eyebrow">
-        {{#if isDamageHeld}}
+        {{#if isResolutionHeld}}
+        <i class="fa-solid fa-dice-d10 dst-stack-held-icon"></i>
+        <span>{{heldEyebrow}}{{#if heldStatus}} &middot; {{heldStatus}}{{/if}}</span>
+        {{#if isGrace}}
+          <span class="dst-stack-eyebrow-status" data-grace-until="{{graceUntil}}"></span>
+        {{else}}
+          <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+        {{/if}}
+        {{else if isDamageHeld}}
         <i class="fa-solid fa-hourglass-half dst-stack-held-icon"></i>
         <span>{{heldEyebrow}}{{#if heldStatus}} &middot; {{heldStatus}}{{/if}}</span>
         {{#if isGrace}}
@@ -76,6 +84,11 @@
       {{#if showApplyNow}}
       <div class="dst-stack-buttons">
         <button type="button" data-action="applyHeldNow" data-damage-id="{{damageId}}" data-tooltip="{{@root.labels.applyNowTooltip}}"><i class="fa-solid fa-heart-crack"></i> {{@root.labels.applyNow}}</button>
+      </div>
+      {{/if}}
+      {{#if showReleaseResolution}}
+      <div class="dst-stack-buttons">
+        <button type="button" data-action="releaseResolutionNow" data-resolution-id="{{resolutionId}}" data-tooltip="{{@root.labels.releaseResolutionTooltip}}"><i class="fa-solid fa-play"></i> {{@root.labels.releaseResolution}}</button>
       </div>
       {{/if}}
     </li>

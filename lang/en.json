@@ -1,6 +1,10 @@
 {
   "DS_TRIGGERS": {
     "Settings": {
+      "ResolutionHolds": {
+        "Name": "Post-Roll Resolution Holds",
+        "Hint": "When a strike's roll posts and a creature has a post-roll trigger against it (such as retroactive banes), the resolution goes on the stack and the message's damage and effect rows are locked until the triggers are decided. Requires Draw Steel Target Damage for the row locks and tier updates."
+      },
       "DebugMode": {
         "Name": "Debug Mode",
         "Hint": "Log trigger detection details to the console."
@@ -46,7 +50,8 @@
         "reminder": "chat reminder",
         "prompt": "prompts on the stack",
         "lock": "locks the roll",
-        "hold": "holds the damage"
+        "hold": "holds the damage",
+        "resolution": "holds the resolution after the roll"
       },
       "Detail": {
         "Manual": "This trigger was configured by hand and skips the parser.",
@@ -177,6 +182,12 @@
       "ApplyNowTooltip": "Apply the held damage immediately (Director only). Undecided triggers become simple prompts.",
       "HeldDamageCause": "Triggered by {name} being dealt {amount} damage. The damage is held.",
       "HeldDamageNotice": "{name}'s damage is held while triggered abilities are decided. See the Trigger Stack.",
+      "ResolutionCause": "Triggered by {roller} striking {owner} ({ability}). The result can still be modified.",
+      "ResolutionEntry": "{ability} resolution",
+      "ResolutionEyebrow": "{name}'s strike is resolving",
+      "ReleaseResolution": "Resolve Now",
+      "ReleaseResolutionTooltip": "End the resolution window immediately (Director only). Undecided triggers become simple prompts.",
+      "RollModApplied": "{modName}: {name}'s result is now tier {tier}.",
       "RedirectApplied": "{modName}: {newName} becomes the target instead of {oldName}.",
       "RedirectAfterHeader": "Manual Redirect",
       "RedirectAfterBody": "{owner} used {ability}. The ability's target becomes the strike's new target. Update the strike's targets by hand: remove {owner} and target the chosen creature instead.",
