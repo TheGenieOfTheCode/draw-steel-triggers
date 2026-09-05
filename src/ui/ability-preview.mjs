@@ -1,5 +1,28 @@
 const DIST_ICONS = { melee: "fa-sword", ranged: "fa-bow-arrow", meleeRanged: "fa-swords", self: "fa-user" };
 
+export async function buildTriggerCardRows(rows) {
+  return (await Promise.all(rows.map(async (r) => {
+    const preview = r.item ? await buildAbilityPreview(r.item, { includeMeta: true }) : "";
+    return `<div class="dst-malice-feature">
+      <div class="dst-malice-feature-head">
+        <a class="dst-malice-expand"><i class="fa-solid fa-chevron-right dst-malice-chevron"></i></a>
+        ${r.head}
+      </div>
+      ${r.subtitle ? `<div class="dst-reminder-row-sub">${r.subtitle}</div>` : ""}
+      <div class="dst-malice-feature-embed dst-collapsed">${preview}</div>
+    </div>`;
+  }))).join("");
+}
+
+export function triggerCardHTML({ header, title = "", intro = "", rows = "" }) {
+  return `<div class="dst-malice-card dst-trigger-card">
+    <header class="dst-malice-card-hdr">${header}</header>
+    ${title ? `<div class="dst-malice-card-title">${title}</div>` : ""}
+    ${intro ? `<p class="dst-malice-card-intro">${intro}</p>` : ""}
+    ${rows}
+  </div>`;
+}
+
 function neutralizeStatusLinks(html) {
   const div = document.createElement("div");
   div.innerHTML = html;

@@ -3,7 +3,7 @@ import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
 import { maliceChipURI } from "../ui/malice-chip.mjs";
-import { buildAbilityPreview } from "../ui/ability-preview.mjs";
+import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { isActorSnoozed } from "../ui/snooze.mjs";
 
 const PROMPT_EVENTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING"]);
@@ -151,41 +151,49 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   }
 
   for (const group of groups.values()) {
-    
+
     group.matches.sort((a, b) => {
       if (a.malice !== b.malice) return a.malice ? 1 : -1;
       if (!a.malice) return 0;
       return (a.item.system.resource ?? 999) - (b.item.system.resource ?? 999);
     });
-    const items = group.matches.map(m => {
-      let freeTag = m.free ? ` <span class="dst-free">${game.i18n.localize("DS_TRIGGERS.Reminder.Free")}</span>` : "";
-      if (m.malice) {
-        const cost = Number.isFinite(m.item.system.resource) ? ` ${m.item.system.resource}` : "";
-        freeTag += ` <span class="dst-malice">${game.i18n.localize("DS_TRIGGERS.Reminder.Malice")}${cost}</span>`;
-        const actionType = m.item.system.type;
-        let typeLabel = null;
-        if (actionType === "triggered") typeLabel = game.i18n.localize("DS_TRIGGERS.Reminder.Triggered");
-        else if (actionType === "freeTriggered") typeLabel = game.i18n.localize("DS_TRIGGERS.Reminder.Free");
-        else if (actionType && actionType !== "none") typeLabel = game.i18n.localize(ds.CONFIG.abilities.types[actionType]?.label ?? "");
-        if (typeLabel) freeTag += ` <span class="dst-free">${typeLabel}</span>`;
-      }
-      const link = `<a class="dst-ability-link" data-item-uuid="${m.item.uuid}" data-tooltip="${game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip")}"><strong>${m.item.name}</strong></a>`;
-      const trigger = m.item.system.trigger || (m.malice ? game.i18n.localize("DS_TRIGGERS.Reminder.ImplicitMaliceTrigger") : "");
-      
-      let ownerPart = "";
-      if (m.actor !== subjectActor) {
-        const name = m.actor.name.length > 20 ? m.actor.name.slice(0, 19).trimEnd() + "…" : m.actor.name;
-        ownerPart = ` (${name})`;
-      }
-      return `<li>${link}${ownerPart}${freeTag}<br><em>${trigger}</em></li>`;
-    }).join("");
-    ChatMessage.create({
-      content: `<div class="dst-reminder"><p class="dst-reminder-header">${game.i18n.localize("DS_TRIGGERS.Reminder.Header")}</p><p>${causeLabel}</p><ul>${items}</ul></div>`,
-      whisper: group.recipients,
-      speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
-      flags: { [MODULE_ID]: { reminder: { event } } },
-    });
+    _sendReminderCard(group, { event, causeLabel, subjectActor });
   }
+}
+
+async function _sendReminderCard(group, { event, causeLabel, subjectActor }) {
+  const rows = await buildTriggerCardRows(group.matches.map(m => {
+    let freeTag = m.free ? ` <span class="dst-free">${game.i18n.localize("DS_TRIGGERS.Reminder.Free")}</span>` : "";
+    if (m.malice) {
+      const cost = Number.isFinite(m.item.system.resource) ? ` ${m.item.system.resource}` : "";
+      freeTag += ` <span class="dst-malice">${game.i18n.localize("DS_TRIGGERS.Reminder.Malice")}${cost}</span>`;
+      const actionType = m.item.system.type;
+      let typeLabel = null;
+      if (actionType === "triggered") typeLabel = game.i18n.localize("DS_TRIGGERS.Reminder.Triggered");
+      else if (actionType === "freeTriggered") typeLabel = game.i18n.localize("DS_TRIGGERS.Reminder.Free");
+      else if (actionType && actionType !== "none") typeLabel = game.i18n.localize(ds.CONFIG.abilities.types[actionType]?.label ?? "");
+      if (typeLabel) freeTag += ` <span class="dst-free">${typeLabel}</span>`;
+    }
+    const link = `<a class="dst-ability-link" data-item-uuid="${m.item.uuid}" data-tooltip="${game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip")}"><strong>${m.item.name}</strong></a>`;
+    const trigger = m.item.system.trigger || (m.malice ? game.i18n.localize("DS_TRIGGERS.Reminder.ImplicitMaliceTrigger") : "");
+
+    let ownerPart = "";
+    if (m.actor !== subjectActor) {
+      const name = m.actor.name.length > 20 ? m.actor.name.slice(0, 19).trimEnd() + "…" : m.actor.name;
+      ownerPart = ` <span class="dst-reminder-owner">(${name})</span>`;
+    }
+    return { item: m.item, head: `${link}${ownerPart}${freeTag}`, subtitle: trigger ? `<em>${trigger}</em>` : "" };
+  }));
+  ChatMessage.create({
+    content: triggerCardHTML({
+      header: game.i18n.localize("DS_TRIGGERS.Reminder.Header"),
+      intro: causeLabel,
+      rows,
+    }),
+    whisper: group.recipients,
+    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
+    flags: { [MODULE_ID]: { reminder: { event } } },
+  });
 }
 
 function _maliceTypeName(actor) {
