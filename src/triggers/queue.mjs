@@ -309,7 +309,7 @@ async function _finalizeDamageHold(damageId) {
   if (!hold) return;
   _damageHolds.delete(damageId);
   if (!hold.anyUsed) {
-    await _applyHeldDamage(hold.actorUuid, hold.amount);
+    await _applyHeldDamage(hold, hold.amount);
     Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: hold.amount });
     return;
   }
@@ -318,10 +318,20 @@ async function _finalizeDamageHold(damageId) {
   
   const actor = await fromUuid(hold.actorUuid).catch(() => null);
   const F = (k, data) => game.i18n.format(`DS_TRIGGERS.Queue.${k}`, data);
+  const typeLabel = hold.damageType
+    ? game.i18n.localize(ds.CONFIG.damageTypes?.[hold.damageType]?.label ?? hold.damageType)
+    : null;
+  const amountLabel = typeLabel ? `${hold.amount} ${typeLabel}` : hold.amount;
+  let mitigationNote = "";
+  if (hold.damageOptions && actor?.system?.calculateImmunityAndWeakness) {
+    const { immunity = 0, weakness = 0 } = actor.system.calculateImmunityAndWeakness({ ...hold.damageOptions });
+    if (immunity > 0) mitigationNote += `<p class="hint">${F("HeldDamageImmunityNote", { n: immunity })}</p>`;
+    if (weakness > 0) mitigationNote += `<p class="hint">${F("HeldDamageWeaknessNote", { n: weakness })}</p>`;
+  }
   const result = await foundry.applications.api.DialogV2.wait({
     window: { title: F("HeldDamageTitle", { name: actor?.name ?? "" }) },
     position: { width: 280 },
-    content: `<p class="hint">${F("HeldDamageHint", { amount: hold.amount })}</p>
+    content: `<p class="hint">${F("HeldDamageHint", { amount: amountLabel })}</p>${mitigationNote}
       <div class="dst-held-form">
         <input type="number" name="dst-held-amount" value="${hold.amount}" min="0" step="1" autofocus>
         <div class="dst-held-adjust">
@@ -365,19 +375,20 @@ async function _finalizeDamageHold(damageId) {
     Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
     return;
   }
-  await _applyHeldDamage(hold.actorUuid, Number(result));
+  await _applyHeldDamage(hold, Number(result));
   Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: Number(result) });
 }
 
-async function _applyHeldDamage(actorUuid, amount) {
+async function _applyHeldDamage(hold, amount) {
   if (!(amount > 0)) return;
-  const actor = await fromUuid(actorUuid).catch(() => null);
+  const actor = await fromUuid(hold.actorUuid).catch(() => null);
   if (!actor) return;
-  _damageBypass.add(actorUuid);
+  _damageBypass.add(hold.actorUuid);
   try {
-    await actor.modifyTokenAttribute("stamina", -amount, true, false);
+    if (hold.damageOptions) await actor.system.takeDamage(amount, { ...hold.damageOptions, dstBypass: true });
+    else await actor.modifyTokenAttribute("stamina", -amount, true, false);
   } finally {
-    _damageBypass.delete(actorUuid);
+    _damageBypass.delete(hold.actorUuid);
   }
 }
 
@@ -400,15 +411,14 @@ function _fireResume(resumeId, expired = false) {
     clearTimeout(pending.timer);
     _pendingResumes.delete(resumeId);
     if (expired && pending.awaiting.size) {
-      
+
       for (const u of pending.usedEntries ?? []) {
         if (pending.awaiting.has(u.itemUuid)) _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
       }
     }
     _dispatchResume(pending.resume);
   } else if (held) {
-    
-    
+
     for (const e of _queue) {
       if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
     }
@@ -554,7 +564,12 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     id: foundry.utils.randomID(),
     kind: "damageHeld",
     itemUuid: null,
-    itemName: game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEntry", { amount: heldDamage.amount }),
+    itemName: heldDamage.damageType
+      ? game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEntryTyped", {
+        amount: heldDamage.amount,
+        type: game.i18n.localize(ds.CONFIG.damageTypes?.[heldDamage.damageType]?.label ?? heldDamage.damageType),
+      })
+      : game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEntry", { amount: heldDamage.amount }),
     ownerActorUuid: heldDamage.actorUuid,
     ownerName: heldDamage.actorName ?? "",
     event: "WOULD_TAKE_DAMAGE",

@@ -8,44 +8,56 @@ Hooks.once("ready", () => {
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
     _pendingDamageType = options?.type ?? null;
     try {
-      _warnSquadHoldLimit(this.parent, options?.type ?? null);
+      if (_tryHoldDamage(this, damage, options)) return this.parent;
       return wrapped(damage, options);
     } finally {
       _pendingDamageType = null;
     }
-  }, "WRAPPER");
+  }, "MIXED");
 });
 
-const _squadHoldWarned = new Map();
+function _holdMatches(actor, token, damageType) {
+  let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token).filter((m) =>
+    !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+  if (damageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType));
+  return matches;
+}
 
-function _warnSquadHoldLimit(actor, damageType) {
-  if (!game.users.activeGM?.isSelf) return;
-  if (!getSetting("damageInterrupts")) return;
-  if (!game.combat?.started) return;
-  if (!actor?.system?.isMinion) return;
-  const group = game.combat.combatants.find((c) => c.actor === actor)?.group;
-  if (!group) return;
-  const now = Date.now();
-  if ((_squadHoldWarned.get(group.id) ?? 0) > now - 3000) return;
+function _tryHoldDamage(model, damage, options) {
+  const actor = model.parent;
+  if (!actor) return false;
+  if (options?.dstBypass) return false;
+  if (!getSetting("damageInterrupts")) return false;
+  if (!game.combat?.started) return false;
+  if (!(damage > 0)) return false;
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
-  const matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token).filter((m) =>
-    !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual")
-    && (!damageType || !m.clause.damageTypes || m.clause.damageTypes.includes(damageType)));
-  if (!matches.length) return;
-  _squadHoldWarned.set(group.id, now);
+  const matches = _holdMatches(actor, token, options?.type ?? null);
+  if (!matches.length) return false;
 
-  ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.SquadHoldNotice", { name: actor.name }));
-  const items = matches.map((m) => {
-    const trigger = m.item.system.trigger ?? "";
-    return `<li><a class="dst-ability-link" data-item-uuid="${m.item.uuid}" data-tooltip="${game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip")}"><strong>${m.item.name}</strong></a> (${m.actor.name})<br><em>${trigger}</em></li>`;
-  }).join("");
-  ChatMessage.create({
-    content: `<div class="dst-reminder"><p class="dst-reminder-header">${game.i18n.localize("DS_TRIGGERS.Queue.SquadHoldHeader")}</p><p>${game.i18n.format("DS_TRIGGERS.Queue.SquadHoldBody", { name: actor.name })}</p><ul>${items}</ul></div>`,
-    whisper: game.users.filter((u) => u.isGM).map((u) => u.id),
-    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
-    flags: { [MODULE_ID]: { reminder: { event: "SQUAD_HOLD_LIMIT" } } },
+  const damageOptions = {};
+  if (options?.type) damageOptions.type = options.type;
+  if (options?.ignoredImmunities?.length) damageOptions.ignoredImmunities = [...options.ignoredImmunities];
+
+  const typeLabel = options?.type
+    ? game.i18n.localize(ds.CONFIG.damageTypes?.[options.type]?.label ?? options.type)
+    : null;
+  const causeLabel = typeLabel
+    ? game.i18n.format("DS_TRIGGERS.Queue.HeldDamageCauseTyped", { name: actor.name, amount: damage, type: typeLabel })
+    : game.i18n.format("DS_TRIGGERS.Queue.HeldDamageCause", { name: actor.name, amount: damage });
+
+  enqueueDamageHold(matches, {
+    causeLabel,
+    heldDamage: {
+      actorUuid: actor.uuid,
+      actorName: actor.name,
+      amount: damage,
+      damageType: options?.type ?? null,
+      damageOptions,
+    },
   });
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: actor.name }));
+  return true;
 }
 
 Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
@@ -61,10 +73,7 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
   if (amount <= 0) return;
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
-  let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token).filter((m) =>
-    !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
-  
-  if (_pendingDamageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(_pendingDamageType));
+  const matches = _holdMatches(actor, token, _pendingDamageType);
   if (!matches.length) return;
 
   enqueueDamageHold(matches, {
