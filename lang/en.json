@@ -57,8 +57,16 @@
         "ScopeNeedsTier": "Scope {scope}: needs a compatibility tier to resolve.",
         "DamageModifying": "Damage modifying: incoming damage is held while this ability is decided.",
         "TargetedHalf": "Halves on use: using this from a roll lock pre-halves the incoming damage.",
+        "Redirect": "Redirects on use: the triggering strike is retargeted {mode}.",
         "Revisit": "Marked for a later revisit; not detected yet.",
         "DsctOnly": "Needs Draw Steel: Combat Tools data to detect."
+      },
+      "RedirectMode": {
+        "self": "to this ability's owner",
+        "reflect": "back at the striker",
+        "chooser": "to a chosen target (manual pick for now)",
+        "swap": "to this ability's owner, who switches places with the original target",
+        "after": "to this ability's own target, with a manual update reminder posted on use"
       }
     },
     "Editor": {
@@ -169,6 +177,10 @@
       "ApplyNowTooltip": "Apply the held damage immediately (Director only). Undecided triggers become simple prompts.",
       "HeldDamageCause": "Triggered by {name} being dealt {amount} damage. The damage is held.",
       "HeldDamageNotice": "{name}'s damage is held while triggered abilities are decided. See the Trigger Stack.",
+      "RedirectApplied": "{modName}: {newName} becomes the target instead of {oldName}.",
+      "RedirectAfterHeader": "Manual Redirect",
+      "RedirectAfterBody": "{owner} used {ability}. The ability's target becomes the strike's new target. Update the strike's targets by hand: remove {owner} and target the chosen creature instead.",
+      "RedirectSwapNote": "{a} and {b} switch places. Move the tokens to swap their positions.",
       "HeldDamageEntry": "{amount} incoming damage",
       "HeldDamageEntryTyped": "{amount} incoming {type} damage",
       "HeldDamageCauseTyped": "Triggered by {name} being dealt {amount} {type} damage. The damage is held.",

@@ -1,4 +1,5 @@
 import { MODULE_ID, getSetting, dbg } from "../util.mjs";
+import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 
 let socket = null;
 
@@ -206,11 +207,16 @@ async function _onQueueResolve(id, outcome, userName) {
         _dispatchResume(resume);
       } else {
         const usedEntries = group.filter((e) => e.state === "used")
-          .map((e) => ({ itemUuid: e.itemUuid, ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName, itemName: e.itemName, usedAt: e.usedAt }));
+          .map((e) => ({
+            itemUuid: e.itemUuid, ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName,
+            itemName: e.itemName, usedAt: e.usedAt,
+            redirect: e.redirect ?? null, subjectTokenUuid: e.subjectTokenUuid ?? null,
+          }));
         const awaiting = new Set(usedEntries.filter((u) => !_postedAfterUse(u.itemUuid, u.usedAt)).map((u) => u.itemUuid));
         if (!awaiting.size) {
           _removeHeld(entry.resumeId);
-          _dispatchResume(resume);
+          _postRedirectReminders(usedEntries, resume);
+          _dispatchResume(resume, _collectRetargets(usedEntries));
         } else {
           const grace = _graceMs();
           const resumeId = entry.resumeId;
@@ -392,11 +398,53 @@ async function _applyHeldDamage(hold, amount) {
   }
 }
 
-function _dispatchResume(resume) {
+function _collectRetargets(usedEntries) {
+  const out = [];
+  for (const u of usedEntries ?? []) {
+    if (u.cancelled) continue;
+    if (!u.redirect || u.redirect === "chooser" || u.redirect === "after" || !u.subjectTokenUuid) continue;
+    out.push({
+      mode: u.redirect,
+      modName: u.itemName,
+      removeTokenUuid: u.subjectTokenUuid,
+      newActorUuid: u.redirect === "reflect" ? null : u.ownerActorUuid,
+    });
+  }
+  return out;
+}
+
+async function _postRedirectReminders(usedEntries, resume) {
+  for (const u of usedEntries ?? []) {
+    if (u.cancelled || u.redirect !== "after") continue;
+    const recipients = new Set(game.users.filter((x) => x.isGM).map((x) => x.id));
+    if (resume?.userId) recipients.add(resume.userId);
+    const item = u.itemUuid ? await fromUuid(u.itemUuid).catch(() => null) : null;
+    const link = u.itemUuid
+      ? `<a class="dst-ability-link" data-item-uuid="${u.itemUuid}" data-tooltip="${game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip")}"><strong>${u.itemName}</strong></a>`
+      : `<strong>${u.itemName}</strong>`;
+    const rows = await buildTriggerCardRows([{
+      item,
+      head: link,
+      subtitle: item?.system?.trigger ? `<em>${item.system.trigger}</em>` : "",
+    }]);
+    ChatMessage.create({
+      content: triggerCardHTML({
+        header: game.i18n.localize("DS_TRIGGERS.Queue.RedirectAfterHeader"),
+        intro: game.i18n.format("DS_TRIGGERS.Queue.RedirectAfterBody", { owner: u.ownerName, ability: `<strong>${u.itemName}</strong>` }),
+        rows,
+      }),
+      whisper: [...recipients],
+      speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
+      flags: { [MODULE_ID]: { reminder: { event: "REDIRECT_AFTER" } } },
+    });
+  }
+}
+
+function _dispatchResume(resume, retargets = []) {
   if (!resume?.userId || !resume?.itemUuid) return;
   const user = game.users.get(resume.userId);
-  if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid);
-  else socket.executeAsGM("resumeRoll", resume.itemUuid);
+  if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid, retargets);
+  else socket.executeAsGM("resumeRoll", resume.itemUuid, retargets);
 }
 
 function _removeHeld(resumeId) {
@@ -416,13 +464,17 @@ function _fireResume(resumeId, expired = false) {
         if (pending.awaiting.has(u.itemUuid)) _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
       }
     }
-    _dispatchResume(pending.resume);
+    const applied = (pending.usedEntries ?? []).filter((u) => !expired || !pending.awaiting.has(u.itemUuid));
+    _postRedirectReminders(applied, pending.resume);
+    _dispatchResume(pending.resume, _collectRetargets(applied));
   } else if (held) {
 
+    const usedInGroup = _queue.filter((e) => e.resumeId === resumeId && e.state === "used");
     for (const e of _queue) {
       if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
     }
-    _dispatchResume(held.resume);
+    _postRedirectReminders(usedInGroup, held.resume);
+    _dispatchResume(held.resume, _collectRetargets(usedInGroup));
   }
   _broadcast();
 }
@@ -453,12 +505,31 @@ Hooks.on("createChatMessage", (message) => {
   }
 });
 
-async function _onResumeRoll(itemUuid) {
+async function _onResumeRoll(itemUuid, retargets = []) {
   const item = await fromUuid(itemUuid).catch(() => null);
   if (!item) return;
+  await _applyRetargets(item, retargets);
   addRollBypass(itemUuid);
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollReleased", { name: item.name }));
   item.system.use();
+}
+
+async function _applyRetargets(item, retargets) {
+  for (const r of retargets ?? []) {
+    try {
+      const removeDoc = r.removeTokenUuid ? await fromUuid(r.removeTokenUuid).catch(() => null) : null;
+      const newActor = r.newActorUuid ? await fromUuid(r.newActorUuid).catch(() => null) : item.actor;
+      const newToken = newActor?.getActiveTokens(true, false)[0] ?? null;
+      if (removeDoc?.object && removeDoc.object !== newToken) removeDoc.object.setTarget(false, { releaseOthers: false });
+      if (newToken) newToken.setTarget(true, { releaseOthers: false });
+      const oldName = removeDoc?.name ?? "";
+      const newName = newToken?.name ?? newActor?.name ?? "";
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RedirectApplied", { modName: r.modName, newName, oldName }));
+      if (r.mode === "swap") ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RedirectSwapNote", { a: newName, b: oldName }));
+    } catch (err) {
+      dbg("retarget failed", err);
+    }
+  }
 }
 
 function _onQueueSync(entries) {
@@ -493,6 +564,8 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     event: m._lockEvent ?? event,
     causeLabel: m._causeLabel ?? causeLabel,
     halvesOnUse: m._halvesOnUse ?? false,
+    redirect: m._redirect ?? null,
+    subjectTokenUuid: m._subjectTokenUuid ?? null,
     lock: true,
     state: "pending",
     createdAt: Date.now(),

@@ -49,6 +49,10 @@ export function computeAutomationLevel(item) {
   }
   if (parse.damageModifying) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DamageModifying"));
   if (parse.targetedHalf || parse.clauses.some((c) => c.targetedHalf)) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.TargetedHalf"));
+  const redirectMode = parse.redirect ?? parse.clauses.find((c) => c.redirect)?.redirect;
+  if (redirectMode) detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.Redirect", {
+    mode: game.i18n.localize(`DS_TRIGGERS.Badge.RedirectMode.${redirectMode}`),
+  }));
   if (parse.flag === "REVISIT") detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.Revisit"));
   if (parse.flag === "DSCT_ONLY") detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DsctOnly"));
 

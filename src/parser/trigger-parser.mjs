@@ -104,6 +104,43 @@ function damageModLayer(result, id, effectText) {
   return { ...result, damageModifying: true, clauses };
 }
 
+const REDIRECT_ABILITIES = {
+  "clever-trick": "chooser",
+  "intercede": "self",
+  "reverse-card": "reflect",
+  "scuse-me-boss": "swap",
+  "no": "self",
+  "guardian-block": "self",
+  "intercepting-shield": "self",
+  "redirected-charm": "after",
+  "reactive-charm": "after",
+};
+
+const REDIRECT_TEXT = [
+  [/switch(?:es)? places/i, "swap"],
+  [/choose[\s\S]{0,90}?targets? (?:that|the) (?:enemy|creature) instead|chooses?[\s\S]{0,90}?to become the target/i, "chooser"],
+  [/targeting them instead|reflects?[\w'’ ]* back/i, "reflect"],
+  [/becomes? the target|is the (?:strike|ability)['’]?s? new target|become the target instead/i, "self"],
+];
+
+function redirectLayer(result, id, effectText) {
+  let mode = REDIRECT_ABILITIES[id] ?? null;
+  if (!mode && effectText) {
+    for (const [rx, m] of REDIRECT_TEXT) {
+      if (rx.test(effectText)) { mode = m; break; }
+    }
+  }
+  if (!mode) return result;
+  let stamped = 0;
+  const clauses = result.clauses.map((c) => {
+    if (c.event !== "TARGETED_BY_STRIKE") return c;
+    stamped++;
+    return { ...c, redirect: mode };
+  });
+  if (!stamped) return result;
+  return { ...result, clauses, redirect: mode };
+}
+
 const EVENTS = [
   ["DIES",            /\b(dies|would die|is destroyed|enough damage to (die|be destroyed)|reduced? [^,]*?to 0 stamina|reduces? [^,]*?to 0 stamina|to 0 stamina)\b/i],
   ["WINDED_OR_DYING", /\b(winded|dying)\b/i],
@@ -217,7 +254,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText);
+  if (special) return redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText);
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -227,6 +264,8 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   let normalized = clean;
   for (const w of properWords) normalized = normalized.replace(new RegExp(`\\b(Lord |Queen |King )?${w[0].toUpperCase()}${w.slice(1)}(['’]s)?\\b`, "g"), (m, t, poss) => poss ? "the self's" : "the self");
   normalized = normalized.replace(/^(a|an|one) ([\w -]+?)['’]s turn starts/i, "a $2 starts their turn");
+  normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero) makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
+    (m, kind, tgt) => `${tgt} is targeted by a ${kind ?? ""}strike`);
   for (const clause of splitClauses(normalized)) {
     const lc = clause.toLowerCase();
     const hits = EVENTS.filter(([, rx]) => rx.test(clause)).map(([e]) => e);
@@ -249,5 +288,5 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }
-  return damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText);
+  return redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText);
 }

@@ -45,6 +45,7 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
       seen.add(m.item.uuid);
       m._lockEvent = event;
       m._halvesOnUse = event === "TARGETED_BY_STRIKE" && m.clause?.targetedHalf === true;
+      m._redirect = event === "TARGETED_BY_STRIKE" ? m.clause?.redirect ?? null : null;
       m._causeLabel = game.i18n.format(`DS_TRIGGERS.Queue.Cause.${event}`, {
         roller: rollerActor.name, ability: ability.name, owner: m.actor.name,
       });
@@ -61,7 +62,11 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
     const tokenDoc = target.tokenUuid ? fromUuidSync(target.tokenUuid) : null;
     const subjectActor = tokenDoc?.actor;
     if (!subjectActor) continue;
-    if (strike) add(_lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor), "TARGETED_BY_STRIKE");
+    if (strike) {
+      const list = _lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor);
+      for (const m of list) m._subjectTokenUuid = tokenDoc.uuid;
+      add(list, "TARGETED_BY_STRIKE");
+    }
     
     
     if (_hasDamage(ability) && !getSetting("damageInterrupts")) {
