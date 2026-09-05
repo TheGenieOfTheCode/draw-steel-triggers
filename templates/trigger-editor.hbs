@@ -46,6 +46,32 @@
         <label class="checkbox"><input type="checkbox" data-field="targetedHalf" data-index="{{index}}" {{#if targetedHalf}}checked{{/if}}> {{@root.labels.targetedHalf}}</label>
         <p class="dst-hint">{{@root.hints.targetedHalf}}</p>
       </div>
+      <div class="dst-postroll-wrap" {{#unless showPostRoll}}hidden{{/unless}}>
+        <label class="checkbox"><input type="checkbox" data-field="postRoll" data-index="{{index}}" {{#if postRoll}}checked{{/if}}> {{@root.labels.postRoll}}</label>
+        <p class="dst-hint">{{@root.hints.postRoll}}</p>
+        <div class="dst-postroll-sub" {{#unless postRoll}}hidden{{/unless}}>
+          <label class="checkbox"><input type="checkbox" data-field="halfOnUse" data-index="{{index}}" {{#if halfOnUse}}checked{{/if}}> {{@root.labels.halfOnUse}}</label>
+          <p class="dst-hint">{{@root.hints.halfOnUse}}</p>
+          <div class="form-group">
+            <label>{{@root.labels.rollMod}}</label>
+            <div class="form-fields">
+              <select data-field="rollModSelect" data-index="{{index}}">
+                {{#each rollModOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+              </select>
+            </div>
+          </div>
+          <p class="dst-hint">{{@root.hints.rollMod}}</p>
+        </div>
+        <div class="form-group">
+          <label>{{@root.labels.redirect}}</label>
+          <div class="form-fields">
+            <select data-field="redirectSelect" data-index="{{index}}">
+              {{#each redirectOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            </select>
+          </div>
+        </div>
+        <p class="dst-hint">{{@root.hints.redirect}}</p>
+      </div>
 
       <div class="dst-damage-wrap" {{#unless showDamageTypes}}hidden{{/unless}}>
         <div class="form-group">

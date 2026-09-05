@@ -1,4 +1,4 @@
-﻿.dst-reminder .dst-reminder-header {
+.dst-reminder .dst-reminder-header {
   font-weight: bold;
   border-bottom: 1px solid var(--color-border-light-primary, #7a7971);
   margin-bottom: 4px;
@@ -766,5 +766,11 @@ button.dst-dstd-res-locked {
 
 .dst-stack-entry--resolution .dst-stack-held-icon {
   color: #d4a82a;
+}
+
+.dst-editor .dst-postroll-sub {
+  margin-left: 18px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(212, 168, 42, 0.35);
 }
 

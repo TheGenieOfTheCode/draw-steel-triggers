@@ -23,6 +23,20 @@ const SCOPES = [
 
 const DAMAGE_EVENTS = new Set(["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE"]);
 
+const ROLL_MOD_VALUES = {
+  banes1: { banes: 1 }, banes2: { banes: 2 },
+  edges1: { edges: 1 }, edges2: { edges: 2 },
+};
+
+function _rollModValue(mod) {
+  if (!mod) return "";
+  if (mod.banes === 2) return "banes2";
+  if (mod.banes === 1) return "banes1";
+  if (mod.edges === 2) return "edges2";
+  if (mod.edges === 1) return "edges1";
+  return "";
+}
+
 const label = (v) => v.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
 export class TriggerEditor extends ds.applications.api.DSApplication {
@@ -86,6 +100,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         edgeRequired: L("EdgeRequired"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"),
         availability: L("Availability"),
         holdDamage: L("HoldDamage"), targetedHalf: L("TargetedHalf"),
+        postRoll: L("PostRoll"), halfOnUse: L("HalfOnUse"), rollMod: L("RollMod"), redirect: L("Redirect"),
         addClause: L("AddClause"), malice: L("Malice"), save: L("Save"), reset: L("Reset"),
       },
       hints: {
@@ -93,6 +108,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         damageTypes: L("DamageTypesHint"), abilityDsid: L("AbilityDsidHint"),
         groupName: L("GroupNameHint"), checks: L("ChecksHint"), malice: L("MaliceHint"),
         holdDamage: L("HoldDamageHint"), targetedHalf: L("TargetedHalfHint"),
+        postRoll: L("PostRollHint"), halfOnUse: L("HalfOnUseHint"), rollMod: L("RollModHint"), redirect: L("RedirectHint"),
         save: L("SaveHint"), reset: L("ResetHint"),
       },
       clauses: this._clauses.map((c, index) => ({
@@ -110,6 +126,17 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         holdChecked: c.event === "WOULD_TAKE_DAMAGE",
         showTargetedHalf: c.event === "TARGETED_BY_STRIKE",
         targetedHalf: !!c.targetedHalf,
+        showPostRoll: c.event === "TARGETED_BY_STRIKE",
+        postRoll: !!c.postRoll,
+        halfOnUse: !!c.halfOnUse,
+        rollModOptions: [
+          ["", L("RollModNone")], ["banes1", L("RollModBane")], ["banes2", L("RollModDoubleBane")],
+          ["edges1", L("RollModEdge")], ["edges2", L("RollModDoubleEdge")],
+        ].map(([value, optLabel]) => ({ value, label: optLabel, selected: _rollModValue(c.rollMod) === value })),
+        redirectOptions: [
+          ["", L("RedirectNone")], ["self", L("RedirectSelf")], ["reflect", L("RedirectReflect")],
+          ["chooser", L("RedirectChooser")], ["swap", L("RedirectSwap")], ["after", L("RedirectAfter")],
+        ].map(([value, optLabel]) => ({ value, label: optLabel, selected: (c.redirect ?? "") === value })),
         showGroup: c.scope === "GROUP",
         damageTypeOptions: damageTypes.map((d) => ({ ...d, active: (c.damageTypes ?? []).includes(d.value) })),
         groupOptions: keywords.map((k) => ({ ...k, active: c.groupName === k.value })),
@@ -154,6 +181,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         }
         const halfWrap = clauseEl?.querySelector(".dst-half-wrap");
         if (halfWrap) halfWrap.hidden = eventSel.value !== "TARGETED_BY_STRIKE";
+        const postRollWrap = clauseEl?.querySelector(".dst-postroll-wrap");
+        if (postRollWrap) postRollWrap.hidden = eventSel.value !== "TARGETED_BY_STRIKE";
+        return;
+      }
+      const postRollToggle = event.target.closest('input[data-field="postRoll"]');
+      if (postRollToggle) {
+        const sub = postRollToggle.closest(".dst-postroll-wrap")?.querySelector(".dst-postroll-sub");
+        if (sub) sub.hidden = !postRollToggle.checked;
         return;
       }
       const holdToggle = event.target.closest("input[data-hold-toggle]");
@@ -211,7 +246,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     for (const input of el.querySelectorAll("[data-field][data-index]")) {
       
       
-      if (input.localName === "multi-select" || input.dataset.field === "groupSelect") continue;
+      if (input.localName === "multi-select" || input.dataset.field === "groupSelect"
+        || input.dataset.field === "rollModSelect" || input.dataset.field === "redirectSelect") continue;
       const clause = this._clauses[Number(input.dataset.index)];
       if (!clause) continue;
       const field = input.dataset.field;
@@ -236,6 +272,19 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (value.length) clause.damageTypes = value;
       else delete clause.damageTypes;
     }
+    for (const select of el.querySelectorAll('select[data-field="rollModSelect"]')) {
+      const clause = this._clauses[Number(select.dataset.index)];
+      if (!clause) continue;
+      const mod = ROLL_MOD_VALUES[select.value] ?? null;
+      if (mod) clause.rollMod = { ...mod };
+      else delete clause.rollMod;
+    }
+    for (const select of el.querySelectorAll('select[data-field="redirectSelect"]')) {
+      const clause = this._clauses[Number(select.dataset.index)];
+      if (!clause) continue;
+      if (select.value) clause.redirect = select.value;
+      else delete clause.redirect;
+    }
     for (const select of el.querySelectorAll('select[data-field="groupSelect"]')) {
       const clause = this._clauses[Number(select.dataset.index)];
       if (!clause) continue;
@@ -252,7 +301,17 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const out = foundry.utils.deepClone(c);
       delete out._customs;
       delete out._customPending;
-      if (out.event !== "TARGETED_BY_STRIKE") delete out.targetedHalf;
+      if (out.event !== "TARGETED_BY_STRIKE") {
+        delete out.targetedHalf;
+        delete out.postRoll;
+        delete out.halfOnUse;
+        delete out.rollMod;
+        delete out.redirect;
+      }
+      if (!out.postRoll) {
+        delete out.halfOnUse;
+        delete out.rollMod;
+      }
       return out;
     });
   }
