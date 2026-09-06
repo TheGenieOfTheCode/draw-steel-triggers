@@ -171,6 +171,13 @@ function _tryWriteHalfOverrides(message) {
     if (pending.abilityUuid !== abilityUse.abilityUuid) continue;
     const target = state.targets.find((t) => _targetMatches(t, pending.targetActorUuid));
     if (!target) continue;
+    const halfOwner = pending.targetActorUuid ? fromUuidSync(pending.targetActorUuid) : null;
+    const halfFields = {
+      dstHalf: true,
+      dstModName: pending.modName ?? "",
+      dstSrcName: halfOwner?.name ?? null,
+      dstSrcTokenId: halfOwner?.getActiveTokens?.(true, false)[0]?.id ?? null,
+    };
     for (const part of message.system?.parts?.contents ?? []) {
       const partId = part.id ?? part._id;
       const rolls = part.rolls ?? [];
@@ -181,18 +188,46 @@ function _tryWriteHalfOverrides(message) {
         const opId = _dstdOperationId(target, partId, i);
         if (state.damageOverrides?.[opId]) continue;
         const total = Number(roll.total ?? 0);
-        const halfOwner = pending.targetActorUuid ? fromUuidSync(pending.targetActorUuid) : null;
         updates[`flags.${DSTD_ID}.state.damageOverrides.${opId}`] = {
           amount: Math.floor(total / 2),
           baseAmount: total,
           damageType: roll.type ?? roll.options?.type ?? "",
           typeLabel: roll.typeLabel ?? "",
-          dstHalf: true,
-          dstModName: pending.modName ?? "",
-          dstSrcName: halfOwner?.name ?? null,
-          dstSrcTokenId: halfOwner?.getActiveTokens?.(true, false)[0]?.id ?? null,
+          ...halfFields,
         };
       }
+    }
+    
+    
+    
+    const ability = fromUuidSync(abilityUse.abilityUuid);
+    let dmgIndex = 0;
+    for (const powerEffect of ability?.system?.power?.effects ?? []) {
+      if (powerEffect.type !== "damage") continue;
+      const effKey = powerEffect.id ?? powerEffect._id ?? `damage-${dmgIndex}`;
+      for (const tier of [1, 2, 3]) {
+        const tierData = powerEffect.damage?.[`tier${tier}`];
+        if (!tierData || Number(tierData.value) === 0) continue;
+        let amount = NaN;
+        try {
+          amount = Number(ds?.utils?.simplifyRollFormula?.(String(tierData.value ?? "0"), ability.getRollData?.() ?? {}));
+        } catch {  }
+        if (!Number.isFinite(amount)) amount = Number(tierData.value);
+        if (!Number.isFinite(amount)) continue;
+        const opId = _dstdOperationId(target, `tier${tier}-synthetic`, effKey);
+        if (state.damageOverrides?.[opId] || updates[`flags.${DSTD_ID}.state.damageOverrides.${opId}`]) continue;
+        const type = tierData.types?.size === 1 ? tierData.types.first() : "";
+        let typeLabel = "";
+        try { typeLabel = type ? game.i18n.localize(ds?.CONFIG?.damageTypes?.[type]?.label ?? "") : ""; } catch {}
+        updates[`flags.${DSTD_ID}.state.damageOverrides.${opId}`] = {
+          amount: Math.floor(amount / 2),
+          baseAmount: amount,
+          damageType: type,
+          typeLabel,
+          ...halfFields,
+        };
+      }
+      dmgIndex++;
     }
     pending.claimed = true;
   }
@@ -264,13 +299,13 @@ function _patchMessageLabels(message, root) {
     }
     if (entry.dstAdjusted) {
       for (const btn of root.querySelectorAll(`button[data-dstd-action="applyDamage"][data-operation-id="${opId}"]`)) _suffixSpan(btn, "Adjusted");
-    } else if (entry.override?.dstHalf && !entry.halfDamage) {
+    } else if (entry.override?.dstHalf && !entry.override?.dstHalfOff && !entry.halfDamage) {
       for (const btn of root.querySelectorAll(`button[data-dstd-action="applyDamage"][data-operation-id="${opId}"]`)) _suffixSpan(btn, "Half");
     }
   }
 
   for (const [opId, override] of Object.entries(overrides)) {
-    if (!override?.dstHalf || apps[opId]?.status === "applied") continue;
+    if (!override?.dstHalf || override.dstHalfOff || apps[opId]?.status === "applied") continue;
     for (const btn of root.querySelectorAll(`button[data-dstd-action="applyDamage"][data-operation-id="${opId}"]`)) _suffixSpan(btn, "Half");
   }
 }

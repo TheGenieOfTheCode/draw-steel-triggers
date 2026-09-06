@@ -48,14 +48,6 @@
       </div>
       <p class="dst-hint">{{@root.hints.qualifiers}}</p>
 
-      <div class="dst-hold-wrap" {{#unless showHold}}hidden{{/unless}}>
-        <label class="checkbox"><input type="checkbox" data-hold-toggle data-index="{{index}}" {{#if holdChecked}}checked{{/if}}> {{@root.labels.holdDamage}}</label>
-        <p class="dst-hint">{{@root.hints.holdDamage}}</p>
-      </div>
-      <div class="dst-half-wrap" {{#unless showTargetedHalf}}hidden{{/unless}}>
-        <label class="checkbox"><input type="checkbox" data-field="targetedHalf" data-index="{{index}}" {{#if targetedHalf}}checked{{/if}}> {{@root.labels.targetedHalf}}</label>
-        <p class="dst-hint">{{@root.hints.targetedHalf}}</p>
-      </div>
       <div class="dst-exclself-wrap" {{#unless showTargetedHalf}}hidden{{/unless}}>
         <label class="checkbox"><input type="checkbox" data-field="excludeSelfTarget" data-index="{{index}}" {{#if excludeSelfTarget}}checked{{/if}}> {{@root.labels.excludeSelfTarget}}</label>
         <p class="dst-hint">{{@root.hints.excludeSelfTarget}}</p>
@@ -63,30 +55,6 @@
       <div class="dst-postroll-wrap" {{#unless showPostRoll}}hidden{{/unless}}>
         <label class="checkbox"><input type="checkbox" data-field="postRoll" data-index="{{index}}" {{#if postRoll}}checked{{/if}}> {{@root.labels.postRoll}}</label>
         <p class="dst-hint">{{@root.hints.postRoll}}</p>
-        <div class="dst-postroll-sub" {{#unless postRoll}}hidden{{/unless}}>
-          <label class="checkbox"><input type="checkbox" data-field="halfOnUse" data-index="{{index}}" {{#if halfOnUse}}checked{{/if}}> {{@root.labels.halfOnUse}}</label>
-          <p class="dst-hint">{{@root.hints.halfOnUse}}</p>
-        </div>
-        <div class="form-group">
-          <label>{{@root.labels.redirect}}</label>
-          <div class="form-fields">
-            <select data-field="redirectSelect" data-index="{{index}}">
-              {{#each redirectOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-            </select>
-          </div>
-        </div>
-        <p class="dst-hint">{{@root.hints.redirect}}</p>
-      </div>
-      <div class="dst-rollmod-wrap" {{#unless showRollMod}}hidden{{/unless}}>
-        <div class="form-group">
-          <label>{{@root.labels.rollMod}}</label>
-          <div class="form-fields">
-            <select data-field="rollModSelect" data-index="{{index}}">
-              {{#each rollModOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-            </select>
-          </div>
-        </div>
-        <p class="dst-hint">{{@root.hints.rollMod}}</p>
       </div>
 
       <div class="dst-damage-wrap" {{#unless showDamageTypes}}hidden{{/unless}}>
@@ -131,6 +99,42 @@
         <label class="checkbox"><input type="checkbox" data-field="anyHeroUnacted" data-index="{{index}}" {{#if anyHeroUnacted}}checked{{/if}}> {{@root.labels.anyHeroUnacted}}</label>
       </div>
       <p class="dst-hint">{{@root.hints.checks}}</p>
+
+      <h3 class="dst-settings-header dst-effects-header" {{#unless showEffects}}hidden{{/unless}}>{{@root.labels.effectsHeader}}</h3>
+      <div class="dst-hold-wrap" {{#unless showHold}}hidden{{/unless}}>
+        <label class="checkbox"><input type="checkbox" data-hold-toggle data-index="{{index}}" {{#if holdChecked}}checked{{/if}}> {{@root.labels.holdDamage}}</label>
+        <p class="dst-hint">{{@root.hints.holdDamage}}</p>
+      </div>
+      <div class="dst-half-wrap" {{#unless showTargetedHalf}}hidden{{/unless}}>
+        <label class="checkbox"><input type="checkbox" data-field="targetedHalf" data-index="{{index}}" {{#if targetedHalf}}checked{{/if}}> {{@root.labels.targetedHalf}}</label>
+        <p class="dst-hint">{{@root.hints.targetedHalf}}</p>
+      </div>
+      <div class="dst-postroll-sub" {{#unless showHalfOnUse}}hidden{{/unless}}>
+        <label class="checkbox"><input type="checkbox" data-field="halfOnUse" data-index="{{index}}" {{#if halfOnUse}}checked{{/if}}> {{@root.labels.halfOnUse}}</label>
+        <p class="dst-hint">{{@root.hints.halfOnUse}}</p>
+      </div>
+      <div class="dst-redirect-wrap" {{#unless showPostRoll}}hidden{{/unless}}>
+        <div class="form-group">
+          <label>{{@root.labels.redirect}}</label>
+          <div class="form-fields">
+            <select data-field="redirectSelect" data-index="{{index}}">
+              {{#each redirectOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            </select>
+          </div>
+        </div>
+        <p class="dst-hint">{{@root.hints.redirect}}</p>
+      </div>
+      <div class="dst-rollmod-wrap" {{#unless showRollMod}}hidden{{/unless}}>
+        <div class="form-group">
+          <label>{{@root.labels.rollMod}}</label>
+          <div class="form-fields">
+            <select data-field="rollModSelect" data-index="{{index}}">
+              {{#each rollModOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            </select>
+          </div>
+        </div>
+        <p class="dst-hint">{{@root.hints.rollMod}}</p>
+      </div>
     </fieldset>
     {{/each}}
   </div>

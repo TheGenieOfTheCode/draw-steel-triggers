@@ -880,6 +880,10 @@ button.dst-dstd-res-locked {
   border-style: dashed;
 }
 
+.dst-editor-clause .dst-effects-header {
+  margin: 12px 0 6px;
+}
+
 .dst-settings-header {
   margin: 14px 0 4px;
   padding-bottom: 3px;

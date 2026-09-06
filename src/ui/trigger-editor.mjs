@@ -3,7 +3,7 @@ import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTri
 
 const EVENT_GROUPS = [
   ["Common", [
-    "TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE", "DIES", "WINDED_OR_DYING",
+    "TAKES_DAMAGE", "DEALS_DAMAGE", "DIES", "WINDED_OR_DYING",
     "TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "MAKES_STRIKE", "POWER_ROLL", "MOVES", "FORCE_MOVED",
     "TURN_START", "TURN_END", "CONDITION_GAIN", "USES_ABILITY",
   ]],
@@ -105,6 +105,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         availability: L("Availability"),
         holdDamage: L("HoldDamage"), targetedHalf: L("TargetedHalf"), excludeSelfTarget: L("ExcludeSelfTarget"),
         postRoll: L("PostRoll"), halfOnUse: L("HalfOnUse"), rollMod: L("RollMod"), redirect: L("Redirect"),
+        effectsHeader: L("EffectsHeader"),
         addClause: L("AddClause"), malice: L("Malice"), save: L("Save"), reset: L("Reset"),
       },
       hints: {
@@ -120,9 +121,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         legend: game.i18n.format("DS_TRIGGERS.Editor.ClauseLegend", { n: index + 1 }),
         eventGroups: EVENT_GROUPS.map(([key, list]) => ({
           label: L(`EventGroup${key}`),
-          options: list.map((e) => ({ value: e, label: label(e), selected: e === c.event })),
+          options: list.map((e) => ({
+            value: e, label: label(e),
+            selected: e === (c.event === "WOULD_TAKE_DAMAGE" ? "TAKES_DAMAGE" : c.event),
+          })),
         })),
-        eventHint: game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${c.event}`),
+        eventHint: game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${c.event === "WOULD_TAKE_DAMAGE" ? "TAKES_DAMAGE" : c.event}`),
         scopeOptions: SCOPES.map((s) => ({ value: s, label: label(s), selected: s === c.scope })),
         rangeOptions: [
           ["auto", L("RangeAuto")], ["none", L("RangeNone")], ["custom", L("RangeCustom")],
@@ -141,6 +145,9 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         excludeSelfTarget: !!c.excludeSelfTarget,
         showPostRoll: TARGETING_EVENTS.has(c.event),
         showRollMod: ROLL_MOD_EVENTS.has(c.event),
+        showEffects: TARGETING_EVENTS.has(c.event) || ROLL_MOD_EVENTS.has(c.event)
+          || c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
+        showHalfOnUse: TARGETING_EVENTS.has(c.event) && !!c.postRoll,
         postRoll: !!c.postRoll,
         halfOnUse: !!c.halfOnUse,
         rollModOptions: [
@@ -188,36 +195,30 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         const desc = clauseEl?.querySelector(".dst-event-desc");
         if (desc) desc.textContent = game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${eventSel.value}`);
         const holdWrap = clauseEl?.querySelector(".dst-hold-wrap");
-        if (holdWrap) {
-          holdWrap.hidden = eventSel.value !== "TAKES_DAMAGE" && eventSel.value !== "WOULD_TAKE_DAMAGE";
-          const box = holdWrap.querySelector("input");
-          if (box) box.checked = eventSel.value === "WOULD_TAKE_DAMAGE";
-        }
+        if (holdWrap) holdWrap.hidden = eventSel.value !== "TAKES_DAMAGE";
         const targeting = TARGETING_EVENTS.has(eventSel.value);
+        const rollMod = ROLL_MOD_EVENTS.has(eventSel.value);
         const halfWrap = clauseEl?.querySelector(".dst-half-wrap");
         if (halfWrap) halfWrap.hidden = !targeting;
         const exclWrap = clauseEl?.querySelector(".dst-exclself-wrap");
         if (exclWrap) exclWrap.hidden = !targeting;
         const postRollWrap = clauseEl?.querySelector(".dst-postroll-wrap");
         if (postRollWrap) postRollWrap.hidden = !targeting;
+        const redirectWrap = clauseEl?.querySelector(".dst-redirect-wrap");
+        if (redirectWrap) redirectWrap.hidden = !targeting;
         const rollModWrap = clauseEl?.querySelector(".dst-rollmod-wrap");
-        if (rollModWrap) rollModWrap.hidden = !ROLL_MOD_EVENTS.has(eventSel.value);
+        if (rollModWrap) rollModWrap.hidden = !rollMod;
+        const holdable = eventSel.value === "TAKES_DAMAGE";
+        const effectsHeader = clauseEl?.querySelector(".dst-effects-header");
+        if (effectsHeader) effectsHeader.hidden = !targeting && !rollMod && !holdable;
+        const sub = clauseEl?.querySelector(".dst-postroll-sub");
+        if (sub) sub.hidden = !targeting || !clauseEl?.querySelector('input[data-field="postRoll"]')?.checked;
         return;
       }
       const postRollToggle = event.target.closest('input[data-field="postRoll"]');
       if (postRollToggle) {
-        const sub = postRollToggle.closest(".dst-postroll-wrap")?.querySelector(".dst-postroll-sub");
+        const sub = postRollToggle.closest(".dst-editor-clause")?.querySelector(".dst-postroll-sub");
         if (sub) sub.hidden = !postRollToggle.checked;
-        return;
-      }
-      const holdToggle = event.target.closest("input[data-hold-toggle]");
-      if (holdToggle) {
-        
-        const sel = holdToggle.closest(".dst-editor-clause")?.querySelector('select[data-field="event"]');
-        if (sel) {
-          sel.value = holdToggle.checked ? "WOULD_TAKE_DAMAGE" : "TAKES_DAMAGE";
-          sel.dispatchEvent(new Event("change", { bubbles: true }));
-        }
         return;
       }
       const rangeSel = event.target.closest('select[data-field="rangeSelect"]');
@@ -290,6 +291,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         if (input.value.trim()) clause[field] = input.value.trim();
         else delete clause[field];
       }
+    }
+    
+    
+    for (const box of el.querySelectorAll("input[data-hold-toggle]")) {
+      const clause = this._clauses[Number(box.dataset.index)];
+      if (!clause) continue;
+      if (clause.event === "TAKES_DAMAGE" && box.checked) clause.event = "WOULD_TAKE_DAMAGE";
+      else if (clause.event === "WOULD_TAKE_DAMAGE" && !box.checked) clause.event = "TAKES_DAMAGE";
     }
     for (const ms of el.querySelectorAll('multi-select[data-field="damageTypes"]')) {
       const clause = this._clauses[Number(ms.dataset.index)];
