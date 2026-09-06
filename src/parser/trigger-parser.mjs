@@ -125,15 +125,24 @@ const REDIRECT_TEXT = [
   [/becomes? the target|is the (?:strike|ability)['’]?s? new target|become the target instead/i, "self"],
 ];
 
+const ROLL_MOD_SUBJECT = "(?:triggering )?(?:strike|power roll|ability roll)|it";
 const ROLL_MOD_TEXT = [
-  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) a double bane\b/i, { banes: 2 }],
-  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) a bane\b/i, { banes: 1 }],
-  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) a double edge\b/i, { edges: 2 }],
-  [/\b(?:strike|triggering strike|it) (?:takes?|has|gains?) an edge\b/i, { edges: 1 }],
+  [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a double bane\\b`, "i"), { banes: 2 }],
+  [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a bane\\b`, "i"), { banes: 1 }],
+  [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a double edge\\b`, "i"), { edges: 2 }],
+  [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) an edge\\b`, "i"), { edges: 1 }],
+  [/\btakes? a double bane on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { banes: 2 }],
+  [/\btakes? a bane on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { banes: 1 }],
+  [/\b(?:takes?|has|gains?) a double edge on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { edges: 2 }],
+  [/\b(?:takes?|has|gains?) an edge on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { edges: 1 }],
 ];
 
+const PREROLL_MOD_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "MAKES_STRIKE", "POWER_ROLL"]);
+
 function rollModLayer(result, id, effectText) {
-  if (!effectText || !result.clauses.some((c) => c.postRoll)) return result;
+  if (!effectText) return result;
+  const applies = (c) => c.postRoll || PREROLL_MOD_EVENTS.has(c.event);
+  if (!result.clauses.some(applies)) return result;
   let mod = null;
   for (const [rx, m] of ROLL_MOD_TEXT) {
     if (rx.test(effectText)) { mod = m; break; }
@@ -142,7 +151,7 @@ function rollModLayer(result, id, effectText) {
   return {
     ...result,
     rollModifying: true,
-    clauses: result.clauses.map((c) => c.postRoll ? { ...c, rollMod: mod } : c),
+    clauses: result.clauses.map((c) => applies(c) ? { ...c, rollMod: mod } : c),
   };
 }
 

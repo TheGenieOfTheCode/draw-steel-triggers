@@ -30,6 +30,8 @@ const ROLL_MOD_VALUES = {
   edges1: { edges: 1 }, edges2: { edges: 2 },
 };
 
+const ROLL_MOD_EVENTS = new Set([...TARGETING_EVENTS, "MAKES_STRIKE", "POWER_ROLL"]);
+
 function _rollModValue(mod) {
   if (!mod) return "";
   if (mod.banes === 2) return "banes2";
@@ -138,6 +140,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         targetedHalf: !!c.targetedHalf,
         excludeSelfTarget: !!c.excludeSelfTarget,
         showPostRoll: TARGETING_EVENTS.has(c.event),
+        showRollMod: ROLL_MOD_EVENTS.has(c.event),
         postRoll: !!c.postRoll,
         halfOnUse: !!c.halfOnUse,
         rollModOptions: [
@@ -197,6 +200,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         if (exclWrap) exclWrap.hidden = !targeting;
         const postRollWrap = clauseEl?.querySelector(".dst-postroll-wrap");
         if (postRollWrap) postRollWrap.hidden = !targeting;
+        const rollModWrap = clauseEl?.querySelector(".dst-rollmod-wrap");
+        if (rollModWrap) rollModWrap.hidden = !ROLL_MOD_EVENTS.has(eventSel.value);
         return;
       }
       const postRollToggle = event.target.closest('input[data-field="postRoll"]');
@@ -335,14 +340,11 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         delete out.targetedHalf;
         delete out.postRoll;
         delete out.halfOnUse;
-        delete out.rollMod;
         delete out.redirect;
         delete out.excludeSelfTarget;
       }
-      if (!out.postRoll) {
-        delete out.halfOnUse;
-        delete out.rollMod;
-      }
+      if (!ROLL_MOD_EVENTS.has(out.event)) delete out.rollMod;
+      if (!out.postRoll) delete out.halfOnUse;
       return out;
     });
   }

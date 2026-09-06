@@ -243,7 +243,7 @@ async function _onQueueResolve(id, outcome, userName) {
         if (!awaiting.size) {
           _removeHeld(entry.resumeId);
           _postRedirectReminders(usedEntries, resume);
-          _dispatchResume(resume, _collectRetargets(usedEntries));
+          _dispatchResume(resume, _collectRetargets(usedEntries), _collectRollMods(usedEntries));
         } else {
           const grace = _graceMs();
           const resumeId = entry.resumeId;
@@ -582,6 +582,19 @@ function _collectRetargets(usedEntries) {
   return out;
 }
 
+function _collectRollMods(usedEntries) {
+  const out = [];
+  for (const u of usedEntries ?? []) {
+    if (u.cancelled || !u.rollMod) continue;
+    out.push({
+      modName: u.itemName,
+      edges: u.rollMod.edges ?? 0,
+      banes: u.rollMod.banes ?? 0,
+    });
+  }
+  return out;
+}
+
 async function _postRedirectReminders(usedEntries, resume) {
   for (const u of usedEntries ?? []) {
     if (u.cancelled || !u.redirect) continue;
@@ -613,11 +626,11 @@ async function _postRedirectReminders(usedEntries, resume) {
   }
 }
 
-function _dispatchResume(resume, retargets = []) {
+function _dispatchResume(resume, retargets = [], rollMods = []) {
   if (!resume?.userId || !resume?.itemUuid) return;
   const user = game.users.get(resume.userId);
-  if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid, retargets);
-  else socket.executeAsGM("resumeRoll", resume.itemUuid, retargets);
+  if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid, retargets, rollMods);
+  else socket.executeAsGM("resumeRoll", resume.itemUuid, retargets, rollMods);
 }
 
 function _removeHeld(resumeId) {
@@ -639,7 +652,7 @@ function _fireResume(resumeId, expired = false) {
     }
     const applied = (pending.usedEntries ?? []).filter((u) => !expired || !pending.awaiting.has(u.itemUuid));
     _postRedirectReminders(applied, pending.resume);
-    _dispatchResume(pending.resume, _collectRetargets(applied));
+    _dispatchResume(pending.resume, _collectRetargets(applied), _collectRollMods(applied));
   } else if (held) {
 
     const usedInGroup = _queue.filter((e) => e.resumeId === resumeId && e.state === "used");
@@ -647,7 +660,7 @@ function _fireResume(resumeId, expired = false) {
       if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
     }
     _postRedirectReminders(usedInGroup, held.resume);
-    _dispatchResume(held.resume, _collectRetargets(usedInGroup));
+    _dispatchResume(held.resume, _collectRetargets(usedInGroup), _collectRollMods(usedInGroup));
   }
   _broadcast();
 }
@@ -683,14 +696,51 @@ Hooks.on("createChatMessage", (message) => {
   }
 });
 
-async function _onResumeRoll(itemUuid, retargets = []) {
+const _pendingRollMods = new Map();
+
+async function _onResumeRoll(itemUuid, retargets = [], rollMods = []) {
   const item = await fromUuid(itemUuid).catch(() => null);
   if (!item) return;
   await _applyRetargets(item, retargets);
+  if (rollMods.length) {
+    const now = Date.now();
+    _pendingRollMods.set(itemUuid, { mods: rollMods, at: now });
+    for (const [uuid, rec] of _pendingRollMods) {
+      if (now - rec.at > 60000) _pendingRollMods.delete(uuid);
+    }
+  }
   addRollBypass(itemUuid);
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollReleased", { name: item.name }));
   item.system.use();
 }
+
+function _rollModLabel(m) {
+  const parts = [];
+  if (m.banes === 2) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModDoubleBane"));
+  else if (m.banes === 1) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModBane"));
+  if (m.edges === 2) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModDoubleEdge"));
+  else if (m.edges === 1) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModEdge"));
+  return parts.join(" + ");
+}
+
+Hooks.on("renderAbilityConfigurationDialog", (app) => {
+  const uuid = app.options?.ability?.uuid;
+  if (!uuid || app._dstRollModsApplied) return;
+  const pending = _pendingRollMods.get(uuid);
+  if (!pending) return;
+  app._dstRollModsApplied = true;
+  _pendingRollMods.delete(uuid);
+  const modifiers = app.options?.context?.modifiers;
+  if (!modifiers) return;
+  for (const m of pending.mods) {
+    modifiers.edges = Math.min(2, (modifiers.edges ?? 0) + (m.edges ?? 0));
+    modifiers.banes = Math.min(2, (modifiers.banes ?? 0) + (m.banes ?? 0));
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModInjected", {
+      modName: m.modName, effect: _rollModLabel(m),
+    }));
+  }
+  app.render();
+});
 
 async function _applyRetargets(item, retargets) {
   for (const r of retargets ?? []) {
@@ -743,6 +793,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     causeLabel: m._causeLabel ?? causeLabel,
     halvesOnUse: m._halvesOnUse ?? false,
     redirect: m._redirect ?? null,
+    rollMod: m._rollMod ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
     lock: true,

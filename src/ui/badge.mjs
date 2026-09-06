@@ -50,6 +50,15 @@ export function computeAutomationLevel(item) {
   }
   if (parse.damageModifying) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DamageModifying"));
   if (parse.targetedHalf || parse.clauses.some((c) => c.targetedHalf)) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.TargetedHalf"));
+  const rollMod = parse.clauses.find((c) => c.rollMod)?.rollMod;
+  if (rollMod) {
+    const effparts = [];
+    if (rollMod.banes === 2) effparts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModDoubleBane"));
+    else if (rollMod.banes === 1) effparts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModBane"));
+    if (rollMod.edges === 2) effparts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModDoubleEdge"));
+    else if (rollMod.edges === 1) effparts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModEdge"));
+    detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.RollModifying", { effect: effparts.join(" + ") }));
+  }
   const redirectMode = parse.redirect ?? parse.clauses.find((c) => c.redirect)?.redirect;
   if (redirectMode) detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.Redirect", {
     mode: game.i18n.localize(`DS_TRIGGERS.Badge.RedirectMode.${redirectMode}`),
