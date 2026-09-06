@@ -20,7 +20,25 @@ export function damagePillDisplayList(pills) {
       }
     }
   } catch {}
+  const lastType = list.reduce((last, x, i) => x.pill.kind === "type" ? i : last, -1);
+  list.forEach((x, i) => { if (x.pill.kind === "type" && i !== lastType) x.inert = true; });
   return list;
+}
+
+export function damageTypeColor(value) {
+  try {
+    const c = globalThis.ds?.CONFIG?.damageTypes?.[value]?.color;
+    return c ? String(c) : null;
+  } catch { return null; }
+}
+
+export function styleTypePill(el, p) {
+  if (p.kind !== "type") return;
+  const col = damageTypeColor(p.value);
+  if (!col) return;
+  el.style.color = col;
+  el.style.borderColor = col;
+  el.style.background = `color-mix(in srgb, ${col} 12%, transparent)`;
 }
 
 export function foldDamagePills(base, pills) {
@@ -35,10 +53,26 @@ export function foldDamagePills(base, pills) {
   return Math.max(0, v);
 }
 
+export function damageTypeLabel(value) {
+  if (!value) return L("PillTypeUntyped");
+  const cfg = globalThis.ds?.CONFIG?.damageTypes?.[value];
+  return cfg?.label ? game.i18n.localize(cfg.label) : value;
+}
+
+export function damagePillType(pills) {
+  let found = null;
+  for (const x of damagePillDisplayList(pills)) {
+    if (x.inert) continue;
+    if (x.pill.kind === "type") found = x.pill.value ?? "";
+  }
+  return found;
+}
+
 export function damagePillEffect(p) {
   if (p.kind === "half") return L("PillEffectHalf");
   if (p.kind === "double") return L("PillEffectDouble");
   if (p.kind === "surge") return L("PillEffectSurge", { n: Math.abs(Number(p.value) || 0) });
+  if (p.kind === "type") return L("PillEffectType", { type: damageTypeLabel(p.value) });
   const v = Number(p.value) || 0;
   return v >= 0 ? L("PillEffectPlus", { n: v }) : L("PillEffectMinus", { n: Math.abs(v) });
 }
@@ -48,6 +82,7 @@ export function damagePillText(p) {
   if (p.kind === "half") return label ? `½ ${label}` : L("PillEffectHalf");
   if (p.kind === "double") return label ? `×2 ${label}` : L("PillEffectDouble");
   if (p.kind === "surge") return label || L("PillSurge");
+  if (p.kind === "type") return label || damageTypeLabel(p.value);
   if (label) return label;
   return damagePillEffect(p);
 }
@@ -80,6 +115,11 @@ export async function openDamageModWindow({ title, hint = "", base, pills = [], 
           <input type="number" data-pill-size value="1" min="1" step="1">
           <button type="button" data-pill="minus">${L("PillPenalty")}</button>
           ${surgeButton}
+          <select data-pill-type>
+            <option value="">${L("PillType")}</option>
+            <option value="__untyped">${L("PillTypeUntyped")}</option>
+            ${Object.entries(globalThis.ds?.CONFIG?.damageTypes ?? {}).map(([v, cfg]) => `<option value="${v}">${game.i18n.localize(cfg.label ?? v)}</option>`).join("")}
+          </select>
         </div>
       </div>`,
     buttons: [
@@ -109,8 +149,9 @@ export async function openDamageModWindow({ title, hint = "", base, pills = [], 
           const p = x.pill;
           const span = document.createElement("span");
           span.className = `dst-pill dst-pill--removable dst-pill--${p.kind}${x.inert ? " dst-pill--inert" : ""}`;
+          styleTypePill(span, p);
           span.textContent = damagePillText(p);
-          const effect = x.inert ? L("PillInertTooltip") : damagePillEffect(p);
+          const effect = x.inert ? L(p.kind === "type" ? "PillTypeOverriddenTooltip" : "PillInertTooltip") : damagePillEffect(p);
           span.dataset.tooltip = `${effect}<br>${L("PillRemoveTooltip")}`;
           span.addEventListener("click", () => {
             const idx = stack.indexOf(p);
@@ -126,6 +167,15 @@ export async function openDamageModWindow({ title, hint = "", base, pills = [], 
         if (nameEl) nameEl.value = "";
         return name;
       };
+
+      const typeSel = root.querySelector("[data-pill-type]");
+      typeSel?.addEventListener("change", () => {
+        const v = typeSel.value;
+        if (!v) return;
+        stack.push({ kind: "type", value: v === "__untyped" ? "" : v, label: takeName(), source: "manual" });
+        typeSel.value = "";
+        refresh();
+      });
 
       for (const btn of root.querySelectorAll("[data-pill]")) {
         btn.addEventListener("click", () => {

@@ -1,6 +1,6 @@
 import { MODULE_ID, getSetting, dbg } from "../util.mjs";
 import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
-import { openDamageModWindow } from "../ui/damage-mod-window.mjs";
+import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
 
 let socket = null;
 
@@ -547,6 +547,8 @@ async function _finalizeDamageHold(damageId) {
     Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
     return;
   }
+  const typePill = damagePillType(outcome.pills);
+  if (typePill != null && hold.damageOptions) hold.damageOptions = { ...hold.damageOptions, type: typePill };
   await _applyHeldDamage(hold, Number(result));
   Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: Number(result) });
 }

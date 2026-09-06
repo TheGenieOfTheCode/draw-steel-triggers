@@ -102,7 +102,7 @@ Hooks.once("init", () => {
     scope: "world",
     config: true,
     type: Boolean,
-    default: false
+    default: true
   });
   game.settings.register(MODULE_ID, "noMultiplierStacking", {
     name: "DS_TRIGGERS.Settings.NoMultiplierStacking.Name",
@@ -157,7 +157,8 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
   if (!root) return;
   for (const [key, header] of Object.entries(SETTING_HEADERS)) {
-    const el = root.querySelector(`[data-setting-id="${MODULE_ID}.${key}"]`);
+    const el = root.querySelector(`[name="${MODULE_ID}.${key}"]`)?.closest(".form-group")
+      ?? root.querySelector(`[data-setting-id="${MODULE_ID}.${key}"]`);
     if (!el || el.previousElementSibling?.classList?.contains("dst-settings-header")) continue;
     const h = document.createElement("h3");
     h.className = "dst-settings-header";

@@ -1,6 +1,6 @@
 import { MODULE_ID, dbg, getSetting } from "../util.mjs";
 import { getActiveDamageHolds } from "../triggers/queue.mjs";
-import { openDamageModWindow, foldDamagePills, damagePillText, damagePillEffect, damagePillDisplayList } from "../ui/damage-mod-window.mjs";
+import { openDamageModWindow, foldDamagePills, damagePillText, damagePillEffect, damagePillDisplayList, damagePillType, damageTypeLabel, styleTypePill } from "../ui/damage-mod-window.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 
@@ -355,9 +355,12 @@ function _renderDamagePills(message, root) {
       for (const it of items) {
         const span = document.createElement("span");
         span.className = `dst-pill dst-pill--${it.pill.kind}${it.inert ? " dst-pill--inert" : ""}`;
+        styleTypePill(span, it.pill);
         span.textContent = damagePillText(it.pill);
-        let tooltip = it.inert ? game.i18n.localize("DS_TRIGGERS.Queue.PillInertTooltip") : damagePillEffect(it.pill);
-        if (it.removable && game.user.isGM) {
+        let tooltip = it.inert
+          ? game.i18n.localize(it.pill.kind === "type" ? "DS_TRIGGERS.Queue.PillTypeOverriddenTooltip" : "DS_TRIGGERS.Queue.PillInertTooltip")
+          : damagePillEffect(it.pill);
+        if (it.removable && (game.user.isGM || message.isOwner)) {
           span.classList.add("dst-pill--removable");
           span.dataset.dstPillOp = opId;
           span.dataset.dstPillMsg = message.id;
@@ -394,21 +397,33 @@ async function _replaceOverride(message, opId, data) {
   }
 }
 
+function _origDamageType(ov) {
+  if (ov?.dstOrigType !== undefined) {
+    return { damageType: ov.dstOrigType?.damageType ?? null, typeLabel: ov.dstOrigType?.typeLabel ?? null };
+  }
+  return { damageType: ov?.damageType || null, typeLabel: ov?.typeLabel || null };
+}
+
 async function _removeOverridePill(message, opId, idx) {
   const state = message.getFlag(DSTD_ID, "state") ?? {};
   const ov = state.damageOverrides?.[opId];
   if (!Array.isArray(ov?.dstPills)) return;
   const pills = ov.dstPills.filter((_, i) => i !== idx);
   const base = Number(ov.baseAmount ?? 0);
-  if (!pills.length && !ov.damageType && !ov.additional) {
+  const orig = _origDamageType(ov);
+  if (!pills.length && !ov.additional && (ov.dstOrigType !== undefined || !ov.damageType)) {
     await _replaceOverride(message, opId, null);
     return;
   }
+  const typePill = damagePillType(pills);
   const surges = pills.filter((p) => p.kind === "surge").length;
   const surgeDamage = Number(ov.surgeDamage ?? 0) || 0;
   await _replaceOverride(message, opId, {
     ...ov,
     amount: foldDamagePills(base, pills),
+    damageType: typePill != null ? typePill : orig.damageType,
+    typeLabel: typePill != null ? (typePill ? damageTypeLabel(typePill) : "") : orig.typeLabel,
+    dstOrigType: orig,
     surges,
     surgeBonus: surges * surgeDamage,
     dstPills: pills,
@@ -422,7 +437,7 @@ document.addEventListener("click", async (ev) => {
   ev.stopPropagation();
   const msgId = pill.dataset.dstPillMsg || pill.closest("li.chat-message")?.dataset?.messageId;
   const message = msgId ? game.messages.get(msgId) : null;
-  if (!message || !game.user.isGM) return;
+  if (!message || (!game.user.isGM && !message.isOwner)) return;
   const opId = pill.dataset.dstPillOp;
   if (pill.dataset.dstPillIdx != null) {
     await _removeOverridePill(message, opId, Number(pill.dataset.dstPillIdx));
@@ -491,10 +506,12 @@ async function _openPillDamageEditor(message, button) {
   if (!outcome) return;
 
   const pills = outcome.pills.map((p) => ({ kind: p.kind, value: p.value ?? null, label: p.label ?? "", source: p.source ?? "manual" }));
-  if (!pills.length && !ov?.damageType && !ov?.additional) {
+  const orig = _origDamageType(ov);
+  if (!pills.length && !ov?.additional && (ov?.dstOrigType !== undefined || !ov?.damageType)) {
     if (ov) await _replaceOverride(message, opId, null);
     return;
   }
+  const typePill = damagePillType(pills);
   const surges = pills.filter((p) => p.kind === "surge").length;
   const surgeDamage = surge?.damage ?? (Number(ov?.surgeDamage ?? 0) || 0);
   const data = {
@@ -502,8 +519,9 @@ async function _openPillDamageEditor(message, button) {
     baseAmount: base,
     bonus: 0,
     additional: ov?.additional ?? "",
-    damageType: ov?.damageType ?? "",
-    typeLabel: ov?.typeLabel ?? "",
+    damageType: typePill != null ? typePill : orig.damageType,
+    typeLabel: typePill != null ? (typePill ? damageTypeLabel(typePill) : "") : orig.typeLabel,
+    dstOrigType: orig,
     surges,
     surgeDamage,
     surgeBonus: surges * surgeDamage,
@@ -534,9 +552,14 @@ function _patchMessageEl(li) {
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
   if (!_dstdActive()) return;
-  _patchMessageLabels(message, html);
-  _applyResolutionLock(message, html);
-  _renderDamagePills(message, html);
+  const patch = () => {
+    _patchMessageLabels(message, html);
+    _applyResolutionLock(message, html);
+    _renderDamagePills(message, html);
+  };
+  patch();
+  setTimeout(() => { if (html.isConnected) patch(); }, 100);
+  setTimeout(() => { if (html.isConnected) patch(); }, 400);
 });
 
 Hooks.once("ready", () => {

@@ -774,7 +774,6 @@ button.dst-dstd-res-locked {
   border-left: 2px solid rgba(212, 168, 42, 0.35);
 }
 
-
 .dst-held-total {
   display: flex;
   align-items: center;
@@ -863,6 +862,17 @@ button.dst-dstd-res-locked {
   border-color: rgba(88, 177, 88, 0.6);
   color: #58b158;
   background: rgba(88, 177, 88, 0.08);
+}
+
+.dst-pill--type {
+  border-color: rgba(196, 128, 217, 0.6);
+  color: #c480d9;
+  background: rgba(196, 128, 217, 0.08);
+}
+
+.dst-held-adjust [data-pill-type] {
+  flex: 1 1 100%;
+  min-width: 120px;
 }
 
 .dst-pill--inert {
