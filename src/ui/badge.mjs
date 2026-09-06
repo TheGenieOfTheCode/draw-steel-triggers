@@ -48,6 +48,7 @@ export function computeAutomationLevel(item) {
       detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.ScopeNeedsTier", { scope: clause.scope }));
     }
   }
+  if (parse.bespokeEffect) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.BespokeEffect"));
   if (parse.damageModifying) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DamageModifying"));
   if (parse.targetedHalf || parse.clauses.some((c) => c.targetedHalf)) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.TargetedHalf"));
   const rollMod = parse.clauses.find((c) => c.rollMod)?.rollMod;

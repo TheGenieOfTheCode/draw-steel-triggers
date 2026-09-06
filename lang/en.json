@@ -78,6 +78,7 @@
         "Detected": "{event} for {scope}: {mode}.",
         "EventNeedsTier": "{event}: needs a compatibility tier to detect.",
         "ScopeNeedsTier": "Scope {scope}: needs a compatibility tier to resolve.",
+        "BespokeEffect": "Bespoke effect: the trigger is detected, but the effect depends on this ability's own roll. Apply it manually from its posted message.",
         "DamageModifying": "Damage modifying: incoming damage is held while this ability is decided.",
         "TargetedHalf": "Halves on use: using this from a roll lock pre-halves the incoming damage.",
         "RollModifying": "Roll modifying: using this applies {effect} to the triggering roll.",

@@ -1587,8 +1587,7 @@
         {
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
-          "qualifiers": [],
-          "targetedHalf": true
+          "qualifiers": []
         }
       ]
     }
@@ -1606,8 +1605,7 @@
         {
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
-          "qualifiers": [],
-          "targetedHalf": true
+          "qualifiers": []
         }
       ]
     }
@@ -1625,8 +1623,7 @@
         {
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
-          "qualifiers": [],
-          "targetedHalf": true
+          "qualifiers": []
         }
       ]
     }
@@ -1644,8 +1641,7 @@
         {
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
-          "qualifiers": [],
-          "targetedHalf": true
+          "qualifiers": []
         }
       ]
     }

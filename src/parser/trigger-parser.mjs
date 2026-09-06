@@ -45,7 +45,21 @@ export const DAMAGE_MODIFYING = new Set([
 // at roll time (lock flow), so the damage button itself gets pre-halved instead of
 // holding the damage at apply time. Owner-is-not-target modifiers (Intercede,
 // Trick of the Eye, Testudo) stay lock-only for now.
-export const TARGETED_HALVERS = new Set(["shriek", "pain-absorption", "devilish-charm"]);
+export const TARGETED_HALVERS = new Set(["shriek", "pain-absorption"]);
+
+// The Devilish variants keep their half/bane inside their OWN power roll's tier
+
+const BESPOKE_EFFECTS = new Set(["devilish-charm", "devilish-suggestion"]);
+
+function bespokeLayer(result, id) {
+  if (!BESPOKE_EFFECTS.has(id)) return result;
+  const { targetedHalf, rollModifying, damageModifying, ...rest } = result;
+  return {
+    ...rest,
+    bespokeEffect: true,
+    clauses: result.clauses.map(({ targetedHalf: _th, rollMod, halfOnUse, ...c }) => c),
+  };
+}
 
 const DAMAGE_MOD_TEXT = [
   /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
@@ -60,8 +74,6 @@ const DAMAGE_MOD_TEXT = [
 export function isDamageModifyingText(text) {
   return !!text && DAMAGE_MOD_TEXT.some((rx) => rx.test(text));
 }
-
-// "the target" in trigger text points at the ability's own Target field, so a
 
 const TARGET_TYPE_SCOPES = {
   self: "SELF",
@@ -328,7 +340,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText));
+  if (special) return bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id);
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -372,5 +384,5 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }
-  return rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText));
+  return bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id);
 }
