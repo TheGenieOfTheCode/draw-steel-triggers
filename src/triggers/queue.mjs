@@ -843,7 +843,7 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     itemName: m.item.name,
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
-    event: "TARGETED_BY_STRIKE",
+    event: m.clause?.event ?? "TARGETED_BY_STRIKE",
     causeLabel: m._causeLabel ?? causeLabel,
     lock: false,
     state: "pending",

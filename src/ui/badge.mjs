@@ -11,6 +11,7 @@ const EVENT_MODES = {
   WINDED_OR_DYING: "prompt",
   WOULD_TAKE_DAMAGE: "hold",
   TARGETED_BY_STRIKE: "lock",
+  TARGETED_BY_ABILITY: "lock",
   MAKES_STRIKE: "lock",
   POWER_ROLL: "lock",
 };
@@ -33,7 +34,7 @@ export function computeAutomationLevel(item) {
   const detail = [];
   let detected = 0;
   for (const clause of parse.clauses) {
-    const mode = clause.postRoll && clause.event === "TARGETED_BY_STRIKE" ? "resolution" : EVENT_MODES[clause.event];
+    const mode = clause.postRoll && (clause.event === "TARGETED_BY_STRIKE" || clause.event === "TARGETED_BY_ABILITY") ? "resolution" : EVENT_MODES[clause.event];
     const scopeOk = BASE_SCOPES.has(clause.scope) || isMaliceAbility(item);
     if (mode && scopeOk) {
       detected++;

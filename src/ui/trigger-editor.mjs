@@ -4,7 +4,7 @@ import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTri
 const EVENT_GROUPS = [
   ["Common", [
     "TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE", "DIES", "WINDED_OR_DYING",
-    "TARGETED_BY_STRIKE", "MAKES_STRIKE", "POWER_ROLL", "MOVES", "FORCE_MOVED",
+    "TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "MAKES_STRIKE", "POWER_ROLL", "MOVES", "FORCE_MOVED",
     "TURN_START", "TURN_END", "CONDITION_GAIN", "USES_ABILITY",
   ]],
   ["Rare", [
@@ -22,6 +22,8 @@ const SCOPES = [
 ];
 
 const DAMAGE_EVENTS = new Set(["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE"]);
+
+const TARGETING_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 
 const ROLL_MOD_VALUES = {
   banes1: { banes: 1 }, banes2: { banes: 2 },
@@ -92,22 +94,22 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       isManual: !!this.item.getFlag(MODULE_ID, "manual"),
       removeTooltip: L("RemoveClause"),
       labels: {
-        event: L("Event"), scope: L("Scope"),
+        event: L("Event"), scope: L("Scope"), range: L("Range"),
         qualifiers: L("Qualifiers"), qualifiersPh: L("QualifiersPh"),
         damageTypes: L("DamageTypes"),
         abilityDsid: L("AbilityDsid"), groupName: L("GroupName"), groupNone: L("GroupNone"),
         customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
         edgeRequired: L("EdgeRequired"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"),
         availability: L("Availability"),
-        holdDamage: L("HoldDamage"), targetedHalf: L("TargetedHalf"),
+        holdDamage: L("HoldDamage"), targetedHalf: L("TargetedHalf"), excludeSelfTarget: L("ExcludeSelfTarget"),
         postRoll: L("PostRoll"), halfOnUse: L("HalfOnUse"), rollMod: L("RollMod"), redirect: L("Redirect"),
         addClause: L("AddClause"), malice: L("Malice"), save: L("Save"), reset: L("Reset"),
       },
       hints: {
-        scope: L("ScopeHint"), qualifiers: L("QualifiersHint"),
+        scope: L("ScopeHint"), range: L("RangeHint"), qualifiers: L("QualifiersHint"),
         damageTypes: L("DamageTypesHint"), abilityDsid: L("AbilityDsidHint"),
         groupName: L("GroupNameHint"), checks: L("ChecksHint"), malice: L("MaliceHint"),
-        holdDamage: L("HoldDamageHint"), targetedHalf: L("TargetedHalfHint"),
+        holdDamage: L("HoldDamageHint"), targetedHalf: L("TargetedHalfHint"), excludeSelfTarget: L("ExcludeSelfTargetHint"),
         postRoll: L("PostRollHint"), halfOnUse: L("HalfOnUseHint"), rollMod: L("RollModHint"), redirect: L("RedirectHint"),
         save: L("SaveHint"), reset: L("ResetHint"),
       },
@@ -120,13 +122,22 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         })),
         eventHint: game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${c.event}`),
         scopeOptions: SCOPES.map((s) => ({ value: s, label: label(s), selected: s === c.scope })),
+        rangeOptions: [
+          ["auto", L("RangeAuto")], ["none", L("RangeNone")], ["custom", L("RangeCustom")],
+        ].map(([value, optLabel]) => ({
+          value, label: optLabel,
+          selected: (c.range === "none" ? "none" : Number.isFinite(c.range) ? "custom" : "auto") === value,
+        })),
+        rangeCustom: Number.isFinite(c.range),
+        rangeValue: Number.isFinite(c.range) ? c.range : 1,
         qualifiers: (c.qualifiers ?? []).join(", "),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
         showHold: c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
         holdChecked: c.event === "WOULD_TAKE_DAMAGE",
-        showTargetedHalf: c.event === "TARGETED_BY_STRIKE",
+        showTargetedHalf: TARGETING_EVENTS.has(c.event),
         targetedHalf: !!c.targetedHalf,
-        showPostRoll: c.event === "TARGETED_BY_STRIKE",
+        excludeSelfTarget: !!c.excludeSelfTarget,
+        showPostRoll: TARGETING_EVENTS.has(c.event),
         postRoll: !!c.postRoll,
         halfOnUse: !!c.halfOnUse,
         rollModOptions: [
@@ -179,10 +190,13 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
           const box = holdWrap.querySelector("input");
           if (box) box.checked = eventSel.value === "WOULD_TAKE_DAMAGE";
         }
+        const targeting = TARGETING_EVENTS.has(eventSel.value);
         const halfWrap = clauseEl?.querySelector(".dst-half-wrap");
-        if (halfWrap) halfWrap.hidden = eventSel.value !== "TARGETED_BY_STRIKE";
+        if (halfWrap) halfWrap.hidden = !targeting;
+        const exclWrap = clauseEl?.querySelector(".dst-exclself-wrap");
+        if (exclWrap) exclWrap.hidden = !targeting;
         const postRollWrap = clauseEl?.querySelector(".dst-postroll-wrap");
-        if (postRollWrap) postRollWrap.hidden = eventSel.value !== "TARGETED_BY_STRIKE";
+        if (postRollWrap) postRollWrap.hidden = !targeting;
         return;
       }
       const postRollToggle = event.target.closest('input[data-field="postRoll"]');
@@ -199,6 +213,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
           sel.value = holdToggle.checked ? "WOULD_TAKE_DAMAGE" : "TAKES_DAMAGE";
           sel.dispatchEvent(new Event("change", { bubbles: true }));
         }
+        return;
+      }
+      const rangeSel = event.target.closest('select[data-field="rangeSelect"]');
+      if (rangeSel) {
+        const input = rangeSel.closest(".form-fields")?.querySelector('input[data-field="rangeValue"]');
+        if (input) input.hidden = rangeSel.value !== "custom";
         return;
       }
       const scopeSel = event.target.closest('select[data-field="scope"]');
@@ -247,7 +267,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       
       
       if (input.localName === "multi-select" || input.dataset.field === "groupSelect"
-        || input.dataset.field === "rollModSelect" || input.dataset.field === "redirectSelect") continue;
+        || input.dataset.field === "rollModSelect" || input.dataset.field === "redirectSelect"
+        || input.dataset.field === "rangeSelect" || input.dataset.field === "rangeValue") continue;
       const clause = this._clauses[Number(input.dataset.index)];
       if (!clause) continue;
       const field = input.dataset.field;
@@ -279,6 +300,15 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (mod) clause.rollMod = { ...mod };
       else delete clause.rollMod;
     }
+    for (const select of el.querySelectorAll('select[data-field="rangeSelect"]')) {
+      const clause = this._clauses[Number(select.dataset.index)];
+      if (!clause) continue;
+      if (select.value === "none") clause.range = "none";
+      else if (select.value === "custom") {
+        const input = select.closest(".form-fields")?.querySelector('input[data-field="rangeValue"]');
+        clause.range = Math.max(1, Math.floor(Number(input?.value) || 1));
+      } else delete clause.range;
+    }
     for (const select of el.querySelectorAll('select[data-field="redirectSelect"]')) {
       const clause = this._clauses[Number(select.dataset.index)];
       if (!clause) continue;
@@ -301,12 +331,13 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const out = foundry.utils.deepClone(c);
       delete out._customs;
       delete out._customPending;
-      if (out.event !== "TARGETED_BY_STRIKE") {
+      if (!TARGETING_EVENTS.has(out.event)) {
         delete out.targetedHalf;
         delete out.postRoll;
         delete out.halfOnUse;
         delete out.rollMod;
         delete out.redirect;
+        delete out.excludeSelfTarget;
       }
       if (!out.postRoll) {
         delete out.halfOnUse;

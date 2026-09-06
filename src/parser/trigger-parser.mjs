@@ -76,6 +76,8 @@ const TARGET_TYPE_SCOPES = {
   object: "OBJECT",
 };
 
+const TARGETING_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
+
 function resolveTargetScope(result, targetType) {
   const scope = TARGET_TYPE_SCOPES[targetType];
   if (!scope || !result.clauses.some((c) => c.scope === "TARGET")) return result;
@@ -88,7 +90,7 @@ function damageModLayer(result, id, effectText) {
       ...result,
       damageModifying: true,
       targetedHalf: true,
-      clauses: result.clauses.map((c) => c.event === "TARGETED_BY_STRIKE" ? { ...c, targetedHalf: true } : c),
+      clauses: result.clauses.map((c) => TARGETING_EVENTS.has(c.event) ? { ...c, targetedHalf: true } : c),
     };
   }
   if (!DAMAGE_MODIFYING.has(id) && !isDamageModifyingText(effectText)) return result;
@@ -169,6 +171,23 @@ function holdHalfLayer(result, id, effectText) {
   };
 }
 
+function rangeLayer(result) {
+  let stamped = 0;
+  const clauses = result.clauses.map((c) => {
+    if (c.range !== undefined || c.zone) return c;
+    for (const q of c.qualifiers ?? []) {
+      const within = q.match(/within (\d+)/);
+      if (within) { stamped++; return { ...c, range: Number(within[1]) }; }
+      if (/\badjacent\b/.test(q) && !/adjacent to (?:the target|the mentor|your companion)/.test(q)) {
+        stamped++;
+        return { ...c, range: 1 };
+      }
+    }
+    return c;
+  });
+  return stamped ? { ...result, clauses } : result;
+}
+
 function redirectLayer(result, id, effectText) {
   let mode = REDIRECT_ABILITIES[id] ?? null;
   if (!mode && effectText) {
@@ -179,7 +198,7 @@ function redirectLayer(result, id, effectText) {
   if (!mode) return result;
   let stamped = 0;
   const clauses = result.clauses.map((c) => {
-    if (c.event !== "TARGETED_BY_STRIKE") return c;
+    if (!TARGETING_EVENTS.has(c.event)) return c;
     stamped++;
     return { ...c, redirect: mode };
   });
@@ -300,7 +319,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText);
+  if (special) return rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText));
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -322,6 +341,10 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (scope === "UNKNOWN") ambiguous = true;
     const qualifiers = QUALIFIERS.map(rx => lc.match(rx)?.[0]).filter(Boolean);
     const entry = { event: events[0] || "UNKNOWN", events, scope, qualifiers };
+    if (entry.event === "TARGETED_BY_STRIKE" && !/\bstrik|\bstruck\b/.test(lc)) {
+      entry.event = "TARGETED_BY_ABILITY";
+      entry.events = events.map((e) => e === "TARGETED_BY_STRIKE" ? "TARGETED_BY_ABILITY" : e);
+    }
     if (/\bis struck by\b/.test(lc)) entry.postRoll = true;
     // structured filters
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
@@ -330,10 +353,15 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (using) entry.abilityDsid = generateDSID(using[1]);
     const eff = lc.match(/ends? the ([\w -]+?) effect/); if (eff) entry.effectName = eff[1];
     const zone = lc.match(/\b(?:enters?|starts? their turn (?:in|within|adjacent to)) (?:the|a) ([\w -]+?)(?: or|,|$)/); if (zone) entry.zone = zone[1];
+    const excl = lc.match(/(?:doesn['’]t|does not) also targets? (?:the )?([\w'’ -]+?)(?=[.,]|$| with| using)/);
+    if (excl) {
+      const words = ownerWords(ownerName);
+      if (/\b(self|you)\b/.test(excl[1]) || !words.length || words.some((w) => excl[1].includes(w))) entry.excludeSelfTarget = true;
+    }
     if (/\b(gains? (an|a double) edge|has an edge|with an edge)\b/.test(lc)) entry.edgeRequired = true;
     if (/\bsaving throw\b|ends? at the end of their turn/.test(lc) && entry.event === "CONDITION_GAIN") entry.durationFilter = "save-or-eot";
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }
-  return holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText);
+  return rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText));
 }

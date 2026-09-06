@@ -32,23 +32,31 @@ async function _tryDispatch(message) {
 
   const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
   if (!ability || ability.type !== "ability") return;
-  if (!(ability.system.keywords?.has?.("strike") ?? false)) return;
+  const strike = ability.system.keywords?.has?.("strike") ?? false;
   const rollerActor = ability.actor;
 
   _handled.add(message.id);
   _handledAt.set(message.id, Date.now());
   _pruneHandled();
 
-  const matches = [];
-  const seen = new Set();
+  const targetPairs = [];
   for (const t of targets) {
     const tokenDoc = t.tokenUuid ? await fromUuid(t.tokenUuid).catch(() => null) : null;
     const subjectActor = tokenDoc?.actor
       ?? (t.actorUuid ? await fromUuid(t.actorUuid).catch(() => null) : null);
+    targetPairs.push({ t, tokenDoc, subjectActor });
+  }
+  const targetActors = new Set(targetPairs.map((p) => p.subjectActor).filter(Boolean));
+
+  const matches = [];
+  const seen = new Set();
+  for (const { t, tokenDoc, subjectActor } of targetPairs) {
     if (!subjectActor) continue;
-    const list = collectTriggerMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc)
+    const events = strike ? ["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"] : ["TARGETED_BY_ABILITY"];
+    const list = events.flatMap((event) => collectTriggerMatches(event, subjectActor, tokenDoc))
       .filter((m) => !m.malice && m.clause?.postRoll === true && m.actor !== rollerActor
-        && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+        && (m.parse?.confidence === "high" || m.parse?.source === "manual")
+        && !(m.clause?.excludeSelfTarget && targetActors.has(m.actor)));
     for (const m of list) {
       if (seen.has(m.item.uuid)) continue;
       seen.add(m.item.uuid);

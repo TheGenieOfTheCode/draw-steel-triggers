@@ -31,6 +31,16 @@
       </div>
       <p class="dst-hint">{{@root.hints.scope}}</p>
       <div class="form-group">
+        <label>{{@root.labels.range}}</label>
+        <div class="form-fields">
+          <select data-field="rangeSelect" data-index="{{index}}">
+            {{#each rangeOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+          </select>
+          <input type="number" min="1" step="1" data-field="rangeValue" data-index="{{index}}" value="{{rangeValue}}" {{#unless rangeCustom}}hidden{{/unless}}>
+        </div>
+      </div>
+      <p class="dst-hint">{{@root.hints.range}}</p>
+      <div class="form-group">
         <label>{{@root.labels.qualifiers}}</label>
         <div class="form-fields">
           <input type="text" data-field="qualifiers" data-index="{{index}}" value="{{qualifiers}}" placeholder="{{@root.labels.qualifiersPh}}">
@@ -45,6 +55,10 @@
       <div class="dst-half-wrap" {{#unless showTargetedHalf}}hidden{{/unless}}>
         <label class="checkbox"><input type="checkbox" data-field="targetedHalf" data-index="{{index}}" {{#if targetedHalf}}checked{{/if}}> {{@root.labels.targetedHalf}}</label>
         <p class="dst-hint">{{@root.hints.targetedHalf}}</p>
+      </div>
+      <div class="dst-exclself-wrap" {{#unless showTargetedHalf}}hidden{{/unless}}>
+        <label class="checkbox"><input type="checkbox" data-field="excludeSelfTarget" data-index="{{index}}" {{#if excludeSelfTarget}}checked{{/if}}> {{@root.labels.excludeSelfTarget}}</label>
+        <p class="dst-hint">{{@root.hints.excludeSelfTarget}}</p>
       </div>
       <div class="dst-postroll-wrap" {{#unless showPostRoll}}hidden{{/unless}}>
         <label class="checkbox"><input type="checkbox" data-field="postRoll" data-index="{{index}}" {{#if postRoll}}checked{{/if}}> {{@root.labels.postRoll}}</label>

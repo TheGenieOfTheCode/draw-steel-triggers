@@ -40,21 +40,57 @@ function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor, subjec
 function candidateEntries() {
   const seen = new Set();
   const entries = [];
-  const addActor = (actor, disposition) => {
+  const addActor = (actor, disposition, token) => {
     if (!actor || seen.has(actor.id)) return;
     seen.add(actor.id);
-    entries.push({ actor, disposition });
+    entries.push({ actor, disposition, token });
   };
   if (game.combat?.started) {
     for (const combatant of game.combat.combatants) {
-      addActor(combatant.actor, combatant.token?.disposition ?? null);
+      addActor(combatant.actor, combatant.token?.disposition ?? null, combatant.token ?? null);
     }
   } else {
     for (const token of canvas.tokens?.placeables ?? []) {
-      addActor(token.actor, token.document.disposition);
+      addActor(token.actor, token.document.disposition, token.document);
     }
   }
   return entries;
+}
+
+const RANGED_DISTANCE_TYPES = new Set(["melee", "ranged", "meleeRanged", "aura", "burst"]);
+
+function clauseRangeSquares(clause, item) {
+  if (clause.range === "none") return null;
+  if (Number.isFinite(clause.range)) return clause.range > 0 ? clause.range : null;
+  const dist = item.system?.distance;
+  if (!dist || !RANGED_DISTANCE_TYPES.has(dist.type)) return null;
+  const primary = parseInt(dist.primary) || 0;
+  const secondary = parseInt(dist.secondary) || 0;
+  const range = dist.type === "meleeRanged" ? Math.max(primary, secondary) : primary;
+  return range > 0 ? range : null;
+}
+
+function footprintGap(docA, docB) {
+  const GS = canvas.grid.size;
+  const aL = docA.x, aT = docA.y, aR = aL + docA.width * GS, aB = aT + docA.height * GS;
+  const bL = docB.x, bT = docB.y, bR = bL + docB.width * GS, bB = bT + docB.height * GS;
+  let px, qx, py, qy;
+  if (aR <= bL) { px = aR; qx = bL; }
+  else if (bR <= aL) { px = aL; qx = bR; }
+  else { px = qx = Math.max(aL, bL); }
+  if (aB <= bT) { py = aB; qy = bT; }
+  else if (bB <= aT) { py = aT; qy = bB; }
+  else { py = qy = Math.max(aT, bT); }
+  return canvas.grid.measurePath([{ x: px, y: py }, { x: qx, y: qy }]).distance;
+}
+
+function rangeMatches(clause, item, ownerActor, ownerToken, subjectActor, subjectToken) {
+  if (!subjectActor || ownerActor === subjectActor) return true;
+  const range = clauseRangeSquares(clause, item);
+  if (range == null) return true;
+  if (!ownerToken || !subjectToken) return true;
+  if (ownerToken.parent !== canvas.scene || subjectToken.parent !== canvas.scene) return true;
+  return footprintGap(ownerToken, subjectToken) < range * canvas.grid.distance;
 }
 
 function inSameCombatGroup(actorA, actorB) {
@@ -82,7 +118,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   const candidates = candidateEntries().sort((a, b) => (b.actor === subjectActor) - (a.actor === subjectActor));
   const maliceSeen = new Set();
 
-  for (const { actor, disposition } of candidates) {
+  for (const { actor, disposition, token } of candidates) {
     if (actor.statuses?.has(defeated)) continue;
     if (isActorSnoozed(actor)) continue;
     const dazed = actor.statuses?.has("dazed") ?? false;
@@ -99,7 +135,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
-        c.event === event && (malice || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition)));
+        c.event === event && (malice || (scopeMatches(c, actor, disposition, subjectActor, subjectDisposition)
+          && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
       if (clause.ownerUnacted && game.combat?.started) {
         const combatant = game.combat.combatants.find(c => c.actor === actor);

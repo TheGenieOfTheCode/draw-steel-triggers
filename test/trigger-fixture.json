@@ -154,7 +154,8 @@
           "scope": "ENEMY",
           "qualifiers": [
             "within 5 squares"
-          ]
+          ],
+          "range": 5
         }
       ]
     }
@@ -472,7 +473,8 @@
           "scope": "ALLY",
           "qualifiers": [
             "within 10 squares"
-          ]
+          ],
+          "range": 10
         }
       ]
     }
@@ -492,7 +494,8 @@
           "scope": "ENEMY",
           "qualifiers": [
             "within 2 squares"
-          ]
+          ],
+          "range": 2
         }
       ]
     }
@@ -556,11 +559,12 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "ALLY",
           "qualifiers": [
             "within 10 squares"
-          ]
+          ],
+          "range": 10
         }
       ]
     }
@@ -949,12 +953,14 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "ALLY",
           "qualifiers": [
             "adjacent to"
           ],
-          "redirect": "self"
+          "excludeSelfTarget": true,
+          "redirect": "self",
+          "range": 1
         }
       ]
     }
@@ -1006,7 +1012,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "SELF_OR_ALLY",
           "qualifiers": []
         }
@@ -1201,7 +1207,8 @@
           "scope": "ANY",
           "qualifiers": [
             "within 10 squares"
-          ]
+          ],
+          "range": 10
         }
       ]
     }
@@ -1297,7 +1304,8 @@
           "scope": "ANY",
           "qualifiers": [
             "within 10 squares"
-          ]
+          ],
+          "range": 10
         }
       ]
     }
@@ -1337,7 +1345,8 @@
           "scope": "ANY",
           "qualifiers": [
             "within 10 squares"
-          ]
+          ],
+          "range": 10
         }
       ]
     }
@@ -1900,7 +1909,8 @@
             "adjacent to"
           ],
           "postRoll": true,
-          "redirect": "self"
+          "redirect": "self",
+          "range": 1
         }
       ]
     }
@@ -2132,7 +2142,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "SELF",
           "qualifiers": [
             "within distance",
@@ -2284,7 +2294,8 @@
           "qualifiers": [
             "adjacent creature",
             "with a melee ability"
-          ]
+          ],
+          "range": 1
         }
       ]
     }
@@ -2750,7 +2761,8 @@
           "scope": "ALLY",
           "qualifiers": [
             "within 5 squares"
-          ]
+          ],
+          "range": 5
         }
       ]
     }
@@ -2891,7 +2903,8 @@
           "scope": "ANY",
           "qualifiers": [
             "adjacent to"
-          ]
+          ],
+          "range": 1
         }
       ]
     }
@@ -2907,7 +2920,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "SELF_OR_ALLY",
           "qualifiers": [
             "within distance",
@@ -2928,7 +2941,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "SELF",
           "qualifiers": []
         }
@@ -3313,7 +3326,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "SELF",
           "qualifiers": []
         }
@@ -3633,7 +3646,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TARGETED_BY_STRIKE",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "ALLY",
           "qualifiers": [
             "within distance"
@@ -4208,7 +4221,8 @@
           "qualifiers": [
             "adjacent to"
           ],
-          "postRoll": true
+          "postRoll": true,
+          "range": 1
         }
       ]
     }
@@ -4950,7 +4964,8 @@
           "scope": "SELF",
           "qualifiers": [
             "adjacent creature"
-          ]
+          ],
+          "range": 1
         }
       ]
     }
@@ -4970,7 +4985,8 @@
           "scope": "TARGET",
           "qualifiers": [
             "adjacent to"
-          ]
+          ],
+          "range": 1
         }
       ]
     }
@@ -5407,7 +5423,8 @@
           "qualifiers": [
             "within 10 squares"
           ],
-          "anyHeroUnacted": true
+          "anyHeroUnacted": true,
+          "range": 10
         }
       ]
     }
@@ -5504,7 +5521,8 @@
           "scope": "SELF",
           "qualifiers": [
             "adjacent creature"
-          ]
+          ],
+          "range": 1
         }
       ]
     }

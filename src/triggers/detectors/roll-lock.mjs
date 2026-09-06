@@ -44,8 +44,9 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
       if (seen.has(m.item.uuid)) continue;
       seen.add(m.item.uuid);
       m._lockEvent = event;
-      m._halvesOnUse = event === "TARGETED_BY_STRIKE" && m.clause?.targetedHalf === true;
-      m._redirect = event === "TARGETED_BY_STRIKE" ? m.clause?.redirect ?? null : null;
+      const targeting = event === "TARGETED_BY_STRIKE" || event === "TARGETED_BY_ABILITY";
+      m._halvesOnUse = targeting && m.clause?.targetedHalf === true;
+      m._redirect = targeting ? m.clause?.redirect ?? null : null;
       m._causeLabel = game.i18n.format(`DS_TRIGGERS.Queue.Cause.${event}`, {
         roller: rollerActor.name, ability: ability.name, owner: m.actor.name,
       });
@@ -58,20 +59,27 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   if (strike) add(_lockMatches("MAKES_STRIKE", rollerActor, rollerToken, rollerActor), "MAKES_STRIKE");
 
   const targets = Object.values(app.options?.context?.targets ?? {});
-  for (const target of targets) {
-    const tokenDoc = target.tokenUuid ? fromUuidSync(target.tokenUuid) : null;
+  const targetPairs = targets.map((t) => ({ tokenDoc: t.tokenUuid ? fromUuidSync(t.tokenUuid) : null }));
+  const targetActors = new Set(targetPairs.map((p) => p.tokenDoc?.actor).filter(Boolean));
+  const notAlsoTargeted = (m) => !(m.clause?.excludeSelfTarget && targetActors.has(m.actor));
+  for (const { tokenDoc } of targetPairs) {
     const subjectActor = tokenDoc?.actor;
     if (!subjectActor) continue;
     if (strike) {
       const list = _lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor)
-        .filter((m) => m.clause?.postRoll !== true);
+        .filter((m) => m.clause?.postRoll !== true)
+        .filter(notAlsoTargeted);
       for (const m of list) m._subjectTokenUuid = tokenDoc.uuid;
       add(list, "TARGETED_BY_STRIKE");
     }
-    
-    
+    const abilityList = _lockMatches("TARGETED_BY_ABILITY", subjectActor, tokenDoc, rollerActor)
+      .filter((m) => m.clause?.postRoll !== true)
+      .filter(notAlsoTargeted);
+    for (const m of abilityList) m._subjectTokenUuid = tokenDoc.uuid;
+    add(abilityList, "TARGETED_BY_ABILITY");
+
     if (_hasDamage(ability) && !getSetting("damageInterrupts")) {
-      add(_lockMatches("WOULD_TAKE_DAMAGE", subjectActor, tokenDoc, rollerActor), "WOULD_TAKE_DAMAGE");
+      add(_lockMatches("WOULD_TAKE_DAMAGE", subjectActor, tokenDoc, rollerActor).filter(notAlsoTargeted), "WOULD_TAKE_DAMAGE");
     }
   }
 
