@@ -181,6 +181,7 @@ function _tryWriteHalfOverrides(message) {
         const opId = _dstdOperationId(target, partId, i);
         if (state.damageOverrides?.[opId]) continue;
         const total = Number(roll.total ?? 0);
+        const halfOwner = pending.targetActorUuid ? fromUuidSync(pending.targetActorUuid) : null;
         updates[`flags.${DSTD_ID}.state.damageOverrides.${opId}`] = {
           amount: Math.floor(total / 2),
           baseAmount: total,
@@ -188,6 +189,8 @@ function _tryWriteHalfOverrides(message) {
           typeLabel: roll.typeLabel ?? "",
           dstHalf: true,
           dstModName: pending.modName ?? "",
+          dstSrcName: halfOwner?.name ?? null,
+          dstSrcTokenId: halfOwner?.getActiveTokens?.(true, false)[0]?.id ?? null,
         };
       }
     }

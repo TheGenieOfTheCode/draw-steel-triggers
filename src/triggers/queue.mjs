@@ -237,7 +237,8 @@ async function _onQueueResolve(id, outcome, userName) {
           .map((e) => ({
             itemUuid: e.itemUuid, ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName,
             itemName: e.itemName, usedAt: e.usedAt,
-            redirect: e.redirect ?? null, subjectTokenUuid: e.subjectTokenUuid ?? null,
+            redirect: e.redirect ?? null, rollMod: e.rollMod ?? null,
+            subjectTokenUuid: e.subjectTokenUuid ?? null,
           }));
         const awaiting = new Set(usedEntries.filter((u) => !_postedAfterUse(u.itemUuid, u.usedAt)).map((u) => u.itemUuid));
         if (!awaiting.size) {
@@ -521,7 +522,12 @@ async function _finalizeDamageHold(damageId) {
   }
   const seedPills = [];
   for (const u of hold.usedEntries ?? []) {
-    if (!u.cancelled && u.halfDamage) seedPills.push({ kind: "half", label: u.itemName, src: u.ownerName ?? null, source: "trigger" });
+    if (u.cancelled || !u.halfDamage) continue;
+    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    seedPills.push({
+      kind: "half", label: u.itemName, src: u.ownerName ?? null,
+      srcTokenId: owner?.getActiveTokens?.(true, false)[0]?.id ?? null, source: "trigger",
+    });
   }
 
   const outcome = await openDamageModWindow({
@@ -587,6 +593,7 @@ function _collectRollMods(usedEntries) {
   for (const u of usedEntries ?? []) {
     if (u.cancelled || !u.rollMod) continue;
     out.push({
+      ownerActorUuid: u.ownerActorUuid ?? null,
       modName: u.itemName,
       edges: u.rollMod.edges ?? 0,
       banes: u.rollMod.banes ?? 0,
@@ -703,6 +710,12 @@ async function _onResumeRoll(itemUuid, retargets = [], rollMods = []) {
   if (!item) return;
   await _applyRetargets(item, retargets);
   if (rollMods.length) {
+    for (const m of rollMods) {
+      const owner = m.ownerActorUuid ? await fromUuid(m.ownerActorUuid).catch(() => null) : null;
+      const ownerToken = owner?.getActiveTokens?.(true, false)[0] ?? null;
+      m.src = owner?.name ?? null;
+      m.srcTokenId = ownerToken?.id ?? null;
+    }
     const now = Date.now();
     _pendingRollMods.set(itemUuid, { mods: rollMods, at: now });
     for (const [uuid, rec] of _pendingRollMods) {
@@ -730,17 +743,39 @@ Hooks.on("renderAbilityConfigurationDialog", (app) => {
   if (!pending) return;
   app._dstRollModsApplied = true;
   _pendingRollMods.delete(uuid);
+  
+  
+  setTimeout(() => _applyRollMods(app, pending.mods), 0);
+});
+
+function _applyRollMods(app, mods) {
+  if (!app.rendered) return;
+  const addPill = game.modules.get("draw-steel-combat-tools")?.active
+    ? game.modules.get("draw-steel-combat-tools").api?.rollDialog?.addPill
+    : null;
+  let bumped = false;
   const modifiers = app.options?.context?.modifiers;
-  if (!modifiers) return;
-  for (const m of pending.mods) {
-    modifiers.edges = Math.min(2, (modifiers.edges ?? 0) + (m.edges ?? 0));
-    modifiers.banes = Math.min(2, (modifiers.banes ?? 0) + (m.banes ?? 0));
+  for (const m of mods) {
+    let asPills = false;
+    if (addPill) {
+      const specs = [];
+      if (m.edges) specs.push({ kind: "edge", amount: m.edges });
+      if (m.banes) specs.push({ kind: "bane", amount: m.banes });
+      asPills = specs.length > 0 && specs.every((s) => addPill(app, {
+        ...s, reason: m.modName, src: m.src ?? null, srcTokenId: m.srcTokenId ?? null,
+      }));
+    }
+    if (!asPills && modifiers) {
+      bumped = true;
+      modifiers.edges = Math.min(2, (modifiers.edges ?? 0) + (m.edges ?? 0));
+      modifiers.banes = Math.min(2, (modifiers.banes ?? 0) + (m.banes ?? 0));
+    }
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModInjected", {
       modName: m.modName, effect: _rollModLabel(m),
     }));
   }
-  app.render();
-});
+  if (bumped) app.render();
+}
 
 async function _applyRetargets(item, retargets) {
   for (const r of retargets ?? []) {

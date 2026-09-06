@@ -22,6 +22,7 @@ function _lockMatches(event, subjectActor, subjectToken, rollerActor) {
 
 Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   if (!getSetting("rollLock")) return;
+  if (app.rendered) return;
   const ability = app.options?.ability;
   if (ability?.type !== "ability") return;
   if (consumeRollBypass(ability.uuid)) return;
