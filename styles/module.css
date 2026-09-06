@@ -774,3 +774,98 @@ button.dst-dstd-res-locked {
   border-left: 2px solid rgba(212, 168, 42, 0.35);
 }
 
+
+.dst-held-total {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 1.25em;
+  font-weight: bold;
+}
+
+.dst-held-total i {
+  opacity: 0.5;
+  font-size: 0.7em;
+}
+
+.dst-held-total .dst-held-final {
+  color: #d9a63f;
+}
+
+.dst-damage-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.dst-damage-pills:empty {
+  display: none;
+}
+
+.dst-pill {
+  font-size: 0.78em;
+  font-weight: bold;
+  line-height: 1.5;
+  padding: 0 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(217, 166, 63, 0.55);
+  color: #d9a63f;
+  background: rgba(217, 166, 63, 0.08);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.dst-pill--delta,
+.dst-pill--double {
+  border-color: rgba(143, 179, 204, 0.55);
+  color: #8fb3cc;
+  background: rgba(143, 179, 204, 0.08);
+}
+
+.dst-pill--removable {
+  cursor: pointer;
+}
+
+.dst-pill--removable:hover {
+  border-color: rgba(196, 74, 74, 0.7);
+  color: #c44a4a;
+  background: rgba(196, 74, 74, 0.12);
+  text-decoration: line-through;
+}
+
+.dst-held-form input[data-pill-name] {
+  width: 100%;
+}
+
+.dst-held-adjust input[data-pill-size] {
+  flex: 0 0 44px;
+  width: 44px;
+  text-align: center;
+}
+
+.dst-held-adjust {
+  flex-wrap: wrap;
+}
+
+.dst-pill--surge {
+  border-color: rgba(88, 177, 88, 0.6);
+  color: #58b158;
+  background: rgba(88, 177, 88, 0.08);
+}
+
+.dst-pill--inert {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.dst-settings-header {
+  margin: 14px 0 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(217, 166, 63, 0.45);
+  color: #d9a63f;
+  font-size: 1.0em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}

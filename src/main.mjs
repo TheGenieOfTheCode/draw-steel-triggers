@@ -32,6 +32,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "chatReminders", {
+    name: "DS_TRIGGERS.Settings.ChatReminders.Name",
+    hint: "DS_TRIGGERS.Settings.ChatReminders.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "rollLock", {
     name: "DS_TRIGGERS.Settings.RollLock.Name",
     hint: "DS_TRIGGERS.Settings.RollLock.Hint",
@@ -39,6 +47,14 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true
+  });
+  game.settings.register(MODULE_ID, "rollLockGrace", {
+    name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
+    hint: "DS_TRIGGERS.Settings.RollLockGrace.Hint",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 15
   });
   game.settings.register(MODULE_ID, "damagePrompts", {
     name: "DS_TRIGGERS.Settings.DamagePrompts.Name",
@@ -72,21 +88,29 @@ Hooks.once("init", () => {
     type: Boolean,
     default: false
   });
-  game.settings.register(MODULE_ID, "rollLockGrace", {
-    name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
-    hint: "DS_TRIGGERS.Settings.RollLockGrace.Hint",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 15
-  });
-  game.settings.register(MODULE_ID, "chatReminders", {
-    name: "DS_TRIGGERS.Settings.ChatReminders.Name",
-    hint: "DS_TRIGGERS.Settings.ChatReminders.Hint",
+  game.settings.register(MODULE_ID, "pillDamageEditor", {
+    name: "DS_TRIGGERS.Settings.PillDamageEditor.Name",
+    hint: "DS_TRIGGERS.Settings.PillDamageEditor.Hint",
     scope: "world",
     config: true,
     type: Boolean,
     default: true
+  });
+  game.settings.register(MODULE_ID, "multiplierOverride", {
+    name: "DS_TRIGGERS.Settings.MultiplierOverride.Name",
+    hint: "DS_TRIGGERS.Settings.MultiplierOverride.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+  game.settings.register(MODULE_ID, "noMultiplierStacking", {
+    name: "DS_TRIGGERS.Settings.NoMultiplierStacking.Name",
+    hint: "DS_TRIGGERS.Settings.NoMultiplierStacking.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
   });
   game.settings.register(MODULE_ID, "debugMode", {
     name: "DS_TRIGGERS.Settings.DebugMode.Name",
@@ -120,6 +144,26 @@ Hooks.once("init", () => {
     toggleSnooze,
     isActorSnoozed,
   };
+});
+
+const SETTING_HEADERS = {
+  spentTracking: "General",
+  rollLock: "StackHolds",
+  pillDamageEditor: "DamagePills",
+  debugMode: "Debug",
+};
+
+Hooks.on("renderSettingsConfig", (_app, html) => {
+  const root = html instanceof HTMLElement ? html : html?.[0];
+  if (!root) return;
+  for (const [key, header] of Object.entries(SETTING_HEADERS)) {
+    const el = root.querySelector(`[data-setting-id="${MODULE_ID}.${key}"]`);
+    if (!el || el.previousElementSibling?.classList?.contains("dst-settings-header")) continue;
+    const h = document.createElement("h3");
+    h.className = "dst-settings-header";
+    h.textContent = game.i18n.localize(`DS_TRIGGERS.Settings.Headers.${header}`);
+    el.insertAdjacentElement("beforebegin", h);
+  }
 });
 
 Hooks.once("ready", () => {

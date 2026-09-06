@@ -1,5 +1,6 @@
 import { MODULE_ID, getSetting, dbg } from "../util.mjs";
 import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
+import { openDamageModWindow } from "../ui/damage-mod-window.mjs";
 
 let socket = null;
 
@@ -280,7 +281,7 @@ async function _onQueueResolve(id, outcome, userName) {
     if (outcome === "used") {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
-      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt });
+      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false });
     }
     if (!_queue.some((e) => e.damageId === entry.damageId && e.state === "pending")) {
       _completeDamageGroup(entry.damageId);
@@ -517,47 +518,29 @@ async function _finalizeDamageHold(damageId) {
     if (immunity > 0) mitigationNote += `<p class="hint">${F("HeldDamageImmunityNote", { n: immunity })}</p>`;
     if (weakness > 0) mitigationNote += `<p class="hint">${F("HeldDamageWeaknessNote", { n: weakness })}</p>`;
   }
-  const result = await foundry.applications.api.DialogV2.wait({
-    window: { title: F("HeldDamageTitle", { name: actor?.name ?? "" }) },
-    position: { width: 280 },
-    content: `<p class="hint">${F("HeldDamageHint", { amount: amountLabel })}</p>${mitigationNote}
-      <div class="dst-held-form">
-        <input type="number" name="dst-held-amount" value="${hold.amount}" min="0" step="1" autofocus>
-        <div class="dst-held-adjust">
-          <button type="button" data-adjust="half">${game.i18n.localize("DS_TRIGGERS.Queue.HeldDamageHalf")}</button>
-          <button type="button" data-adjust="double">${game.i18n.localize("DS_TRIGGERS.Queue.HeldDamageDouble")}</button>
-          <button type="button" data-adjust="plus">+1</button>
-          <button type="button" data-adjust="minus">-1</button>
-        </div>
-      </div>`,
-    buttons: [
-      {
-        action: "apply",
-        label: "DS_TRIGGERS.Queue.HeldDamageApply",
-        icon: "fa-solid fa-heart-crack",
-        default: true,
-        callback: (_event, button) => Number(button.form.elements["dst-held-amount"]?.value ?? hold.amount),
-      },
-      { action: "discard", label: "DS_TRIGGERS.Queue.HeldDamageDiscard", callback: () => null },
-    ],
-    render: (_event, dialog) => {
-      const root = dialog.element ?? dialog;
-      const input = root.querySelector('input[name="dst-held-amount"]');
-      for (const btn of root.querySelectorAll("[data-adjust]")) {
-        btn.addEventListener("click", () => {
-          if (!input) return;
-          const v = Number(input.value || 0);
-          switch (btn.dataset.adjust) {
-            case "half": input.value = Math.floor(v / 2); break;
-            case "double": input.value = v * 2; break;
-            case "plus": input.value = v + 1; break;
-            case "minus": input.value = Math.max(0, v - 1); break;
-          }
-        });
-      }
-    },
-    rejectClose: false,
-  }).catch(() => null);
+  const seedPills = [];
+  for (const u of hold.usedEntries ?? []) {
+    if (!u.cancelled && u.halfDamage) seedPills.push({ kind: "half", label: u.itemName, source: "trigger" });
+  }
+
+  const outcome = await openDamageModWindow({
+    title: F("HeldDamageTitle", { name: actor?.name ?? "" }),
+    hint: `${F("HeldDamageHint", { amount: amountLabel })}${mitigationNote}`,
+    base: hold.amount,
+    pills: seedPills,
+  });
+  const result = outcome ? outcome.final : null;
+
+  if (result != null && Number(result) >= 0 && hold.dstd?.messageId && hold.dstd?.opId) {
+    const dstdMessage = game.messages.get(hold.dstd.messageId);
+    if (dstdMessage && outcome.pills.length) {
+      dstdMessage.setFlag(MODULE_ID, `damagePills.${hold.dstd.opId}`, {
+        base: hold.amount,
+        pills: outcome.pills.map((p) => ({ kind: p.kind, value: p.value ?? null, label: p.label ?? "", source: p.source ?? "manual" })),
+        final: Number(result),
+      }).catch(() => {});
+    }
+  }
 
   if (result == null || !(Number(result) > 0)) {
     ui.notifications.warn(F("HeldDamageDiscarded", { name: actor?.name ?? "" }));
@@ -820,6 +803,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     resume: null,
     damageId,
     heldDamage,
+    halfDamage: m.clause?.halfDamage ?? false,
   }));
   entries.push({
     id: foundry.utils.randomID(),

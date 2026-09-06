@@ -1,6 +1,24 @@
 {
   "DS_TRIGGERS": {
     "Settings": {
+      "Headers": {
+        "General": "General",
+        "StackHolds": "Stack, Locks, and Holds",
+        "DamagePills": "Damage Pills",
+        "Debug": "Debug"
+      },
+      "MultiplierOverride": {
+        "Name": "Multiplier Override",
+        "Hint": "Halving and doubling pills always apply after plus and minus bonuses, and sort to the right of them to reflect the order."
+      },
+      "NoMultiplierStacking": {
+        "Name": "No Multiplier Stacking",
+        "Hint": "Multiple halving or multiple doubling pills do not stack; duplicates beyond the first have no effect and show as inactive."
+      },
+      "PillDamageEditor": {
+        "Name": "Pill Damage Editor",
+        "Hint": "Replaces the Draw Steel Target Damage edit damage dialog with the modifier pill window: named pills with effect tooltips, halves, doubles, custom deltas, and surge spending for hero sourced damage. Turn off to use the original editor."
+      },
       "ResolutionHolds": {
         "Name": "Post-Roll Resolution Holds",
         "Hint": "When a strike's roll posts and a creature has a post-roll trigger against it (such as retroactive banes), the resolution goes on the stack and the message's damage and effect rows are locked until the triggers are decided. Requires Draw Steel Target Damage for the row locks and tier updates."
@@ -223,6 +241,20 @@
       "HeldDamageDouble": "Double",
       "GraceDamageCountdown": "Damage resolves in {seconds}s",
       "DecideCountdown": "Auto-declines in {seconds}s",
+      "PillRemoveTooltip": "Click to remove this modifier.",
+      "PillInertTooltip": "No effect: multipliers do not stack.",
+      "PillNamePh": "Modifier name (optional)",
+      "PillBonus": "Bonus",
+      "PillPenalty": "Penalty",
+      "PillSurge": "Surge",
+      "PillSurgeTooltip": "Spend a surge: +{damage} damage. {available} available. Spent when the damage is applied.",
+      "PillEffectHalf": "Damage halved",
+      "PillEffectDouble": "Damage doubled",
+      "PillEffectPlus": "+{n} damage",
+      "PillEffectMinus": "-{n} damage",
+      "PillEffectSurge": "+{n} damage (1 surge)",
+      "PillEditorTitle": "Modify Damage: {name}",
+      "PillEditorNoRoll": "No damage roll found for this row.",
       "HeldDamageApply": "Apply",
       "HeldDamageDiscard": "Discard",
       "HeldDamageDiscarded": "Held damage for {name} discarded. No Stamina was changed.",
