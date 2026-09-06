@@ -1,10 +1,11 @@
 import { getSetting, dbg } from "../../util.mjs";
 import { collectTriggerMatches } from "../dispatch.mjs";
-import { enqueueResolutionHold } from "../queue.mjs";
+import { enqueueResolutionHold, getQueueMirror } from "../queue.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 const _handled = new Set();
 const _handledAt = new Map();
+const _knownTargets = new Map();
 
 function _pruneHandled() {
   const now = Date.now();
@@ -13,6 +14,23 @@ function _pruneHandled() {
       _handledAt.delete(id);
       _handled.delete(id);
     }
+  }
+}
+
+function _targetKey(t) {
+  return String(t.tokenUuid ?? t.actorUuid ?? "");
+}
+
+function _seedKnownTargets(message) {
+  const state = message.getFlag(DSTD_ID, "state");
+  if (!state) return;
+  _knownTargets.set(message.id, {
+    keys: new Set((state.targets ?? []).map(_targetKey)),
+    at: Date.now(),
+  });
+  const now = Date.now();
+  for (const [id, rec] of _knownTargets) {
+    if (now - rec.at > 600000) _knownTargets.delete(id);
   }
 }
 
@@ -86,9 +104,94 @@ async function _tryDispatch(message) {
   });
 }
 
-Hooks.on("createChatMessage", (message) => { _tryDispatch(message); });
+async function _tryPostHocDispatch(message, addedTargets) {
+  if (!game.users.activeGM?.isSelf) return;
+  if (!getSetting("resolutionHolds")) return;
+  if (!game.combat?.started) return;
 
-Hooks.on("updateChatMessage", (message, changes) => {
+  const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
+  if (!abilityUse?.abilityUuid) return;
+  if (!message.rolls?.length) return;
+  const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
+  if (!ability || ability.type !== "ability") return;
+  const strike = ability.system.keywords?.has?.("strike") ?? false;
+  const rollerActor = ability.actor;
+
+  const allTargets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
+  const targetActors = new Set();
+  for (const t of allTargets) {
+    const doc = t.tokenUuid ? await fromUuid(t.tokenUuid).catch(() => null) : null;
+    const actor = doc?.actor ?? (t.actorUuid ? await fromUuid(t.actorUuid).catch(() => null) : null);
+    if (actor) targetActors.add(actor);
+  }
+
+  const pendingUuids = new Set((getQueueMirror() ?? [])
+    .filter((e) => e.state === "pending").map((e) => e.itemUuid));
+
+  const matches = [];
+  const seen = new Set();
+  for (const t of addedTargets) {
+    const tokenDoc = t.tokenUuid ? await fromUuid(t.tokenUuid).catch(() => null) : null;
+    const subjectActor = tokenDoc?.actor
+      ?? (t.actorUuid ? await fromUuid(t.actorUuid).catch(() => null) : null);
+    if (!subjectActor) continue;
+    const events = strike ? ["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"] : ["TARGETED_BY_ABILITY"];
+    const list = events.flatMap((event) => collectTriggerMatches(event, subjectActor, tokenDoc))
+      .filter((m) => !m.malice && m.actor !== rollerActor
+        && (m.parse?.confidence === "high" || m.parse?.source === "manual")
+        && !(m.clause?.excludeSelfTarget && targetActors.has(m.actor)));
+    for (const m of list) {
+      if (seen.has(m.item.uuid) || pendingUuids.has(m.item.uuid)) continue;
+      seen.add(m.item.uuid);
+      m._postHoc = true;
+      m._subjectTargetKey = _targetKey(t).replace(/\./g, "__");
+      m._subjectName = tokenDoc?.name ?? subjectActor.name;
+      m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.PostHocCause", {
+        roller: rollerActor?.name ?? "", ability: ability.name, owner: m._subjectName,
+      });
+      matches.push(m);
+    }
+  }
+  if (!matches.length) return;
+
+  dbg(`post-hoc resolution hold: ${ability.name} held by ${matches.length} triggers for late targets`);
+  enqueueResolutionHold(matches, {
+    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
+      roller: rollerActor?.name ?? "", ability: ability.name, owner: "",
+    }),
+    resolution: {
+      messageId: message.id,
+      abilityUuid: ability.uuid,
+      abilityName: ability.name,
+      rollerName: rollerActor?.name ?? "",
+      rollerActorUuid: rollerActor?.uuid ?? null,
+      authorUserId: message.author?.id ?? null,
+    },
+  });
+}
+
+Hooks.on("createChatMessage", async (message) => {
+  if (!game.users.activeGM?.isSelf) return;
+  await _tryDispatch(message);
+  _seedKnownTargets(message);
+});
+
+Hooks.on("updateChatMessage", async (message, changes) => {
+  if (!game.users.activeGM?.isSelf) return;
   if (!foundry.utils.hasProperty(changes, `flags.${DSTD_ID}`)) return;
-  _tryDispatch(message);
+  const known = _knownTargets.get(message.id);
+  if (!known) {
+    
+    
+    
+    
+    await _tryDispatch(message);
+    _seedKnownTargets(message);
+    return;
+  }
+  const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
+  const added = targets.filter((t) => !known.keys.has(_targetKey(t)));
+  known.keys = new Set(targets.map(_targetKey));
+  known.at = Date.now();
+  if (added.length) _tryPostHocDispatch(message, added);
 });

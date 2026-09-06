@@ -424,7 +424,8 @@ async function _finalizeResolutionHold(resolutionId) {
     });
   }
   _postRedirectReminders(used, { userId: hold.authorUserId ?? null });
-  if (message) await message.unsetFlag(MODULE_ID, "resolutionLock").catch(() => {});
+  const stillHeld = [..._resolutionHolds.values()].some((h) => h.messageId === hold.messageId);
+  if (message && !stillHeld) await message.unsetFlag(MODULE_ID, "resolutionLock").catch(() => {});
   Hooks.callAll("dst.resolutionHoldResolved", { hold, used });
 }
 
@@ -583,7 +584,11 @@ function _collectRetargets(usedEntries) {
 
 async function _postRedirectReminders(usedEntries, resume) {
   for (const u of usedEntries ?? []) {
-    if (u.cancelled || u.redirect !== "after") continue;
+    if (u.cancelled || !u.redirect) continue;
+    const after = u.redirect === "after";
+    
+    
+    if (!after && u.postHoc !== true) continue;
     const recipients = new Set(game.users.filter((x) => x.isGM).map((x) => x.id));
     if (resume?.userId) recipients.add(resume.userId);
     const item = u.itemUuid ? await fromUuid(u.itemUuid).catch(() => null) : null;
@@ -598,7 +603,7 @@ async function _postRedirectReminders(usedEntries, resume) {
     ChatMessage.create({
       content: triggerCardHTML({
         header: game.i18n.localize("DS_TRIGGERS.Queue.RedirectAfterHeader"),
-        intro: game.i18n.format("DS_TRIGGERS.Queue.RedirectAfterBody", { owner: u.ownerName, ability: `<strong>${u.itemName}</strong>` }),
+        intro: game.i18n.format(after ? "DS_TRIGGERS.Queue.RedirectAfterBody" : "DS_TRIGGERS.Queue.RedirectPostHocBody", { owner: u.ownerName, ability: `<strong>${u.itemName}</strong>` }),
         rows,
       }),
       whisper: [...recipients],
@@ -855,7 +860,9 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     resolutionId,
     rollMod: m.clause?.rollMod ?? null,
     redirect: m.clause?.redirect ?? null,
-    halfOnUse: m.clause?.halfOnUse ?? false,
+    halfOnUse: m.clause?.halfOnUse === true
+      || (m._postHoc === true && m.clause?.targetedHalf === true),
+    postHoc: m._postHoc === true,
     subjectTargetKey: m._subjectTargetKey ?? null,
     subjectName: m._subjectName ?? "",
     playerSide: m.actor.hasPlayerOwner ?? false,

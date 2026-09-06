@@ -237,6 +237,8 @@
       "RedirectApplied": "{modName}: {newName} becomes the target instead of {oldName}.",
       "RedirectAfterHeader": "Manual Redirect",
       "RedirectAfterBody": "{owner} used {ability}. The ability's target becomes the strike's new target. Update the strike's targets by hand: remove {owner} and target the chosen creature instead.",
+      "RedirectPostHocBody": "{owner} used {ability} in response to being targeted. The roll already happened, so apply the redirect by hand: update the triggering ability's targets as the effect describes.",
+      "PostHocCause": "Triggered by {owner} becoming a target of {roller}'s {ability}. The result can still be modified.",
       "RedirectSwapNote": "{a} and {b} switch places. Move the tokens to swap their positions.",
       "HeldDamageEntry": "{amount} incoming damage",
       "HeldDamageEntryTyped": "{amount} incoming {type} damage",
