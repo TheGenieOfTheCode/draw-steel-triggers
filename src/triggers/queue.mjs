@@ -296,7 +296,7 @@ async function _onQueueResolve(id, outcome, userName) {
         itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName,
         itemName: entry.itemName, usedAt: entry.usedAt,
         rollMod: entry.rollMod ?? null, redirect: entry.redirect ?? null,
-        halfOnUse: entry.halfOnUse ?? false,
+        halfOnUse: entry.halfOnUse ?? false, postHoc: entry.postHoc ?? false,
         subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
       });
     }
