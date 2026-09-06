@@ -255,6 +255,8 @@
       "PillEffectSurge": "+{n} damage (1 surge)",
       "PillEditorTitle": "Modify Damage: {name}",
       "PillEditorNoRoll": "No damage roll found for this row.",
+      "PlayerPriorityTooltip": "Player triggered actions resolve first. Director triggers unlock when they are decided. Shift-click to override.",
+      "PlayerPriorityWarn": "Player triggered actions resolve first. Wait for them to be decided, or shift-click to override.",
       "HeldDamageApply": "Apply",
       "HeldDamageDiscard": "Discard",
       "HeldDamageDiscarded": "Held damage for {name} discarded. No Stamina was changed.",

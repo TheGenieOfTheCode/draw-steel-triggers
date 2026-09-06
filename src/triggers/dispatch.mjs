@@ -85,8 +85,10 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   for (const { actor, disposition } of candidates) {
     if (actor.statuses?.has(defeated)) continue;
     if (isActorSnoozed(actor)) continue;
+    const dazed = actor.statuses?.has("dazed") ?? false;
     const spent = isTriggeredActionSpent(actor);
     for (const entry of getTriggeredAbilities(actor)) {
+      if (dazed && (entry.item.system.type === "triggered" || entry.item.system.type === "freeTriggered")) continue;
       if (entry.item.system.restricted) continue;
       if (!canAffordCost(actor, entry.item)) continue;
       const malice = isMaliceAbility(entry.item);

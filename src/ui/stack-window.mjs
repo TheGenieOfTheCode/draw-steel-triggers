@@ -44,7 +44,15 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const L = (k) => game.i18n.localize(`DS_TRIGGERS.Queue.${k}`);
     
     const isHeldKind = (e) => e.kind === "held" || e.kind === "damageHeld" || e.kind === "resolutionHeld";
-    const ordered = [...getQueueMirror()].sort((a, b) => isHeldKind(a) - isHeldKind(b));
+    const groupKey = (e) => e.resumeId ?? e.damageId ?? e.resolutionId ?? e.promptId ?? null;
+    const ordered = [...getQueueMirror()].sort((a, b) => {
+      const held = isHeldKind(a) - isHeldKind(b);
+      if (held) return held;
+      if (groupKey(a) && groupKey(a) === groupKey(b)) return (b.playerSide ? 1 : 0) - (a.playerSide ? 1 : 0);
+      return 0;
+    });
+    const isGated = (e) => !e.playerSide && !isHeldKind(e) && groupKey(e)
+      && getQueueMirror().some((q) => !isHeldKind(q) && groupKey(q) === groupKey(e) && q.playerSide && q.state === "pending");
     const embeds = await Promise.all(ordered.map((e) => e.itemUuid
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
       : Promise.resolve("")));
@@ -57,6 +65,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         release: L("Release"), releaseTooltip: L("ReleaseTooltip"),
         applyNow: L("ApplyNow"), applyNowTooltip: L("ApplyNowTooltip"),
         releaseResolution: L("ReleaseResolution"), releaseResolutionTooltip: L("ReleaseResolutionTooltip"),
+        gatedTooltip: L("PlayerPriorityTooltip"),
         showAbility: L("ShowAbility"),
         free: game.i18n.localize("DS_TRIGGERS.Reminder.Free"),
       },
@@ -108,6 +117,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
                 ? game.i18n.format("DS_TRIGGERS.Queue.ResolutionEyebrow", { name: e.ownerName })
                 : null,
           isPending: e.state === "pending",
+          gated: isGated(e),
           showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.state === "pending" && canActOn(e),
           showRelease: isHeld && game.user.isGM,
           showApplyNow: isDamageHeld && game.user.isGM,
@@ -181,9 +191,13 @@ export class StackWindow extends ds.applications.api.DSApplication {
     return super.close(options);
   }
 
-  static async #onUse(_event, target) {
+  static async #onUse(event, target) {
     const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
     if (!entry) return;
+    if (target.classList.contains("dst-use-gated") && !(game.user.isGM && event?.shiftKey)) {
+      ui.notifications.warn("DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
+      return;
+    }
     const item = await fromUuid(entry.itemUuid).catch(() => null);
     resolveQueueEntry(entry.id, "used");
     if (item) {

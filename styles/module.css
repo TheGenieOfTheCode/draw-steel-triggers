@@ -835,6 +835,16 @@ button.dst-dstd-res-locked {
   text-decoration: line-through;
 }
 
+.dst-stack .dst-stack-use.dst-use-gated {
+  opacity: 0.55;
+  border-color: rgba(122, 121, 113, 0.5);
+  cursor: not-allowed;
+}
+
+.dst-stack .dst-stack-use.dst-use-gated:hover {
+  box-shadow: none;
+}
+
 .dst-held-form input[data-pill-name] {
   width: 100%;
 }

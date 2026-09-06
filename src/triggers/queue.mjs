@@ -737,6 +737,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     halvesOnUse: m._halvesOnUse ?? false,
     redirect: m._redirect ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
+    playerSide: m.actor.hasPlayerOwner ?? false,
     lock: true,
     state: "pending",
     createdAt: Date.now(),
@@ -769,6 +770,7 @@ export function releaseHeld(resumeId) {
 }
 
 export function enqueuePromptEntries(matches, { event, causeLabel }) {
+  const promptId = foundry.utils.randomID();
   const entries = matches.map((m) => ({
     id: foundry.utils.randomID(),
     itemUuid: m.item.uuid,
@@ -782,6 +784,8 @@ export function enqueuePromptEntries(matches, { event, causeLabel }) {
     createdAt: Date.now(),
     resumeId: null,
     resume: null,
+    promptId,
+    playerSide: m.actor.hasPlayerOwner ?? false,
   }));
   socket.executeAsGM("queueAdd", entries);
 }
@@ -804,6 +808,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     damageId,
     heldDamage,
     halfDamage: m.clause?.halfDamage ?? false,
+    playerSide: m.actor.hasPlayerOwner ?? false,
   }));
   entries.push({
     id: foundry.utils.randomID(),
@@ -851,6 +856,7 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     halfOnUse: m.clause?.halfOnUse ?? false,
     subjectTargetKey: m._subjectTargetKey ?? null,
     subjectName: m._subjectName ?? "",
+    playerSide: m.actor.hasPlayerOwner ?? false,
   }));
   entries.push({
     id: foundry.utils.randomID(),
