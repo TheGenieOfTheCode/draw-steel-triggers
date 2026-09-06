@@ -1,6 +1,5 @@
 import { MODULE_ID, dbg, getSetting } from "../util.mjs";
 import { getActiveDamageHolds } from "../triggers/queue.mjs";
-import { openDamageModWindow, foldDamagePills, damagePillText, damagePillEffect, damagePillDisplayList, damagePillType, damageTypeLabel, styleTypePill } from "../ui/damage-mod-window.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 
@@ -303,251 +302,26 @@ function _applyResolutionLock(message, root) {
   }
 }
 
-function _pillRowFor(btn) {
-  const host = btn.closest('[class*="action-row"]');
-  if (!host?.parentElement) return null;
-  const next = host.nextElementSibling;
-  if (next?.classList?.contains("dst-damage-pills")) return next;
-  const rowEl = document.createElement("div");
-  rowEl.className = "dst-damage-pills";
-  host.insertAdjacentElement("afterend", rowEl);
-  return rowEl;
-}
-
-function _renderDamagePills(message, root) {
-  const stored = message.getFlag(MODULE_ID, "damagePills") ?? {};
-  const overrides = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state.damageOverrides`) ?? {};
-  const apps = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state.applications`) ?? {};
-
-  const byOp = new Map();
-  const add = (opId, pill, { removable = false, idx = null, legacyHalf = false, inert = false } = {}) => {
-    if (!byOp.has(opId)) byOp.set(opId, []);
-    byOp.get(opId).push({ pill, removable, idx, legacyHalf, inert });
-  };
-
-  for (const [opId, ov] of Object.entries(overrides)) {
-    const applied = apps[opId]?.status === "applied";
-    if (Array.isArray(ov?.dstPills) && ov.dstPills.length) {
-      for (const x of damagePillDisplayList(ov.dstPills)) {
-        add(opId, x.pill, { removable: !applied, idx: x.idx, inert: x.inert });
-      }
-    } else if (ov?.dstHalf) {
-      add(opId, { kind: "half", label: ov.dstModName ?? "", source: "trigger" }, { removable: !applied, legacyHalf: true });
+Hooks.once("ready", () => {
+  const api = game.modules.get("draw-steel-combat-tools")?.api?.damagePills;
+  if (!api || !_dstdActive()) return;
+  api.registerProvider((message) => {
+    const out = [];
+    const apps = foundry.utils.getProperty(message.flags, DSTD_ID + ".state.applications") ?? {};
+    const stored = message.getFlag(MODULE_ID, "damagePills") ?? {};
+    for (const [opId, data] of Object.entries(stored)) {
+      if (apps[opId]?.status !== "applied") continue;
+      for (const p of data.pills ?? []) out.push({ opId, pill: p });
     }
-  }
-
-  for (const [opId, rec] of Object.entries(apps)) {
-    if (rec?.status !== "applied" || overrides[opId]) continue;
-    for (const p of rec.override?.dstPills ?? []) add(opId, p);
-  }
-
-  for (const [opId, data] of Object.entries(stored)) {
-    if (apps[opId]?.status !== "applied") continue;
-    for (const p of data.pills ?? []) add(opId, p);
-  }
-
-  for (const [opId, items] of byOp) {
-    for (const btn of root.querySelectorAll(`button[data-dstd-action="applyDamage"][data-operation-id="${opId}"]`)) {
-      const rowEl = _pillRowFor(btn);
-      if (!rowEl || rowEl.dataset.dstPills === opId) continue;
-      rowEl.dataset.dstPills = opId;
-      rowEl.innerHTML = "";
-      for (const it of items) {
-        const span = document.createElement("span");
-        span.className = `dst-pill dst-pill--${it.pill.kind}${it.inert ? " dst-pill--inert" : ""}`;
-        styleTypePill(span, it.pill);
-        span.textContent = damagePillText(it.pill);
-        let tooltip = it.inert
-          ? game.i18n.localize(it.pill.kind === "type" ? "DS_TRIGGERS.Queue.PillTypeOverriddenTooltip" : "DS_TRIGGERS.Queue.PillInertTooltip")
-          : damagePillEffect(it.pill);
-        if (it.removable && (game.user.isGM || message.isOwner)) {
-          span.classList.add("dst-pill--removable");
-          span.dataset.dstPillOp = opId;
-          span.dataset.dstPillMsg = message.id;
-          if (!it.legacyHalf && it.idx != null) span.dataset.dstPillIdx = String(it.idx);
-          tooltip += `<br>${game.i18n.localize("DS_TRIGGERS.Queue.PillRemoveTooltip")}`;
-        }
-        span.dataset.tooltip = tooltip;
-        rowEl.appendChild(span);
-      }
-    }
-  }
-}
-
-async function _replaceOverride(message, opId, data) {
-  const hasOps = !!foundry.data?.operators?.ForcedDeletion;
-  if (data == null) {
-    const deletion = hasOps
-      ? { [`flags.${DSTD_ID}.state.damageOverrides.${opId}`]: new foundry.data.operators.ForcedDeletion() }
-      : { [`flags.${DSTD_ID}.state.damageOverrides.-=${opId}`]: null };
-    await message.update({ ...deletion, [`flags.${DSTD_ID}.state.updatedAt`]: Date.now() });
-    return;
-  }
-  if (hasOps && foundry.data.operators.ForcedReplacement) {
-    await message.update({
-      [`flags.${DSTD_ID}.state.damageOverrides.${opId}`]: new foundry.data.operators.ForcedReplacement(data),
-      [`flags.${DSTD_ID}.state.updatedAt`]: Date.now(),
-    });
-  } else {
-    await message.update({ [`flags.${DSTD_ID}.state.damageOverrides.-=${opId}`]: null });
-    await message.update({
-      [`flags.${DSTD_ID}.state.damageOverrides.${opId}`]: data,
-      [`flags.${DSTD_ID}.state.updatedAt`]: Date.now(),
-    });
-  }
-}
-
-function _origDamageType(ov) {
-  if (ov?.dstOrigType !== undefined) {
-    return { damageType: ov.dstOrigType?.damageType ?? null, typeLabel: ov.dstOrigType?.typeLabel ?? null };
-  }
-  return { damageType: ov?.damageType || null, typeLabel: ov?.typeLabel || null };
-}
-
-async function _removeOverridePill(message, opId, idx) {
-  const state = message.getFlag(DSTD_ID, "state") ?? {};
-  const ov = state.damageOverrides?.[opId];
-  if (!Array.isArray(ov?.dstPills)) return;
-  const pills = ov.dstPills.filter((_, i) => i !== idx);
-  const base = Number(ov.baseAmount ?? 0);
-  const orig = _origDamageType(ov);
-  if (!pills.length && !ov.additional && (ov.dstOrigType !== undefined || !ov.damageType)) {
-    await _replaceOverride(message, opId, null);
-    return;
-  }
-  const typePill = damagePillType(pills);
-  const surges = pills.filter((p) => p.kind === "surge").length;
-  const surgeDamage = Number(ov.surgeDamage ?? 0) || 0;
-  await _replaceOverride(message, opId, {
-    ...ov,
-    amount: foldDamagePills(base, pills),
-    damageType: typePill != null ? typePill : orig.damageType,
-    typeLabel: typePill != null ? (typePill ? damageTypeLabel(typePill) : "") : orig.typeLabel,
-    dstOrigType: orig,
-    surges,
-    surgeBonus: surges * surgeDamage,
-    dstPills: pills,
+    return out;
   });
-}
-
-document.addEventListener("click", async (ev) => {
-  const pill = ev.target?.closest?.(".dst-pill--removable[data-dst-pill-op]");
-  if (!pill) return;
-  ev.preventDefault();
-  ev.stopPropagation();
-  const msgId = pill.dataset.dstPillMsg || pill.closest("li.chat-message")?.dataset?.messageId;
-  const message = msgId ? game.messages.get(msgId) : null;
-  if (!message || (!game.user.isGM && !message.isOwner)) return;
-  const opId = pill.dataset.dstPillOp;
-  if (pill.dataset.dstPillIdx != null) {
-    await _removeOverridePill(message, opId, Number(pill.dataset.dstPillIdx));
-    return;
-  }
-  const state = message.getFlag(DSTD_ID, "state") ?? {};
-  if (!state.damageOverrides?.[opId]?.dstHalf) return;
-  await _replaceOverride(message, opId, null);
-}, { capture: true });
-
-function _findPartRoll(message, partId, rollIndex) {
-  if (partId === "message") return message.rolls?.[rollIndex] ?? null;
-  const parts = message.system?.parts;
-  const list = parts
-    ? (Array.isArray(parts) ? parts : Array.from(parts.contents ?? (typeof parts.values === "function" ? parts.values() : Object.values(parts))))
-    : [];
-  const part = list.find((p) => (p.id ?? p._id) === partId);
-  return part?.rolls?.[rollIndex] ?? null;
-}
-
-async function _resolveSurgeContext(message, state) {
-  let src = null;
-  if (state.sourceActorUuid) src = await fromUuid(state.sourceActorUuid).catch(() => null);
-  if (!src && state.abilityUuid) src = (await fromUuid(state.abilityUuid).catch(() => null))?.actor ?? null;
-  if (src?.type === "retainer") src = src.system?.retainer?.mentor ?? null;
-  if (src?.type === "draw-steel-companion.companion") src = src.system?.retainer?.mentor ?? null;
-  if (src?.type !== "hero") return null;
-  return {
-    actorUuid: src.uuid,
-    available: Number(src.system?.hero?.surges ?? 0) || 0,
-    damage: Number(src.getRollData?.()?.chr ?? 0) || 0,
-  };
-}
-
-function _seedPillsFromOverride(ov) {
-  if (Array.isArray(ov?.dstPills)) return ov.dstPills.map((p) => ({ ...p }));
-  const seed = [];
-  if (ov?.dstHalf) seed.push({ kind: "half", label: ov.dstModName ?? "", source: "trigger" });
-  const surges = Number(ov?.surges ?? 0) || 0;
-  for (let i = 0; i < surges; i++) seed.push({ kind: "surge", value: Number(ov?.surgeDamage ?? 0) || 0, label: "", source: "surge" });
-  const bonus = Number(ov?.bonus ?? 0) || 0;
-  if (bonus) seed.push({ kind: "delta", value: bonus, label: "", source: "manual" });
-  return seed;
-}
-
-async function _openPillDamageEditor(message, button) {
-  let target = {};
-  try { target = JSON.parse(button.dataset.target ?? "{}"); } catch {}
-  const opId = button.dataset.operationId;
-  if (!opId) return;
-  const state = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state`) ?? {};
-  const ov = state.damageOverrides?.[opId] ?? null;
-  const roll = _findPartRoll(message, button.dataset.partId, Number(button.dataset.rollIndex));
-  const base = Number(ov?.baseAmount ?? roll?.total ?? NaN);
-  if (!Number.isFinite(base)) {
-    ui.notifications.warn("DS_TRIGGERS.Queue.PillEditorNoRoll", { localize: true });
-    return;
-  }
-  const surge = await _resolveSurgeContext(message, state);
-  const outcome = await openDamageModWindow({
-    title: game.i18n.format("DS_TRIGGERS.Queue.PillEditorTitle", { name: target.name ?? "" }),
-    base,
-    pills: _seedPillsFromOverride(ov),
-    surge,
-  });
-  if (!outcome) return;
-
-  const pills = outcome.pills.map((p) => ({ kind: p.kind, value: p.value ?? null, label: p.label ?? "", source: p.source ?? "manual" }));
-  const orig = _origDamageType(ov);
-  if (!pills.length && !ov?.additional && (ov?.dstOrigType !== undefined || !ov?.damageType)) {
-    if (ov) await _replaceOverride(message, opId, null);
-    return;
-  }
-  const typePill = damagePillType(pills);
-  const surges = pills.filter((p) => p.kind === "surge").length;
-  const surgeDamage = surge?.damage ?? (Number(ov?.surgeDamage ?? 0) || 0);
-  const data = {
-    amount: outcome.final,
-    baseAmount: base,
-    bonus: 0,
-    additional: ov?.additional ?? "",
-    damageType: typePill != null ? typePill : orig.damageType,
-    typeLabel: typePill != null ? (typePill ? damageTypeLabel(typePill) : "") : orig.typeLabel,
-    dstOrigType: orig,
-    surges,
-    surgeDamage,
-    surgeBonus: surges * surgeDamage,
-    dstPills: pills,
-  };
-  await _replaceOverride(message, opId, data);
-}
-
-document.addEventListener("click", (ev) => {
-  const btn = ev.target?.closest?.('button[data-dstd-action="editDamage"]');
-  if (!btn || !_dstdActive() || !getSetting("pillDamageEditor")) return;
-  const msgId = btn.closest("[data-message-id]")?.dataset?.messageId;
-  const message = msgId ? game.messages.get(msgId) : null;
-  if (!message) return;
-  if (!message.isOwner && !game.user.isGM) return;
-  ev.preventDefault();
-  ev.stopImmediatePropagation();
-  _openPillDamageEditor(message, btn).catch((err) => console.error("DS Triggers | pill editor:", err));
-}, { capture: true });
+});
 
 function _patchMessageEl(li) {
   const message = li?.dataset?.messageId ? game.messages.get(li.dataset.messageId) : null;
   if (!message) return;
   _patchMessageLabels(message, li);
   _applyResolutionLock(message, li);
-  _renderDamagePills(message, li);
 }
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
@@ -555,7 +329,6 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
   const patch = () => {
     _patchMessageLabels(message, html);
     _applyResolutionLock(message, html);
-    _renderDamagePills(message, html);
   };
   patch();
   setTimeout(() => { if (html.isConnected) patch(); }, 100);

@@ -88,30 +88,6 @@ Hooks.once("init", () => {
     type: Boolean,
     default: false
   });
-  game.settings.register(MODULE_ID, "pillDamageEditor", {
-    name: "DS_TRIGGERS.Settings.PillDamageEditor.Name",
-    hint: "DS_TRIGGERS.Settings.PillDamageEditor.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
-  game.settings.register(MODULE_ID, "multiplierOverride", {
-    name: "DS_TRIGGERS.Settings.MultiplierOverride.Name",
-    hint: "DS_TRIGGERS.Settings.MultiplierOverride.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
-  game.settings.register(MODULE_ID, "noMultiplierStacking", {
-    name: "DS_TRIGGERS.Settings.NoMultiplierStacking.Name",
-    hint: "DS_TRIGGERS.Settings.NoMultiplierStacking.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
-  });
   game.settings.register(MODULE_ID, "debugMode", {
     name: "DS_TRIGGERS.Settings.DebugMode.Name",
     hint: "DS_TRIGGERS.Settings.DebugMode.Hint",
@@ -149,7 +125,6 @@ Hooks.once("init", () => {
 const SETTING_HEADERS = {
   spentTracking: "General",
   rollLock: "StackHolds",
-  pillDamageEditor: "DamagePills",
   debugMode: "Debug",
 };
 

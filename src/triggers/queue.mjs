@@ -520,7 +520,7 @@ async function _finalizeDamageHold(damageId) {
   }
   const seedPills = [];
   for (const u of hold.usedEntries ?? []) {
-    if (!u.cancelled && u.halfDamage) seedPills.push({ kind: "half", label: u.itemName, source: "trigger" });
+    if (!u.cancelled && u.halfDamage) seedPills.push({ kind: "half", label: u.itemName, src: u.ownerName ?? null, source: "trigger" });
   }
 
   const outcome = await openDamageModWindow({
@@ -536,7 +536,7 @@ async function _finalizeDamageHold(damageId) {
     if (dstdMessage && outcome.pills.length) {
       dstdMessage.setFlag(MODULE_ID, `damagePills.${hold.dstd.opId}`, {
         base: hold.amount,
-        pills: outcome.pills.map((p) => ({ kind: p.kind, value: p.value ?? null, label: p.label ?? "", source: p.source ?? "manual" })),
+        pills: outcome.pills.map((p) => ({ kind: p.kind, value: p.value ?? null, label: p.label ?? "", src: p.src ?? null, srcTokenId: p.srcTokenId ?? null, source: p.source ?? "manual", ...(p.enabled === false ? { enabled: false } : {}) })),
         final: Number(result),
       }).catch(() => {});
     }
