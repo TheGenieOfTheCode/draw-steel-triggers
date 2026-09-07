@@ -47,6 +47,10 @@
         "Name": "Damage Interrupts",
         "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
       },
+      "FmInterrupts": {
+        "Name": "Forced Movement Interrupts",
+        "Hint": "Forced movement made through Combat Tools is held before it starts when a creature has a movement-modifying trigger against it (Lines of Force, Repel, Explosive Assistance). Used triggers reduce, boost, or redirect the movement; declines let it proceed unchanged. Requires Draw Steel Combat Tools."
+      },
       "StackDecisionTimer": {
         "Name": "Stack Decision Timer",
         "Hint": "Triggers on the stack auto-decline after the Roll Lock Grace Period elapses with no decision. Choosing Use grants the rest of the group fresh time."
@@ -242,6 +246,19 @@
       "RedirectAfterHeader": "Manual Redirect",
       "RedirectAfterBody": "{owner} used {ability}. The ability's target becomes the strike's new target. Update the strike's targets by hand: remove {owner} and target the chosen creature instead.",
       "RedirectPostHocBody": "{owner} used {ability} in response to being targeted. The roll already happened, so apply the redirect by hand: update the triggering ability's targets as the effect describes.",
+      "FmCauseMoved": "Triggered by {name} being force moved. The movement is held.",
+      "FmCauseMover": "Triggered by {name} force moving a creature. The movement is held.",
+      "FmLockCause": "Triggered by {name} being force moved.",
+      "FmHeldEntry": "{name}'s forced movement",
+      "FmHeld": "{name}'s forced movement is held while triggered abilities are decided. See the Trigger Stack.",
+      "FmDelta": "{modName}: forced movement distance {amount}.",
+      "FmStopped": "The forced movement was stopped by a triggered ability.",
+      "FmStoppedCounter": "The forced movement was reduced to 0 squares. The target may push the source instead (see the trigger's effect).",
+      "FmRedirected": "{owner} redirects the forced movement with {modName}. They choose the new target and destination.",
+      "FmRedirectPick": "{modName} | Click the new target to force move. Escape to cancel.",
+      "FmRedirectApplied": "{modName}: {name} is now the movement's target. Their row carries the push and bonus distance; click the movement button when ready.",
+      "FmRedirectManual": "{modName}: apply the redirect by hand (no Combat Tools movement available on this client).",
+      "FmRedirectNoTargets": "{modName}: no eligible creature is adjacent, apply the redirect by hand.",
       "PostHocCause": "Triggered by {owner} becoming a target of {roller}'s {ability}. The result can still be modified.",
       "RedirectSwapNote": "{a} and {b} switch places. Move the tokens to swap their positions.",
       "HeldDamageEntry": "{amount} incoming damage",

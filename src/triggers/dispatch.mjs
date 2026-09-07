@@ -70,7 +70,7 @@ function clauseRangeSquares(clause, item) {
   return range > 0 ? range : null;
 }
 
-function footprintGap(docA, docB) {
+export function footprintGap(docA, docB) {
   const GS = canvas.grid.size;
   const aL = docA.x, aT = docA.y, aR = aL + docA.width * GS, aB = aT + docA.height * GS;
   const bL = docB.x, bT = docB.y, bR = bL + docB.width * GS, bB = bT + docB.height * GS;

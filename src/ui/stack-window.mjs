@@ -82,8 +82,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
             : isResolutionHeld
               ? getQueueMirror().filter((q) => q.resolutionId === e.resolutionId && q.state === "pending").length
               : 0;
-        const ownerDoc = fromUuidSync(e.ownerActorUuid);
-        const item = fromUuidSync(e.itemUuid);
+        const ownerDoc = e.ownerActorUuid ? fromUuidSync(e.ownerActorUuid) : null;
+        const item = e.itemUuid ? fromUuidSync(e.itemUuid) : null;
         const sys = item?.system;
 
         let costBadge = null;

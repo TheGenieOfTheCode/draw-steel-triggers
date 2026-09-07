@@ -21,6 +21,10 @@ function _targetKey(t) {
   return String(t.tokenUuid ?? t.actorUuid ?? "");
 }
 
+export function noteTargetsChange(messageId, keys) {
+  _knownTargets.set(messageId, { keys: new Set(keys), at: Date.now() });
+}
+
 function _seedKnownTargets(message) {
   const state = message.getFlag(DSTD_ID, "state");
   if (!state) return;

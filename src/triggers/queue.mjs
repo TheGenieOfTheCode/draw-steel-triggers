@@ -238,13 +238,14 @@ async function _onQueueResolve(id, outcome, userName) {
             itemUuid: e.itemUuid, ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName,
             itemName: e.itemName, usedAt: e.usedAt,
             redirect: e.redirect ?? null, rollMod: e.rollMod ?? null,
+            fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
           }));
         const awaiting = new Set(usedEntries.filter((u) => !_postedAfterUse(u.itemUuid, u.usedAt)).map((u) => u.itemUuid));
         if (!awaiting.size) {
           _removeHeld(entry.resumeId);
           _postRedirectReminders(usedEntries, resume);
-          _dispatchResume(resume, _collectRetargets(usedEntries), _collectRollMods(usedEntries));
+          _dispatchResume(resume, _collectRetargets(usedEntries), _collectRollMods(usedEntries), _collectFmMods(usedEntries));
         } else {
           const grace = _graceMs();
           const resumeId = entry.resumeId;
@@ -588,6 +589,29 @@ function _collectRetargets(usedEntries) {
   return out;
 }
 
+function _collectFmMods(usedEntries) {
+  const out = { deltas: [], redirect: null };
+  for (const u of usedEntries ?? []) {
+    if (u.cancelled || !u.fmMode) continue;
+    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    const amount = Math.max(0, Number(owner?.system?.characteristics?.[u.fmChar]?.value ?? 0));
+    if (u.fmMode === "reduce") {
+      out.deltas.push({ amount: -amount, modName: u.itemName, ownerName: u.ownerName });
+    } else if (u.fmMode === "boost") {
+      out.deltas.push({ amount, modName: u.itemName, ownerName: u.ownerName });
+    } else if (u.fmMode === "redirect" && !out.redirect) {
+      const driveUser = (owner
+        ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
+        : null) ?? game.users.activeGM;
+      out.redirect = {
+        modName: u.itemName, ownerActorUuid: u.ownerActorUuid ?? null, ownerName: u.ownerName,
+        amount, driveUserId: driveUser?.id ?? null,
+      };
+    }
+  }
+  return (out.deltas.length || out.redirect) ? out : null;
+}
+
 function _collectRollMods(usedEntries) {
   const out = [];
   for (const u of usedEntries ?? []) {
@@ -633,7 +657,13 @@ async function _postRedirectReminders(usedEntries, resume) {
   }
 }
 
-function _dispatchResume(resume, retargets = [], rollMods = []) {
+function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {
+  if (resume?.fmId) {
+    const user = game.users.get(resume.userId);
+    if (user?.active) socket.executeForUsers("resumeForcedMove", [resume.userId], resume.fmId, fmMods);
+    else socket.executeAsGM("resumeForcedMove", resume.fmId, fmMods);
+    return;
+  }
   if (!resume?.userId || !resume?.itemUuid) return;
   const user = game.users.get(resume.userId);
   if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid, retargets, rollMods);
@@ -659,7 +689,7 @@ function _fireResume(resumeId, expired = false) {
     }
     const applied = (pending.usedEntries ?? []).filter((u) => !expired || !pending.awaiting.has(u.itemUuid));
     _postRedirectReminders(applied, pending.resume);
-    _dispatchResume(pending.resume, _collectRetargets(applied), _collectRollMods(applied));
+    _dispatchResume(pending.resume, _collectRetargets(applied), _collectRollMods(applied), _collectFmMods(applied));
   } else if (held) {
 
     const usedInGroup = _queue.filter((e) => e.resumeId === resumeId && e.state === "used");
@@ -667,7 +697,7 @@ function _fireResume(resumeId, expired = false) {
       if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
     }
     _postRedirectReminders(usedInGroup, held.resume);
-    _dispatchResume(held.resume, _collectRetargets(usedInGroup), _collectRollMods(usedInGroup));
+    _dispatchResume(held.resume, _collectRetargets(usedInGroup), _collectRollMods(usedInGroup), _collectFmMods(usedInGroup));
   }
   _broadcast();
 }
@@ -829,6 +859,8 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     halvesOnUse: m._halvesOnUse ?? false,
     redirect: m._redirect ?? null,
     rollMod: m._rollMod ?? null,
+    fmMode: m._fmMode ?? null,
+    fmChar: m._fmChar ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
     lock: true,
