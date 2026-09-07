@@ -66,6 +66,9 @@
         </span>
         {{/if}}
       </div>
+      {{#if heldDetail}}
+      <div class="dst-stack-held-detail">{{heldDetail}}</div>
+      {{/if}}
       {{#if embedHTML}}
       <div class="dst-stack-embed-content" data-embed-for="{{id}}" {{#unless embedOpen}}hidden{{/unless}}>{{{embedHTML}}}</div>
       {{/if}}

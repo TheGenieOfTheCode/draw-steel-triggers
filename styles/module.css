@@ -181,6 +181,12 @@
   background: rgba(217, 166, 63, 0.06);
 }
 
+.dst-stack .dst-stack-held-detail {
+  font-size: 0.85em;
+  color: var(--color-text-dark-secondary, #6f6a65);
+  margin: 2px 0 0 2px;
+}
+
 .dst-stack .dst-stack-held-icon {
   color: #d9a63f;
 }

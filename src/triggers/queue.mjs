@@ -589,16 +589,33 @@ function _collectRetargets(usedEntries) {
   return out;
 }
 
+function _fmSpendUsed(itemUuid) {
+  const item = itemUuid ? fromUuidSync(itemUuid) : null;
+  const spendIds = new Set((item?.system?.effects?.documentsByType?.spend ?? []).map((e) => e.id));
+  if (!spendIds.size) return false;
+  const msgs = game.messages.contents;
+  const now = Date.now();
+  for (let i = msgs.length - 1; i >= Math.max(0, msgs.length - 30); i--) {
+    const m = msgs[i];
+    if (now - m.timestamp > 300000) break;
+    const part = m.system?.parts?.contents?.find((p) => p.type === "abilityUse" && p.abilityUuid === itemUuid);
+    if (!part) continue;
+    return (part.effects ?? []).some((id) => spendIds.has(id));
+  }
+  return false;
+}
+
 function _collectFmMods(usedEntries) {
   const out = { deltas: [], redirect: null };
   for (const u of usedEntries ?? []) {
     if (u.cancelled || !u.fmMode) continue;
     const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
-    const amount = Math.max(0, Number(owner?.system?.characteristics?.[u.fmChar]?.value ?? 0));
+    let amount = Math.max(0, Number(owner?.system?.characteristics?.[u.fmChar]?.value ?? 0));
+    if (amount && _fmSpendUsed(u.itemUuid)) amount *= 2;
     if (u.fmMode === "reduce") {
-      out.deltas.push({ amount: -amount, modName: u.itemName, ownerName: u.ownerName });
+      out.deltas.push({ amount: -amount, modName: u.itemName, ownerName: u.ownerName, ownerActorUuid: u.ownerActorUuid ?? null });
     } else if (u.fmMode === "boost") {
-      out.deltas.push({ amount, modName: u.itemName, ownerName: u.ownerName });
+      out.deltas.push({ amount, modName: u.itemName, ownerName: u.ownerName, ownerActorUuid: u.ownerActorUuid ?? null });
     } else if (u.fmMode === "redirect" && !out.redirect) {
       const driveUser = (owner
         ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
@@ -875,6 +892,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     kind: "held",
     itemUuid: held.itemUuid,
     itemName: held.itemName,
+    heldDetail: held.heldDetail ?? null,
     ownerActorUuid: held.ownerActorUuid,
     ownerName: held.ownerName,
     event,
@@ -945,6 +963,12 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
         type: game.i18n.localize(ds.CONFIG.damageTypes?.[heldDamage.damageType]?.label ?? heldDamage.damageType),
       })
       : game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEntry", { amount: heldDamage.amount }),
+    heldDetail: heldDamage.damageOptions?.ignoredImmunities?.length
+      ? game.i18n.format("DS_TRIGGERS.Queue.HeldDamageIgnoresImmunity", {
+        types: heldDamage.damageOptions.ignoredImmunities
+          .map((t) => game.i18n.localize(ds.CONFIG.damageTypes?.[t]?.label ?? t)).join(", "),
+      })
+      : null,
     ownerActorUuid: heldDamage.actorUuid,
     ownerName: heldDamage.actorName ?? "",
     event: "WOULD_TAKE_DAMAGE",
