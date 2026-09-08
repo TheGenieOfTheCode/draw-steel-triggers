@@ -56,6 +56,10 @@ export function getParsedTrigger(item) {
   return result;
 }
 
+export function triggerEffectText(item) {
+  return _effectText(item);
+}
+
 function _effectText(item) {
   const sys = item.system;
   const parts = [];

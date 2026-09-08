@@ -899,3 +899,24 @@ button.dst-dstd-res-locked {
   font-weight: 700;
   letter-spacing: 0.04em;
 }
+
+.dst-after-pick-wrap {
+  margin: 4px 0 2px;
+  text-align: center;
+}
+.dst-after-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 3px 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  background: rgba(217, 166, 63, 0.12);
+  border: 1px solid rgba(217, 166, 63, 0.55);
+  color: #d9a63f;
+  border-radius: 4px;
+  cursor: pointer;
+  width: auto;
+}
+.dst-after-pick-btn:hover { border-color: #d9a63f; background: rgba(217, 166, 63, 0.22); }
+.dst-after-pick-btn:disabled { opacity: 0.45; cursor: default; }

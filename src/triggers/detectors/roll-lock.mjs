@@ -39,16 +39,26 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   const hasRoll = !!ability.system.power?.roll?.enabled;
   const matches = [];
   const seen = new Set();
-  
+  const byUuid = new Map();
+
   const add = (list, event) => {
     for (const m of list) {
-      if (seen.has(m.item.uuid)) continue;
+      if (seen.has(m.item.uuid)) {
+        const prev = byUuid.get(m.item.uuid);
+        if (prev && m._subjectTokenUuid && Array.isArray(prev._subjectTokenUuids)
+          && !prev._subjectTokenUuids.includes(m._subjectTokenUuid)) {
+          prev._subjectTokenUuids.push(m._subjectTokenUuid);
+        }
+        continue;
+      }
       seen.add(m.item.uuid);
+      byUuid.set(m.item.uuid, m);
       m._lockEvent = event;
       const targeting = event === "TARGETED_BY_STRIKE" || event === "TARGETED_BY_ABILITY";
       m._halvesOnUse = targeting && m.clause?.targetedHalf === true;
       m._redirect = targeting ? m.clause?.redirect ?? null : null;
       m._rollMod = event !== "WOULD_TAKE_DAMAGE" ? m.clause?.rollMod ?? null : null;
+      m._subjectTokenUuids = m._subjectTokenUuid ? [m._subjectTokenUuid] : null;
       m._causeLabel = game.i18n.format(`DS_TRIGGERS.Queue.Cause.${event}`, {
         roller: rollerActor.name, ability: ability.name, owner: m.actor.name,
       });

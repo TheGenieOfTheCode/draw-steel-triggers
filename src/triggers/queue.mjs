@@ -1,6 +1,9 @@
 import { MODULE_ID, getSetting, dbg } from "../util.mjs";
 import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
+import { noteTargetsChange } from "./detectors/resolution.mjs";
+import { footprintGap, abilityRangeSquares } from "./dispatch.mjs";
+import { triggerEffectText } from "./registry.mjs";
 
 let socket = null;
 
@@ -240,12 +243,12 @@ async function _onQueueResolve(id, outcome, userName) {
             redirect: e.redirect ?? null, rollMod: e.rollMod ?? null,
             fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
+            subjectTokenUuids: e.subjectTokenUuids ?? null,
           }));
         const awaiting = new Set(usedEntries.filter((u) => !_postedAfterUse(u.itemUuid, u.usedAt)).map((u) => u.itemUuid));
         if (!awaiting.size) {
           _removeHeld(entry.resumeId);
-          _postRedirectReminders(usedEntries, resume);
-          _dispatchResume(resume, _collectRetargets(usedEntries), _collectRollMods(usedEntries), _collectFmMods(usedEntries));
+          _finishResume(usedEntries, resume);
         } else {
           const grace = _graceMs();
           const resumeId = entry.resumeId;
@@ -578,15 +581,60 @@ function _collectRetargets(usedEntries) {
   const out = [];
   for (const u of usedEntries ?? []) {
     if (u.cancelled) continue;
-    if (!u.redirect || u.redirect === "chooser" || u.redirect === "after" || !u.subjectTokenUuid) continue;
+    if (!u.redirect || u.redirect === "after") continue;
+    const subjects = (u.subjectTokenUuids?.length ? u.subjectTokenUuids : [u.subjectTokenUuid]).filter(Boolean);
+    if (!subjects.length) continue;
     out.push({
       mode: u.redirect,
       modName: u.itemName,
-      removeTokenUuid: u.subjectTokenUuid,
-      newActorUuid: u.redirect === "reflect" ? null : u.ownerActorUuid,
+      itemUuid: u.itemUuid ?? null,
+      ownerActorUuid: u.ownerActorUuid ?? null,
+      removeTokenUuid: subjects[0],
+      subjectTokenUuids: subjects,
+      newActorUuid: (u.redirect === "reflect" || u.redirect === "chooser") ? null : u.ownerActorUuid,
     });
   }
   return out;
+}
+
+function _pickUserFor(ownerActorUuid) {
+  const owner = ownerActorUuid ? fromUuidSync(ownerActorUuid) : null;
+  return (owner
+    ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
+    : null) ?? game.users.activeGM ?? null;
+}
+
+async function _resolveRetargetPicks(retargets, resume) {
+  const out = [];
+  for (const r of retargets ?? []) {
+    const pickUser = _pickUserFor(r.ownerActorUuid);
+    if (getSetting("debugMode")) console.log(`DS_TRIGGERS | resolveRetargetPicks: mode=${r.mode} mod=${r.modName} pickUser=${pickUser?.name ?? null} subjects=${r.subjectTokenUuids.length}`);
+    if (r.subjectTokenUuids.length > 1 && pickUser) {
+      const picked = await socket.executeAsUser("pickRedirectSubject", pickUser.id, r.modName, r.subjectTokenUuids).catch(() => null);
+      if (picked) r.removeTokenUuid = picked;
+    }
+    if (r.mode === "chooser") {
+      if (!pickUser) continue;
+      const ctx = { triggerItemUuid: r.itemUuid ?? null, triggeringUuid: resume?.itemUuid ?? null };
+      const picked = await socket.executeAsUser("pickRedirectTarget", pickUser.id, r.modName, r.removeTokenUuid, ctx).catch(() => null);
+      if (!picked) continue;
+      r.mode = "choice";
+      r.newTokenUuid = picked;
+    }
+    out.push(r);
+  }
+  return out;
+}
+
+function _finishResume(usedEntries, resume) {
+  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | finishResume: used=${(usedEntries ?? []).map((u) => `${u.itemName}:${u.redirect ?? "-"}`).join(",")} resume=${resume?.itemUuid ?? resume?.fmId ?? null}`);
+  _postRedirectReminders(usedEntries, resume);
+  _resolveRetargetPicks(_collectRetargets(usedEntries), resume)
+    .then((retargets) => _dispatchResume(resume, retargets, _collectRollMods(usedEntries), _collectFmMods(usedEntries)))
+    .catch((err) => {
+      dbg("retarget pick resolution failed", err);
+      _dispatchResume(resume, [], _collectRollMods(usedEntries), _collectFmMods(usedEntries));
+    });
 }
 
 function _fmSpendUsed(itemUuid) {
@@ -661,12 +709,15 @@ async function _postRedirectReminders(usedEntries, resume) {
       head: link,
       subtitle: item?.system?.trigger ? `<em>${item.system.trigger}</em>` : "",
     }]);
+    const pickBtn = after && game.modules.get("draw-steel-target-damage")?.active
+      ? `<div class="dst-after-pick-wrap"><button type="button" class="dst-after-pick-btn" data-owner-actor-uuid="${u.ownerActorUuid ?? ""}" data-mod-name="${foundry.utils.escapeHTML(u.itemName)}"><i class="fa-solid fa-bullseye"></i> ${game.i18n.localize("DS_TRIGGERS.Queue.AfterPickButton")}</button></div>`
+      : "";
     ChatMessage.create({
       content: triggerCardHTML({
         header: game.i18n.localize("DS_TRIGGERS.Queue.RedirectAfterHeader"),
         intro: game.i18n.format(after ? "DS_TRIGGERS.Queue.RedirectAfterBody" : "DS_TRIGGERS.Queue.RedirectPostHocBody", { owner: u.ownerName, ability: `<strong>${u.itemName}</strong>` }),
         rows,
-      }),
+      }) + pickBtn,
       whisper: [...recipients],
       speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
       flags: { [MODULE_ID]: { reminder: { event: "REDIRECT_AFTER" } } },
@@ -705,16 +756,15 @@ function _fireResume(resumeId, expired = false) {
       }
     }
     const applied = (pending.usedEntries ?? []).filter((u) => !expired || !pending.awaiting.has(u.itemUuid));
-    _postRedirectReminders(applied, pending.resume);
-    _dispatchResume(pending.resume, _collectRetargets(applied), _collectRollMods(applied), _collectFmMods(applied));
+    if (getSetting("debugMode")) console.log(`DS_TRIGGERS | fireResume: expired=${expired} awaiting=${[...(pending.awaiting ?? [])].join(",")} applied=${applied.map((u) => u.itemName).join(",")}`);
+    _finishResume(applied, pending.resume);
   } else if (held) {
 
     const usedInGroup = _queue.filter((e) => e.resumeId === resumeId && e.state === "used");
     for (const e of _queue) {
       if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
     }
-    _postRedirectReminders(usedInGroup, held.resume);
-    _dispatchResume(held.resume, _collectRetargets(usedInGroup), _collectRollMods(usedInGroup), _collectFmMods(usedInGroup));
+    _finishResume(usedInGroup, held.resume);
   }
   _broadcast();
 }
@@ -824,12 +874,71 @@ function _applyRollMods(app, mods) {
   if (bumped) app.render();
 }
 
+async function _runTriggerPicker(tokens, hint) {
+  const api = game.modules.get("draw-steel-combat-tools")?.api;
+  if (!api?.colorTokenPicker) {
+    ui.notifications.warn(game.i18n.localize("DS_TRIGGERS.Queue.PickerUnavailable"));
+    return null;
+  }
+  return api.colorTokenPicker({
+    tokens,
+    colorMap: new Map(tokens.map((t) => [t.id, "#d9a63f"])),
+    hint,
+  }).catch(() => null);
+}
+
+async function _onPickRedirectSubject(modName, subjectTokenUuids) {
+  const tokens = (subjectTokenUuids ?? []).map((u) => fromUuidSync(u)?.object).filter(Boolean);
+  if (!tokens.length) return null;
+  if (tokens.length === 1) return tokens[0].document.uuid;
+  const picked = await _runTriggerPicker(tokens, game.i18n.format("DS_TRIGGERS.Queue.PickSubject", { modName }));
+  return picked?.document?.uuid ?? null;
+}
+
+function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } = {}) {
+  if (!triggerItemUuid || !triggeringUuid) return null;
+  const trigItem = fromUuidSync(triggerItemUuid);
+  if (!trigItem) return null;
+  if (!/within distance of the triggering/i.test(triggerEffectText(trigItem))) return null;
+  const triggering = fromUuidSync(triggeringUuid);
+  const range = abilityRangeSquares(triggering);
+  if (!range) return null;
+  
+  let originDoc = null;
+  const pending = game.modules.get("draw-steel-combat-tools")?.api?.pendingSquadMap?.();
+  const entry = pending && removeDoc ? pending.get?.(removeDoc.id) : null;
+  if (entry?.primaryMinionId) originDoc = canvas.tokens.get(entry.primaryMinionId)?.document ?? null;
+  if (!originDoc) originDoc = triggering?.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
+  if (!originDoc) return null;
+  return { originDoc, range };
+}
+
+async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
+  const removeDoc = removeTokenUuid ? fromUuidSync(removeTokenUuid) : null;
+  let tokens = canvas.tokens.placeables.filter((t) => t.actor && t.document.uuid !== removeDoc?.uuid);
+  let constraint = null;
+  try { constraint = _chooserRangeConstraint(removeDoc, ctx); } catch (err) { console.error("DS_TRIGGERS | chooser range constraint failed:", err); }
+  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: mod=${modName} candidates=${tokens.length} constraint=`, constraint ? { range: constraint.range, origin: constraint.originDoc?.name } : null);
+  if (constraint) {
+    const gridDist = canvas.grid.distance || 1;
+    tokens = tokens.filter((t) => footprintGap(constraint.originDoc, t.document) < constraint.range * gridDist);
+    if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: in-range candidates=${tokens.length}`);
+  }
+  if (!tokens.length) return null;
+  const picked = await _runTriggerPicker(tokens, game.i18n.format("DS_TRIGGERS.Queue.PickTarget", { modName }));
+  return picked?.document?.uuid ?? null;
+}
+
 async function _applyRetargets(item, retargets) {
   for (const r of retargets ?? []) {
     try {
       const removeDoc = r.removeTokenUuid ? await fromUuid(r.removeTokenUuid).catch(() => null) : null;
       const newActor = r.newActorUuid ? await fromUuid(r.newActorUuid).catch(() => null) : item.actor;
-      const newToken = newActor?.getActiveTokens(true, false)[0] ?? null;
+      let newToken = newActor?.getActiveTokens(true, false)[0] ?? null;
+      if (r.mode === "choice" && r.newTokenUuid) {
+        const newDoc = await fromUuid(r.newTokenUuid).catch(() => null);
+        newToken = newDoc?.object ?? newToken;
+      }
       if (removeDoc?.object && removeDoc.object !== newToken) removeDoc.object.setTarget(false, { releaseOthers: false });
       if (newToken) newToken.setTarget(true, { releaseOthers: false });
       const oldName = removeDoc?.name ?? "";
@@ -879,6 +988,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmMode: m._fmMode ?? null,
     fmChar: m._fmChar ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
+    subjectTokenUuids: m._subjectTokenUuids ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
     lock: true,
     state: "pending",
@@ -1089,4 +1199,70 @@ Hooks.once("socketlib.ready", () => {
   socket.register("applyHeldDamageNow", _onApplyHeldDamageNow);
   socket.register("releaseResolutionNow", _onReleaseResolutionNow);
   socket.register("useCancelled", _onUseCancelled);
+  socket.register("pickRedirectSubject", _onPickRedirectSubject);
+  socket.register("pickRedirectTarget", _onPickRedirectTarget);
+  socket.register("applyAfterRedirect", _onApplyAfterRedirect);
+});
+
+const DSTD_ID = "draw-steel-target-damage";
+
+async function _onApplyAfterRedirect(payload) {
+  const message = game.messages.get(payload.messageId);
+  if (!message) return;
+  const state = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state`) ?? {};
+  const targets = [...(state.targets ?? [])].filter((t) => String(t.tokenUuid ?? "") !== payload.removeTokenUuid);
+  if (!targets.some((t) => String(t.tokenUuid ?? "") === payload.newTarget.tokenUuid)) targets.push(payload.newTarget);
+  noteTargetsChange(payload.messageId, targets.map((t) => String(t.tokenUuid ?? t.actorUuid ?? "")));
+  await message.update({
+    [`flags.${DSTD_ID}.state.targets`]: targets,
+    [`flags.${DSTD_ID}.state.updatedAt`]: Date.now(),
+  });
+}
+
+document.addEventListener("click", async (event) => {
+  const btn = event.target.closest(".dst-after-pick-btn");
+  if (!btn || btn.disabled) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const modName = btn.dataset.modName ?? "";
+  const owner = btn.dataset.ownerActorUuid ? await fromUuid(btn.dataset.ownerActorUuid).catch(() => null) : null;
+  if (!game.user.isGM && !(owner && owner.testUserPermission(game.user, "OWNER"))) {
+    ui.notifications.warn(game.i18n.localize("DS_TRIGGERS.Queue.AfterPickOnlyOwner"));
+    return;
+  }
+  const ownerTokenDoc = owner?.getActiveTokens?.(true, true)?.[0] ?? null;
+  if (!ownerTokenDoc) {
+    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.AfterPickNoMessage", { owner: owner?.name ?? "?" }));
+    return;
+  }
+  const msgs = game.messages.contents;
+  let strikeMsg = null;
+  for (let i = msgs.length - 1; i >= Math.max(0, msgs.length - 30); i--) {
+    const m = msgs[i];
+    if (Date.now() - m.timestamp > 600000) break;
+    const tgts = foundry.utils.getProperty(m.flags, `${DSTD_ID}.state.targets`);
+    if (Array.isArray(tgts) && tgts.some((t) => String(t.tokenUuid ?? "") === ownerTokenDoc.uuid)) { strikeMsg = m; break; }
+  }
+  if (!strikeMsg) {
+    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.AfterPickNoMessage", { owner: owner?.name ?? "?" }));
+    return;
+  }
+  const candidates = canvas.tokens.placeables.filter((t) => t.actor && t.document.uuid !== ownerTokenDoc.uuid);
+  if (!candidates.length) return;
+  const picked = await _runTriggerPicker(candidates, game.i18n.format("DS_TRIGGERS.Queue.PickTarget", { modName }));
+  if (!picked) return;
+  const doc = picked.document;
+  socket.executeAsGM("applyAfterRedirect", {
+    messageId: strikeMsg.id,
+    removeTokenUuid: ownerTokenDoc.uuid,
+    newTarget: {
+      tokenUuid: doc.uuid, tokenId: doc.id ?? null, sceneId: doc.parent?.id ?? null,
+      actorUuid: picked.actor?.uuid ?? null, actorId: picked.actor?.id ?? null,
+      name: picked.name ?? doc.name, tokenImg: doc.texture?.src ?? null, actorImg: picked.actor?.img ?? null,
+    },
+  });
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.AfterPickApplied", {
+    modName, name: picked.name ?? doc.name, owner: owner?.name ?? "?",
+  }));
+  btn.disabled = true;
 });

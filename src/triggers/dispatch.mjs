@@ -62,7 +62,11 @@ const RANGED_DISTANCE_TYPES = new Set(["melee", "ranged", "meleeRanged", "aura",
 function clauseRangeSquares(clause, item) {
   if (clause.range === "none") return null;
   if (Number.isFinite(clause.range)) return clause.range > 0 ? clause.range : null;
-  const dist = item.system?.distance;
+  return abilityRangeSquares(item);
+}
+
+export function abilityRangeSquares(item) {
+  const dist = item?.system?.distance;
   if (!dist || !RANGED_DISTANCE_TYPES.has(dist.type)) return null;
   const primary = parseInt(dist.primary) || 0;
   const secondary = parseInt(dist.secondary) || 0;
