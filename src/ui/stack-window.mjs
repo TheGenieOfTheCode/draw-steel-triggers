@@ -236,3 +236,24 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
 Hooks.on("dst.queueChanged", () => StackWindow.refresh());
 Hooks.on("dst.queueOpenRequested", () => StackWindow.open());
+
+Hooks.on("getSceneControlButtons", (controls) => {
+  const tokenControl = controls.tokens ?? controls.token;
+  if (!tokenControl) return;
+
+  const tool = {
+    name: "dst-stack",
+    title: game.i18n.localize("DS_TRIGGERS.Queue.OpenStackButton"),
+    icon: "fa-solid fa-layer-group",
+    button: true,
+    visible: true,
+    onChange: () => StackWindow.open(),
+  };
+
+  if (Array.isArray(tokenControl.tools)) {
+    tokenControl.tools.push(tool);
+  } else {
+    tool.order = Object.keys(tokenControl.tools).length;
+    tokenControl.tools["dst-stack"] = tool;
+  }
+});

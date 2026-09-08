@@ -249,6 +249,7 @@
       "FmCauseMoved": "Triggered by {name} being force moved. The movement is held.",
       "FmCauseMover": "Triggered by {name} force moving a creature. The movement is held.",
       "FmLockCause": "Triggered by {name} being force moved.",
+      "OpenStackButton": "Open Trigger Stack",
       "FmHeldTitle": "{type} {distance}: {source} → {target}",
       "FmHeldTitleNoSource": "{type} {distance} on {target}",
       "FmDetailVertical": "Vertical {n}",
