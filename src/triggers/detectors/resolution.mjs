@@ -1,4 +1,4 @@
-import { getSetting, dbg } from "../../util.mjs";
+import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { collectTriggerMatches } from "../dispatch.mjs";
 import { enqueueResolutionHold, getQueueMirror } from "../queue.mjs";
 
@@ -39,7 +39,7 @@ function _seedKnownTargets(message) {
 }
 
 async function _tryDispatch(message) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   if (!getSetting("resolutionHolds")) return;
   if (!game.combat?.started) return;
   if (_handled.has(message.id)) return;
@@ -109,7 +109,7 @@ async function _tryDispatch(message) {
 }
 
 async function _tryPostHocDispatch(message, addedTargets) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   if (!getSetting("resolutionHolds")) return;
   if (!game.combat?.started) return;
 
@@ -175,13 +175,13 @@ async function _tryPostHocDispatch(message, addedTargets) {
 }
 
 Hooks.on("createChatMessage", async (message) => {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   await _tryDispatch(message);
   _seedKnownTargets(message);
 });
 
 Hooks.on("updateChatMessage", async (message, changes) => {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   if (!foundry.utils.hasProperty(changes, `flags.${DSTD_ID}`)) return;
   const known = _knownTargets.get(message.id);
   if (!known) {

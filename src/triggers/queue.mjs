@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM } from "../util.mjs";
 import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
@@ -40,7 +40,7 @@ Hooks.on("closeAbilityConfigurationDialog", (app) => {
   if (!uuid || !_useWatches.has(uuid)) return;
   _useWatches.delete(uuid);
   if (app.config != null) return;
-  socket?.executeAsGM("useCancelled", uuid);
+  asPrimaryGM("useCancelled", uuid);
 });
 
 Hooks.on("createChatMessage", (message) => {
@@ -50,7 +50,7 @@ Hooks.on("createChatMessage", (message) => {
 });
 
 function _onUseCancelled(itemUuid) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   dbg(`use cancelled: ${itemUuid}`);
   let touched = false;
 
@@ -147,6 +147,12 @@ export function consumeDamageBypass(actorUuid) {
   return true;
 }
 
+export function asPrimaryGM(handler, ...args) {
+  const gm = primaryGM();
+  if (!gm?.active) return undefined;
+  return socket?.executeAsUser(handler, gm.id, ...args);
+}
+
 export function queueSocket() {
   return socket;
 }
@@ -176,7 +182,7 @@ function _ensureDecisionTicker() {
 }
 
 function _onQueueAdd(entries) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
 
   
   
@@ -208,7 +214,7 @@ function _onQueueAdd(entries) {
 }
 
 async function _onQueueResolve(id, outcome, userName) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   const entry = _queue.find((e) => e.id === id);
   if (!entry || entry.state !== "pending") return;
   entry.state = outcome;
@@ -601,7 +607,7 @@ function _pickUserFor(ownerActorUuid) {
   const owner = ownerActorUuid ? fromUuidSync(ownerActorUuid) : null;
   return (owner
     ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
-    : null) ?? game.users.activeGM ?? null;
+    : null) ?? primaryGM() ?? null;
 }
 
 async function _resolveRetargetPicks(retargets, resume) {
@@ -667,7 +673,7 @@ function _collectFmMods(usedEntries) {
     } else if (u.fmMode === "redirect" && !out.redirect) {
       const driveUser = (owner
         ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
-        : null) ?? game.users.activeGM;
+        : null) ?? primaryGM();
       out.redirect = {
         modName: u.itemName, ownerActorUuid: u.ownerActorUuid ?? null, ownerName: u.ownerName,
         amount, driveUserId: driveUser?.id ?? null,
@@ -729,13 +735,13 @@ function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {
   if (resume?.fmId) {
     const user = game.users.get(resume.userId);
     if (user?.active) socket.executeForUsers("resumeForcedMove", [resume.userId], resume.fmId, fmMods);
-    else socket.executeAsGM("resumeForcedMove", resume.fmId, fmMods);
+    else asPrimaryGM("resumeForcedMove", resume.fmId, fmMods);
     return;
   }
   if (!resume?.userId || !resume?.itemUuid) return;
   const user = game.users.get(resume.userId);
   if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid, retargets, rollMods);
-  else socket.executeAsGM("resumeRoll", resume.itemUuid, retargets, rollMods);
+  else asPrimaryGM("resumeRoll", resume.itemUuid, retargets, rollMods);
 }
 
 function _removeHeld(resumeId) {
@@ -770,12 +776,12 @@ function _fireResume(resumeId, expired = false) {
 }
 
 function _onReleaseHeld(resumeId) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   _fireResume(resumeId);
 }
 
 Hooks.on("createChatMessage", (message) => {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;
   const now = Date.now();
@@ -1014,12 +1020,12 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     resumeId,
     resume,
   });
-  socket.executeAsGM("queueAdd", entries);
+  asPrimaryGM("queueAdd", entries);
   return entries;
 }
 
 export function releaseHeld(resumeId) {
-  socket.executeAsGM("releaseHeld", resumeId);
+  asPrimaryGM("releaseHeld", resumeId);
 }
 
 export function enqueuePromptEntries(matches, { event, causeLabel }) {
@@ -1040,7 +1046,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel }) {
     promptId,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
-  socket.executeAsGM("queueAdd", entries);
+  asPrimaryGM("queueAdd", entries);
 }
 
 export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
@@ -1091,7 +1097,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     damageId,
     heldDamage,
   });
-  socket.executeAsGM("queueAdd", entries);
+  asPrimaryGM("queueAdd", entries);
 }
 
 export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
@@ -1137,15 +1143,15 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     resolutionId,
     resolution,
   });
-  socket.executeAsGM("queueAdd", entries);
+  asPrimaryGM("queueAdd", entries);
 }
 
 export function releaseResolutionNow(resolutionId) {
-  socket.executeAsGM("releaseResolutionNow", resolutionId);
+  asPrimaryGM("releaseResolutionNow", resolutionId);
 }
 
 function _onReleaseResolutionNow(resolutionId) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   const pending = _pendingResolutionGraces.get(resolutionId);
   if (pending) {
     clearTimeout(pending.timer);
@@ -1163,11 +1169,11 @@ function _onReleaseResolutionNow(resolutionId) {
 }
 
 export function applyHeldDamageNow(damageId) {
-  socket.executeAsGM("applyHeldDamageNow", damageId);
+  asPrimaryGM("applyHeldDamageNow", damageId);
 }
 
 function _onApplyHeldDamageNow(damageId) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   const pending = _pendingDamageGraces.get(damageId);
   if (pending) {
     clearTimeout(pending.timer);
@@ -1186,7 +1192,7 @@ function _onApplyHeldDamageNow(damageId) {
 }
 
 export function resolveQueueEntry(id, outcome) {
-  socket.executeAsGM("queueResolve", id, outcome, game.user.name);
+  asPrimaryGM("queueResolve", id, outcome, game.user.name);
 }
 
 Hooks.once("socketlib.ready", () => {
@@ -1252,7 +1258,7 @@ document.addEventListener("click", async (event) => {
   const picked = await _runTriggerPicker(candidates, game.i18n.format("DS_TRIGGERS.Queue.PickTarget", { modName }));
   if (!picked) return;
   const doc = picked.document;
-  socket.executeAsGM("applyAfterRedirect", {
+  asPrimaryGM("applyAfterRedirect", {
     messageId: strikeMsg.id,
     removeTokenUuid: ownerTokenDoc.uuid,
     newTarget: {

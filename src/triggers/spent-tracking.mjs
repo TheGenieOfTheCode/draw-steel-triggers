@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 
 function combatantFor(actor, combat = game.combat) {
@@ -30,7 +30,7 @@ export async function setTriggeredActionSpent(actor, spent = true) {
 }
 
 Hooks.on("createChatMessage", async (message) => {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   if (!getSetting("spentTracking")) return;
   const abilityUse = message.system?.parts?.contents?.find(p => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;
@@ -44,7 +44,7 @@ Hooks.on("createChatMessage", async (message) => {
 });
 
 Hooks.on("combatTurnChange", async (combat, previous, current) => {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   if (!previous || current.round === previous.round) return;
   for (const combatant of combat.combatants) {
     if (combatant.getFlag(MODULE_ID, "spent")) await combatant.unsetFlag(MODULE_ID, "spent");

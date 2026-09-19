@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg, emblemHTML } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, emblemHTML, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
@@ -156,7 +156,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
 }
 
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "" }) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken);
   if (!matches.length) return;

@@ -1,6 +1,6 @@
-import { getSetting, dbg } from "../../util.mjs";
+import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { collectTriggerMatches, footprintGap } from "../dispatch.mjs";
-import { enqueueLockEntries, queueSocket } from "../queue.mjs";
+import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { generateDSID } from "../../parser/trigger-parser.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
 
@@ -188,7 +188,7 @@ async function _onResumeFm(fmId, mods) {
       }
       ui.notifications.warn(game.i18n.localize(reduced ? "DS_TRIGGERS.Queue.FmStoppedCounter" : "DS_TRIGGERS.Queue.FmStopped"));
     }
-    queueSocket()?.executeAsGM("applyFmDeltas", payload);
+    asPrimaryGM("applyFmDeltas", payload);
     return;
   }
 
@@ -233,7 +233,7 @@ async function _onDriveFmRedirect(payload) {
   
   if (payload.messageId && game.modules.get(DSTD_ID)?.active) {
     const doc = picked.document;
-    queueSocket()?.executeAsGM("applyFmRedirect", {
+    asPrimaryGM("applyFmRedirect", {
       messageId: payload.messageId,
       origTargetUuid: payload.origTargetUuid,
       newTarget: {
@@ -278,7 +278,7 @@ function _baseModState(base) {
 }
 
 async function _onApplyFmDeltas(payload) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   const message = game.messages.get(payload.messageId);
   if (!message) return;
   const state = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state`);
@@ -360,7 +360,7 @@ async function _onApplyFmDeltas(payload) {
 }
 
 async function _onApplyFmRedirect(payload) {
-  if (!game.users.activeGM?.isSelf) return;
+  if (!isPrimaryGM()) return;
   const message = game.messages.get(payload.messageId);
   if (!message) return;
   const state = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state`);

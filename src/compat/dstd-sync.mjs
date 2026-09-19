@@ -1,4 +1,4 @@
-import { MODULE_ID, dbg, getSetting } from "../util.mjs";
+import { MODULE_ID, dbg, getSetting, isPrimaryGM } from "../util.mjs";
 import { getActiveDamageHolds } from "../triggers/queue.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
@@ -47,7 +47,7 @@ function _findHeldRecord(hold) {
 }
 
 function _markHeldRecords(message) {
-  if (!game.users.activeGM?.isSelf || !_dstdActive()) return;
+  if (!isPrimaryGM() || !_dstdActive()) return;
   const holds = getActiveDamageHolds();
   if (!holds.size) return;
   const apps = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state.applications`) ?? {};
@@ -81,7 +81,7 @@ function _markHeldRecords(message) {
 }
 
 Hooks.on("dst.damageHoldRegistered", () => {
-  if (!game.users.activeGM?.isSelf || !_dstdActive()) return;
+  if (!isPrimaryGM() || !_dstdActive()) return;
   for (const message of game.messages.contents.slice(-10)) _markHeldRecords(message);
 });
 
@@ -151,7 +151,7 @@ function _dstdOperationId(target, partId, rollIndex) {
 Hooks.on("dst.targetedHalfUsed", (data) => {
   if (!_dstdActive()) return;
   _pendingHalves.push({ ...data, expires: Date.now() + 120000 });
-  if (data.messageId && game.users.activeGM?.isSelf) {
+  if (data.messageId && isPrimaryGM()) {
     const message = game.messages.get(data.messageId);
     if (message) _tryWriteHalfOverrides(message);
   }
@@ -243,13 +243,13 @@ function _tryWriteHalfOverrides(message) {
 }
 
 Hooks.on("createChatMessage", (message) => {
-  if (!game.users.activeGM?.isSelf || !_dstdActive()) return;
+  if (!isPrimaryGM() || !_dstdActive()) return;
   _tryWriteHalfOverrides(message);
   _markHeldRecords(message);
 });
 
 Hooks.on("updateChatMessage", (message, changed) => {
-  if (!game.users.activeGM?.isSelf || !_dstdActive()) return;
+  if (!isPrimaryGM() || !_dstdActive()) return;
   if (!foundry.utils.hasProperty(changed, `flags.${DSTD_ID}`)) return;
   _tryWriteHalfOverrides(message);
   _markHeldRecords(message);

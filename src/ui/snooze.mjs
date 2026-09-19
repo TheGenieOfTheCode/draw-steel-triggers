@@ -1,9 +1,9 @@
-import { MODULE_ID } from "../util.mjs";
+import { MODULE_ID, primaryGM } from "../util.mjs";
 
 export function isActorSnoozed(actor) {
   const owners = game.users.filter((u) => !u.isGM && actor.testUserPermission(u, "OWNER"));
   if (owners.length) return owners.every((u) => u.getFlag(MODULE_ID, "snooze") === true);
-  return game.users.activeGM?.getFlag(MODULE_ID, "snooze") === true;
+  return primaryGM()?.getFlag(MODULE_ID, "snooze") === true;
 }
 
 export async function toggleSnooze() {

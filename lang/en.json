@@ -58,6 +58,10 @@
       "RollLockGrace": {
         "Name": "Roll Lock Grace Period",
         "Hint": "After Use is chosen for a triggered ability, the held roll resumes when that ability's message is posted, or after this many seconds if it never posts (for cancelled flows)."
+      },
+      "PrimaryGamemaster": {
+        "Name": "Primary Gamemaster",
+        "Hint": "The Director who resolves the trigger stack. Any other Gamemaster is an assistant: they can still use a trigger they own, they just do not arbitrate. The first Gamemaster to load claims the seat, and it can be reassigned here."
       }
     },
     "Badge": {
