@@ -231,6 +231,34 @@ async function _onDriveFmRedirect(payload) {
   
   
   
+  
+  
+  
+  
+  const sameTarget = !!origTarget && picked.id === origTarget.id;
+
+  if (payload.messageId && game.modules.get(DSTD_ID)?.active && sameTarget) {
+    asPrimaryGM("applyFmDeltas", {
+      messageId: payload.messageId,
+      origTargetUuid: payload.origTargetUuid,
+      moveBase: payload.moveBase,
+      distance: Number(payload.distance) || 0,
+      deltas: [{
+        amount: Number(payload.amount) || 0,
+        modName: payload.modName,
+        ownerName: payload.ownerName ?? owner?.name ?? "",
+        ownerActorUuid: payload.ownerActorUuid ?? null,
+        srcTokenId: ownerToken.id,
+        newSourceTokenId: ownerToken.id,
+        forcePush: true,
+      }],
+    });
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectSameTarget", {
+      modName: payload.modName, name: picked.name,
+    }));
+    return;
+  }
+
   if (payload.messageId && game.modules.get(DSTD_ID)?.active) {
     const doc = picked.document;
     asPrimaryGM("applyFmRedirect", {
@@ -296,12 +324,23 @@ async function _onApplyFmDeltas(payload) {
   for (const d of payload.deltas ?? []) {
     const applied = Math.max(Number(d.amount) || 0, -running);
     running += applied;
+    
+    
+    const changed = d.newSourceTokenId ? { sourceTokenId: d.newSourceTokenId } : {};
     deltaPills.push({
-      modState: [{ ...modState, distanceDelta: applied }],
+      modState: [{ ...modState, distanceDelta: applied, ...changed }],
       noteName: d.modName, noteDesc: "",
       noteSrc: d.ownerName || null, srcTokenId: d.srcTokenId ?? null,
       dstTrigger: true,
     });
+    if (d.forcePush && modState.movement !== "push") {
+      deltaPills.push({
+        modState: [{ ...modState, movement: "push" }],
+        noteName: d.modName, noteDesc: "",
+        noteSrc: d.ownerName || null, srcTokenId: d.srcTokenId ?? null,
+        dstTrigger: true,
+      });
+    }
   }
 
   const origExisting = allFm[origSubKey] ? foundry.utils.deepClone(allFm[origSubKey]) : null;

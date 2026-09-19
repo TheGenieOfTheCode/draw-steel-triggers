@@ -332,7 +332,8 @@
       "LockCause": "{roller} is using {ability}.",
       "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
       "RollReleased": "The triggers are decided. {name} continues.",
-      "DeclineRecord": "{owner} declined to use {ability}."
+      "DeclineRecord": "{owner} declined to use {ability}.",
+      "FmRedirectSameTarget": "{modName}: {name} stays the target, taking the extra distance."
     },
     "MaliceCard": {
       "Header": "Malice Features",
