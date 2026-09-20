@@ -118,7 +118,14 @@
       "RangeNone": "Anywhere",
       "RangeCustom": "Within squares...",
       "Qualifiers": "Qualifiers",
-      "QualifiersPh": "within 5 squares, adjacent",
+      "QualifiersNone": "None read from this trigger.",
+      "QualEffectRange": "Enforced: only within {n} squares.",
+      "QualEffectType": "Enforced: only a {type} action.",
+      "QualEffectCost": "Enforced: only an ability costing {n} or less, or more if the owner can pay for it.",
+      "QualEffectTargets": "Enforced: only an ability targeting exactly {n} {side}.",
+      "QualEffectDsid": "Enforced: only the ability {dsid}.",
+      "QualEffectNone": "Descriptive only. Shown in reminders, not enforced.",
+      "QualSideCreature": "creature",
       "DamageTypes": "Damage Types",
       "AbilityDsid": "Causing Ability DSID",
       "GroupName": "Group Keyword",
@@ -196,7 +203,7 @@
       },
       "ScopeHint": "Who the event must happen to, from this ability's owner's point of view.",
       "RangeHint": "How close the triggering creature must be to this ability's owner. Ability distance uses the range printed on the ability, such as Melee 1.",
-      "QualifiersHint": "Extra conditions from the trigger text, shown in reminders. Distance qualifiers feed the Range field; the rest are not enforced automatically.",
+      "QualifiersHint": "Extra conditions from the trigger text, displayed as pills that can be hovered over for details or disabled to loosen requirements.",
       "DamageTypesHint": "For damage events only: fire the trigger just for these damage types. None selected means any type.",
       "AbilityDsidHint": "Only fire when the causing ability's Draw Steel ID matches, e.g. gore.",
       "GroupNameHint": "For the Group scope: the event must happen to a creature with this keyword (or this word in its name).",
@@ -355,6 +362,12 @@
       "Title": "{name}'s Malice",
       "TitleTypal": "{name} Malice",
       "Intro": "At the start of {name}'s turn, you can spend Malice to activate one of the following features."
+    },
+    "Bespoke": {
+      "HarmonizeNoMessage": "The ability that triggered Harmonize is no longer in chat, so the extra target must be added by hand.",
+      "HarmonizePick": "{modName}: choose the additional target. Enter to confirm, Escape to cancel.",
+      "HarmonizeAdded": "{name} was added as an additional target, taking sonic damage.",
+      "HarmonizeManual": "{modName}: Combat Tools is not available, so choose and add the additional target by hand."
     },
     "Reminder": {
       "Speaker": "Draw Steel: Triggers",

@@ -285,6 +285,36 @@ const QUALIFIERS = [
   /non-minion|minion|leader|solo|size \d/, /that (isn't|is not|doesn't|has|targets|costs|uses|emits|gains)[^,]*/,
 ];
 
+/* What the ability being used has to look like. Without these a trigger on USES_ABILITY fires on
+   every ability anybody uses, which is worse than not having it.
+
+   Exported because the trigger builder runs it over a hand written qualifier too, so typing
+   "main action" there does the same thing the book's own phrasing would have done. */
+export function abilityFiltersFrom(text, effectText = "") {
+  const out = {};
+  const raw = String(text ?? "");
+  const lc = raw.toLowerCase();
+
+  const named = raw.match(/\buses? (?:your|their|its) ([A-Z][\w'’ ]*?) ability\b/);
+  if (named) out.abilityDsid = generateDSID(named[1]);
+  if (/\bmain action\b/.test(lc)) out.abilityType = "main";
+  else if (/\bmaneuver\b/.test(lc)) out.abilityType = "maneuver";
+
+  const cost = lc.match(/costs? (\d+) or (?:fewer|less)/);
+  if (cost) out.abilityCostMax = Number(cost[1]);
+  /* Some buy their way past their own ceiling: Harmonize reads "a cost of 3 + each additional
+     drama spent", so it answers a 5 cost ability by costing 5 itself. The ceiling then stops being
+     a limit, and what decides is whether the owner can pay. */
+  if (cost && /cost of \d+ \+ each additional/i.test(effectText ?? "")) out.abilityCostScales = true;
+
+  const onlyOne = lc.match(/targets? only one (enemy|ally|creature)/);
+  if (onlyOne) {
+    out.abilityTargetCount = 1;
+    if (onlyOne[1] !== "creature") out.abilityTargetSide = onlyOne[1];
+  }
+  return out;
+}
+
 const EVENT_VERB = /\b(takes?|deals?|damages?|dies|destroyed|moves?|enters?|leaves?|shifts?|starts?|ends?|uses?|makes?|targets?|targeted|forced?|pushed|pulled|slid|becomes?|gains?|grabs?|regains?|reduced?|winded|dying|falls|flies|comes|obtains?)\b/;
 
 function stripPrefix(t) {
@@ -381,23 +411,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     const using = clause.match(/\busing (?:their |its |the )?([A-Z][\w' ]*?)(?=[.,]|$| (?:ability|maneuver|action))/);
     if (using) entry.abilityDsid = generateDSID(using[1]);
 
-    /* What the ability being used has to look like. Without these a trigger on USES_ABILITY fires
-       on every ability anybody uses, which is worse than not having it. */
-    const named = clause.match(/\buses? (?:your|their|its) ([A-Z][\w'’ ]*?) ability\b/);
-    if (named) entry.abilityDsid = generateDSID(named[1]);
-    if (/\bmain action\b/.test(lc)) entry.abilityType = "main";
-    else if (/\bmaneuver\b/.test(lc)) entry.abilityType = "maneuver";
-    const cost = lc.match(/costs? (\d+) or (?:fewer|less)/);
-    if (cost) entry.abilityCostMax = Number(cost[1]);
-    /* Some of these buy their way past their own ceiling: Harmonize reads "a cost of 3 + each
-       additional drama spent", so it answers a 5 cost ability by costing 5 itself. The ceiling then
-       stops being a limit and what actually decides is whether the owner can pay. */
-    if (cost && /cost of \d+ \+ each additional/i.test(effectText ?? "")) entry.abilityCostScales = true;
-    const onlyOne = lc.match(/targets? only one (enemy|ally|creature)/);
-    if (onlyOne) {
-      entry.abilityTargetCount = 1;
-      if (onlyOne[1] !== "creature") entry.abilityTargetSide = onlyOne[1];
-    }
+    Object.assign(entry, abilityFiltersFrom(clause, effectText));
     const eff = lc.match(/ends? the ([\w -]+?) effect/); if (eff) entry.effectName = eff[1];
     const zone = lc.match(/\b(?:enters?|starts? their turn (?:in|within|adjacent to)) (?:the|a) ([\w -]+?)(?: or|,|$)/); if (zone) entry.zone = zone[1];
     const excl = lc.match(/(?:doesn['’]t|does not) also targets? (?:the )?([\w'’ -]+?)(?=[.,]|$| with| using)/);

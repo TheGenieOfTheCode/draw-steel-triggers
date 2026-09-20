@@ -1,5 +1,35 @@
 import { MODULE_ID } from "../util.mjs";
 import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility } from "../triggers/registry.mjs";
+import { abilityFiltersFrom } from "../parser/trigger-parser.mjs";
+
+function qualifierEffect(text) {
+  const within = String(text).match(/within (\d+)/i);
+  if (within) return game.i18n.format("DS_TRIGGERS.Editor.QualEffectRange", { n: within[1] });
+  if (/\badjacent\b/i.test(text)) return game.i18n.format("DS_TRIGGERS.Editor.QualEffectRange", { n: 1 });
+
+  const filters = abilityFiltersFrom(text);
+  const parts = [];
+  if (filters.abilityType) parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectType", { type: filters.abilityType }));
+  if (filters.abilityCostMax != null) parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectCost", { n: filters.abilityCostMax }));
+  if (filters.abilityTargetCount != null) {
+    parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectTargets", {
+      n: filters.abilityTargetCount,
+      side: filters.abilityTargetSide ?? game.i18n.localize("DS_TRIGGERS.Editor.QualSideCreature"),
+    }));
+  }
+  if (filters.abilityDsid) parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectDsid", { dsid: filters.abilityDsid }));
+  return parts.length ? parts.join(" ") : game.i18n.localize("DS_TRIGGERS.Editor.QualEffectNone");
+}
+
+function qualifierPills(clause) {
+  const off = new Set(clause.qualifiersOff ?? []);
+  return [...(clause.qualifiers ?? []), ...off].map((text) => ({
+    text,
+    disabled: off.has(text),
+    enforced: qualifierEffect(text) !== game.i18n.localize("DS_TRIGGERS.Editor.QualEffectNone"),
+    tooltip: qualifierEffect(text),
+  }));
+}
 
 const EVENT_GROUPS = [
   ["Common", [
@@ -97,7 +127,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       removeTooltip: L("RemoveClause"),
       labels: {
         event: L("Event"), scope: L("Scope"), range: L("Range"),
-        qualifiers: L("Qualifiers"), qualifiersPh: L("QualifiersPh"),
+        qualifiers: L("Qualifiers"), qualifiersNone: L("QualifiersNone"),
         damageTypes: L("DamageTypes"),
         abilityDsid: L("AbilityDsid"), groupName: L("GroupName"), groupNone: L("GroupNone"),
         customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
@@ -136,7 +166,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         })),
         rangeCustom: Number.isFinite(c.range),
         rangeValue: Number.isFinite(c.range) ? c.range : 1,
-        qualifiers: (c.qualifiers ?? []).join(", "),
+        qualifiers: qualifierPills(c),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
         showHold: c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
         holdChecked: c.event === "WOULD_TAKE_DAMAGE",
@@ -185,6 +215,38 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     this._listenerAbort = new AbortController();
     const { signal } = this._listenerAbort;
     const el = this.element;
+
+    
+    el.addEventListener("click", (event) => {
+      const pill = event.target.closest("[data-qual-toggle]");
+      if (!pill) return;
+      event.preventDefault();
+      this._syncFromDOM();
+      const clause = this._clauses[Number(pill.dataset.index)];
+      if (!clause) return;
+
+      const text = pill.dataset.qualToggle;
+      const off = new Set(clause.qualifiersOff ?? []);
+      const on = (clause.qualifiers ?? []).filter((q) => q !== text);
+      if (off.has(text)) {
+        off.delete(text);
+        on.push(text);
+      } else {
+        off.add(text);
+      }
+      clause.qualifiers = on;
+      if (off.size) clause.qualifiersOff = [...off];
+      else delete clause.qualifiersOff;
+
+      for (const k of ["abilityType", "abilityCostMax", "abilityCostScales", "abilityTargetCount", "abilityTargetSide"]) delete clause[k];
+      Object.assign(clause, abilityFiltersFrom(on.join(", ")));
+
+      const distance = on.map((q) => q.match(/within (\d+)/i)?.[1] ?? (/\badjacent\b/i.test(q) ? "1" : null)).find(Boolean);
+      if (distance) clause.range = Number(distance);
+      else if (Number.isFinite(clause.range)) clause.range = "none";
+
+      this.render();
+    }, { signal });
 
     el.addEventListener("change", (event) => {
       const eventSel = event.target.closest('select[data-field="event"]');
@@ -280,10 +342,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const field = input.dataset.field;
       if (input.type === "checkbox") {
         if (input.checked) clause[field] = true;
-        else delete clause[field];
-      } else if (field === "qualifiers") {
-        const list = input.value.split(",").map((s) => s.trim()).filter(Boolean);
-        if (list.length) clause[field] = list;
         else delete clause[field];
       } else if (field === "event" || field === "scope") {
         clause[field] = input.value;

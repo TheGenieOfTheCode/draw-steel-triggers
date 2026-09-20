@@ -39,6 +39,7 @@ Hooks.on("createChatMessage", (message) => {
     subjectToken: used.token,
     usedAbility: used.item,
     usedTargets: targets,
+    sourceMessageId: message.id,
     causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.UsesAbility", {
       name: used.actor.name, ability: used.item.name,
     }),

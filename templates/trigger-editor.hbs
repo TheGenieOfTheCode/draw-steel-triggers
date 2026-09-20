@@ -42,8 +42,13 @@
       <p class="dst-hint">{{@root.hints.range}}</p>
       <div class="form-group">
         <label>{{@root.labels.qualifiers}}</label>
-        <div class="form-fields">
-          <input type="text" data-field="qualifiers" data-index="{{index}}" value="{{qualifiers}}" placeholder="{{@root.labels.qualifiersPh}}">
+        <div class="form-fields dst-qual-pills">
+          {{#each qualifiers}}
+          <button type="button" class="dst-qual-pill{{#if disabled}} dst-qual-off{{/if}}{{#if enforced}} dst-qual-live{{/if}}"
+                  data-qual-toggle="{{text}}" data-index="{{../index}}" data-tooltip="{{tooltip}}">{{text}}</button>
+          {{else}}
+          <span class="dst-qual-empty">{{@root.labels.qualifiersNone}}</span>
+          {{/each}}
         </div>
       </div>
       <p class="dst-hint">{{@root.hints.qualifiers}}</p>

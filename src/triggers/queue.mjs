@@ -4,6 +4,8 @@ import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
+import { pickHarmonizeTarget } from "./bespoke.mjs";
+import { hasBespokeUse } from "./bespoke-registry.mjs";
 
 let socket = null;
 
@@ -232,7 +234,8 @@ async function _onQueueResolve(id, outcome, userName) {
 
   
   if (outcome === "used" && entry.itemUuid
-    && (entry.fmMode || entry.rollMod || entry.redirect || entry.halvesOnUse)) {
+    && (entry.fmMode || entry.rollMod || entry.redirect || entry.halvesOnUse
+      || hasBespokeUse(fromUuidSync(entry.itemUuid)?.system?._dsid))) {
     _automatedUses.set(entry.itemUuid, Date.now());
   }
 
@@ -1123,7 +1126,7 @@ export function releaseHeld(resumeId) {
   asPrimaryGM("releaseHeld", resumeId);
 }
 
-export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage = null, subjectTokenUuid = null }) {
+export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage = null, subjectTokenUuid = null, sourceMessageId = null }) {
   const promptId = foundry.utils.randomID();
   const entries = matches.map((m) => ({
     id: foundry.utils.randomID(),
@@ -1141,6 +1144,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     promptId,
     triggerDamage,
     subjectTokenUuid,
+    sourceMessageId,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
   asPrimaryGM("queueAdd", entries);
@@ -1305,6 +1309,7 @@ Hooks.once("socketlib.ready", () => {
   socket.register("pickRedirectSubject", _onPickRedirectSubject);
   socket.register("pickRedirectTarget", _onPickRedirectTarget);
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
+  socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
 });
 
 const DSTD_ID = "draw-steel-target-damage";

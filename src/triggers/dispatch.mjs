@@ -6,7 +6,8 @@ import { maliceChipURI } from "../ui/malice-chip.mjs";
 import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 
-const PROMPT_EVENTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE"]);
+const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE"]);
+const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, "USES_ABILITY"]);
 
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
 
@@ -197,7 +198,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   return matches;
 }
 
-export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null }) {
+export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
 
@@ -206,10 +207,10 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
 
   
   
-  if (PROMPT_EVENTS.has(event) && getSetting("damagePrompts")) {
+  if (PROMPT_EVENTS.has(event) && (!DAMAGE_PROMPTS.has(event) || getSetting("damagePrompts"))) {
     const prompts = matches.filter((m) =>
       !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
-    if (prompts.length) enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid });
+    if (prompts.length) enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
     matches = matches.filter((m) => !prompts.includes(m));
   }
 

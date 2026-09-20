@@ -1030,3 +1030,33 @@ button.dst-dstd-res-locked {
 
 .dst-snooze-picker { display: flex; flex-direction: column; gap: 4px; }
 .dst-snooze-picker p { margin: 0 0 4px; }
+
+.dst-qual-pills { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+
+button.dst-qual-pill {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 9px;
+  line-height: 1.5;
+  font-size: var(--font-size-11);
+  background: var(--dst-pill-bg, rgba(128, 128, 128, 0.16));
+  border: 1px solid var(--color-border-light-tertiary, rgba(255, 255, 255, 0.16));
+  cursor: pointer;
+}
+
+button.dst-qual-pill.dst-qual-live {
+  border-color: #58b158;
+  color: #58b158;
+  font-weight: bold;
+}
+
+button.dst-qual-pill.dst-qual-off {
+  opacity: 0.45;
+  text-decoration: line-through;
+  border-style: dashed;
+  color: inherit;
+  font-weight: normal;
+}
+
+.dst-qual-empty { font-size: var(--font-size-11); opacity: 0.6; font-style: italic; }

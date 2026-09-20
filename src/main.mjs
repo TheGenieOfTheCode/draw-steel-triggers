@@ -20,6 +20,7 @@ import { getQueueMirror } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/ability-use.mjs";
+import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
@@ -168,6 +169,7 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
 registerSnoozeHooks();
 
 Hooks.once("ready", () => {
+  registerDamagePillBridge();
   console.log(`${MODULE_ID} | ready (v${game.modules.get(MODULE_ID).version})`);
 
   

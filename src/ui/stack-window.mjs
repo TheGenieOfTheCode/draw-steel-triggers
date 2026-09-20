@@ -4,6 +4,7 @@ import { maliceChipURI } from "./malice-chip.mjs";
 import { buildAbilityPreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from "./snooze.mjs";
+import { runBespokeUse } from "../triggers/bespoke.mjs";
 
 const STACK_WIDTH = 500;
 const ROSTER_OPEN_WIDTH = 758;
@@ -22,6 +23,7 @@ async function useWithTriggerContext(item, entry) {
 
   try {
     await item.system.use();
+    await runBespokeUse(item, entry);
   } finally {
     if (borrowed) {
       for (const t of game.user.targets) t.setTarget(false, { user: game.user, releaseOthers: false });
