@@ -15,7 +15,7 @@ import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spen
 import { computeAutomationLevel } from "./ui/badge.mjs";
 import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import { StackWindow } from "./ui/stack-window.mjs";
-import { toggleSnooze, isActorSnoozed } from "./ui/snooze.mjs";
+import { toggleSnooze, isActorSnoozed, isTriggerSnoozed, setSnooze, clearSnooze, listSnoozes, registerSnoozeHooks } from "./ui/snooze.mjs";
 import { getQueueMirror } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
@@ -137,6 +137,10 @@ Hooks.once("init", () => {
     scanWorld,
     toggleSnooze,
     isActorSnoozed,
+    isTriggerSnoozed,
+    setSnooze,
+    clearSnooze,
+    listSnoozes,
   };
 });
 
@@ -159,6 +163,8 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
     el.insertAdjacentElement("beforebegin", h);
   }
 });
+
+registerSnoozeHooks();
 
 Hooks.once("ready", () => {
   console.log(`${MODULE_ID} | ready (v${game.modules.get(MODULE_ID).version})`);

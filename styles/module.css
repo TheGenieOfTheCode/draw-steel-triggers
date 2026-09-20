@@ -920,3 +920,90 @@ button.dst-dstd-res-locked {
 }
 .dst-after-pick-btn:hover { border-color: #d9a63f; background: rgba(217, 166, 63, 0.22); }
 .dst-after-pick-btn:disabled { opacity: 0.45; cursor: default; }
+
+.dst-shell { display: flex; align-items: flex-start; gap: 0; position: relative; }
+.dst-shell > .dst-stack { flex: 1 1 auto; min-width: 0; transition: margin-right 0.25s ease; }
+
+.dst-shell.roster-open > .dst-stack { margin-right: 258px; min-height: 380px; }
+
+.dst-shell.is-fixed > .dst-stack { min-height: 0; }
+
+.dst-roster {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 0.25s ease, opacity 0.2s ease;
+}
+.dst-roster.expanded { width: 250px; opacity: 1; }
+
+.dst-roster-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 2px; }
+
+.dst-stack-window .header-control[data-action="toggleRoster"].is-open { opacity: 1; color: #d9a63f; }
+
+.dst-roster-section { margin-bottom: 6px; }
+.dst-roster-section-head {
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; list-style: none; padding: 3px 0;
+  font-size: var(--font-size-11); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.8;
+}
+.dst-roster-section-head::-webkit-details-marker { display: none; }
+.dst-roster-section[open] > .dst-roster-section-head .dst-roster-caret { transform: rotate(90deg); }
+
+.dst-roster-section.is-divided {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 2px solid var(--color-border-light-tertiary, rgba(255,255,255,0.14));
+}
+.dst-roster-section--malice > .dst-roster-section-head { color: var(--dst-badge-color, inherit); }
+
+.dst-roster-head {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding-bottom: 4px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--color-border-light-tertiary, rgba(255,255,255,0.1));
+}
+.dst-roster-title { flex: 1; font-weight: 600; font-size: var(--font-size-12); text-transform: uppercase; letter-spacing: 0.04em; }
+.dst-roster-all { flex: 0 0 auto; width: 24px; height: 24px; padding: 0; }
+.dst-roster-empty { font-size: var(--font-size-12); opacity: 0.7; margin: 4px 0; }
+
+.dst-roster-group { margin-bottom: 6px; }
+.dst-roster-owner {
+  display: flex; align-items: center; gap: 6px;
+  cursor: pointer; list-style: none; padding: 2px 0;
+  font-size: var(--font-size-12); font-weight: 600;
+}
+.dst-roster-owner::-webkit-details-marker { display: none; }
+.dst-roster-owner img { width: 22px; height: 22px; border: none; border-radius: 3px; flex: 0 0 auto; }
+.dst-roster-owner span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dst-roster-caret { transition: transform 120ms ease; opacity: 0.6; font-size: var(--font-size-11); }
+.dst-roster-group[open] > .dst-roster-owner .dst-roster-caret { transform: rotate(90deg); }
+.dst-roster-muted { opacity: 0.6; font-size: var(--font-size-11); }
+
+.dst-roster-row { padding: 2px 0 2px 20px; }
+.dst-roster-row.is-snoozed { opacity: 0.45; }
+.dst-roster-line { display: flex; align-items: center; gap: 4px; }
+.dst-roster-name { flex: 1; min-width: 0; font-size: var(--font-size-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dst-roster-free { font-size: var(--font-size-10); opacity: 0.7; }
+.dst-roster-expand, .dst-roster-snooze {
+  flex: 0 0 auto; width: 20px; height: 20px; padding: 0;
+  background: none; border: none; opacity: 0.7; cursor: pointer;
+}
+.dst-roster-expand:hover, .dst-roster-snooze:hover { opacity: 1; }
+.dst-roster-cost {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--font-size-11); white-space: nowrap; color: #d9a63f;
+}
+.dst-roster-cost--malice { color: #e05252; }
+.dst-roster-cost .dst-malice-chip { width: 14px; height: 14px; flex: 0 0 14px; border: none; background: none; }
+.dst-roster-trigger { padding-left: 20px; font-size: var(--font-size-11); opacity: 0.75; font-style: italic; }
+.dst-roster-embed { padding: 4px 0 4px 20px; }
+
+.dst-snooze-picker { display: flex; flex-direction: column; gap: 4px; }
+.dst-snooze-picker p { margin: 0 0 4px; }

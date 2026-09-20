@@ -1,3 +1,4 @@
+<div class="dst-shell{{#if rosterOpen}} roster-open{{/if}}">
 <div class="dst-stack">
   {{#if entries.length}}
   <ul class="dst-stack-list">
@@ -100,4 +101,87 @@
   {{else}}
   <p class="dst-stack-empty">{{labels.empty}}</p>
   {{/if}}
+</div>
+
+<aside class="dst-roster{{#if rosterOpen}} expanded{{/if}}">
+  <div class="dst-roster-head">
+    <span class="dst-roster-title">{{labels.rosterTitle}}</span>
+    {{#if roster.any}}
+    <button type="button" class="dst-roster-all" data-action="snoozeAll" data-tooltip="{{labels.snoozeAllTooltip}}">
+      <i class="fa-solid fa-bell-slash"></i>
+    </button>
+    {{/if}}
+  </div>
+
+  <div class="dst-roster-scroll">
+  {{#unless roster.any}}
+  <p class="dst-roster-empty">{{#if roster.isGM}}{{labels.rosterEmptyGM}}{{else}}{{labels.rosterEmptyPlayer}}{{/if}}</p>
+  {{/unless}}
+
+  {{#each roster.sections}}
+  <details class="dst-roster-section dst-roster-section--{{id}}{{#if divided}} is-divided{{/if}}"{{#unless collapsed}} open{{/unless}}>
+    <summary class="dst-roster-section-head">
+      <i class="fa-solid fa-angle-right dst-roster-caret"></i>
+      <span>{{label}}</span>
+    </summary>
+
+    {{#each flat}}
+    <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}">
+      <div class="dst-roster-line">
+        <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}">
+          <i class="fa-solid fa-angle-right"></i>
+        </button>
+        <span class="dst-roster-name">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</span>
+        {{#if costBadge}}
+        <span class="dst-roster-cost{{#if costBadge.malice}} dst-roster-cost--malice{{/if}}">
+          {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}
+        </span>
+        {{/if}}
+        <button type="button" class="dst-roster-snooze" data-action="snoozeTrigger"
+                data-dsid="{{dsid}}" data-actor-uuid="{{actorUuid}}" data-name="{{name}}"
+                data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeTooltip}}{{/if}}">
+          <i class="fa-solid {{#if snoozed}}fa-bell-slash{{else}}fa-bell{{/if}}"></i>
+        </button>
+      </div>
+      {{#if trigger}}<div class="dst-roster-trigger">{{trigger}}</div>{{/if}}
+      <div class="dst-roster-embed" data-embed-for="{{uuid}}" hidden></div>
+    </div>
+    {{/each}}
+
+    {{#each groups}}
+    <details class="dst-roster-group" open>
+      <summary class="dst-roster-owner">
+        <i class="fa-solid fa-angle-right dst-roster-caret"></i>
+        <img src="{{img}}" alt="">
+        <span>{{name}}</span>
+        {{#if snoozedCount}}<i class="fa-solid fa-bell-slash dst-roster-muted" data-tooltip="{{@root.labels.groupMuted}}"></i>{{/if}}
+      </summary>
+      {{#each abilities}}
+      <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}">
+        <div class="dst-roster-line">
+          <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}">
+            <i class="fa-solid fa-angle-right"></i>
+          </button>
+          <span class="dst-roster-name">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</span>
+          {{#if costBadge}}
+          <span class="dst-roster-cost{{#if costBadge.malice}} dst-roster-cost--malice{{/if}}">
+            {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}
+          </span>
+          {{/if}}
+          <button type="button" class="dst-roster-snooze" data-action="snoozeTrigger"
+                  data-dsid="{{dsid}}" data-actor-uuid="{{actorUuid}}" data-name="{{name}}"
+                  data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeTooltip}}{{/if}}">
+            <i class="fa-solid {{#if snoozed}}fa-bell-slash{{else}}fa-bell{{/if}}"></i>
+          </button>
+        </div>
+        {{#if trigger}}<div class="dst-roster-trigger">{{trigger}}</div>{{/if}}
+        <div class="dst-roster-embed" data-embed-for="{{uuid}}" hidden></div>
+      </div>
+      {{/each}}
+    </details>
+    {{/each}}
+  </details>
+  {{/each}}
+  </div>
+</aside>
 </div>

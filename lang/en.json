@@ -334,7 +334,18 @@
       "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
       "RollReleased": "The triggers are decided. {name} continues.",
       "DeclineRecord": "{owner} declined to use {ability}.",
-      "FmRedirectSameTarget": "{modName}: {name} stays the target, taking the extra distance."
+      "FmRedirectSameTarget": "{modName}: {name} stays the target, taking the extra distance.",
+      "RosterTitle": "Triggers on hand",
+      "RosterEmptyGM": "No combat running, so there is nothing to list. Start an encounter and the monsters' triggers appear here.",
+      "RosterEmptyPlayer": "No character assigned, so there is nothing to list. Ask your Director to assign one in User Configuration.",
+      "SnoozeTooltip": "Stop offering this trigger for a while",
+      "SnoozeAllTooltip": "Snooze every trigger for me",
+      "GroupMuted": "Some of these are snoozed",
+      "SectionMonsters": "Monsters",
+      "SectionMalice": "Malice Actions",
+      "SectionHeroes": "Heroes",
+      "SectionMine": "Mine",
+      "RosterToggle": "Show or hide the trigger list"
     },
     "MaliceCard": {
       "Header": "Malice Features",
@@ -362,7 +373,18 @@
     "Snooze": {
       "Button": "Snooze Triggers",
       "On": "Triggers snoozed for your actors.",
-      "Off": "Triggers resumed for your actors."
+      "Off": "Triggers resumed for your actors.",
+      "Everything": "Everything",
+      "PickTitle": "Snooze this trigger",
+      "PickFor": "Stop offering {name} until when?",
+      "Cancel": "Cancel",
+      "UntilTurnStart": "The start of its next turn",
+      "UntilTurnEnd": "The end of its next turn",
+      "UntilRoundEnd": "The end of this round",
+      "UntilCombatEnd": "The end of this encounter",
+      "For10Minutes": "10 minutes from now",
+      "For30Minutes": "30 minutes from now",
+      "UntilUnsnoozed": "Until I turn it back on"
     }
   }
 }

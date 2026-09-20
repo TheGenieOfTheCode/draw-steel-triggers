@@ -2,13 +2,18 @@ import { MODULE_ID } from "../util.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation } from "../triggers/queue.mjs";
 import { maliceChipURI } from "./malice-chip.mjs";
 import { buildAbilityPreview } from "./ability-preview.mjs";
+import { buildRoster } from "./roster.mjs";
+import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from "./snooze.mjs";
+
+const STACK_WIDTH = 500;
+const ROSTER_OPEN_WIDTH = 758;
 
 export class StackWindow extends ds.applications.api.DSApplication {
   static DEFAULT_OPTIONS = {
     id: "dst-stack-window",
     classes: ["draw-steel", "dst-stack-window"],
     window: { minimizable: true, resizable: true },
-    position: { width: 500, height: "auto" },
+    position: { width: STACK_WIDTH, height: "auto" },
     actions: {
       useEntry: StackWindow.#onUse,
       declineEntry: StackWindow.#onDecline,
@@ -17,6 +22,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
       releaseResolutionNow: StackWindow.#onReleaseResolutionNow,
       applyHeldNow: StackWindow.#onApplyHeldNow,
       openOwner: StackWindow.#onOpenOwner,
+      snoozeTrigger: StackWindow.#onSnoozeTrigger,
+      snoozeAll: StackWindow.#onSnoozeAll,
+      toggleRosterEmbed: StackWindow.#onToggleRosterEmbed,
+      toggleRoster: StackWindow.#onToggleRoster,
     },
   };
 
@@ -36,8 +45,29 @@ export class StackWindow extends ds.applications.api.DSApplication {
     if (this._instance?.rendered) this._instance.render();
   }
 
+  
+  static toggle() {
+    if (this._instance?.rendered) {
+      this._instance.close();
+      return null;
+    }
+    return this.open();
+  }
+
   get title() {
     return game.i18n.localize("DS_TRIGGERS.Queue.Title");
+  }
+
+  
+  _getFrameButtons(options) {
+    return [
+      ...super._getFrameButtons(options),
+      {
+        icon: "fa-solid fa-bell-slash",
+        label: "DS_TRIGGERS.Queue.RosterToggle",
+        action: "toggleRoster",
+      },
+    ];
   }
 
   async _prepareContext(_options) {
@@ -56,8 +86,13 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const embeds = await Promise.all(ordered.map((e) => e.itemUuid
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
       : Promise.resolve("")));
+    const roster = buildRoster();
     return {
       isGM: game.user.isGM,
+      roster,
+      
+      
+      rosterOpen: (this._rosterOpen ??= !ordered.length),
       maliceChipURI: maliceChipURI(),
       labels: {
         use: L("Use"), decline: L("Decline"), dismiss: L("Dismiss"),
@@ -68,6 +103,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
         gatedTooltip: L("PlayerPriorityTooltip"),
         showAbility: L("ShowAbility"),
         free: game.i18n.localize("DS_TRIGGERS.Reminder.Free"),
+        rosterTitle: L("RosterTitle"),
+        rosterEmptyGM: L("RosterEmptyGM"),
+        rosterEmptyPlayer: L("RosterEmptyPlayer"),
+        snoozeTooltip: L("SnoozeTooltip"),
+        snoozeAllTooltip: L("SnoozeAllTooltip"),
+        groupMuted: L("GroupMuted"),
       },
       entries: ordered.map((e, i) => {
         const isHeld = e.kind === "held";
@@ -134,7 +175,17 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   _onRender(_context, _options) {
-    setTimeout(() => this.setPosition({ height: "auto" }), 0);
+    
+    
+    if (!this._resizeHooked) {
+      this._resizeHooked = true;
+      this.element.querySelector(".window-resize-handle")
+        ?.addEventListener("pointerdown", () => { this._userSized = true; });
+    }
+    setTimeout(() => {
+      if (!this._userSized) this.setPosition({ height: "auto" });
+      this._fitRoster();
+    }, 0);
     const count = getQueueMirror().length;
     const titleEl = this.element.querySelector(".window-header .window-title");
     if (titleEl) {
@@ -143,7 +194,13 @@ export class StackWindow extends ds.applications.api.DSApplication {
         : this.title;
       titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem.svg" alt="">${text}`;
     }
+
     
+    
+    this.element.querySelector('.header-control[data-action="toggleRoster"]')?.classList.toggle("is-open", !!this._rosterOpen);
+    this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
+    this._fitRoster();
+
     this._openEmbeds ??= new Set();
     for (const toggle of this.element.querySelectorAll(".dst-stack-embed-toggle")) {
       toggle.addEventListener("click", () => {
@@ -188,6 +245,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   close(options) {
     clearInterval(this._graceTicker);
+    clearTimeout(this._drawerTimer);
     return super.close(options);
   }
 
@@ -232,6 +290,85 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const doc = await fromUuid(target.dataset.uuid).catch(() => null);
     doc?.sheet?.render(true);
   }
+
+  static async #onSnoozeTrigger(_event, target) {
+    const { dsid, actorUuid, name } = target.dataset;
+    const actor = actorUuid ? fromUuidSync(actorUuid) : null;
+    const existing = snoozeFor(actor, dsid);
+    if (existing) {
+      await clearSnooze(actor, existing.key);
+      this.render();
+      return;
+    }
+    const choice = await promptSnooze(name);
+    if (!choice) return;
+    
+    
+    await setSnooze(actor, { dsid, ownerUuid: actorUuid, ...choice });
+    this.render();
+  }
+
+  
+  
+  _fitRoster() {
+    const shell = this.element?.querySelector(".dst-shell");
+    const content = this.element?.querySelector(".window-content");
+    if (!shell || !content) return;
+    const fixed = !!this.element.style.height;
+    shell.classList.toggle("is-fixed", fixed);
+    if (!fixed) {
+      shell.style.height = "";
+      return;
+    }
+    const room = content.getBoundingClientRect().bottom - shell.getBoundingClientRect().top;
+    shell.style.height = `${Math.max(120, Math.floor(room))}px`;
+  }
+
+  _onPosition(position) {
+    super._onPosition?.(position);
+    this._fitRoster();
+  }
+
+  _setRosterOpen(open) {
+    this._rosterOpen = !!open;
+    this.element.querySelector(".dst-shell")?.classList.toggle("roster-open", this._rosterOpen);
+    this.element.querySelector(".dst-roster")?.classList.toggle("expanded", this._rosterOpen);
+    this.element.querySelector('.header-control[data-action="toggleRoster"]')?.classList.toggle("is-open", this._rosterOpen);
+    
+    
+    this.element.style.transition = "width 0.25s ease";
+    this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
+    clearTimeout(this._drawerTimer);
+    this._drawerTimer = setTimeout(() => { if (this.element) this.element.style.transition = ""; }, 300);
+  }
+
+  static #onToggleRoster() {
+    this._setRosterOpen(!this._rosterOpen);
+  }
+
+  static async #onSnoozeAll() {
+    await toggleSnooze();
+    this.render();
+  }
+
+  static #onToggleRosterEmbed(_event, target) {
+    const uuid = target.dataset.abilityUuid;
+    const host = this.element.querySelector("[data-embed-for=" + JSON.stringify(uuid) + "]");
+    if (!host) return;
+    const icon = target.querySelector("i");
+    if (!host.hidden) {
+      host.hidden = true;
+      icon?.classList.replace("fa-angle-down", "fa-angle-right");
+      return;
+    }
+    host.hidden = false;
+    icon?.classList.replace("fa-angle-right", "fa-angle-down");
+    if (host.dataset.built) return;
+    host.dataset.built = "1";
+    buildAbilityPreview(fromUuidSync(uuid), { includeMeta: true, includeTrigger: true })
+      .then((html) => { host.innerHTML = html; })
+      .catch(() => { host.innerHTML = ""; });
+  }
 }
 
 Hooks.on("dst.queueChanged", () => StackWindow.refresh());
@@ -247,7 +384,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
     icon: "fa-solid fa-layer-group",
     button: true,
     visible: true,
-    onChange: () => StackWindow.open(),
+    onChange: () => StackWindow.toggle(),
   };
 
   if (Array.isArray(tokenControl.tools)) {

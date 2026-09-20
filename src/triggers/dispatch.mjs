@@ -4,7 +4,7 @@ import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
 import { maliceChipURI } from "../ui/malice-chip.mjs";
 import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
-import { isActorSnoozed } from "../ui/snooze.mjs";
+import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 
 const PROMPT_EVENTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING"]);
 
@@ -130,6 +130,9 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
     for (const entry of getTriggeredAbilities(actor)) {
       if (dazed && (entry.item.system.type === "triggered" || entry.item.system.type === "freeTriggered")) continue;
       if (entry.item.system.restricted) continue;
+      
+      
+      if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
       if (!canAffordCost(actor, entry.item)) continue;
       const malice = isMaliceAbility(entry.item);
       if (spent && !entry.free && !malice) continue;
