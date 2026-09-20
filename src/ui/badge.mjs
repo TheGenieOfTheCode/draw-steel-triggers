@@ -7,6 +7,7 @@ const EVENT_MODES = {
   ROUND_START: "reminder",
   REGAINS_STAMINA: "reminder",
   TAKES_DAMAGE: "prompt",
+  USES_ABILITY: "reminder",
   DEALS_DAMAGE: "prompt",
   FORCE_MOVED: "forced",
   FORCE_MOVES: "forced",

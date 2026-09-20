@@ -370,6 +370,7 @@
       "MissingAbility": "That ability no longer exists.",
       "TakesDamage": "Triggered by {name} taking {amount} damage.",
       "DealsDamage": "Triggered by {name} dealing {amount} damage to {target}.",
+      "UsesAbility": "Triggered by {name} using {ability}.",
       "Dies": "Triggered by {name} being reduced to 0 Stamina.",
       "Winded": "Triggered by {name} becoming winded.",
       "RegainsStamina": "Triggered by {name} regaining {amount} Stamina."

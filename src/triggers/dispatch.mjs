@@ -105,16 +105,54 @@ function inSameCombatGroup(actorA, actorB) {
   return combat.combatants.find(c => c.actor === actorB)?.group === groupA;
 }
 
+function resourceOf(actor) {
+  const coreRes = actor.system.coreResource;
+  if (!coreRes) return null;
+  return foundry.utils.getProperty(coreRes.target, coreRes.path) ?? 0;
+}
+
 function canAffordCost(actor, item) {
   const cost = item.system.resource;
   if (!Number.isFinite(cost) || cost <= 0) return true;
-  const coreRes = actor.system.coreResource;
-  if (!coreRes) return true;
-  const current = foundry.utils.getProperty(coreRes.target, coreRes.path) ?? 0;
-  return current >= cost;
+  const current = resourceOf(actor);
+  return current == null || current >= cost;
 }
 
-export function collectTriggerMatches(event, subjectActor = null, subjectToken = null) {
+const opposed = (docA, docB) => {
+  if (!docA || !docB) return null;
+  if (docA.disposition != null && docB.disposition != null) return docA.disposition !== docB.disposition;
+  return (docA.actor?.hasPlayerOwner ?? false) !== (docB.actor?.hasPlayerOwner ?? false);
+};
+
+function usedAbilityMatches(clause, used, owner, context = {}) {
+  if (!used) return !clause.abilityDsid && !clause.abilityType
+    && clause.abilityCostMax == null && clause.abilityTargetCount == null;
+
+  const sys = used.system ?? {};
+  if (clause.abilityDsid && (sys._dsid ?? used.dsid) !== clause.abilityDsid) return false;
+  if (clause.abilityType && sys.type !== clause.abilityType) return false;
+  if (clause.abilityCostMax != null) {
+    const usedCost = Number(sys.resource ?? 0);
+    if (clause.abilityCostScales) {
+      
+      const owed = Math.max(clause.abilityCostMax, usedCost);
+      const held = owner ? resourceOf(owner) : null;
+      if (held != null && held < owed) return false;
+    } else if (usedCost > clause.abilityCostMax) return false;
+  }
+  
+  if (clause.abilityTargetCount != null) {
+    const targets = context.usedTargets ?? [];
+    if (targets.length) {
+      if (targets.length !== clause.abilityTargetCount) return false;
+      if (clause.abilityTargetSide === "enemy" && opposed(context.userToken, targets[0]) === false) return false;
+      if (clause.abilityTargetSide === "ally" && opposed(context.userToken, targets[0]) === true) return false;
+    } else if (Number(sys.target?.value ?? 0) !== clause.abilityTargetCount) return false;
+  }
+  return true;
+}
+
+export function collectTriggerMatches(event, subjectActor = null, subjectToken = null, usedAbility = null, usedContext = {}) {
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   const subjectDisposition = subjectToken?.disposition ?? null;
   const matches = [];
@@ -142,7 +180,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
-        c.event === event && (malice || (scopeMatches(c, actor, disposition, subjectActor, subjectDisposition)
+        c.event === event && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
+        && (malice || (scopeMatches(c, actor, disposition, subjectActor, subjectDisposition)
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
       if (clause.ownerUnacted && game.combat?.started) {
@@ -158,11 +197,11 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   return matches;
 }
 
-export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null }) {
+export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
 
-  let matches = collectTriggerMatches(event, subjectActor, subjectToken);
+  let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken });
   if (!matches.length) return;
 
   
