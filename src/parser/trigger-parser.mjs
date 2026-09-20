@@ -176,9 +176,13 @@ const HALF_TEXT = [
   /\bdamage (?:is |taken is )?halved\b/i,
 ];
 
+const HALF_IS_A_QUANTITY = /\bequal to half\b/i;
+
+const halvesDamage = (text) => !!text && !HALF_IS_A_QUANTITY.test(text) && HALF_TEXT.some((rx) => rx.test(text));
+
 function postRollHalfLayer(result, id, effectText) {
   if (!effectText || !result.clauses.some((c) => c.postRoll)) return result;
-  if (!HALF_TEXT.some((rx) => rx.test(effectText))) return result;
+  if (!halvesDamage(effectText)) return result;
   return {
     ...result,
     damageModifying: true,
@@ -188,7 +192,7 @@ function postRollHalfLayer(result, id, effectText) {
 
 function holdHalfLayer(result, id, effectText) {
   if (!effectText || !result.clauses.some((c) => carries(c, "WOULD_TAKE_DAMAGE"))) return result;
-  if (!HALF_TEXT.some((rx) => rx.test(effectText))) return result;
+  if (!halvesDamage(effectText)) return result;
   return {
     ...result,
     clauses: result.clauses.map((c) => carries(c, "WOULD_TAKE_DAMAGE") ? { ...c, halfDamage: true } : c),
@@ -236,7 +240,8 @@ const EVENTS = [
   ["WOULD_TAKE_DAMAGE", /\bwould take damage\b/i],
   ["FORCE_MOVED",     /\b(is |are |be |being )?(force(d)? moved|pushed|pulled|slid)\b/i],
   ["FORCE_MOVES",     /\bforce moves?\b/i],
-  ["TAKES_DAMAGE",    /\b(takes? (?:[\w-]+(?:,? or | ?, | ))*damage|loses? stamina|is damaged|damages? (you|the target|them|it|an ally|the \w+)|deals? ([\w, ]+ )?damage to (you|the target|an ally|any ally|an enemy|the \w+))/i],
+  
+  ["TAKES_DAMAGE",    /\b(takes? (?:[\w-]+(?:,? or | ?, | ))*damage|loses? stamina|is damaged|damages? (you|the target|them|it|an ally|the \w+)|deals? ([\w, ]+ )?damage to (you|the target|the \w+))/i],
   ["DEALS_DAMAGE",    /\b(deals? ([\w, ]+ )?damage|deals? rolled damage|damages? (a|an|another|any) )\b/i],
   ["TARGETED_BY_STRIKE", /\b(targets? (you|them|the target|an ally|an enemy|the \w+)\b|is targeted|targeted by|is struck by|makes? an? (melee |ranged )?strike against|strikes? (you|the target|the \w+))/i],
   ["MAKES_STRIKE",    /\bmakes? an? (melee |ranged )?strike( against (a|an|another|any) )?\b/i],

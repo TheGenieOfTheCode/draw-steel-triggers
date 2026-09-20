@@ -20,6 +20,7 @@ const _pendingResolutionGraces = new Map();
 
 const _recentAbilityPosts = new Map();
 const _automatedUses = new Map();
+const _triggerDamageUses = new Map();
 
 function _postedAfterUse(itemUuid, usedAt) {
   const t = _recentAbilityPosts.get(itemUuid);
@@ -233,6 +234,11 @@ async function _onQueueResolve(id, outcome, userName) {
   if (outcome === "used" && entry.itemUuid
     && (entry.fmMode || entry.rollMod || entry.redirect || entry.halvesOnUse)) {
     _automatedUses.set(entry.itemUuid, Date.now());
+  }
+
+  
+  if (outcome === "used" && entry.itemUuid && Number.isFinite(entry.triggerDamage)) {
+    _triggerDamageUses.set(entry.itemUuid, { amount: entry.triggerDamage, at: Date.now() });
   }
 
   
@@ -858,6 +864,15 @@ Hooks.on("createChatMessage", (message) => {
     _automatedUses.delete(abilityUse.abilityUuid);
     message.setFlag(MODULE_ID, "automated", true).catch(() => {});
   }
+  const triggerDamage = _triggerDamageUses.get(abilityUse.abilityUuid);
+  if (triggerDamage) {
+    _triggerDamageUses.delete(abilityUse.abilityUuid);
+    message.setFlag("draw-steel-combat-tools", "triggerDamage", triggerDamage.amount).catch(() => {});
+    dbg(`stamped ${triggerDamage.amount} triggering damage onto ${message.id}`);
+  }
+  for (const [uuid, rec] of _triggerDamageUses) {
+    if (now - rec.at > 120000) _triggerDamageUses.delete(uuid);
+  }
   for (const [uuid, t] of _automatedUses) {
     if (now - t > 120000) _automatedUses.delete(uuid);
   }
@@ -1108,7 +1123,7 @@ export function releaseHeld(resumeId) {
   asPrimaryGM("releaseHeld", resumeId);
 }
 
-export function enqueuePromptEntries(matches, { event, causeLabel }) {
+export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage = null, subjectTokenUuid = null }) {
   const promptId = foundry.utils.randomID();
   const entries = matches.map((m) => ({
     id: foundry.utils.randomID(),
@@ -1124,6 +1139,8 @@ export function enqueuePromptEntries(matches, { event, causeLabel }) {
     resumeId: null,
     resume: null,
     promptId,
+    triggerDamage,
+    subjectTokenUuid,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
   asPrimaryGM("queueAdd", entries);

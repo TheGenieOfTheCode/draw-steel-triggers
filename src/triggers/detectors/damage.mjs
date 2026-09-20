@@ -1,10 +1,33 @@
 import { dispatchTriggerEvent, collectTriggerMatches } from "../dispatch.mjs";
 import { enqueueDamageHold, consumeDamageBypass } from "../queue.mjs";
-import { MODULE_ID, getSetting } from "../../util.mjs";
+import { MODULE_ID, getSetting, dbg } from "../../util.mjs";
 
 let _pendingDamageType = null;
+
+let _dealer = null;
+
+function _dealerFromMessage(message) {
+  if (!message) return null;
+  const speaker = message.speaker ?? {};
+  const token = speaker.token ? canvas.tokens?.get(speaker.token) ?? null : null;
+  const actor = token?.actor ?? (speaker.actor ? game.actors.get(speaker.actor) : null);
+  return actor ? { actor, token } : null;
+}
+
 Hooks.once("ready", () => {
   if (!game.modules.get("lib-wrapper")?.active) return;
+
+  libWrapper.register(MODULE_ID, "ds.rolls.DamageRoll.applyDamageCallback", async function (wrapped, event) {
+    const li = event?.currentTarget?.closest?.("[data-message-id]");
+    _dealer = _dealerFromMessage(li ? game.messages.get(li.dataset.messageId) : null);
+    if (_dealer) dbg(`system damage button: dealer is ${_dealer.actor.name}`);
+    try {
+      return await wrapped(event);
+    } finally {
+      _dealer = null;
+    }
+  }, "WRAPPER");
+
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
     _pendingDamageType = options?.type ?? null;
     try {
@@ -84,6 +107,66 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
   return false;
 });
 
+const DSTD_ID = "draw-steel-target-damage";
+const _seenApplications = new Set();
+
+const _damageRecords = (record) => (Array.isArray(record?.records) ? record.records : [record])
+  .filter((r) => r?.kind === "damage" && r?.status === "applied" && Number(r?.amount) > 0);
+
+Hooks.on("updateChatMessage", (message) => {
+  
+  const state = message.getFlag(DSTD_ID, "state");
+  const applications = state?.applications;
+  if (!applications) return;
+
+  
+  const age = Date.now() - Number(state.updatedAt ?? 0);
+  if (!(age >= 0) || age > 15000) return;
+
+  const dealer = _dealerFromMessage(message);
+  if (!dealer) {
+    dbg(`target damage recorded on ${message.id} but its speaker resolves to no actor`);
+    return;
+  }
+
+  const keyFor = (operationId, r) =>
+    `${message.id}:${operationId}:${r.target?.tokenUuid ?? r.target?.actorUuid ?? ""}`;
+
+  for (const [operationId, record] of Object.entries(applications)) {
+    
+    for (const r of (Array.isArray(record?.records) ? record.records : [record])) {
+      if (r?.status !== "applied") _seenApplications.delete(keyFor(operationId, r));
+    }
+
+    for (const r of _damageRecords(record)) {
+      const victimUuid = r.target?.tokenUuid ?? r.target?.actorUuid ?? "";
+      const key = keyFor(operationId, r);
+      if (_seenApplications.has(key)) continue;
+      _seenApplications.add(key);
+
+      const doc = victimUuid ? fromUuidSync(victimUuid) : null;
+      const victim = doc?.actor ?? doc ?? null;
+      if (!victim || victim === dealer.actor) {
+        dbg(`skipped a damage record on ${message.id}: victim ${victimUuid || "unnamed"} is the dealer or could not be resolved`);
+        continue;
+      }
+
+      dbg(`target damage recorded: ${dealer.actor.name} dealt ${r.amount} to ${victim.name}`);
+      dispatchTriggerEvent({
+        event: "DEALS_DAMAGE",
+        subjectActor: dealer.actor,
+        subjectToken: dealer.token,
+        causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
+          name: dealer.actor.name, target: victim.name, amount: r.amount,
+        }),
+        triggerDamage: Number(r.amount),
+      });
+    }
+  }
+
+  if (_seenApplications.size > 400) _seenApplications.clear();
+});
+
 Hooks.on("preUpdateActor", (actor, changed, options) => {
   const stamina = changed.system?.stamina;
   if (!stamina || (!("value" in stamina) && !("temporary" in stamina))) return;
@@ -109,6 +192,20 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
     });
+
+    
+    if (_dealer && _dealer.actor !== actor) {
+      dispatchTriggerEvent({
+        event: "DEALS_DAMAGE",
+        subjectActor: _dealer.actor,
+        subjectToken: _dealer.token,
+        causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
+          name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
+        }),
+        triggerDamage: prevTotal - curTotal,
+        victimActorUuid: actor.uuid,
+      });
+    }
   }
   if (prev.value > 0 && cur.value <= 0) {
     dispatchTriggerEvent({

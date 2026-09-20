@@ -7,6 +7,28 @@ import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from ".
 
 const STACK_WIDTH = 500;
 const ROSTER_OPEN_WIDTH = 758;
+const DSCT_ID = "draw-steel-combat-tools";
+
+async function useWithTriggerContext(item, entry) {
+  const subject = entry.subjectTokenUuid ? fromUuidSync(entry.subjectTokenUuid) : null;
+  const token = subject?.object ?? (subject?.documentName === "Token" ? subject : null);
+  const previous = [...game.user.targets];
+  const borrowed = !!token?.isVisible;
+
+  if (Number.isFinite(entry.triggerDamage)) {
+    game.modules.get(DSCT_ID)?.api?.setTriggerDamage?.(entry.triggerDamage);
+  }
+  if (borrowed) token.setTarget(true, { user: game.user, releaseOthers: true });
+
+  try {
+    await item.system.use();
+  } finally {
+    if (borrowed) {
+      for (const t of game.user.targets) t.setTarget(false, { user: game.user, releaseOthers: false });
+      for (const t of previous) t.setTarget(true, { user: game.user, releaseOthers: false });
+    }
+  }
+}
 
 export class StackWindow extends ds.applications.api.DSApplication {
   static DEFAULT_OPTIONS = {
@@ -272,7 +294,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
       addRollBypass(item.uuid);
       watchUseCancellation(item.uuid);
-      item.system.use();
+      await useWithTriggerContext(item, entry);
     }
   }
 
