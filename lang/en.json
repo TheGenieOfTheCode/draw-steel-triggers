@@ -77,7 +77,8 @@
         "prompt": "prompts on the stack",
         "lock": "locks the roll",
         "hold": "holds the damage",
-        "resolution": "holds the resolution after the roll"
+        "resolution": "holds the resolution after the roll",
+        "forced": "holds the forced movement"
       },
       "Detail": {
         "Manual": "This trigger was configured by hand and skips the parser.",

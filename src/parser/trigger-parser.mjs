@@ -36,8 +36,8 @@ export const DAMAGE_MODIFYING = new Set([
   "adaptability", "armor-of-corpses", "armor-of-the-ancients", "break-armor", "buss-buffer",
   "dissipate", "field-collapse", "in-all-this-confusion", "inertial-absorption", "inertial-shield",
   "instant-retaliation", "meat-shield", "mind-requital", "night-watch", "parry",
-  "precognitive-shift", "psionic-retribution", "resist-the-unnatural", "shadow-veil", "shield-block",
-  "skin-like-castle-walls", "skitter", "stalkers-afterimage", "striking-afterimage", "synaptic-anchor",
+  "precognitive-shift", "psionic-retribution", "repel", "resist-the-unnatural",
+  "shadow-veil", "shield-block", "skin-like-castle-walls", "skitter", "stalkers-afterimage", "striking-afterimage", "synaptic-anchor",
   "unearthly-reflexes", "withdraw", "zephyr-feint",
 ]);
 
@@ -63,7 +63,7 @@ function bespokeLayer(result, id) {
 
 const DAMAGE_MOD_TEXT = [
   /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
-  /\bhalf (?:the |that |this |of the |any )?damage\b/i,
+  /\bhalf (?:the |that |this |of the |any )?(?:\w+ )?damage\b/i,
   /\bdamage (?:is |taken is )?halved\b/i,
   /\b(?:reduce[sd]?|decrease[sd]?|lower[sd]?) (?:the |that |this |any |incoming )?damage\b/i,
   /\btakes? no damage\b/i,
@@ -96,6 +96,8 @@ function resolveTargetScope(result, targetType) {
   return { ...result, clauses: result.clauses.map((c) => c.scope === "TARGET" ? { ...c, scope } : c) };
 }
 
+const carries = (clause, event) => clause.event === event || !!clause.events?.includes(event);
+
 function damageModLayer(result, id, effectText) {
   if (TARGETED_HALVERS.has(id)) {
     return {
@@ -108,9 +110,9 @@ function damageModLayer(result, id, effectText) {
   if (!DAMAGE_MODIFYING.has(id) && !isDamageModifyingText(effectText)) return result;
   let upgraded = 0;
   const clauses = result.clauses.map((c) => {
-    if (c.event !== "TAKES_DAMAGE") return c;
+    if (!carries(c, "TAKES_DAMAGE")) return c;
     upgraded++;
-    const next = { ...c, event: "WOULD_TAKE_DAMAGE" };
+    const next = { ...c, event: c.event === "TAKES_DAMAGE" ? "WOULD_TAKE_DAMAGE" : c.event };
     if (c.events) next.events = c.events.map((e) => e === "TAKES_DAMAGE" ? "WOULD_TAKE_DAMAGE" : e);
     return next;
   });
@@ -170,7 +172,7 @@ function rollModLayer(result, id, effectText) {
 
 const HALF_TEXT = [
   /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
-  /\bhalf (?:the |that |this |of the |any )?damage\b/i,
+  /\bhalf (?:the |that |this |of the |any )?(?:\w+ )?damage\b/i,
   /\bdamage (?:is |taken is )?halved\b/i,
 ];
 
@@ -185,11 +187,11 @@ function postRollHalfLayer(result, id, effectText) {
 }
 
 function holdHalfLayer(result, id, effectText) {
-  if (!effectText || !result.clauses.some((c) => c.event === "WOULD_TAKE_DAMAGE")) return result;
+  if (!effectText || !result.clauses.some((c) => carries(c, "WOULD_TAKE_DAMAGE"))) return result;
   if (!HALF_TEXT.some((rx) => rx.test(effectText))) return result;
   return {
     ...result,
-    clauses: result.clauses.map((c) => c.event === "WOULD_TAKE_DAMAGE" ? { ...c, halfDamage: true } : c),
+    clauses: result.clauses.map((c) => carries(c, "WOULD_TAKE_DAMAGE") ? { ...c, halfDamage: true } : c),
   };
 }
 
