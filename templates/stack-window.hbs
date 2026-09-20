@@ -70,6 +70,14 @@
       {{#if heldDetail}}
       <div class="dst-stack-held-detail">{{heldDetail}}</div>
       {{/if}}
+      {{#if fmTrail.length}}
+      <div class="dst-stack-fm-trail">
+        {{#each fmTrail}}
+        <span class="dst-fm-pill dst-fm-pill--{{dir}}" data-tooltip="{{tooltip}}">{{label}}</span>
+        {{/each}}
+        <span class="dst-fm-now{{#if fmStopped}} dst-fm-now--stopped{{/if}}">{{fmRunningLabel}}</span>
+      </div>
+      {{/if}}
       {{#if embedHTML}}
       <div class="dst-stack-embed-content" data-embed-for="{{id}}" {{#unless embedOpen}}hidden{{/unless}}>{{{embedHTML}}}</div>
       {{/if}}

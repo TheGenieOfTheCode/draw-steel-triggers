@@ -22,10 +22,9 @@ function _pruneFm() {
   }
 }
 
-function _fmMatches(event, subjectActor, subjectToken, sourceActor) {
+function _fmMatches(event, subjectActor, subjectToken) {
   return collectTriggerMatches(event, subjectActor, subjectToken).filter((m) => {
     if (m.malice) return false;
-    if (m.actor === sourceActor) return false;
     if (m.parse?.confidence !== "high" && m.parse?.source !== "manual") return false;
     return !!FM_INTERRUPTS[generateDSID(m.item.name)];
   });
@@ -52,9 +51,9 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
       matches.push(m);
     }
   };
-  add(_fmMatches("FORCE_MOVED", targetActor, target.document ?? target, source?.actor ?? null), "FmCauseMoved", target.name);
+  add(_fmMatches("FORCE_MOVED", targetActor, target.document ?? target), "FmCauseMoved", target.name);
   if (source?.actor && source.actor !== targetActor) {
-    add(_fmMatches("FORCE_MOVES", source.actor, source.document ?? source, null), "FmCauseMover", source.name);
+    add(_fmMatches("FORCE_MOVES", source.actor, source.document ?? source), "FmCauseMover", source.name);
   }
   if (!matches.length) return;
 
@@ -105,6 +104,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
       itemUuid: null,
       itemName: fmTitle,
       heldDetail: detailParts.join(" · ") || null,
+      fmDistance: Number(ctx.distance) || 0,
       ownerActorUuid: targetActor.uuid,
       ownerName: target.name,
     },
@@ -113,12 +113,34 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   return false;
 });
 
+function _deltaPayload(deltas) {
+  return (deltas ?? []).map((d) => {
+    const owner = d.ownerActorUuid ? fromUuidSync(d.ownerActorUuid) : null;
+    const tok = owner?.getActiveTokens?.(true, false)?.[0] ?? null;
+    return { amount: d.amount, modName: d.modName, ownerName: d.ownerName ?? null, srcTokenId: tok?.id ?? null };
+  });
+}
+
 async function _onResumeFm(fmId, mods) {
   const pending = _pendingFm.get(fmId);
   if (!pending) return;
   _pendingFm.delete(fmId);
 
-  if (mods?.redirect) {
+  const before = mods?.deltas ?? [];
+  const after = mods?.after ?? [];
+  let distance = pending.distance;
+  let reduced = false;
+  const announce = (d) => {
+    distance += d.amount;
+    if (d.amount < 0) reduced = true;
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmDelta", {
+      modName: d.modName, amount: d.amount > 0 ? `+${d.amount}` : String(d.amount),
+    }));
+  };
+  for (const d of before) announce(d);
+
+  
+  if (mods?.redirect && distance > 0) {
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirected", {
       modName: mods.redirect.modName, owner: mods.redirect.ownerName,
     }));
@@ -127,7 +149,11 @@ async function _onResumeFm(fmId, mods) {
       ownerActorUuid: mods.redirect.ownerActorUuid,
       ownerName: mods.redirect.ownerName,
       amount: mods.redirect.amount,
-      distance: pending.distance,
+      distance,
+      baseDistance: pending.distance,
+      carried: _deltaPayload(before),
+      after: _deltaPayload(after),
+      sourceTokenId: pending.sourceTokenId ?? null,
       origTargetTokenId: pending.targetTokenId,
       origTargetUuid: pending.origTargetUuid,
       messageId: pending.messageId,
@@ -141,16 +167,15 @@ async function _onResumeFm(fmId, mods) {
     return;
   }
 
-  const deltas = mods?.deltas ?? [];
-  let distance = pending.distance;
-  let reduced = false;
-  for (const d of deltas) {
-    distance += d.amount;
-    if (d.amount < 0) reduced = true;
-    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmDelta", {
-      modName: d.modName, amount: d.amount > 0 ? `+${d.amount}` : String(d.amount),
+  if (mods?.redirect) {
+    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectStopped", {
+      modName: mods.redirect.modName,
     }));
   }
+
+  
+  for (const d of after) announce(d);
+  const deltas = [...before, ...after];
 
   
   
@@ -162,11 +187,7 @@ async function _onResumeFm(fmId, mods) {
       origTargetUuid: pending.origTargetUuid,
       distance: pending.distance,
       moveBase: pending.moveBase,
-      deltas: deltas.map((d) => {
-        const owner = d.ownerActorUuid ? fromUuidSync(d.ownerActorUuid) : null;
-        const tok = owner?.getActiveTokens?.(true, false)?.[0] ?? null;
-        return { amount: d.amount, modName: d.modName, ownerName: d.ownerName ?? null, srcTokenId: tok?.id ?? null };
-      }),
+      deltas: _deltaPayload(deltas),
       counter: null,
     };
     if (distance <= 0) {
@@ -210,8 +231,10 @@ async function _onDriveFmRedirect(payload) {
   const origTarget = canvas.tokens.get(payload.origTargetTokenId);
   const maxWidth = origTarget?.document?.width ?? 1;
   const gridDist = canvas.grid.distance || 1;
+  
+  const ownerIsSource = !!payload.sourceTokenId && payload.sourceTokenId === ownerToken.id;
   const eligible = canvas.tokens.placeables.filter((t) =>
-    t.actor && t.id !== ownerToken.id
+    t.actor && !(ownerIsSource && t.id === ownerToken.id)
     && (t.document.width ?? 1) <= maxWidth
     && footprintGap(ownerToken.document, t.document) < 1 * gridDist);
   if (!eligible.length) {
@@ -242,8 +265,10 @@ async function _onDriveFmRedirect(payload) {
       messageId: payload.messageId,
       origTargetUuid: payload.origTargetUuid,
       moveBase: payload.moveBase,
-      distance: Number(payload.distance) || 0,
-      deltas: [{
+
+      
+      distance: Number(payload.baseDistance ?? payload.distance) || 0,
+      deltas: [...(payload.carried ?? []), {
         amount: Number(payload.amount) || 0,
         modName: payload.modName,
         ownerName: payload.ownerName ?? owner?.name ?? "",
@@ -251,7 +276,7 @@ async function _onDriveFmRedirect(payload) {
         srcTokenId: ownerToken.id,
         newSourceTokenId: ownerToken.id,
         forcePush: true,
-      }],
+      }, ...(payload.after ?? [])],
     });
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectSameTarget", {
       modName: payload.modName, name: picked.name,
@@ -273,6 +298,8 @@ async function _onDriveFmRedirect(payload) {
       ownerName: payload.ownerName ?? owner?.name ?? "",
       srcTokenId: ownerToken.id,
       amount: Number(payload.amount) || 0,
+      carried: payload.carried ?? [],
+      after: payload.after ?? [],
       moveBase: payload.moveBase,
     });
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectApplied", {
@@ -281,8 +308,9 @@ async function _onDriveFmRedirect(payload) {
     return;
   }
 
-  const distance = (Number(payload.distance) || 0) + (Number(payload.amount) || 0);
-  api.bypassNextFmGate?.();
+  
+  const trailing = (payload.after ?? []).reduce((n, d) => n + (Number(d.amount) || 0), 0);
+  const distance = Math.max(0, (Number(payload.distance) || 0) + (Number(payload.amount) || 0) + trailing);
   await api.forcedMovement({
     type: "Push", distance,
     sourceId: ownerToken.id, targetId: picked.id,
@@ -362,11 +390,17 @@ async function _onApplyFmDeltas(payload) {
 
     const newKey = String(c.newTarget.tokenUuid ?? c.newTarget.actorUuid ?? "").replace(/\./g, "__");
     const newSubKey = `${newKey}:${modState.movement}`;
+    const newExisting = allFm[newSubKey] ? foundry.utils.deepClone(allFm[newSubKey]) : null;
+
     
-    
-    
+    const stackDelta = (entry) => (entry?.modStack ?? [])
+      .filter((e) => e.enabled !== false)
+      .reduce((n, e) => n + (Number(e.modState?.[0]?.distanceDelta) || 0), 0);
+    const abilityBase = (Number(payload.distance) || 0) - stackDelta(origExisting);
+    const counterDelta = (Number(c.amount) || 0) - abilityBase - stackDelta(newExisting);
+
     const counterStack = [{
-      modState: [{ ...modState, distanceDelta: (Number(c.amount) || 0) - (Number(payload.distance) || 0), sourceTokenId: c.srcTokenId ?? null }],
+      modState: [{ ...modState, distanceDelta: counterDelta, sourceTokenId: c.srcTokenId ?? null }],
       noteName: c.modName, noteDesc: "",
       noteSrc: c.ownerName || null, srcTokenId: c.srcTokenId ?? null,
       dstRedirect: true,
@@ -379,7 +413,6 @@ async function _onApplyFmDeltas(payload) {
         dstRedirect: true,
       });
     }
-    const newExisting = allFm[newSubKey] ? foundry.utils.deepClone(allFm[newSubKey]) : null;
     const newEntry = newExisting
       ? { ...newExisting, modStack: [...(newExisting.modStack ?? []), ...counterStack] }
       : { applied: false, undoMsgId: null, modStack: counterStack };
@@ -410,12 +443,39 @@ async function _onApplyFmRedirect(payload) {
   noteTargetsChange(payload.messageId, targets.map((t) => String(t.tokenUuid ?? t.actorUuid ?? "")));
 
   const modState = _baseModState(payload.moveBase ?? {});
-  const modStack = [{
+  const newTargetKey = String(payload.newTarget.tokenUuid ?? payload.newTarget.actorUuid ?? "").replace(/\./g, "__");
+  const origTargetKey = String(payload.origTargetUuid ?? "").replace(/\./g, "__");
+  const subKey = `${newTargetKey}:${modState.movement}`;
+  const origSubKey = `${origTargetKey}:${modState.movement}`;
+  const allFm = foundry.utils.getProperty(message.flags, `${DSCT_ID}.dstdFmState`) ?? {};
+
+  
+  const inherited = (allFm[origSubKey]?.modStack ?? [])
+    .filter((e) => e.enabled !== false)
+    .map((e) => foundry.utils.deepClone(e));
+
+  
+  const modStack = inherited.concat((payload.carried ?? []).map((d) => ({
+    modState: [{ ...modState, distanceDelta: Number(d.amount) || 0 }],
+    noteName: d.modName, noteDesc: "",
+    noteSrc: d.ownerName || null, srcTokenId: d.srcTokenId ?? null,
+    dstTrigger: true,
+  })));
+  modStack.push({
     modState: [{ ...modState, distanceDelta: Number(payload.amount) || 0, sourceTokenId: payload.srcTokenId ?? null }],
     noteName: payload.modName, noteDesc: "",
     noteSrc: payload.ownerName || null, srcTokenId: payload.srcTokenId ?? null,
     dstRedirect: true,
-  }];
+  });
+  
+  for (const d of payload.after ?? []) {
+    modStack.push({
+      modState: [{ ...modState, distanceDelta: Number(d.amount) || 0 }],
+      noteName: d.modName, noteDesc: "",
+      noteSrc: d.ownerName || null, srcTokenId: d.srcTokenId ?? null,
+      dstTrigger: true,
+    });
+  }
   if (modState.movement !== "push") {
     modStack.push({
       modState: [{ ...modState, movement: "push" }],
@@ -424,12 +484,6 @@ async function _onApplyFmRedirect(payload) {
       dstRedirect: true,
     });
   }
-  const newTargetKey = String(payload.newTarget.tokenUuid ?? payload.newTarget.actorUuid ?? "").replace(/\./g, "__");
-  const origTargetKey = String(payload.origTargetUuid ?? "").replace(/\./g, "__");
-  const subKey = `${newTargetKey}:${modState.movement}`;
-  const origSubKey = `${origTargetKey}:${modState.movement}`;
-
-  const allFm = foundry.utils.getProperty(message.flags, `${DSCT_ID}.dstdFmState`) ?? {};
   const existing = allFm[subKey] ? foundry.utils.deepClone(allFm[subKey]) : null;
   const newEntry = existing
     ? { ...existing, modStack: [...(existing.modStack ?? []), ...modStack] }

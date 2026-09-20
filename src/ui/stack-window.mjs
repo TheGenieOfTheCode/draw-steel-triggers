@@ -157,6 +157,16 @@ export class StackWindow extends ds.applications.api.DSApplication {
               : isResolutionHeld
                 ? game.i18n.format("DS_TRIGGERS.Queue.ResolutionEyebrow", { name: e.ownerName })
                 : null,
+          
+          fmTrail: (e.fmTrail ?? []).map((t) => ({
+            dir: t.amount < 0 ? "down" : "up",
+            label: `${t.amount > 0 ? "+" : ""}${t.amount}`,
+            tooltip: game.i18n.format("DS_TRIGGERS.Queue.FmTrailTooltip", {
+              modName: t.modName, owner: t.ownerName ?? "",
+            }),
+          })),
+          fmRunningLabel: e.fmRunning == null ? "" : game.i18n.format("DS_TRIGGERS.Queue.FmNow", { n: e.fmRunning }),
+          fmStopped: e.fmRunning === 0,
           isPending: e.state === "pending",
           gated: isGated(e),
           showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.state === "pending" && canActOn(e),

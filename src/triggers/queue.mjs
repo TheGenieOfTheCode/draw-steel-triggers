@@ -19,6 +19,7 @@ const _resolutionHolds = new Map();
 const _pendingResolutionGraces = new Map();
 
 const _recentAbilityPosts = new Map();
+const _automatedUses = new Map();
 
 function _postedAfterUse(itemUuid, usedAt) {
   const t = _recentAbilityPosts.get(itemUuid);
@@ -227,6 +228,20 @@ async function _onQueueResolve(id, outcome, userName) {
     });
   }
   dbg(`queue resolve ${id} -> ${outcome}`);
+
+  
+  if (outcome === "used" && entry.itemUuid
+    && (entry.fmMode || entry.rollMod || entry.redirect || entry.halvesOnUse)) {
+    _automatedUses.set(entry.itemUuid, Date.now());
+  }
+
+  
+  if (outcome === "used" && entry.fmMode && entry.resumeId) {
+    const running = _applyFmRunning(entry);
+    if (entry.fmMode === "redirect" || running === 0) {
+      _dismissPendingRedirects(entry.resumeId, `${entry.itemName} left nothing to redirect`);
+    }
+  }
 
   if (outcome === "declined") _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
 
@@ -659,28 +674,78 @@ function _fmSpendUsed(itemUuid) {
   return false;
 }
 
+function _applyFmRunning(entry) {
+  const held = _queue.find((e) => e.resumeId === entry.resumeId && e.kind === "held");
+  if (!held || held.fmDistance == null) return null;
+  const amount = _fmAmount(entry);
+  held.fmTrail = [...(held.fmTrail ?? []), {
+    itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid ?? null, fmChar: entry.fmChar ?? null,
+    modName: entry.itemName, ownerName: entry.ownerName ?? "", mode: entry.fmMode,
+    amount: entry.fmMode === "reduce" ? -amount : amount,
+  }];
+  return _replayFmTrail(held);
+}
+
+function _replayFmTrail(held) {
+  let running = Number(held.fmDistance) || 0;
+  for (const t of held.fmTrail ?? []) running = Math.max(0, running + (Number(t.amount) || 0));
+  held.fmRunning = running;
+  return running;
+}
+
+function _refreshFmRunning(abilityUuid) {
+  let touched = false;
+  for (const held of _queue) {
+    if (held.kind !== "held" || held.fmDistance == null) continue;
+    let changed = false;
+    held.fmTrail = (held.fmTrail ?? []).map((t) => {
+      if (t.itemUuid !== abilityUuid) return t;
+      const signed = t.mode === "reduce" ? -_fmAmount(t) : _fmAmount(t);
+      if (signed === t.amount) return t;
+      changed = true;
+      return { ...t, amount: signed };
+    });
+    if (!changed) continue;
+    touched = true;
+    dbg(`fm trail corrected on ${held.resumeId}: now ${_replayFmTrail(held)}`);
+    if (held.fmRunning === 0) _dismissPendingRedirects(held.resumeId, "the correction emptied it");
+  }
+  return touched;
+}
+
+function _dismissPendingRedirects(resumeId, why) {
+  for (const other of _queue) {
+    if (other.resumeId !== resumeId || other.state !== "pending" || other.fmMode !== "redirect") continue;
+    other.state = "dismissed";
+    dbg(`queue dismiss ${other.id} (${other.itemName}): ${why}`);
+  }
+}
+
+function _fmAmount(entry) {
+  const owner = entry?.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
+  const amount = Math.max(0, Number(owner?.system?.characteristics?.[entry?.fmChar]?.value ?? 0));
+  return (amount && _fmSpendUsed(entry.itemUuid)) ? amount * 2 : amount;
+}
+
 function _collectFmMods(usedEntries) {
-  const out = { deltas: [], redirect: null };
-  for (const u of usedEntries ?? []) {
+  const out = { deltas: [], redirect: null, after: [] };
+  const ordered = [...(usedEntries ?? [])].sort((a, b) => (a.usedAt ?? 0) - (b.usedAt ?? 0));
+  for (const u of ordered) {
     if (u.cancelled || !u.fmMode) continue;
-    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
-    let amount = Math.max(0, Number(owner?.system?.characteristics?.[u.fmChar]?.value ?? 0));
-    if (amount && _fmSpendUsed(u.itemUuid)) amount *= 2;
-    if (u.fmMode === "reduce") {
-      out.deltas.push({ amount: -amount, modName: u.itemName, ownerName: u.ownerName, ownerActorUuid: u.ownerActorUuid ?? null });
-    } else if (u.fmMode === "boost") {
-      out.deltas.push({ amount, modName: u.itemName, ownerName: u.ownerName, ownerActorUuid: u.ownerActorUuid ?? null });
+    const amount = _fmAmount(u);
+    const base = { modName: u.itemName, ownerName: u.ownerName, ownerActorUuid: u.ownerActorUuid ?? null };
+    if (u.fmMode === "reduce" || u.fmMode === "boost") {
+      const signed = { ...base, amount: u.fmMode === "reduce" ? -amount : amount };
+      (out.redirect ? out.after : out.deltas).push(signed);
     } else if (u.fmMode === "redirect" && !out.redirect) {
+      const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
       const driveUser = (owner
         ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
         : null) ?? primaryGM();
-      out.redirect = {
-        modName: u.itemName, ownerActorUuid: u.ownerActorUuid ?? null, ownerName: u.ownerName,
-        amount, driveUserId: driveUser?.id ?? null,
-      };
+      out.redirect = { ...base, amount, driveUserId: driveUser?.id ?? null };
     }
   }
-  return (out.deltas.length || out.redirect) ? out : null;
+  return (out.deltas.length || out.after.length || out.redirect) ? out : null;
 }
 
 function _collectRollMods(usedEntries) {
@@ -789,6 +854,16 @@ Hooks.on("createChatMessage", (message) => {
   for (const [uuid, t] of _recentAbilityPosts) {
     if (now - t > 120000) _recentAbilityPosts.delete(uuid);
   }
+  if (_automatedUses.has(abilityUse.abilityUuid)) {
+    _automatedUses.delete(abilityUse.abilityUuid);
+    message.setFlag(MODULE_ID, "automated", true).catch(() => {});
+  }
+  for (const [uuid, t] of _automatedUses) {
+    if (now - t > 120000) _automatedUses.delete(uuid);
+  }
+
+  
+  const corrected = _refreshFmRunning(abilityUse.abilityUuid);
   for (const [resumeId, pending] of _pendingResumes) {
     if (!pending.awaiting.has(abilityUse.abilityUuid)) continue;
     pending.awaiting.delete(abilityUse.abilityUuid);
@@ -804,6 +879,7 @@ Hooks.on("createChatMessage", (message) => {
     pending.awaiting.delete(abilityUse.abilityUuid);
     if (!pending.awaiting.size) _endResolutionGrace(resolutionId, false);
   }
+  if (corrected) _broadcast();
 });
 
 const _pendingRollMods = new Map();
@@ -1009,6 +1085,10 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     itemUuid: held.itemUuid,
     itemName: held.itemName,
     heldDetail: held.heldDetail ?? null,
+    
+    fmDistance: held.fmDistance ?? null,
+    fmRunning: held.fmDistance ?? null,
+    fmTrail: [],
     ownerActorUuid: held.ownerActorUuid,
     ownerName: held.ownerName,
     event,

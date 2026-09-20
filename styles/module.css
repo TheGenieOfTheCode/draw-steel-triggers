@@ -191,6 +191,29 @@
   color: #d9a63f;
 }
 
+.dst-stack-fm-trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 0 2px;
+  font-size: 0.85em;
+}
+
+.dst-fm-pill {
+  padding: 0 6px;
+  border-radius: 8px;
+  line-height: 1.6;
+  font-weight: bold;
+  border: 1px solid currentColor;
+}
+
+.dst-fm-pill--up { color: #58b158; }
+.dst-fm-pill--down { color: #c44a4a; }
+
+.dst-fm-now { margin-left: 2px; opacity: 0.85; }
+.dst-fm-now--stopped { color: #c44a4a; opacity: 1; font-weight: bold; }
+
 .dst-stack .dst-stack-entry--damage {
   border-color: rgba(196, 74, 74, 0.55);
   background: rgba(196, 74, 74, 0.07);
