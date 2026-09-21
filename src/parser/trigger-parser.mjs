@@ -61,7 +61,7 @@ function bespokeLayer(result, id) {
   };
 }
 
-const DAMAGE_MOD_TEXT = [
+export const DAMAGE_MOD_TEXT = [
   /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
   /\bhalf (?:the |that |this |of the |any )?(?:\w+ )?damage\b/i,
   /\bdamage (?:is |taken is )?halved\b/i,
@@ -132,7 +132,7 @@ const REDIRECT_ABILITIES = {
   "reactive-charm": "after",
 };
 
-const REDIRECT_TEXT = [
+export const REDIRECT_TEXT = [
   [/switch(?:es)? places/i, "swap"],
   [/choose[\s\S]{0,90}?targets? (?:that|the) (?:enemy|creature) instead|chooses?[\s\S]{0,90}?to become the target/i, "chooser"],
   [/targeting them instead|reflects?[\w'’ ]* back/i, "reflect"],
@@ -141,7 +141,7 @@ const REDIRECT_TEXT = [
 
 const ROLL_MOD_SUBJECT = "(?:triggering )?(?:strike|power roll|ability roll)|it";
 
-const ROLL_MOD_TEXT = [
+export const ROLL_MOD_TEXT = [
   [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a bane\\b`, "i"), { banes: 1 }],
   [/\btakes? a bane on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { banes: 1 }],
   [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) an edge\\b`, "i"), { edges: 1 }],
@@ -170,7 +170,7 @@ function rollModLayer(result, id, effectText) {
   };
 }
 
-const HALF_TEXT = [
+export const HALF_TEXT = [
   /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
   /\bhalf (?:the |that |this |of the |any )?(?:\w+ )?damage\b/i,
   /\bdamage (?:is |taken is )?halved\b/i,
@@ -290,29 +290,107 @@ const QUALIFIERS = [
 
    Exported because the trigger builder runs it over a hand written qualifier too, so typing
    "main action" there does the same thing the book's own phrasing would have done. */
+
+export const ABILITY_FILTERS = [
+  {
+    id: "abilityDsid",
+    from: "trigger",
+    rx: /\buses? (?:your|their|its) ([A-Z][\w'’ ]*?) ability\b/,
+    fields: (m) => ({ abilityDsid: generateDSID(m[1]) }),
+  },
+  {
+    id: "abilityType",
+    from: "trigger",
+    rx: /\b(main action|maneuver)\b/i,
+    fields: (m) => ({ abilityType: m[1].toLowerCase() === "maneuver" ? "maneuver" : "main" }),
+  },
+  {
+    id: "abilityCostMax",
+    from: "trigger",
+    rx: /costs? (\d+) or (?:fewer|less)[\w ]*/i,
+    fields: (m) => ({ abilityCostMax: Number(m[1]) }),
+  },
+  /* Category, not cost inferred from it. The two nearly agree and the exceptions are real: seven
+     heroic abilities cost nothing, and the Troubadour's own Flashback is a signature costing 5. */
+  {
+    id: "abilityCategory",
+    from: "trigger",
+    rx: /\b(non-heroic|heroic) ability\b/i,
+    fields: (m) => ({ abilityCategory: m[1].toLowerCase() }),
+  },
+  {
+    id: "abilityTargetCount",
+    from: "trigger",
+    rx: /targets? only one (enemy|ally|creature)/i,
+    fields: (m) => ({
+      abilityTargetCount: 1,
+      ...(m[1].toLowerCase() === "creature" ? {} : { abilityTargetSide: m[1].toLowerCase() }),
+    }),
+  },
+  
+  {
+    id: "abilityCostScales",
+    from: "effect",
+    rx: /(?:cost of \d+ \+ each additional[\w ]*|cost equal to the amount of [\w ]+ spent)/i,
+    needs: (out) => out.abilityCostMax != null || out.abilityCategory != null,
+    fields: () => ({ abilityCostScales: true }),
+  },
+];
+
 export function abilityFiltersFrom(text, effectText = "") {
   const out = {};
-  const raw = String(text ?? "");
-  const lc = raw.toLowerCase();
-
-  const named = raw.match(/\buses? (?:your|their|its) ([A-Z][\w'’ ]*?) ability\b/);
-  if (named) out.abilityDsid = generateDSID(named[1]);
-  if (/\bmain action\b/.test(lc)) out.abilityType = "main";
-  else if (/\bmaneuver\b/.test(lc)) out.abilityType = "maneuver";
-
-  const cost = lc.match(/costs? (\d+) or (?:fewer|less)/);
-  if (cost) out.abilityCostMax = Number(cost[1]);
-  /* Some buy their way past their own ceiling: Harmonize reads "a cost of 3 + each additional
-     drama spent", so it answers a 5 cost ability by costing 5 itself. The ceiling then stops being
-     a limit, and what decides is whether the owner can pay. */
-  if (cost && /cost of \d+ \+ each additional/i.test(effectText ?? "")) out.abilityCostScales = true;
-
-  const onlyOne = lc.match(/targets? only one (enemy|ally|creature)/);
-  if (onlyOne) {
-    out.abilityTargetCount = 1;
-    if (onlyOne[1] !== "creature") out.abilityTargetSide = onlyOne[1];
+  for (const f of ABILITY_FILTERS) {
+    if (f.needs && !f.needs(out)) continue;
+    const m = String((f.from === "effect" ? effectText : text) ?? "").match(f.rx);
+    if (m) Object.assign(out, f.fields(m));
   }
   return out;
+}
+
+const CLAUSE_FLAGS = [
+  { id: "damageTypes",       from: "trigger", when: (c) => c.damageTypes?.length,
+    rx: /\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:[, ]+(?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic))*\b[\w ]*damage/i },
+  { id: "edgeRequired",      from: "trigger", when: (c) => c.edgeRequired,
+    rx: /\b(?:gains? (?:an|a double) edge|has an edge|with an edge)\b/i },
+  { id: "excludeSelfTarget", from: "trigger", when: (c) => c.excludeSelfTarget,
+    rx: /(?:doesn['’]t|does not) also targets? [\w'’ -]+/i },
+  { id: "effectName",        from: "trigger", when: (c) => c.effectName,
+    rx: /ends? the [\w -]+? effect/i },
+  { id: "zone",              from: "trigger", when: (c) => c.zone,
+    rx: /\b(?:enters?|starts? their turn (?:in|within|adjacent to)) (?:the|a) [\w -]+/i },
+  { id: "postRoll",          from: "trigger", when: (c) => c.postRoll, rx: /\bis struck by\b/i },
+  { id: "half",              from: "effect",  when: (c) => c.halfDamage || c.halfOnUse, list: () => HALF_TEXT },
+  { id: "rollMod",           from: "effect",  when: (c) => c.rollMod,   list: () => ROLL_MOD_TEXT.map((r) => r[0]) },
+  { id: "redirect",          from: "effect",  when: (c) => c.redirect,  list: () => REDIRECT_TEXT.map((r) => r[0]) },
+];
+
+export function explainClauseFlags(clause, triggerText, effectText) {
+  const found = [];
+  for (const f of CLAUSE_FLAGS) {
+    if (!f.when(clause)) continue;
+    const text = String((f.from === "effect" ? effectText : triggerText) ?? "");
+    for (const rx of f.list ? f.list() : [f.rx]) {
+      const m = text.match(rx);
+      if (!m) continue;
+      found.push({ id: f.id, from: f.from, fragment: m[0].trim() });
+      break;
+    }
+  }
+  return found;
+}
+
+export function explainAbilityFilters(text, effectText = "") {
+  const found = [];
+  const out = {};
+  for (const f of ABILITY_FILTERS) {
+    if (f.needs && !f.needs(out)) continue;
+    const m = String((f.from === "effect" ? effectText : text) ?? "").match(f.rx);
+    if (!m) continue;
+    const fields = f.fields(m);
+    Object.assign(out, fields);
+    found.push({ id: f.id, from: f.from, fragment: m[0].trim(), fields });
+  }
+  return found;
 }
 
 const EVENT_VERB = /\b(takes?|deals?|damages?|dies|destroyed|moves?|enters?|leaves?|shifts?|starts?|ends?|uses?|makes?|targets?|targeted|forced?|pushed|pulled|slid|becomes?|gains?|grabs?|regains?|reduced?|winded|dying|falls|flies|comes|obtains?)\b/;

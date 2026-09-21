@@ -44,8 +44,8 @@
         <label>{{@root.labels.qualifiers}}</label>
         <div class="form-fields dst-qual-pills">
           {{#each qualifiers}}
-          <button type="button" class="dst-qual-pill{{#if disabled}} dst-qual-off{{/if}}{{#if enforced}} dst-qual-live{{/if}}"
-                  data-qual-toggle="{{text}}" data-index="{{../index}}" data-tooltip="{{tooltip}}">{{text}}</button>
+          <button type="button" class="dst-qual-pill{{#if disabled}} dst-qual-off{{/if}}{{#if enforced}} dst-qual-live{{/if}}{{#if fromEffect}} dst-qual-effect{{/if}}{{#unless enforced}} dst-qual-plain{{/unless}}"
+                  data-qual-toggle="{{id}}" data-index="{{../index}}" data-tooltip="{{tooltip}}">{{text}}</button>
           {{else}}
           <span class="dst-qual-empty">{{@root.labels.qualifiersNone}}</span>
           {{/each}}

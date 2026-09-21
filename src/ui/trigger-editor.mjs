@@ -1,34 +1,90 @@
 import { MODULE_ID } from "../util.mjs";
-import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility } from "../triggers/registry.mjs";
-import { abilityFiltersFrom } from "../parser/trigger-parser.mjs";
+import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility, triggerEffectText } from "../triggers/registry.mjs";
+import { explainAbilityFilters, explainClauseFlags } from "../parser/trigger-parser.mjs";
 
-function qualifierEffect(text) {
-  const within = String(text).match(/within (\d+)/i);
-  if (within) return game.i18n.format("DS_TRIGGERS.Editor.QualEffectRange", { n: within[1] });
-  if (/\badjacent\b/i.test(text)) return game.i18n.format("DS_TRIGGERS.Editor.QualEffectRange", { n: 1 });
+const L = (k, data) => data
+  ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
+  : game.i18n.localize(`DS_TRIGGERS.Editor.${k}`);
 
-  const filters = abilityFiltersFrom(text);
-  const parts = [];
-  if (filters.abilityType) parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectType", { type: filters.abilityType }));
-  if (filters.abilityCostMax != null) parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectCost", { n: filters.abilityCostMax }));
-  if (filters.abilityTargetCount != null) {
-    parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectTargets", {
-      n: filters.abilityTargetCount,
-      side: filters.abilityTargetSide ?? game.i18n.localize("DS_TRIGGERS.Editor.QualSideCreature"),
-    }));
+const FLAG_FIELDS = {
+  damageTypes: ["damageTypes"],
+  edgeRequired: ["edgeRequired"],
+  excludeSelfTarget: ["excludeSelfTarget"],
+  effectName: ["effectName"],
+  zone: ["zone"],
+  postRoll: ["postRoll"],
+  half: ["halfDamage", "halfOnUse"],
+  rollMod: ["rollMod"],
+  redirect: ["redirect"],
+};
+
+function describeFilter(id, fields) {
+  switch (id) {
+    case "range": return L("QualEffectRange", { n: fields.range });
+    case "abilityType": return L("QualEffectType", { type: fields.abilityType });
+    case "abilityCostMax": return L("QualEffectCost", { n: fields.abilityCostMax });
+    case "abilityCategory": return L(fields.abilityCategory === "heroic" ? "QualEffectHeroic" : "QualEffectNonHeroic");
+    case "abilityCostScales": return L("QualEffectScales");
+    case "abilityTargetCount": return L("QualEffectTargets", {
+      n: fields.abilityTargetCount,
+      side: fields.abilityTargetSide ?? L("QualSideCreature"),
+    });
+    case "abilityDsid": return L("QualEffectDsid", { dsid: fields.abilityDsid });
+    case "damageTypes": return L("QualEffectDamageTypes");
+    case "edgeRequired": return L("QualEffectEdge");
+    case "excludeSelfTarget": return L("QualEffectExcludeSelf");
+    case "effectName": return L("QualEffectEffectName");
+    case "zone": return L("QualEffectZone");
+    case "postRoll": return L("QualEffectPostRoll");
+    case "half": return L("QualEffectHalf");
+    case "rollMod": return L("QualEffectRollMod");
+    case "redirect": return L("QualEffectRedirect");
+    default: return L("QualEffectNone");
   }
-  if (filters.abilityDsid) parts.push(game.i18n.format("DS_TRIGGERS.Editor.QualEffectDsid", { dsid: filters.abilityDsid }));
-  return parts.length ? parts.join(" ") : game.i18n.localize("DS_TRIGGERS.Editor.QualEffectNone");
 }
 
-function qualifierPills(clause) {
-  const off = new Set(clause.qualifiersOff ?? []);
-  return [...(clause.qualifiers ?? []), ...off].map((text) => ({
-    text,
-    disabled: off.has(text),
-    enforced: qualifierEffect(text) !== game.i18n.localize("DS_TRIGGERS.Editor.QualEffectNone"),
-    tooltip: qualifierEffect(text),
-  }));
+function qualifierPills(clause, item) {
+  const off = new Set(clause.filtersOff ?? []);
+  const pills = [];
+  const consumed = [];
+
+  const distance = (clause.qualifiers ?? []).find((q) => /within \d+|\badjacent\b/i.test(q));
+  if (distance || Number.isFinite(clause.range)) {
+    const n = Number.isFinite(clause.range) ? clause.range : 1;
+    pills.push({
+      id: "range", text: distance ?? L("QualRangeImplied", { n }),
+      tooltip: describeFilter("range", { range: n }),
+      enforced: true, disabled: off.has("range"),
+    });
+    if (distance) consumed.push(distance);
+  }
+
+  for (const f of explainAbilityFilters(item?.system?.trigger ?? "", item ? triggerEffectText(item) : "")) {
+    pills.push({
+      id: f.id, text: f.fragment,
+      tooltip: describeFilter(f.id, f.fields) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
+      enforced: true, disabled: off.has(f.id), fromEffect: f.from === "effect",
+    });
+    consumed.push(f.fragment);
+  }
+
+  
+  for (const f of explainClauseFlags(clause, item?.system?.trigger ?? "", item ? triggerEffectText(item) : "")) {
+    pills.push({
+      id: f.id, text: f.fragment,
+      tooltip: describeFilter(f.id, clause) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
+      enforced: true, disabled: off.has(f.id), fromEffect: f.from === "effect",
+    });
+    consumed.push(f.fragment);
+  }
+
+  
+  let rest = (clause.qualifiers ?? []).filter((q) => !consumed.includes(q)).join(", ");
+  for (const c of consumed) rest = rest.replace(new RegExp(c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), "");
+  rest = rest.replace(/\s*(?:^|,)\s*(?:that|and|or|the)\b\s*/gi, " ").replace(/[\s,]+/g, " ").trim();
+  if (rest) pills.push({ id: "", text: rest, tooltip: L("QualEffectNone"), enforced: false, disabled: false });
+
+  return pills;
 }
 
 const EVENT_GROUPS = [
@@ -101,6 +157,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     for (const clause of this._clauses) {
       clause._customs = clause.groupName && !keywordIds.has(clause.groupName) ? [clause.groupName] : [];
     }
+    
+    this._pristine = foundry.utils.deepClone(this._clauses);
     this._malice = item.getFlag(MODULE_ID, "malice");
     this._source = parse?.source ?? "none";
     this._confidence = parse?.confidence ?? "";
@@ -166,7 +224,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         })),
         rangeCustom: Number.isFinite(c.range),
         rangeValue: Number.isFinite(c.range) ? c.range : 1,
-        qualifiers: qualifierPills(c),
+        qualifiers: qualifierPills(c, this.item),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
         showHold: c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
         holdChecked: c.event === "WOULD_TAKE_DAMAGE",
@@ -225,26 +283,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const clause = this._clauses[Number(pill.dataset.index)];
       if (!clause) return;
 
-      const text = pill.dataset.qualToggle;
-      const off = new Set(clause.qualifiersOff ?? []);
-      const on = (clause.qualifiers ?? []).filter((q) => q !== text);
-      if (off.has(text)) {
-        off.delete(text);
-        on.push(text);
-      } else {
-        off.add(text);
-      }
-      clause.qualifiers = on;
-      if (off.size) clause.qualifiersOff = [...off];
-      else delete clause.qualifiersOff;
-
-      for (const k of ["abilityType", "abilityCostMax", "abilityCostScales", "abilityTargetCount", "abilityTargetSide"]) delete clause[k];
-      Object.assign(clause, abilityFiltersFrom(on.join(", ")));
-
-      const distance = on.map((q) => q.match(/within (\d+)/i)?.[1] ?? (/\badjacent\b/i.test(q) ? "1" : null)).find(Boolean);
-      if (distance) clause.range = Number(distance);
-      else if (Number.isFinite(clause.range)) clause.range = "none";
-
+      const id = pill.dataset.qualToggle;
+      if (!id) return;
+      const off = new Set(clause.filtersOff ?? []);
+      if (off.has(id)) off.delete(id);
+      else off.add(id);
+      if (off.size) clause.filtersOff = [...off];
+      else delete clause.filtersOff;
+      this._applyFilters(clause);
       this.render();
     }, { signal });
 
@@ -327,6 +373,32 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   close(options) {
     this._listenerAbort?.abort();
     return super.close(options);
+  }
+
+  
+  _applyFilters(clause) {
+    const off = new Set(clause.filtersOff ?? []);
+    for (const k of ["abilityDsid", "abilityType", "abilityCostMax", "abilityCategory",
+      "abilityCostScales", "abilityTargetCount", "abilityTargetSide"]) delete clause[k];
+
+    for (const f of explainAbilityFilters(this.item?.system?.trigger ?? "", this.item ? triggerEffectText(this.item) : "")) {
+      if (!off.has(f.id)) Object.assign(clause, f.fields);
+    }
+
+    const index = this._clauses.indexOf(clause);
+    const pristine = this._pristine?.[index] ?? {};
+    for (const [id, fields] of Object.entries(FLAG_FIELDS)) {
+      for (const field of fields) {
+        if (off.has(id)) delete clause[field];
+        else if (pristine[field] !== undefined) clause[field] = foundry.utils.deepClone(pristine[field]);
+      }
+    }
+
+    const distance = (clause.qualifiers ?? [])
+      .map((q) => q.match(/within (\d+)/i)?.[1] ?? (/\badjacent\b/i.test(q) ? "1" : null))
+      .find(Boolean);
+    if (off.has("range")) clause.range = "none";
+    else if (distance) clause.range = Number(distance);
   }
 
   _syncFromDOM() {

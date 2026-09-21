@@ -127,16 +127,22 @@ const opposed = (docA, docB) => {
 
 function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType
-    && clause.abilityCostMax == null && clause.abilityTargetCount == null;
+    && clause.abilityCostMax == null && clause.abilityCategory == null && clause.abilityTargetCount == null;
 
   const sys = used.system ?? {};
   if (clause.abilityDsid && (sys._dsid ?? used.dsid) !== clause.abilityDsid) return false;
   if (clause.abilityType && sys.type !== clause.abilityType) return false;
-  if (clause.abilityCostMax != null) {
+  
+  if (clause.abilityCategory) {
+    const wantHeroic = clause.abilityCategory === "heroic";
+    if ((sys.category === "heroic") !== wantHeroic && !clause.abilityCostScales) return false;
+  }
+
+  if (clause.abilityCostMax != null || clause.abilityCostScales) {
     const usedCost = Number(sys.resource ?? 0);
     if (clause.abilityCostScales) {
       
-      const owed = Math.max(clause.abilityCostMax, usedCost);
+      const owed = Math.max(clause.abilityCostMax ?? 0, usedCost);
       const held = owner ? resourceOf(owner) : null;
       if (held != null && held < owed) return false;
     } else if (usedCost > clause.abilityCostMax) return false;
