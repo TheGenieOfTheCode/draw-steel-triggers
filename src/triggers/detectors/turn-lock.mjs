@@ -27,22 +27,11 @@ Hooks.on("updateCombat", (combat, changed) => {
   taker.update({ initiative }).catch(() => {});
 });
 
-Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
-  
-  if (("round" in changed) && changed.round !== combat.round) {
-    _startedViaHesitation = null;
-    _skipStartOnce.clear();
-    return;
-  }
-  if (!("turn" in changed)) return;
-  if (!getSetting("turnInterrupts") || !combat.started) return;
-  if (options.dstTurnResume) return;
-  if (userId !== game.user.id) return;
+const HOLD_WINDOW_MS = 3000;
+let _heldGroup = null;
+let _passedStart = null;
 
-  const prev = combat.turn != null ? combat.combatant : null;
-  const next = changed.turn != null ? combat.turns[changed.turn] : null;
-  if (prev && next && prev.id === next.id) return;
-
+function _holdTurn(combat, prev, next, { turn, direction = 1, group = null, skipStart = false }) {
   const matches = [];
   if (prev?.actor) {
     if (prev.id !== _startedViaHesitation) {
@@ -54,7 +43,7 @@ Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
     }
     _startedViaHesitation = null;
   }
-  if (next?.actor && !_skipStartOnce.delete(next.id)) {
+  if (next?.actor && !skipStart) {
     for (const m of _lockMatches("TURN_START", next)) {
       if (matches.some((x) => x.item.uuid === m.item.uuid)) continue;
       m._lockEvent = "TURN_START";
@@ -62,22 +51,25 @@ Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
       matches.push(m);
     }
   }
-  if (!matches.length) return;
+  if (!matches.length) return false;
 
   const heldName = next?.name ?? prev?.name ?? "";
   const heldActor = next?.actor ?? prev?.actor;
-  dbg(`turn lock: ${heldName} held by ${matches.length} triggers`);
+  dbg(`turn lock: ${heldName} held by ${matches.length} triggers${group ? ` (squad ${group.name})` : ""}`);
+  if (group) _heldGroup = { groupId: group.id, until: Date.now() + HOLD_WINDOW_MS };
   enqueueLockEntries(matches, {
     event: "TURN_LOCK",
     causeLabel: game.i18n.format("DS_TRIGGERS.Queue.TurnLockCause", { name: heldName }),
     resume: {
       kind: "turn",
       combatId: combat.id,
-      turn: changed.turn ?? null,
-      direction: options.direction ?? 1,
+      turn: turn ?? null,
+      direction,
       prevId: prev?.id ?? null,
       nextId: next?.id ?? null,
       nextInitiative: next?.initiative ?? null,
+      groupId: group?.id ?? null,
+      groupInitiative: group?.initiative ?? null,
     },
     held: {
       itemUuid: null,
@@ -89,7 +81,50 @@ Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
     },
   });
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.TurnHeld", { name: heldName }));
-  return false;
+  return true;
+}
+
+const _groupHeld = (group) => !!group && _heldGroup?.groupId === group.id && Date.now() < _heldGroup.until;
+
+Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
+
+  if (("round" in changed) && changed.round !== combat.round) {
+    _startedViaHesitation = null;
+    _skipStartOnce.clear();
+    _heldGroup = null;
+    return;
+  }
+  if (!("turn" in changed)) return;
+  if (!getSetting("turnInterrupts") || !combat.started) return;
+  if (options.dstTurnResume) return;
+  if (userId !== game.user.id) return;
+
+  const prev = combat.turn != null ? combat.combatant : null;
+  const next = changed.turn != null ? combat.turns[changed.turn] : null;
+  if (prev && next && prev.id === next.id) return;
+  if (_groupHeld(next?.group)) return false;
+
+  const skipStart = !!next && _skipStartOnce.delete(next.id);
+  if (skipStart) _passedStart = { id: next.id, until: Date.now() + HOLD_WINDOW_MS };
+  if (_holdTurn(combat, prev, next, { turn: changed.turn, direction: options.direction ?? 1, group: next?.group ?? null, skipStart })) return false;
+});
+
+Hooks.on("preUpdateCombatantGroup", (group, changed, options, userId) => {
+  if (!("initiative" in changed)) return;
+  const combat = group.parent;
+  if (!getSetting("turnInterrupts") || !combat?.started) return;
+  if (options.dstTurnResume) return;
+  if (userId !== game.user.id) return;
+  if (!(changed.initiative < (Number(group.initiative) || 0))) return;
+  if (_groupHeld(group)) return false;
+
+  const next = [...group.members].find((c) => c.initiative) ?? null;
+  if (!next) return;
+  if (_passedStart?.id === next.id && Date.now() < _passedStart.until) return;
+  const prev = combat.turn != null ? combat.combatant : null;
+  if (prev && prev.id === next.id) return;
+  const turn = combat.turns.findIndex((c) => c === next);
+  if (_holdTurn(combat, prev, next, { turn, group, skipStart: _skipStartOnce.has(next.id) })) return false;
 });
 
 function _combatantOfActor(combat, actorUuid) {
@@ -171,14 +206,19 @@ async function _onResumeTurn(resume, used = []) {
   const next = resume.nextId ? combat.combatants.get(resume.nextId) : null;
   const prev = resume.prevId ? combat.combatants.get(resume.prevId) : null;
 
+  _heldGroup = null;
+  const heldGroup = resume.groupId ? combat.groups?.get(resume.groupId) ?? null : null;
   if (!used.length) {
     dbg(`turn lock released: ${next?.name ?? prev?.name ?? "turn"} continues`);
     await combat.update({ turn: resume.turn }, { direction: resume.direction ?? 1, dstTurnResume: true });
+    
+    if (heldGroup) await heldGroup.update({ initiative: Math.max(0, (Number(resume.groupInitiative) || 1) - 1) }, { dstTurnResume: true });
     return;
   }
 
-  if (next && resume.nextInitiative != null) {
-    await next.update({ initiative: resume.nextInitiative + 1 });
+  if (next) {
+    
+    if (resume.nextInitiative != null && !resume.groupId) await next.update({ initiative: resume.nextInitiative + 1 });
     _skipStartOnce.add(next.id);
   }
   const pick = await _turnTaker(combat, used);
@@ -210,7 +250,7 @@ async function _onResumeTurn(resume, used = []) {
     }));
     
     await combat.update({ turn }, { direction: 1, dstTurnResume: true });
-    await group.update({ initiative: Math.max(0, (Number(group.initiative) || 1) - 1) });
+    await group.update({ initiative: Math.max(0, (Number(group.initiative) || 1) - 1) }, { dstTurnResume: true });
     return;
   }
 
