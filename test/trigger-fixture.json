@@ -2641,15 +2641,21 @@
     "type": "freeTriggered",
     "trigger": "An ally ends their turn while the guerrilla hasn’t acted this round.",
     "expected": {
-      "source": "regex",
+      "source": "special",
       "confidence": "high",
       "clauses": [
         {
           "event": "TURN_END",
           "scope": "ALLY",
           "qualifiers": [
-            "while the guerrilla hasn’t acted this round"
-          ]
+            "while the guerrilla hasn't acted this round",
+            "acting as a captain"
+          ],
+          "ownerUnacted": true,
+          "captainOnly": true,
+          "turnLock": true,
+          "squadTurn": true,
+          "range": "none"
         }
       ]
     }
@@ -2681,13 +2687,15 @@
     "type": "triggered",
     "trigger": "An ally ends their turn.",
     "expected": {
-      "source": "regex",
+      "source": "special",
       "confidence": "high",
       "clauses": [
         {
           "event": "TURN_END",
           "scope": "ALLY",
-          "qualifiers": []
+          "qualifiers": [],
+          "turnLock": true,
+          "range": "none"
         }
       ]
     }
@@ -5466,13 +5474,18 @@
     "type": "triggered",
     "trigger": "You or another hero ends their turn.",
     "expected": {
-      "source": "regex",
+      "source": "special",
       "confidence": "high",
       "clauses": [
         {
           "event": "TURN_END",
-          "scope": "SELF",
-          "qualifiers": []
+          "scope": "SELF_OR_ALLY",
+          "qualifiers": [
+            "hero"
+          ],
+          "heroOnly": true,
+          "turnLock": true,
+          "range": "none"
         }
       ]
     }
@@ -5774,13 +5787,20 @@
     "type": "freeTriggered",
     "trigger": "Another creature on the encounter map ends their turn.",
     "expected": {
-      "source": "regex",
+      "source": "special",
       "confidence": "high",
       "clauses": [
         {
           "event": "TURN_END",
           "scope": "ANY",
-          "qualifiers": []
+          "qualifiers": [
+            "another creature"
+          ],
+          "notSelf": true,
+          "turnLock": true,
+          "bonusTurn": true,
+          "oncePerRound": true,
+          "range": "none"
         }
       ]
     }
@@ -5792,13 +5812,15 @@
     "type": "freeTriggered",
     "trigger": "The triggering creature starts their turn.",
     "expected": {
-      "source": "regex",
+      "source": "special",
       "confidence": "high",
       "clauses": [
         {
           "event": "TURN_START",
           "scope": "ANY",
-          "qualifiers": []
+          "qualifiers": [],
+          "turnLock": true,
+          "manualTurn": true
         }
       ]
     }

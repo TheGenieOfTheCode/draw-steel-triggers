@@ -409,6 +409,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
 Hooks.on("dst.queueChanged", () => StackWindow.refresh());
 Hooks.on("dst.queueOpenRequested", () => StackWindow.open());
 
+for (const hook of ["createCombat", "deleteCombat"]) Hooks.on(hook, () => StackWindow.refresh());
+Hooks.on("updateCombat", (combat, changed) => { if ("round" in changed || "active" in changed) StackWindow.refresh(); });
+Hooks.on("createCombatant", () => StackWindow.refresh());
+Hooks.on("deleteCombatant", () => StackWindow.refresh());
+
 Hooks.on("getSceneControlButtons", (controls) => {
   const tokenControl = controls.tokens ?? controls.token;
   if (!tokenControl) return;

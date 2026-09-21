@@ -37,7 +37,7 @@
       },
       "TurnInterrupts": {
         "Name": "Turn Interrupts",
-        "Hint": "Hold a creature's activation while triggered abilities that can take the turn instead, such as Prescient Grace and Hesitation is Weakness, wait for a Use or Decline decision. Only applies during combat."
+        "Hint": "Hold a creature's activation while triggered abilities that can take the turn instead, such as Prescient Grace, Hesitation is Weakness, Fulfill Your Destiny or Time Loop, wait for a Use or Decline decision. Only applies during combat."
       },
       "RollLock": {
         "Name": "Roll Lock",
@@ -276,10 +276,18 @@
       },
       "TurnLockCause": "{name}'s turn is held.",
       "TurnHeldTitle": "{name}'s turn",
-      "TurnEndHeldTitle": "After {name}'s turn",
+      "TurnEndHeldTitle": "The end of {name}'s turn",
       "TurnHeld": "{name}'s turn is held while triggered abilities are decided. See the Trigger Stack.",
       "TurnTaken": "{owner} used {ability}: {taker} takes their turn now. {name}'s turn is put back.",
+      "TurnTakenNoNext": "{owner} used {ability}: {taker} takes their turn now.",
       "TurnTakenManual": "{owner} used {ability}. Activate whoever takes the turn by hand; {name}'s turn is put back.",
+      "TurnPutBack": "{owner} used {ability}: {name}'s turn is put back. Resolve the ability, then activate {name} again or skip them by hand.",
+      "TurnTakenActed": "{owner} used {ability}, but {taker} has already taken their turn this round, so nobody takes the turn. {name}'s turn is put back.",
+      "BonusTurnTaken": "{owner} used {ability}: {taker} takes a bonus turn now. {name}'s turn is put back, and {taker}'s own activation returns afterwards.",
+      "BonusTurnTakenNoNext": "{owner} used {ability}: {taker} takes a bonus turn now, and their own activation returns afterwards.",
+      "SquadTurnTaken": "{owner} used {ability}: {taker}'s squad takes its turn now. {name}'s turn is put back.",
+      "SquadTurnTakenNoNext": "{owner} used {ability}: {taker}'s squad takes its turn now.",
+      "SquadTurnRefused": "{owner} used {ability}, but their squad also holds {names}, who are not minions. Only the captain and its minions should act, and a squad cannot take part of a turn, so activate them by hand this time.",
       "Release": "Release Now",
       "ReleaseTooltip": "Resume the held ability immediately (Director only). Undecided triggers become simple prompts.",
       "ApplyNow": "Apply Now",

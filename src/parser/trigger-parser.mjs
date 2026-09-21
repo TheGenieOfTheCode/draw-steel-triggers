@@ -11,6 +11,14 @@ export const SPECIAL_CASES = {
   "timely-distraction":         { clauses: [{ event: "TEST_FAILED", scope: "ALLY" }] },
   "hesitation-is-weakness":     { clauses: [{ event: "TURN_END", scope: "ALLY", qualifiers: [], ownerUnacted: true, turnLock: true }] },
   "prescient-grace":            { clauses: [{ event: "TURN_START", scope: "ENEMY", qualifiers: ["within 10 squares"], anyHeroUnacted: true, turnLock: true }] },
+  
+  
+  
+  "fulfill-your-destiny":       { clauses: [{ event: "TURN_END", scope: "SELF_OR_ALLY", qualifiers: ["hero"], heroOnly: true, turnLock: true, range: "none" }] },
+  "time-loop":                  { clauses: [{ event: "TURN_END", scope: "ANY", qualifiers: ["another creature"], notSelf: true, turnLock: true, bonusTurn: true, oncePerRound: true, range: "none" }] },
+  "arrestor-cycle":             { clauses: [{ event: "TURN_START", scope: "ANY", qualifiers: [], turnLock: true, manualTurn: true }] },
+  "do-not-hesitate-in-the-wode": { clauses: [{ event: "TURN_END", scope: "ALLY", qualifiers: ["while the guerrilla hasn't acted this round", "acting as a captain"], ownerUnacted: true, captainOnly: true, turnLock: true, squadTurn: true, range: "none" }] },
+  "wode-sickness":              { clauses: [{ event: "TURN_END", scope: "ALLY", qualifiers: [], turnLock: true, range: "none" }] },
   "you-would-flounder-your-assault-on-me": { clauses: [{ event: "REGAINS_STAMINA", scope: "ANY", qualifiers: ["within 10"] }] },
   "put-it-out": { clauses: [{ event: "USES_ABILITY", scope: "ENEMY", qualifiers: ["ability that emits light"] }], flag: "REVISIT" },
   "is-this-what-they-taught-you": { clauses: [{ event: "MARKED", scope: "SELF" }], flag: "DSCT_ONLY" },

@@ -17,6 +17,8 @@ function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor, subjec
   if (!subjectActor) return true;
   if (!BASE_SCOPES.has(clause.scope)) return false;
   const isSelf = ownerActor === subjectActor;
+  if (clause.notSelf && isSelf) return false;
+  if (clause.heroOnly && subjectActor.type !== "hero") return false;
   const sameSide = ownerDisposition != null && subjectDisposition != null
     ? ownerDisposition === subjectDisposition
     : ownerActor.hasPlayerOwner === subjectActor.hasPlayerOwner;
@@ -109,6 +111,29 @@ function inSameCombatGroup(actorA, actorB) {
   return combat.combatants.find(c => c.actor === actorB)?.group === groupA;
 }
 
+
+export function activationsLeft(combatant) {
+  return Number(combatant?.group ? combatant.group.initiative : combatant?.initiative) || 0;
+}
+
+function isSquadCaptain(actor) {
+  const combatant = game.combat?.combatants.find((c) => c.actor === actor);
+  const group = combatant?.group;
+  return !!group && group.system?.captainId === combatant.id;
+}
+
+
+const _roundUses = new Map();
+const _roundUseKey = (actor, item) => `${actor?.uuid}|${item?.system?._dsid ?? item?.dsid ?? item?.name ?? ""}`;
+
+export function noteOncePerRoundUse(actor, item, round = game.combat?.round ?? 0) {
+  _roundUses.set(_roundUseKey(actor, item), round);
+}
+
+export function usedThisRound(actor, item, round = game.combat?.round ?? 0) {
+  return _roundUses.get(_roundUseKey(actor, item)) === round;
+}
+
 function resourceOf(actor) {
   const coreRes = actor.system.coreResource;
   if (!coreRes) return null;
@@ -165,7 +190,7 @@ function usedAbilityMatches(clause, used, owner, context = {}) {
   return true;
 }
 
-function isMinionActor(actor) {
+export function isMinionActor(actor) {
   return actor?.system?.isMinion ?? actor?.system?.monster?.organization === "minion";
 }
 
@@ -203,7 +228,7 @@ function grabsHeldBy(ownerActor, status) {
   return count;
 }
 
-function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx) {
+function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null) {
   switch (event) {
     case "CONDITION_GAIN": {
       if (clause.condition && ctx.condition !== clause.condition) return false;
@@ -225,6 +250,18 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return Number.isFinite(clause.value) && ctx.prevValue >= clause.value && ctx.curValue < clause.value;
     case "DIES":
       return !clause.lastMinion || lastMinionStanding(subjectActor, subjectToken);
+    case "TURN_START":
+    case "TURN_END": {
+      if (clause.captainOnly && !isSquadCaptain(ownerActor)) {
+        dbg(`${ownerActor.name} is not a squad captain, skipped on ${event}`);
+        return false;
+      }
+      if (clause.oncePerRound && usedThisRound(ownerActor, item)) {
+        dbg(`${ownerActor.name} already used ${item?.name} this round, skipped on ${event}`);
+        return false;
+      }
+      return true;
+    }
     default:
       return true;
   }
@@ -250,15 +287,19 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       
       if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
       const malice = isMaliceAbility(entry.item);
-      if (malice && subjectActor && subjectActor !== actor && !inSameCombatGroup(actor, subjectActor)) continue;
-      if (malice) {
+      
+      
+      
+      const takesTurn = malice && entry.parse?.clauses?.some((c) => c.turnLock);
+      if (malice && !takesTurn && subjectActor && subjectActor !== actor && !inSameCombatGroup(actor, subjectActor)) continue;
+      if (malice && !takesTurn) {
         if (maliceSeen.has(entry.item.name)) continue;
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
         c.event === event && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
-        && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext)
-        && (malice || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
+        && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item)
+        && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
       
@@ -272,7 +313,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       }
       if (clause.ownerUnacted && game.combat?.started) {
         const combatant = game.combat.combatants.find(c => c.actor === actor);
-        if (combatant && !(combatant.initiative > 0)) continue;
+        if (combatant && !(activationsLeft(combatant) > 0)) continue;
       }
       if (clause.anyHeroUnacted && game.combat?.started) {
         if (!game.combat.combatants.some(c => c.actor?.type === "hero" && c.initiative > 0)) continue;

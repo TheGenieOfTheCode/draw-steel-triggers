@@ -1,17 +1,31 @@
 import { MODULE_ID, getSetting, dbg } from "../../util.mjs";
-import { collectTriggerMatches } from "../dispatch.mjs";
+import { activationsLeft, collectTriggerMatches, isMinionActor, noteOncePerRoundUse } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket } from "../queue.mjs";
 import { getParsedTrigger } from "../registry.mjs";
 
 const _skipStartOnce = new Set();
 let _startedViaHesitation = null;
 
+let _bonusTurn = null;
+
 function _lockMatches(event, combatant) {
   const actor = combatant?.actor;
   if (!actor) return [];
   return collectTriggerMatches(event, actor, combatant.token ?? null).filter((m) =>
-    m.clause?.turnLock && !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+    m.clause?.turnLock && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
 }
+
+Hooks.on("updateCombat", (combat, changed) => {
+  if (!_bonusTurn || combat.id !== _bonusTurn.combatId) return;
+  if (!("turn" in changed) && !("round" in changed)) return;
+  if (combat.combatant?.id === _bonusTurn.takerId) return;
+  const { takerId, initiative } = _bonusTurn;
+  _bonusTurn = null;
+  const taker = combat.combatants.get(takerId);
+  if (!taker || !(initiative > 0) || taker.initiative > 0) return;
+  dbg(`bonus turn over: ${taker.name}'s activation handed back`);
+  taker.update({ initiative }).catch(() => {});
+});
 
 Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
   
@@ -122,21 +136,33 @@ async function _turnTaker(combat, used) {
   for (const u of used) {
     const item = u.itemUuid ? fromUuidSync(u.itemUuid) : null;
     const dsid = item?.system?._dsid ?? item?.dsid ?? "";
-    if (dsid === "hesitation-is-weakness") {
+    const clause = getParsedTrigger(item)?.clauses?.find((c) => c.turnLock) ?? {};
+    const pick = { taker: null, viaHesitation: false, squad: !!clause.squadTurn, bonus: !!clause.bonusTurn, manual: !!clause.manualTurn, item, used: u };
+    if (clause.manualTurn) return pick;
+    if (dsid === "hesitation-is-weakness" || clause.squadTurn) {
       const taker = _combatantOfActor(combat, u.ownerActorUuid);
-      if (taker) return { taker, viaHesitation: true, used: u };
+      if (taker) return { ...pick, taker, viaHesitation: dsid === "hesitation-is-weakness" };
       continue;
     }
     const targets = await _useTargets(u.itemUuid);
     const tokenTargets = targets.map((doc) => combat.combatants.find((c) => c.tokenId === doc.id)).filter(Boolean);
-    if (tokenTargets.length === 1) return { taker: tokenTargets[0], viaHesitation: false, used: u };
+    if (tokenTargets.length === 1) return { ...pick, taker: tokenTargets[0] };
     if (!tokenTargets.length && item?.system?.target?.type === "self") {
       const taker = _combatantOfActor(combat, u.ownerActorUuid);
-      if (taker) return { taker, viaHesitation: false, used: u };
+      if (taker) return { ...pick, taker };
     }
-    return { taker: null, viaHesitation: false, used: u };
+    return pick;
   }
   return null;
+}
+
+function _squadRefusal(taker, u, others) {
+  const names = game.i18n.getListFormatter().format(others.map((c) => c.name));
+  ChatMessage.create({
+    content: `<p>${game.i18n.format("DS_TRIGGERS.Queue.SquadTurnRefused", { owner: u.ownerName, ability: u.itemName, names })}</p>`,
+    whisper: game.users.filter((user) => user.isGM).map((user) => user.id),
+    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
+  }).catch(() => {});
 }
 
 async function _onResumeTurn(resume, used = []) {
@@ -157,20 +183,48 @@ async function _onResumeTurn(resume, used = []) {
   }
   const pick = await _turnTaker(combat, used);
   const putBack = next?.name ?? "";
-  if (!pick?.taker) {
-    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.TurnTakenManual", {
-      owner: pick?.used?.ownerName ?? used[0].ownerName, ability: pick?.used?.itemName ?? used[0].itemName, name: putBack,
-    }));
+  const u = pick?.used ?? used[0];
+  
+  const standDown = async (key, extra = {}) => {
+    
+    
+    if (next && !pick?.manual) _skipStartOnce.delete(next.id);
+    ui.notifications.warn(game.i18n.format(key, { owner: u.ownerName, ability: u.itemName, name: putBack, ...extra }));
     if (!next) await combat.update({ turn: resume.turn }, { direction: resume.direction ?? 1, dstTurnResume: true });
+  };
+  if (!pick?.taker) return standDown(pick?.manual ? "DS_TRIGGERS.Queue.TurnPutBack" : "DS_TRIGGERS.Queue.TurnTakenManual");
+  const { taker, viaHesitation, squad, bonus, item } = pick;
+  if (!bonus && !(activationsLeft(taker) > 0)) return standDown("DS_TRIGGERS.Queue.TurnTakenActed", { taker: taker.name });
+
+  if (squad) {
+    const group = taker.group;
+    const others = group ? [...group.members].filter((m) => m !== taker && m.actor && !isMinionActor(m.actor)) : [];
+    if (!group || others.length) {
+      if (others.length) _squadRefusal(taker, u, others);
+      return standDown("DS_TRIGGERS.Queue.TurnTakenManual");
+    }
+    const turn = combat.turns.findIndex((c) => c === taker);
+    dbg(`squad turn taken: ${taker.name}'s squad acts through ${u.itemName}${next ? `, ${next.name}'s turn put back` : ""}`);
+    ui.notifications.info(game.i18n.format(next ? "DS_TRIGGERS.Queue.SquadTurnTaken" : "DS_TRIGGERS.Queue.SquadTurnTakenNoNext", {
+      owner: u.ownerName, ability: u.itemName, taker: taker.name, name: putBack,
+    }));
+    
+    await combat.update({ turn }, { direction: 1, dstTurnResume: true });
+    await group.update({ initiative: Math.max(0, (Number(group.initiative) || 1) - 1) });
     return;
   }
-  const { taker, viaHesitation, used: u } = pick;
+
   if (viaHesitation) _startedViaHesitation = taker.id;
   const current = Number(taker.initiative) || 0;
+  if (bonus) {
+    _bonusTurn = { combatId: combat.id, takerId: taker.id, initiative: current };
+    noteOncePerRoundUse(taker.actor, item, combat.round);
+  }
   await taker.update({ initiative: Math.max(0, current - 1) });
   const turn = combat.turns.findIndex((c) => c === taker);
-  dbg(`turn taken: ${taker.name} acts through ${u.itemName}${next ? `, ${next.name}'s turn put back` : ""}`);
-  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.TurnTaken", {
+  dbg(`turn taken: ${taker.name} acts through ${u.itemName}${bonus ? " (bonus turn)" : ""}${next ? `, ${next.name}'s turn put back` : ""}`);
+  const key = bonus ? (next ? "BonusTurnTaken" : "BonusTurnTakenNoNext") : (next ? "TurnTaken" : "TurnTakenNoNext");
+  ui.notifications.info(game.i18n.format(`DS_TRIGGERS.Queue.${key}`, {
     owner: u.ownerName, ability: u.itemName, taker: taker.name, name: putBack,
   }));
   await combat.update({ turn }, { direction: 1, dstTurnResume: true });
