@@ -144,7 +144,10 @@ function usedAbilityMatches(clause, used, owner, context = {}) {
       
       const owed = Math.max(clause.abilityCostMax ?? 0, usedCost);
       const held = owner ? resourceOf(owner) : null;
-      if (held != null && held < owed) return false;
+      if (held != null && held < owed) {
+        dbg(`${owner.name} cannot pay the ${owed} this use would cost (has ${held}), a scaling trigger skipped on USES_ABILITY`);
+        return false;
+      }
     } else if (usedCost > clause.abilityCostMax) return false;
   }
   
@@ -178,9 +181,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       
       
       if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
-      if (!canAffordCost(actor, entry.item)) continue;
       const malice = isMaliceAbility(entry.item);
-      if (spent && !entry.free && !malice) continue;
       if (malice && subjectActor && subjectActor !== actor && !inSameCombatGroup(actor, subjectActor)) continue;
       if (malice) {
         if (maliceSeen.has(entry.item.name)) continue;
@@ -191,6 +192,15 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && (malice || (scopeMatches(c, actor, disposition, subjectActor, subjectDisposition)
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
+      
+      if (!canAffordCost(actor, entry.item)) {
+        dbg(`${actor.name} cannot afford ${entry.item.name} (costs ${entry.item.system.resource}, has ${resourceOf(actor)}), skipped on ${event}`);
+        continue;
+      }
+      if (spent && !entry.free && !malice) {
+        dbg(`${actor.name} has spent their triggered action, ${entry.item.name} skipped on ${event}`);
+        continue;
+      }
       if (clause.ownerUnacted && game.combat?.started) {
         const combatant = game.combat.combatants.find(c => c.actor === actor);
         if (combatant && !(combatant.initiative > 0)) continue;
