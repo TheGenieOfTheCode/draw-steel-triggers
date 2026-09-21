@@ -211,10 +211,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
   _onRender(_context, _options) {
     
     
-    if (!this._resizeHooked) {
-      this._resizeHooked = true;
-      this.element.querySelector(".window-resize-handle")
-        ?.addEventListener("pointerdown", () => { this._userSized = true; });
+    
+    const handle = this.element.querySelector(".window-resize-handle");
+    if (handle && this._resizeHookedOn !== handle) {
+      this._resizeHookedOn = handle;
+      handle.addEventListener("pointerdown", () => { this._userSized = true; });
     }
     setTimeout(() => {
       if (!this._userSized) this.setPosition({ height: "auto" });

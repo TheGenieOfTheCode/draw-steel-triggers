@@ -950,12 +950,10 @@ button.dst-dstd-res-locked {
 .dst-after-pick-btn:hover { border-color: var(--dst-gold-text, #d9a63f); background: rgba(217, 166, 63, 0.22); }
 .dst-after-pick-btn:disabled { opacity: 0.45; cursor: default; }
 
-.dst-shell { display: flex; align-items: flex-start; gap: 0; position: relative; }
+.dst-shell { display: flex; align-items: flex-start; gap: 0; position: relative; flex: 1 1 auto; min-height: 0; }
 .dst-shell > .dst-stack { flex: 1 1 auto; min-width: 0; transition: margin-right 0.25s ease; }
 
-.dst-shell.roster-open > .dst-stack { margin-right: 258px; min-height: 380px; }
-
-.dst-shell.is-fixed > .dst-stack { min-height: 0; }
+.dst-shell.roster-open > .dst-stack { margin-right: 258px; }
 
 .dst-roster {
   position: absolute;
