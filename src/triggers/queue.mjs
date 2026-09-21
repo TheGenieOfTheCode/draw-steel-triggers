@@ -39,6 +39,12 @@ export function watchUseCancellation(itemUuid) {
   _useWatches.set(itemUuid, now + 120000);
 }
 
+export function noteUseCancelled(itemUuid) {
+  if (!itemUuid) return;
+  _useWatches.delete(itemUuid);
+  asPrimaryGM("useCancelled", itemUuid);
+}
+
 Hooks.on("closeAbilityConfigurationDialog", (app) => {
   const uuid = app.options?.ability?.uuid;
   if (!uuid || !_useWatches.has(uuid)) return;
@@ -657,7 +663,13 @@ async function _resolveRetargetPicks(retargets, resume) {
 }
 
 function _finishResume(usedEntries, resume) {
-  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | finishResume: used=${(usedEntries ?? []).map((u) => `${u.itemName}:${u.redirect ?? "-"}`).join(",")} resume=${resume?.itemUuid ?? resume?.fmId ?? null}`);
+  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | finishResume: used=${(usedEntries ?? []).map((u) => `${u.itemName}:${u.redirect ?? "-"}`).join(",")} resume=${resume?.itemUuid ?? resume?.fmId ?? resume?.kind ?? null}`);
+  if (resume?.kind === "turn") {
+    asPrimaryGM("resumeTurn", resume, (usedEntries ?? []).map((u) => ({
+      itemUuid: u.itemUuid, ownerActorUuid: u.ownerActorUuid, ownerName: u.ownerName, itemName: u.itemName,
+    })));
+    return;
+  }
   _postRedirectReminders(usedEntries, resume);
   _resolveRetargetPicks(_collectRetargets(usedEntries), resume)
     .then((retargets) => _dispatchResume(resume, retargets, _collectRollMods(usedEntries), _collectFmMods(usedEntries)))
@@ -806,6 +818,10 @@ async function _postRedirectReminders(usedEntries, resume) {
 }
 
 function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {
+  if (resume?.kind === "turn") {
+    asPrimaryGM("resumeTurn", resume, []);
+    return;
+  }
   if (resume?.fmId) {
     const user = game.users.get(resume.userId);
     if (user?.active) socket.executeForUsers("resumeForcedMove", [resume.userId], resume.fmId, fmMods);
@@ -835,7 +851,7 @@ function _fireResume(resumeId, expired = false) {
         if (pending.awaiting.has(u.itemUuid)) _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
       }
     }
-    const applied = (pending.usedEntries ?? []).filter((u) => !expired || !pending.awaiting.has(u.itemUuid));
+    const applied = (pending.usedEntries ?? []).filter((u) => !u.cancelled && (!expired || !pending.awaiting.has(u.itemUuid)));
     if (getSetting("debugMode")) console.log(`DS_TRIGGERS | fireResume: expired=${expired} awaiting=${[...(pending.awaiting ?? [])].join(",")} applied=${applied.map((u) => u.itemName).join(",")}`);
     _finishResume(applied, pending.resume);
   } else if (held) {

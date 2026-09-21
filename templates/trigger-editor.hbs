@@ -102,6 +102,9 @@
         <label class="checkbox"><input type="checkbox" data-field="edgeRequired" data-index="{{index}}" {{#if edgeRequired}}checked{{/if}}> {{@root.labels.edgeRequired}}</label>
         <label class="checkbox"><input type="checkbox" data-field="ownerUnacted" data-index="{{index}}" {{#if ownerUnacted}}checked{{/if}}> {{@root.labels.ownerUnacted}}</label>
         <label class="checkbox"><input type="checkbox" data-field="anyHeroUnacted" data-index="{{index}}" {{#if anyHeroUnacted}}checked{{/if}}> {{@root.labels.anyHeroUnacted}}</label>
+        {{#if turnEvent}}
+        <label class="checkbox"><input type="checkbox" data-field="turnLock" data-index="{{index}}" {{#if turnLock}}checked{{/if}}> {{@root.labels.turnLock}}</label>
+        {{/if}}
       </div>
       <p class="dst-hint">{{@root.hints.checks}}</p>
 

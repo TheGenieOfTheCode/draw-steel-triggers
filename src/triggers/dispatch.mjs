@@ -287,6 +287,9 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   if (!isPrimaryGM()) return;
 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, ...eventContext });
+  if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
+    matches = matches.filter((m) => !m.clause?.turnLock);
+  }
   if (!matches.length) return;
 
   const promptsOn = DAMAGE_PROMPTS.has(event) ? getSetting("damagePrompts")

@@ -35,6 +35,10 @@
         "Name": "Track Triggered Actions",
         "Hint": "Track when a combatant spends their triggered action and stop reminding them about non-free triggers until the next round."
       },
+      "TurnInterrupts": {
+        "Name": "Turn Interrupts",
+        "Hint": "Hold a creature's activation while triggered abilities that can take the turn instead, such as Prescient Grace and Hesitation is Weakness, wait for a Use or Decline decision. Only applies during combat."
+      },
       "RollLock": {
         "Name": "Roll Lock",
         "Hint": "Hold ability rolls while triggered abilities that could interrupt them wait for a Use or Decline decision. Only applies during combat."
@@ -82,7 +86,8 @@
         "lock": "locks the roll",
         "hold": "holds the damage",
         "resolution": "holds the resolution after the roll",
-        "forced": "holds the forced movement"
+        "forced": "holds the forced movement",
+        "turn": "holds the turn change"
       },
       "Detail": {
         "Manual": "This trigger was configured by hand and skips the parser.",
@@ -97,7 +102,9 @@
         "RollModifying": "Roll modifying: using this applies {effect} to the triggering roll.",
         "Redirect": "Redirects on use: the triggering strike is retargeted {mode}.",
         "Revisit": "Marked for a later revisit; not detected yet.",
-        "DsctOnly": "Needs Draw Steel: Combat Tools data to detect."
+        "DsctOnly": "Needs Draw Steel: Combat Tools data to detect.",
+        "DsctGrab": "Reads grabs made through Draw Steel: Combat Tools.",
+        "EventNeedsDsct": "{event}: needs Draw Steel: Combat Tools, which records who holds a grab."
       },
       "RedirectMode": {
         "self": "to this ability's owner",
@@ -154,6 +161,7 @@
       "EdgeRequired": "Only with an edge",
       "OwnerUnacted": "Only if this creature has not acted this round",
       "AnyHeroUnacted": "Only while any hero has not acted this round",
+      "TurnLock": "Takes the turn: hold the activation until this is decided",
       "HoldDamage": "Modifies the incoming damage",
       "HoldDamageHint": "The damage is held before it lands while the owner decides, so the effect can change it. Unchecked, the trigger only prompts after the damage applies.",
       "TargetedHalf": "Halves the incoming damage when used",
@@ -198,8 +206,8 @@
         "MOVES": "A creature moves, shifts, or leaves a square. Needs the Combat Tools tier.",
         "FORCE_MOVED": "A creature is pushed, pulled, or slid. Needs the Combat Tools tier.",
         "FORCE_MOVES": "A creature force moves someone else. Needs the Combat Tools tier.",
-        "TURN_START": "A creature's turn begins. Chat reminder.",
-        "TURN_END": "A creature's turn ends. Chat reminder.",
+        "TURN_START": "A creature's turn begins. Chat reminder, or holds the activation for abilities that take the turn.",
+        "TURN_END": "A creature's turn ends. Chat reminder, or holds the next activation for abilities that take the turn.",
         "ROUND_START": "A new combat round begins. Chat reminder.",
         "CONDITION_GAIN": "A creature gains a condition such as bleeding or prone, or an effect that ends on a save or at turn end. Prompts on the stack.",
         "USES_ABILITY": "A creature uses an ability, action, or maneuver. Not detected yet.",
@@ -214,7 +222,7 @@
         "STAMINA_BELOW": "Stamina falls below a set threshold. Prompts on the stack.",
         "MECHANISM": "A siege engine or mechanism is operated. Special case abilities only.",
         "NARRATIVE": "A narrative moment the Director calls for. Never automated.",
-        "GRAB_ENDS": "A grab held by the watched creature ends. Prompts on the stack.",
+        "GRAB_ENDS": "A grab held by the watched creature ends. Prompts on the stack. Combat Tools tier.",
         "RESISTS_POTENCY": "A grabbed creature resists a potency. Special case abilities only.",
         "TEST_FAILED": "An ally fails a test. Special case abilities only.",
         "UNKNOWN": "The parser could not classify this trigger. Reminder only."
@@ -257,8 +265,16 @@
         "MAKES_STRIKE": "Triggered by {roller} making a strike ({ability}).",
         "TARGETED_BY_STRIKE": "Triggered by {roller} targeting {owner} with a strike ({ability}).",
         "TARGETED_BY_ABILITY": "Triggered by {roller} targeting {owner} with an ability ({ability}).",
-        "WOULD_TAKE_DAMAGE": "Triggered by {roller} dealing damage to {owner} ({ability})."
+        "WOULD_TAKE_DAMAGE": "Triggered by {roller} dealing damage to {owner} ({ability}).",
+        "TURN_START_LOCK": "Triggered by {name}'s turn starting. The turn is held.",
+        "TURN_END_LOCK": "Triggered by {name}'s turn ending. The next turn is held."
       },
+      "TurnLockCause": "{name}'s turn is held.",
+      "TurnHeldTitle": "{name}'s turn",
+      "TurnEndHeldTitle": "After {name}'s turn",
+      "TurnHeld": "{name}'s turn is held while triggered abilities are decided. See the Trigger Stack.",
+      "TurnTaken": "{owner} used {ability}: {taker} takes their turn now. {name}'s turn is put back.",
+      "TurnTakenManual": "{owner} used {ability}. Activate whoever takes the turn by hand; {name}'s turn is put back.",
       "Release": "Release Now",
       "ReleaseTooltip": "Resume the held ability immediately (Director only). Undecided triggers become simple prompts.",
       "ApplyNow": "Apply Now",

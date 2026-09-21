@@ -189,7 +189,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         damageTypes: L("DamageTypes"),
         abilityDsid: L("AbilityDsid"), groupName: L("GroupName"), groupNone: L("GroupNone"),
         customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
-        edgeRequired: L("EdgeRequired"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"),
+        edgeRequired: L("EdgeRequired"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"), turnLock: L("TurnLock"),
         availability: L("Availability"),
         holdDamage: L("HoldDamage"), targetedHalf: L("TargetedHalf"), excludeSelfTarget: L("ExcludeSelfTarget"),
         postRoll: L("PostRoll"), halfOnUse: L("HalfOnUse"), rollMod: L("RollMod"), redirect: L("Redirect"),
@@ -257,6 +257,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         edgeRequired: !!c.edgeRequired,
         ownerUnacted: !!c.ownerUnacted,
         anyHeroUnacted: !!c.anyHeroUnacted,
+        turnLock: !!c.turnLock,
+        turnEvent: c.event === "TURN_START" || c.event === "TURN_END",
       })),
       maliceOptions: [
         { value: "default", label: L("MaliceDefault"), selected: this._malice === undefined },

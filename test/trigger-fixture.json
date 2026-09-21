@@ -5318,7 +5318,8 @@
           "event": "TURN_END",
           "scope": "ALLY",
           "qualifiers": [],
-          "ownerUnacted": true
+          "ownerUnacted": true,
+          "turnLock": true
         }
       ]
     }
@@ -5434,6 +5435,7 @@
             "within 10 squares"
           ],
           "anyHeroUnacted": true,
+          "turnLock": true,
           "range": 10
         }
       ]
