@@ -3,8 +3,8 @@
 export const SPECIAL_CASES = {
   
   "your-fears-become-manifest": { clauses: [{ event: "ROUND_START", scope: "ANY" }] },
-  "stinging-departure":         { clauses: [{ event: "GRAB_ENDS", scope: "SELF" }] },
-  "blood-for-blood":            { clauses: [{ event: "CONDITION_GAIN", scope: "ALLY", qualifiers: ["bleeding", "by the target"] }] },
+  "stinging-departure":         { clauses: [{ event: "GRAB_ENDS", scope: "SELF", asSource: true }] },
+  "blood-for-blood":            { clauses: [{ event: "CONDITION_GAIN", scope: "ALLY", qualifiers: ["bleeding", "by the target"], condition: "bleeding" }] },
   "wasnt-aiming-for-you":       { clauses: [{ event: "POWER_ROLL_RESULT", scope: "SELF", qualifiers: ["tier 1", "signature ability"] }] },
   "brain-drain":                { clauses: [{ event: "RESISTS_POTENCY", scope: "GRABBED_CREATURE" }] },
   "still-your-tongue":          { clauses: [{ event: "NARRATIVE", scope: "ANY" }] },
@@ -15,7 +15,7 @@ export const SPECIAL_CASES = {
   "put-it-out": { clauses: [{ event: "USES_ABILITY", scope: "ENEMY", qualifiers: ["ability that emits light"] }], flag: "REVISIT" },
   "is-this-what-they-taught-you": { clauses: [{ event: "MARKED", scope: "SELF" }], flag: "DSCT_ONLY" },
   "your-obsession-with-me-betrays-you": { clauses: [{ event: "RESOURCE_GAIN", scope: "ANY", qualifiers: ["ferocity or wrath", "caused by self"] }], flag: "REVISIT" },
-  "abyssal-protectors": { clauses: [{ event: "DIES", scope: "ALLY", qualifiers: ["last minion on map"] }, { event: "STAMINA_BELOW", scope: "SELF", value: 25 }], flag: "REVISIT" },
+  "abyssal-protectors": { clauses: [{ event: "DIES", scope: "ALLY", qualifiers: ["last minion on map"], lastMinion: true, range: "none" }, { event: "STAMINA_BELOW", scope: "SELF", value: 25 }] },
   "nova": { clauses: [{ event: "DIES", scope: "OBJECT", qualifiers: ["the throne"] }, { event: "POWER_ROLL_RESULT", scope: "SELF", qualifiers: ["tier 1 on deactivation test"] }], flag: "REVISIT" },
   
   "heavy-gate": { clauses: [{ event: "MECHANISM", scope: "ANY" }] },
@@ -499,6 +499,17 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     }
     if (/\b(gains? (an|a double) edge|has an edge|with an edge)\b/.test(lc)) entry.edgeRequired = true;
     if (/\bsaving throw\b|ends? at the end of their turn/.test(lc) && entry.event === "CONDITION_GAIN") entry.durationFilter = "save-or-eot";
+    if (entry.event === "CONDITION_GAIN") {
+      const cond = lc.match(/\b(grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding)\b/);
+      if (cond) entry.condition = cond[1];
+      const grabs = lc.match(/\bgrabs (two|three|\d+|a|an|one)\b/);
+      if (grabs) {
+        entry.condition = "grabbed";
+        entry.asSource = true;
+        const n = { two: 2, three: 3, a: 1, an: 1, one: 1 }[grabs[1]] ?? Number(grabs[1]);
+        if (n > 1) entry.grabCount = n;
+      }
+    }
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }

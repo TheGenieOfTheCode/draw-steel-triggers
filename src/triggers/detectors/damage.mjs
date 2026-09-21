@@ -207,6 +207,15 @@ Hooks.on("updateActor", (actor, changed, options) => {
       });
     }
   }
+  if (cur.value < prev.value) {
+    dispatchTriggerEvent({
+      event: "STAMINA_BELOW",
+      subjectActor: actor,
+      subjectToken: token,
+      eventContext: { prevValue: prev.value, curValue: cur.value },
+      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.StaminaBelow", { name: actor.name, value: cur.value }),
+    });
+  }
   if (prev.value > 0 && cur.value <= 0) {
     dispatchTriggerEvent({
       event: "DIES",

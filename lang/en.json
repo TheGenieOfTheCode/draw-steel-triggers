@@ -43,6 +43,10 @@
         "Name": "Damage Prompts",
         "Hint": "When a creature takes damage, dies, or becomes winded, matching triggered abilities appear in the Trigger Stack with Use and Decline instead of a chat reminder."
       },
+      "ConditionPrompts": {
+        "Name": "Condition Prompts",
+        "Hint": "When a creature gains a condition, an effect on it ends, or a grab is broken, matching triggered abilities appear in the Trigger Stack with Use and Decline instead of a chat reminder."
+      },
       "DamageInterrupts": {
         "Name": "Damage Interrupts",
         "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
@@ -197,20 +201,20 @@
         "TURN_START": "A creature's turn begins. Chat reminder.",
         "TURN_END": "A creature's turn ends. Chat reminder.",
         "ROUND_START": "A new combat round begins. Chat reminder.",
-        "CONDITION_GAIN": "A creature gains a condition such as bleeding or prone. Not detected yet.",
+        "CONDITION_GAIN": "A creature gains a condition such as bleeding or prone, or an effect that ends on a save or at turn end. Prompts on the stack.",
         "USES_ABILITY": "A creature uses an ability, action, or maneuver. Not detected yet.",
         "POWER_ROLL_RESULT": "A specific power roll outcome, like tier 1 or a critical. Not detected yet.",
         "ZONE_ENTER": "A creature enters a linked zone or area. Not detected yet.",
         "ZONE_TURN_START": "A creature starts its turn inside a linked zone. Not detected yet.",
-        "EFFECT_ENDS": "A named effect on a creature ends. Not detected yet.",
+        "EFFECT_ENDS": "A named effect on a creature ends. Prompts on the stack.",
         "SAVING_THROW": "A creature makes a saving throw. Not detected yet.",
         "REGAINS_STAMINA": "A creature regains Stamina. Chat reminder.",
         "MARKED": "The watched creature is marked. Needs Draw Steel: Combat Tools data.",
         "RESOURCE_GAIN": "A creature gains a heroic resource. Special case abilities only.",
-        "STAMINA_BELOW": "Stamina falls below a set threshold. Special case abilities only.",
+        "STAMINA_BELOW": "Stamina falls below a set threshold. Prompts on the stack.",
         "MECHANISM": "A siege engine or mechanism is operated. Special case abilities only.",
         "NARRATIVE": "A narrative moment the Director calls for. Never automated.",
-        "GRAB_ENDS": "A grab on the watched creature ends. Special case abilities only.",
+        "GRAB_ENDS": "A grab held by the watched creature ends. Prompts on the stack.",
         "RESISTS_POTENCY": "A grabbed creature resists a potency. Special case abilities only.",
         "TEST_FAILED": "An ally fails a test. Special case abilities only.",
         "UNKNOWN": "The parser could not classify this trigger. Reminder only."
@@ -400,7 +404,14 @@
       "UsesAbility": "Triggered by {name} using {ability}.",
       "Dies": "Triggered by {name} being reduced to 0 Stamina.",
       "Winded": "Triggered by {name} becoming winded.",
-      "RegainsStamina": "Triggered by {name} regaining {amount} Stamina."
+      "RegainsStamina": "Triggered by {name} regaining {amount} Stamina.",
+      "StaminaBelow": "Triggered by {name} falling to {value} Stamina.",
+      "ConditionGain": "Triggered by {name} becoming {condition}.",
+      "ConditionGainBy": "Triggered by {by} making {name} {condition}.",
+      "EffectGain": "Triggered by {name} coming under {effect}.",
+      "EffectEnds": "Triggered by {effect} ending on {name}.",
+      "GrabEnds": "Triggered by the grab on {name} ending.",
+      "GrabEndsBy": "Triggered by {by}'s grab on {name} ending."
     },
     "Snooze": {
       "Button": "Snooze Triggers",

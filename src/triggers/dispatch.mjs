@@ -6,8 +6,10 @@ import { maliceChipURI } from "../ui/malice-chip.mjs";
 import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 
-const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE"]);
-const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, "USES_ABILITY"]);
+const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
+const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
+const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, ...CONDITION_PROMPTS, "USES_ABILITY"]);
+const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
 
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
 
@@ -162,6 +164,71 @@ function usedAbilityMatches(clause, used, owner, context = {}) {
   return true;
 }
 
+function isMinionActor(actor) {
+  return actor?.system?.isMinion ?? actor?.system?.monster?.organization === "minion";
+}
+
+function tokenSide(tokenDoc) {
+  return tokenDoc?.disposition ?? (tokenDoc?.actor?.hasPlayerOwner ? 1 : -1);
+}
+
+function lastMinionStanding(subjectActor, subjectToken) {
+  if (!isMinionActor(subjectActor)) return false;
+  const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
+  const side = tokenSide(subjectToken);
+  for (const token of canvas.tokens?.placeables ?? []) {
+    const doc = token.document;
+    const actor = doc.actor;
+    if (!actor || actor === subjectActor) continue;
+    if (!isMinionActor(actor) || tokenSide(doc) !== side) continue;
+    if (actor.statuses?.has(defeated) || (actor.system?.stamina?.value ?? 1) <= 0) continue;
+    return false;
+  }
+  return true;
+}
+
+function grabsHeldBy(ownerActor, status) {
+  let count = 0;
+  for (const token of canvas.tokens?.placeables ?? []) {
+    const actor = token.document.actor;
+    if (!actor?.statuses?.has(status)) continue;
+    if (actor.system?.statuses?.[status]?.sources?.has?.(ownerActor.uuid)) count++;
+  }
+  
+  if (status === "grabbed") {
+    const held = ownerActor.effects.filter((e) => e.flags?.["draw-steel-combat-tools"]?.grab?.grabbedId).length;
+    count = Math.max(count, held);
+  }
+  return count;
+}
+
+function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx) {
+  switch (event) {
+    case "CONDITION_GAIN": {
+      if (clause.condition && ctx.condition !== clause.condition) return false;
+      if (clause.durationFilter === "save-or-eot" && !SAVE_OR_EOT.has(ctx.expiry)) return false;
+      if (clause.asSource) {
+        if (!(ctx.sourceActorUuids ?? []).includes(ownerActor.uuid)) return false;
+        if (clause.grabCount && grabsHeldBy(ownerActor, ctx.condition ?? "grabbed") < clause.grabCount) {
+          dbg(`${ownerActor.name} holds fewer than ${clause.grabCount} grabs, skipped on CONDITION_GAIN`);
+          return false;
+        }
+      }
+      return true;
+    }
+    case "GRAB_ENDS":
+      return !clause.asSource || (ctx.sourceActorUuids ?? []).includes(ownerActor.uuid);
+    case "EFFECT_ENDS":
+      return !clause.effectName || (ctx.effectName ?? "").includes(clause.effectName);
+    case "STAMINA_BELOW":
+      return Number.isFinite(clause.value) && ctx.prevValue >= clause.value && ctx.curValue < clause.value;
+    case "DIES":
+      return !clause.lastMinion || lastMinionStanding(subjectActor, subjectToken);
+    default:
+      return true;
+  }
+}
+
 export function collectTriggerMatches(event, subjectActor = null, subjectToken = null, usedAbility = null, usedContext = {}) {
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   const subjectDisposition = subjectToken?.disposition ?? null;
@@ -189,7 +256,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       }
       const clause = entry.parse?.clauses?.find(c =>
         c.event === event && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
-        && (malice || (scopeMatches(c, actor, disposition, subjectActor, subjectDisposition)
+        && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext)
+        && (malice || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
       
@@ -214,16 +282,16 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   return matches;
 }
 
-export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null }) {
+export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {} }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
 
-  let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken });
+  let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, ...eventContext });
   if (!matches.length) return;
 
-  
-  
-  if (PROMPT_EVENTS.has(event) && (!DAMAGE_PROMPTS.has(event) || getSetting("damagePrompts"))) {
+  const promptsOn = DAMAGE_PROMPTS.has(event) ? getSetting("damagePrompts")
+    : CONDITION_PROMPTS.has(event) ? getSetting("conditionPrompts") : true;
+  if (PROMPT_EVENTS.has(event) && promptsOn) {
     const prompts = matches.filter((m) =>
       !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
     if (prompts.length) enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });

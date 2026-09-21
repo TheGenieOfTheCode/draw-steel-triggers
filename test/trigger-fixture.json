@@ -744,7 +744,8 @@
           "scope": "SELF",
           "qualifiers": [
             "maneuver"
-          ]
+          ],
+          "abilityType": "maneuver"
         }
       ]
     }
@@ -2357,7 +2358,8 @@
           "qualifiers": [
             "bleeding",
             "by the target"
-          ]
+          ],
+          "condition": "bleeding"
         }
       ]
     }
@@ -2479,7 +2481,8 @@
       "clauses": [
         {
           "event": "GRAB_ENDS",
-          "scope": "SELF"
+          "scope": "SELF",
+          "asSource": true
         }
       ]
     }
@@ -2519,7 +2522,9 @@
           "scope": "ALLY",
           "qualifiers": [
             "last minion on map"
-          ]
+          ],
+          "lastMinion": true,
+          "range": "none"
         },
         {
           "event": "STAMINA_BELOW",
@@ -2580,8 +2585,8 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TAKES_DAMAGE",
-          "scope": "ALLY",
+          "event": "DEALS_DAMAGE",
+          "scope": "ANY",
           "qualifiers": []
         }
       ]
@@ -2957,7 +2962,8 @@
         {
           "event": "CONDITION_GAIN",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "condition": "prone"
         }
       ]
     }
@@ -3115,7 +3121,10 @@
         {
           "event": "CONDITION_GAIN",
           "scope": "SELF",
-          "qualifiers": []
+          "qualifiers": [],
+          "condition": "grabbed",
+          "asSource": true,
+          "grabCount": 2
         },
         {
           "event": "TURN_START",
@@ -4416,7 +4425,8 @@
         {
           "event": "CONDITION_GAIN",
           "scope": "SELF",
-          "qualifiers": []
+          "qualifiers": [],
+          "condition": "prone"
         }
       ]
     }
@@ -4820,8 +4830,8 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TAKES_DAMAGE",
-          "scope": "ALLY",
+          "event": "DEALS_DAMAGE",
+          "scope": "ANY",
           "qualifiers": [
             "within distance"
           ]
@@ -5036,7 +5046,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TAKES_DAMAGE",
+          "event": "DEALS_DAMAGE",
           "scope": "TARGET",
           "qualifiers": []
         }
@@ -5209,7 +5219,10 @@
           "scope": "TARGET",
           "qualifiers": [
             "that targets only one enemy and costs 3 or fewer of their heroic resource"
-          ]
+          ],
+          "abilityCostMax": 3,
+          "abilityTargetCount": 1,
+          "abilityTargetSide": "enemy"
         }
       ]
     }
@@ -5265,7 +5278,8 @@
         {
           "event": "USES_ABILITY",
           "scope": "SELF",
-          "qualifiers": []
+          "qualifiers": [],
+          "abilityDsid": "in-all-this-confusion"
         }
       ]
     }
@@ -5552,7 +5566,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TAKES_DAMAGE",
+          "event": "WOULD_TAKE_DAMAGE",
           "scope": "TARGET",
           "qualifiers": []
         },
@@ -5575,7 +5589,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "TAKES_DAMAGE",
+          "event": "DEALS_DAMAGE",
           "scope": "TARGET",
           "qualifiers": []
         }
@@ -5725,7 +5739,8 @@
           "scope": "TARGET",
           "qualifiers": [
             "main action"
-          ]
+          ],
+          "abilityType": "main"
         }
       ]
     }

@@ -20,6 +20,7 @@ import { getQueueMirror } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/ability-use.mjs";
+import "./triggers/detectors/conditions.mjs";
 import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
@@ -71,6 +72,14 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "damagePrompts", {
     name: "DS_TRIGGERS.Settings.DamagePrompts.Name",
     hint: "DS_TRIGGERS.Settings.DamagePrompts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "conditionPrompts", {
+    name: "DS_TRIGGERS.Settings.ConditionPrompts.Name",
+    hint: "DS_TRIGGERS.Settings.ConditionPrompts.Hint",
     scope: "world",
     config: true,
     type: Boolean,
