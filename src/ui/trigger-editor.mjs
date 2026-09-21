@@ -1,6 +1,6 @@
 import { MODULE_ID } from "../util.mjs";
 import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility, triggerEffectText } from "../triggers/registry.mjs";
-import { explainAbilityFilters, explainClauseFlags } from "../parser/trigger-parser.mjs";
+import { explainAbilityFilters, explainClauseFlags, annotateTrigger } from "../parser/trigger-parser.mjs";
 
 const L = (k, data) => data
   ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
@@ -175,8 +175,27 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       .sort((a, b) => a.label.localeCompare(b.label));
     const damageTypes = Object.entries(ds.CONFIG.damageTypes ?? {})
       .map(([value, cfg]) => ({ value, label: game.i18n.localize(cfg.label ?? value) }));
+    const annotated = annotateTrigger(this.item.system.trigger ?? "", {
+      dsid: this.item.system?._dsid ?? this.item.dsid,
+      ownerName: this.item.actor?.name ?? "",
+      effectText: triggerEffectText(this.item),
+      targetType: this.item.system?.target?.type,
+    });
+    const triggerPills = annotated.segments.map((s) => {
+      const clauses = s.clauses ?? (s.clause == null ? [] : [s.clause]);
+      const shared = clauses.length > 1;
+      return {
+        ...s,
+        isPill: s.kind !== "plain",
+        indexes: clauses.join(","),
+        colour: shared ? "dst-tt-shared" : (s.clause == null ? "" : `dst-tt-c${s.clause % 4}`),
+        style: shared ? `--dst-tt-a: var(--dst-tt-c${clauses[0] % 4}); --dst-tt-stops: ${clauses.map((c) => `var(--dst-tt-c${c % 4})`).join(", ")}; --dst-tt-fills: ${clauses.map((c) => `color-mix(in srgb, var(--dst-tt-c${c % 4}) 16%, var(--dst-tt-base))`).join(", ")};` : "",
+        tooltip: s.kind === "plain" ? "" : game.i18n.format(`DS_TRIGGERS.Editor.TriggerPill.${s.kind}`, { n: clauses.map((c) => c + 1).join(" & ") }),
+      };
+    });
     return {
       triggerText: this.item.system.trigger ?? "",
+      triggerPills,
       noTriggerText: L("NoTriggerText"),
       statusLine: game.i18n.format("DS_TRIGGERS.Editor.Status", {
         source: this._source, confidence: this._confidence || "n/a",
@@ -268,6 +287,26 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     };
   }
 
+  
+  _flashControl(index, field, text, { scroll = true } = {}) {
+    const clauseEl = this.element.querySelector(`.dst-editor-clause[data-index="${index}"]`);
+    if (!clauseEl) return;
+    let target = null;
+    if (field === "qualifiers") {
+      const wanted = text.toLowerCase();
+      target = [...clauseEl.querySelectorAll(".dst-qual-pill")].find((p) => p.textContent.trim().toLowerCase() === wanted)
+        ?? clauseEl.querySelector(".dst-qual-pills");
+    } else {
+      target = clauseEl.querySelector(`select[data-field="${field}"]`);
+    }
+    target ??= clauseEl;
+    if (scroll) target.scrollIntoView({ block: "center", behavior: "smooth" });
+    target.style.setProperty("--dst-flash-colour", `var(--dst-tt-c${index % 4})`);
+    void target.offsetWidth;
+    target.classList.add("dst-flash");
+    setTimeout(() => target.classList.remove("dst-flash"), 1800);
+  }
+
   _onRender(_context, _options) {
     const titleEl = this.element.querySelector(".window-header .window-title");
     if (titleEl) titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem.svg" alt="">${this.title}`;
@@ -278,6 +317,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
     
     el.addEventListener("click", (event) => {
+      const ttPill = event.target.closest(".dst-tt-pill");
+      if (ttPill) {
+        event.preventDefault();
+        for (const old of this.element.querySelectorAll(".dst-flash")) old.classList.remove("dst-flash");
+        const indexes = String(ttPill.dataset.indexes ?? ttPill.dataset.index).split(",").map(Number);
+        indexes.forEach((index, i) => this._flashControl(index, ttPill.dataset.field, ttPill.textContent.trim(), { scroll: i === 0 }));
+        return;
+      }
       const pill = event.target.closest("[data-qual-toggle]");
       if (!pill) return;
       event.preventDefault();

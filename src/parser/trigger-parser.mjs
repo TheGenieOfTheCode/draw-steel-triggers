@@ -421,10 +421,12 @@ function ownerWords(ownerName) {
     .filter(w => w.length > 2 && !OWNER_STOPWORDS.has(w));
 }
 
+const SUBJECT_RX = /^(you\b|the target\b|your companion\b|the [\w'’ ]+?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|obtains?|hears|causes?))|(?:an?|one|another|any) [\w -]+?(?: or object)?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|marks|resists|within)))/;
+
 function scopeOf(lc, event, owner) {
   const words = ownerWords(owner);
   const mentionsOwner = words.some(w => new RegExp(`\\b${w}\\b`).test(lc));
-  const subj = lc.match(/^(you\b|the target\b|your companion\b|the [\w'’ ]+?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|obtains?|hears|causes?))|(?:an?|one|another|any) [\w -]+?(?: or object)?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|marks|resists|within)))/);
+  const subj = lc.match(SUBJECT_RX);
   const s = subj ? subj[1] : "";
   
   const objectEvents = new Set(["TAKES_DAMAGE", "TARGETED_BY_STRIKE", "WINDED_OR_DYING", "DIES"]);
@@ -452,6 +454,77 @@ function scopeOf(lc, event, owner) {
   return "UNKNOWN";
 }
 
+function normalizeTrigger(clean, ownerName) {
+  const properWords = ownerWords(ownerName).filter(w => new RegExp(`\\b${w[0].toUpperCase()}${w.slice(1)}`).test(clean));
+  let normalized = clean;
+  for (const w of properWords) normalized = normalized.replace(new RegExp(`\\b(Lord |Queen |King )?${w[0].toUpperCase()}${w.slice(1)}(['’]s)?\\b`, "g"), (m, t, poss) => poss ? "the self's" : "the self");
+  normalized = normalized.replace(/^(a|an|one) ([\w -]+?)['’]s turn starts/i, "a $2 starts their turn");
+  normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero)( within \d+ squares?| within (?:distance|reach)| adjacent(?: to [\w'’ ]+?)?)? makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
+    (m, qual, kind, tgt) => `${tgt} is struck by a ${kind ?? ""}strike${qual ? ` while${qual}` : ""}`);
+  return normalized;
+}
+
+/* The trigger sentence as spans: which words each clause's subject, event and qualifiers were read
+   from. Runs the same splitter and the same regex tables as parseTrigger, so a span can only point at
+   words the parser actually matched. Positions are in the returned sentence, which is the book text
+   unless a proper name had to become "the self" for the parser to read it. */
+export function annotateTrigger(text, { dsid, ownerName, effectText, targetType } = {}) {
+  const clean = String(text ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  if (!clean) return { sentence: "", segments: [] };
+  const parse = parseTrigger(clean, { dsid, ownerName, effectText, targetType });
+  const sentence = normalizeTrigger(clean, ownerName);
+  const lower = sentence.toLowerCase();
+  const spans = [];
+  let cursor = 0;
+  splitClauses(sentence).forEach((clauseText, index) => {
+    const lc = clauseText.toLowerCase();
+    let start = lower.indexOf(lc, cursor);
+    let localOffset = 0;
+    if (start < 0) {
+      
+      const words = lc.split(" ");
+      for (let drop = 1; drop < words.length && start < 0; drop++) {
+        const tail = words.slice(drop).join(" ");
+        const at = lower.indexOf(tail, cursor);
+        if (at >= 0) { start = at; localOffset = lc.length - tail.length; }
+      }
+    }
+    if (start < 0) return;
+    const base = start - localOffset;
+    cursor = start + (lc.length - localOffset);
+    const add = (kind, m, field) => {
+      if (!m) return;
+      const s = base + m.index, e = s + m[0].length;
+      if (s < start || e > cursor) return;
+      spans.push({ start: s, end: e, clause: index, kind, field });
+    };
+    const clause = parse.clauses[index];
+    const subject = lc.match(SUBJECT_RX);
+    if (subject && localOffset > 0 && subject.index < localOffset) {
+      
+      const shared = spans.filter((s) => s.kind === "subject").at(-1);
+      if (shared) (shared.clauses ??= [shared.clause]).push(index);
+    } else add("subject", subject, "scope");
+    const eventRow = EVENTS.find(([name]) => name === clause?.event) ?? EVENTS.find(([, rx]) => rx.test(lc));
+    if (eventRow) {
+      const rx = new RegExp(eventRow[1].source, eventRow[1].flags.replace("g", ""));
+      add("event", lc.match(rx), "event");
+    }
+    for (const rx of QUALIFIERS) add("qualifier", lc.match(rx), "qualifiers");
+  });
+  spans.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  const segments = [];
+  let at = 0;
+  for (const span of spans) {
+    if (span.start < at) continue;
+    if (span.start > at) segments.push({ text: sentence.slice(at, span.start), kind: "plain", clause: null });
+    segments.push({ text: sentence.slice(span.start, span.end), kind: span.kind, clause: span.clause, clauses: span.clauses ?? [span.clause], field: span.field });
+    at = span.end;
+  }
+  if (at < sentence.length) segments.push({ text: sentence.slice(at), kind: "plain", clause: null });
+  return { sentence, segments, clauseCount: parse.clauses.length };
+}
+
 export function parseTrigger(text, { dsid, ownerName, effectText, targetType } = {}) {
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
@@ -462,12 +535,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   const clauses = [];
   let ambiguous = false;
 
-  const properWords = ownerWords(ownerName).filter(w => new RegExp(`\\b${w[0].toUpperCase()}${w.slice(1)}`).test(clean));
-  let normalized = clean;
-  for (const w of properWords) normalized = normalized.replace(new RegExp(`\\b(Lord |Queen |King )?${w[0].toUpperCase()}${w.slice(1)}(['’]s)?\\b`, "g"), (m, t, poss) => poss ? "the self's" : "the self");
-  normalized = normalized.replace(/^(a|an|one) ([\w -]+?)['’]s turn starts/i, "a $2 starts their turn");
-  normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero)( within \d+ squares?| within (?:distance|reach)| adjacent(?: to [\w'’ ]+?)?)? makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
-    (m, qual, kind, tgt) => `${tgt} is struck by a ${kind ?? ""}strike${qual ? ` while${qual}` : ""}`);
+  const normalized = normalizeTrigger(clean, ownerName);
   for (const clause of splitClauses(normalized)) {
     const lc = clause.toLowerCase();
     const hits = EVENTS.filter(([, rx]) => rx.test(clause)).map(([e]) => e);
@@ -483,7 +551,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
       entry.events = events.map((e) => e === "TARGETED_BY_STRIKE" ? "TARGETED_BY_ABILITY" : e);
     }
     if (/\bis struck by\b/.test(lc)) entry.postRoll = true;
-    // structured filters
+    
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
     if (dmgTypes && /damage/.test(lc)) entry.damageTypes = [...new Set(dmgTypes)];
     const using = clause.match(/\busing (?:their |its |the )?([A-Z][\w' ]*?)(?=[.,]|$| (?:ability|maneuver|action))/);

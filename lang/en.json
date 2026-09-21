@@ -119,6 +119,11 @@
       "TriggerLabel": "Trigger",
       "OpenTooltip": "Open the trigger builder to override how this trigger is automated.",
       "NoTriggerText": "This ability has no trigger text.",
+      "TriggerPill": {
+        "subject": "Clause {n}: who the trigger watches. Click to show its scope.",
+        "event": "Clause {n}: what happens. Click to show its event.",
+        "qualifier": "Clause {n}: a condition on the event. Click to show its qualifier."
+      },
       "Status": "Current parse: {source} ({confidence} confidence)",
       "ClauseLegend": "Clause {n}",
       "RemoveClause": "Remove this clause",

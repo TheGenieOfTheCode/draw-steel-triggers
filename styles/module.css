@@ -1075,3 +1075,49 @@ button.dst-qual-pill.dst-qual-plain {
   opacity: 0.75;
   font-style: italic;
 }
+
+.dst-editor-trigger-text {
+  --dst-tt-c0: #e0b04a; --dst-tt-c1: #6fa8e6; --dst-tt-c2: #6fcf6f; --dst-tt-c3: #b48ae6; --dst-tt-base: #232323;
+}
+body.theme-light .dst-editor-trigger-text {
+  --dst-tt-c0: #8a5a00; --dst-tt-c1: #1f5fa8; --dst-tt-c2: #2d7a2d; --dst-tt-c3: #6d3fa8; --dst-tt-base: #efe7d6;
+}
+.dst-editor-clause { --dst-tt-c0: #e0b04a; --dst-tt-c1: #6fa8e6; --dst-tt-c2: #6fcf6f; --dst-tt-c3: #b48ae6; }
+body.theme-light .dst-editor-clause { --dst-tt-c0: #8a5a00; --dst-tt-c1: #1f5fa8; --dst-tt-c2: #2d7a2d; --dst-tt-c3: #6d3fa8; }
+.dst-editor-trigger-text { font-style: normal; }
+.dst-tt-pills { display: inline; line-height: 2; }
+.dst-tt-plain { opacity: 0.7; font-style: italic; }
+button.dst-tt-pill {
+  display: inline-block;
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0 1px;
+  padding: 0 8px;
+  border-radius: 9px;
+  line-height: 1.5;
+  font-size: var(--font-size-12);
+  font-style: normal;
+  background: color-mix(in srgb, var(--dst-tt-colour, currentColor) 14%, transparent);
+  border: 1px solid var(--dst-tt-colour, currentColor);
+  color: var(--dst-tt-colour, inherit);
+  cursor: pointer;
+}
+button.dst-tt-pill.dst-tt-c0 { --dst-tt-colour: var(--dst-tt-c0); }
+button.dst-tt-pill.dst-tt-c1 { --dst-tt-colour: var(--dst-tt-c1); }
+button.dst-tt-pill.dst-tt-c2 { --dst-tt-colour: var(--dst-tt-c2); }
+button.dst-tt-pill.dst-tt-c3 { --dst-tt-colour: var(--dst-tt-c3); }
+button.dst-tt-pill.dst-tt-subject { font-weight: bold; }
+button.dst-tt-pill.dst-tt-qualifier { border-style: dashed; }
+button.dst-tt-pill:hover { background: color-mix(in srgb, var(--dst-tt-colour, currentColor) 30%, transparent); }
+button.dst-tt-pill.dst-tt-shared {
+  --dst-tt-colour: var(--dst-tt-a);
+  border: 1px solid transparent;
+  background: linear-gradient(90deg, var(--dst-tt-fills)) padding-box, linear-gradient(90deg, var(--dst-tt-stops)) border-box;
+  color: inherit;
+}
+.dst-flash { animation: dst-flash 1.8s ease-out; }
+@keyframes dst-flash {
+  0% { box-shadow: 0 0 0 3px var(--dst-flash-colour, var(--dst-tt-c0)); }
+  60% { box-shadow: 0 0 0 3px var(--dst-flash-colour, var(--dst-tt-c0)); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}

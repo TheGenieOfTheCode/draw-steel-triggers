@@ -1,5 +1,5 @@
 <div class="dst-editor">
-  <p class="dst-editor-trigger-text">{{#if triggerText}}<em>"{{triggerText}}"</em>{{else}}<em>{{noTriggerText}}</em>{{/if}}</p>
+  <p class="dst-editor-trigger-text">{{#if triggerText}}<span class="dst-tt-pills">{{#each triggerPills}}{{#if isPill}}<button type="button" class="dst-tt-pill dst-tt-{{kind}} {{colour}}" data-index="{{clause}}" data-indexes="{{indexes}}" data-field="{{field}}" data-tooltip="{{tooltip}}"{{#if style}} style="{{style}}"{{/if}}>{{text}}</button>{{else}}<span class="dst-tt-plain">{{text}}</span>{{/if}}{{/each}}</span>{{else}}<em>{{noTriggerText}}</em>{{/if}}</p>
   <p class="dst-editor-status">{{statusLine}}</p>
 
   <div class="dst-editor-clauses">
