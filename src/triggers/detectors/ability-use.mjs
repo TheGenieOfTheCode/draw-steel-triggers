@@ -11,7 +11,9 @@ function _usedFromMessage(message) {
 
   const actor = item.actor ?? null;
   if (!actor) return null;
-  const token = actor.getActiveTokens(true, false)[0] ?? null;
+  
+  
+  const token = actor.getActiveTokens(true, true)[0] ?? null;
   return { item, actor, token };
 }
 
