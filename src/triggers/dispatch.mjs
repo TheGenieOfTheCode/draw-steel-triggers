@@ -43,9 +43,10 @@ function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor, subjec
 function candidateEntries() {
   const seen = new Set();
   const entries = [];
+  
   const addActor = (actor, disposition, token) => {
-    if (!actor || seen.has(actor.id)) return;
-    seen.add(actor.id);
+    if (!actor || seen.has(actor.uuid)) return;
+    seen.add(actor.uuid);
     entries.push({ actor, disposition, token });
   };
   if (game.combat?.started) {
