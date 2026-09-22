@@ -38,6 +38,42 @@ function _seedKnownTargets(message) {
   }
 }
 
+
+const _tierWatch = new Map();
+
+function _tierFor(message, target) {
+  const state = message.getFlag(DSTD_ID, "state") ?? {};
+  const key = String(target?.tokenUuid ?? target?.actorUuid ?? "").replace(/\./g, "__");
+  const override = state.tierOverrides?.[key];
+  if (override?.tier != null) return Number(override.tier);
+  const part = message.system?.parts?.contents?.find((p) => p.type === "abilityResult");
+  const roll = (part?.rolls ?? []).find((r) => r?.constructor?.name === "PowerRoll");
+  return roll?.product == null ? null : Number(roll.product);
+}
+
+function _damageDealt(message) {
+  const state = message.getFlag(DSTD_ID, "state") ?? {};
+  return Object.keys(state.applications ?? {}).length > 0;
+}
+
+function _tierMatchesClause(clause, tier) {
+  const filter = clause?.tierFilter;
+  if (!filter?.length) return false;
+  return tier != null && filter.includes(Number(tier));
+}
+
+function _tierCandidates(subjectActor, tokenDoc, rollerActor) {
+  return collectTriggerMatches("POWER_ROLL_RESULT", subjectActor, tokenDoc)
+    .filter((m) => !m.malice && m.actor !== rollerActor
+      && (m.parse?.confidence === "high" || m.parse?.source === "manual")
+      && (m.clause?.tierFilter?.length ?? 0) > 0);
+}
+
+function _pruneTierWatch() {
+  const now = Date.now();
+  for (const [id, w] of _tierWatch) if (now - w.at > 300000) _tierWatch.delete(id);
+}
+
 async function _tryDispatch(message) {
   if (!isPrimaryGM()) return;
   if (!getSetting("resolutionHolds")) return;
@@ -72,13 +108,18 @@ async function _tryDispatch(message) {
 
   const matches = [];
   const seen = new Set();
+  let watching = false;
   for (const { t, tokenDoc, subjectActor } of targetPairs) {
     if (!subjectActor) continue;
     const events = strike ? ["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"] : ["TARGETED_BY_ABILITY"];
+    const tier = _tierFor(message, t);
+    const candidates = _tierCandidates(subjectActor, tokenDoc, rollerActor);
+    if (candidates.length) watching = true;
     const list = events.flatMap((event) => collectTriggerMatches(event, subjectActor, tokenDoc))
       .filter((m) => !m.malice && m.clause?.postRoll === true && m.actor !== rollerActor
         && (m.parse?.confidence === "high" || m.parse?.source === "manual")
-        && !(m.clause?.excludeSelfTarget && targetActors.has(m.actor)));
+        && !(m.clause?.excludeSelfTarget && targetActors.has(m.actor)))
+      .concat(candidates.filter((m) => _tierMatchesClause(m.clause, tier)));
     for (const m of list) {
       if (seen.has(m.item.uuid)) continue;
       seen.add(m.item.uuid);
@@ -92,9 +133,69 @@ async function _tryDispatch(message) {
       matches.push(m);
     }
   }
+  
+  if (watching && !_damageDealt(message)) { _tierWatch.set(message.id, { at: Date.now() }); _pruneTierWatch(); }
+
   if (!matches.length) return;
 
   dbg(`resolution hold: ${ability.name} held by ${matches.length} post-roll triggers`);
+  enqueueResolutionHold(matches, {
+    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
+      roller: rollerActor?.name ?? "", ability: ability.name, owner: "",
+    }),
+    resolution: {
+      messageId: message.id,
+      abilityUuid: ability.uuid,
+      abilityName: ability.name,
+      rollerName: rollerActor?.name ?? "",
+      rollerActorUuid: rollerActor?.uuid ?? null,
+      authorUserId: message.author?.id ?? null,
+    },
+  });
+}
+
+
+async function _tryTierRecheck(message) {
+  if (!isPrimaryGM()) return;
+  if (!getSetting("resolutionHolds")) return;
+  if (!_tierWatch.has(message.id)) return;
+  if (_damageDealt(message)) { _tierWatch.delete(message.id); return; }
+  if (!game.combat?.started) return;
+
+  const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
+  if (!abilityUse?.abilityUuid) return;
+  const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
+  if (!ability || ability.type !== "ability") return;
+  const rollerActor = ability.actor;
+  const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
+
+  const queued = new Set((getQueueMirror() ?? [])
+    .filter((e) => e.state === "pending" || e.state === "used").map((e) => e.itemUuid));
+
+  const matches = [];
+  const seen = new Set();
+  for (const t of targets) {
+    const tokenDoc = t.tokenUuid ? await fromUuid(t.tokenUuid).catch(() => null) : null;
+    const subjectActor = tokenDoc?.actor ?? (t.actorUuid ? await fromUuid(t.actorUuid).catch(() => null) : null);
+    if (!subjectActor) continue;
+    const tier = _tierFor(message, t);
+    for (const m of _tierCandidates(subjectActor, tokenDoc, rollerActor)) {
+      if (!_tierMatchesClause(m.clause, tier)) continue;
+      if (seen.has(m.item.uuid) || queued.has(m.item.uuid)) continue;
+      seen.add(m.item.uuid);
+      m._subjectTargetKey = String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__");
+      m._subjectTokenUuid = tokenDoc?.uuid ?? null;
+      m._subjectTokenUuids = tokenDoc?.uuid ? [tokenDoc.uuid] : null;
+      m._subjectName = tokenDoc?.name ?? subjectActor.name;
+      m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
+        roller: rollerActor?.name ?? "", ability: ability.name, owner: m._subjectName,
+      });
+      matches.push(m);
+    }
+  }
+  if (!matches.length) return;
+
+  dbg(`tier recheck: ${ability.name} now matches ${matches.length} trigger(s)`);
   enqueueResolutionHold(matches, {
     causeLabel: game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
       roller: rollerActor?.name ?? "", ability: ability.name, owner: "",
@@ -195,6 +296,7 @@ Hooks.on("updateChatMessage", async (message, changes) => {
     
     await _tryDispatch(message);
     _seedKnownTargets(message);
+    await _tryTierRecheck(message);
     return;
   }
   const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
@@ -202,4 +304,6 @@ Hooks.on("updateChatMessage", async (message, changes) => {
   known.keys = new Set(targets.map(_targetKey));
   known.at = Date.now();
   if (added.length) _tryPostHocDispatch(message, added);
+  
+  await _tryTierRecheck(message);
 });

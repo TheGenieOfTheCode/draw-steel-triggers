@@ -560,6 +560,9 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     }
     if (/\bis struck by\b/.test(lc)) entry.postRoll = true;
     
+    const tierMatch = lc.match(/\btier ([1-3])\b/);
+    if (tierMatch && /\boutcome\b/.test(lc)) { entry.tierFilter = [Number(tierMatch[1])]; entry.postRoll = true; }
+    
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
     if (dmgTypes && /damage/.test(lc)) entry.damageTypes = [...new Set(dmgTypes)];
     const using = clause.match(/\busing (?:their |its |the )?([A-Z][\w' ]*?)(?=[.,]|$| (?:ability|maneuver|action))/);

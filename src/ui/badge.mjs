@@ -25,6 +25,9 @@ const EVENT_MODES = {
 };
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
 
+
+const RESOLUTION_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
+
 export function computeAutomationLevel(item) {
   if (!isTriggeredAbility(item) && !isMaliceAbility(item)) return null;
 
@@ -43,7 +46,7 @@ export function computeAutomationLevel(item) {
   let detected = 0;
   for (const clause of parse.clauses) {
     const mode = clause.turnLock ? "turn"
-      : clause.postRoll && (clause.event === "TARGETED_BY_STRIKE" || clause.event === "TARGETED_BY_ABILITY") ? "resolution" : EVENT_MODES[clause.event];
+      : clause.postRoll && (RESOLUTION_EVENTS.has(clause.event) || (clause.event === "POWER_ROLL_RESULT" && (clause.tierFilter?.length ?? 0) > 0)) ? "resolution" : EVENT_MODES[clause.event];
     const scopeOk = BASE_SCOPES.has(clause.scope) || isMaliceAbility(item);
     const grabClause = clause.event === "GRAB_ENDS" || (clause.event === "CONDITION_GAIN" && clause.asSource && clause.condition === "grabbed");
     if (grabClause && !game.modules.get("draw-steel-combat-tools")?.active) {
