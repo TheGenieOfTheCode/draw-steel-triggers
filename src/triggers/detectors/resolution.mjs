@@ -1,6 +1,7 @@
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { collectTriggerMatches } from "../dispatch.mjs";
-import { enqueueResolutionHold, getQueueMirror } from "../queue.mjs";
+import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
+import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 const _handled = new Set();
@@ -118,6 +119,36 @@ function _pruneTierWatch() {
   for (const [id, w] of _tierWatch) if (now - w.at > 300000) _tierWatch.delete(id);
 }
 
+function _dispatchResolution(message, matches, ability, rollerActor) {
+  
+  const bare = game.i18n.format("DS_TRIGGERS.Queue.ResolutionCardCause", {
+    roller: rollerActor?.name ?? "", ability: ability.name,
+  });
+  const stillModifiable = game.i18n.localize("DS_TRIGGERS.Queue.StillModifiable");
+  const holdAll = getSetting("holdInertTriggers");
+  const held = holdAll ? matches : matches.filter((m) => changesTheStrike(m.clause));
+  const offered = holdAll ? [] : matches.filter((m) => !changesTheStrike(m.clause));
+
+  if (offered.length) {
+    dbg(`resolution: ${offered.length} trigger(s) offered after ${ability.name} instead of holding it`);
+    enqueuePromptEntries(offered, { event: "POWER_ROLL_RESULT", causeLabel: bare, sourceMessageId: message.id });
+  }
+  if (!held.length) return;
+  
+  for (const m of held) if (m._causeLabel) m._causeLabel = `${m._causeLabel} ${stillModifiable}`;
+  enqueueResolutionHold(held, {
+    causeLabel: `${bare} ${stillModifiable}`,
+    resolution: {
+      messageId: message.id,
+      abilityUuid: ability.uuid,
+      abilityName: ability.name,
+      rollerName: rollerActor?.name ?? "",
+      rollerActorUuid: rollerActor?.uuid ?? null,
+      authorUserId: message.author?.id ?? null,
+    },
+  });
+}
+
 async function _tryDispatch(message) {
   if (!isPrimaryGM()) return;
   if (!getSetting("resolutionHolds")) return;
@@ -184,20 +215,8 @@ async function _tryDispatch(message) {
 
   if (!matches.length) return;
 
-  dbg(`resolution hold: ${ability.name} held by ${matches.length} post-roll triggers`);
-  enqueueResolutionHold(matches, {
-    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
-      roller: rollerActor?.name ?? "", ability: ability.name, owner: "",
-    }),
-    resolution: {
-      messageId: message.id,
-      abilityUuid: ability.uuid,
-      abilityName: ability.name,
-      rollerName: rollerActor?.name ?? "",
-      rollerActorUuid: rollerActor?.uuid ?? null,
-      authorUserId: message.author?.id ?? null,
-    },
-  });
+  dbg(`resolution: ${ability.name} matched by ${matches.length} post-roll triggers`);
+  _dispatchResolution(message, matches, ability, rollerActor);
 }
 
 async function _tryTierRecheck(message) {
@@ -243,19 +262,7 @@ async function _tryTierRecheck(message) {
   if (!matches.length) return;
 
   dbg(`tier recheck: ${ability.name} now matches ${matches.length} trigger(s)`);
-  enqueueResolutionHold(matches, {
-    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
-      roller: rollerActor?.name ?? "", ability: ability.name, owner: "",
-    }),
-    resolution: {
-      messageId: message.id,
-      abilityUuid: ability.uuid,
-      abilityName: ability.name,
-      rollerName: rollerActor?.name ?? "",
-      rollerActorUuid: rollerActor?.uuid ?? null,
-      authorUserId: message.author?.id ?? null,
-    },
-  });
+  _dispatchResolution(message, matches, ability, rollerActor);
 }
 
 async function _tryPostHocDispatch(message, addedTargets) {
@@ -310,20 +317,8 @@ async function _tryPostHocDispatch(message, addedTargets) {
   }
   if (!matches.length) return;
 
-  dbg(`post-hoc resolution hold: ${ability.name} held by ${matches.length} triggers for late targets`);
-  enqueueResolutionHold(matches, {
-    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
-      roller: rollerActor?.name ?? "", ability: ability.name, owner: "",
-    }),
-    resolution: {
-      messageId: message.id,
-      abilityUuid: ability.uuid,
-      abilityName: ability.name,
-      rollerName: rollerActor?.name ?? "",
-      rollerActorUuid: rollerActor?.uuid ?? null,
-      authorUserId: message.author?.id ?? null,
-    },
-  });
+  dbg(`post-hoc resolution: ${ability.name} matched by ${matches.length} triggers for late targets`);
+  _dispatchResolution(message, matches, ability, rollerActor);
 }
 
 Hooks.on("createChatMessage", async (message) => {

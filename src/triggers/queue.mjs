@@ -1179,7 +1179,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
     event,
-    causeLabel,
+    causeLabel: m._causeLabel ?? causeLabel,
     lock: false,
     state: "pending",
     createdAt: Date.now(),
@@ -1187,7 +1187,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     resume: null,
     promptId,
     triggerDamage,
-    subjectTokenUuid,
+    subjectTokenUuid: m._subjectTokenUuid ?? subjectTokenUuid,
     sourceMessageId,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
@@ -1387,6 +1387,13 @@ Hooks.on("deleteChatMessage", (message) => {
     const grace = _pendingResolutionGraces.get(resolutionId);
     if (grace) { clearTimeout(grace.timer); _pendingResolutionGraces.delete(resolutionId); }
     dbg(`resolution hold ${resolutionId} dropped, its card was deleted`);
+    dropped = true;
+  }
+  
+  const orphaned = _queue.filter((e) => e.promptId && e.state === "pending" && e.sourceMessageId === message.id);
+  if (orphaned.length) {
+    _queue = _queue.filter((e) => !orphaned.includes(e));
+    dbg(`${orphaned.length} prompt(s) dropped, their card was deleted`);
     dropped = true;
   }
   if (dropped) _broadcast();

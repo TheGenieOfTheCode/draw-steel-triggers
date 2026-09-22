@@ -110,6 +110,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "holdInertTriggers", {
+    name: "DS_TRIGGERS.Settings.HoldInertTriggers.Name",
+    hint: "DS_TRIGGERS.Settings.HoldInertTriggers.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
   game.settings.register(MODULE_ID, "fmInterrupts", {
     name: "DS_TRIGGERS.Settings.FmInterrupts.Name",
     hint: "DS_TRIGGERS.Settings.FmInterrupts.Hint",

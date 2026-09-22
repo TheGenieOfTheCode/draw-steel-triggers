@@ -55,7 +55,11 @@
         "Name": "Damage Interrupts",
         "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
       },
-      "FmInterrupts": {
+      "HoldInertTriggers": {
+      "Name": "Hold for Triggers That Do Not Change the Strike",
+      "Hint": "Some post-roll triggers never touch the strike that set them off: Ram's Defiance answers a tier 1 and then shifts and makes a roll of its own. Off, the strike resolves normally and those triggers are offered on the stack without locking the message, which matches the usual reading that a trigger resolves once the event it answers has concluded. On, they hold the resolution the way a trigger that redirects or halves the strike does, so a creature can act before a killing blow lands. Triggers that do change the strike always hold either way."
+    },
+    "FmInterrupts": {
         "Name": "Forced Movement Interrupts",
         "Hint": "Forced movement made through Combat Tools is held before it starts when a creature has a movement-modifying trigger against it (Lines of Force, Repel, Explosive Assistance). Used triggers reduce, boost, or redirect the movement; declines let it proceed unchanged. Requires Draw Steel Combat Tools."
       },
@@ -294,8 +298,10 @@
       "ApplyNowTooltip": "Apply the held damage immediately (Director only). Undecided triggers become simple prompts.",
       "HeldDamageCause": "Triggered by {name} being dealt {amount} damage. The damage is held.",
       "HeldDamageNotice": "{name}'s damage is held while triggered abilities are decided. See the Trigger Stack.",
-      "ResolutionCause": "Triggered by {roller} striking {owner} ({ability}). The result can still be modified.",
-      "ResolutionRollCause": "Triggered by {roller}'s tier {tier} outcome on {ability}. The result can still be modified.",
+      "ResolutionCause": "Triggered by {roller} striking {owner} ({ability}).",
+      "ResolutionRollCause": "Triggered by {roller}'s tier {tier} outcome ({ability}).",
+      "ResolutionCardCause": "Triggered by {roller}'s roll ({ability}).",
+      "StillModifiable": "The result can still be modified.",
       "ResolutionEntry": "{ability} resolution",
       "ResolutionEyebrow": "{name}'s strike is resolving",
       "ReleaseResolution": "Resolve Now",
@@ -338,7 +344,7 @@
       "FmRedirectApplied": "{modName}: {name} is now the movement's target. Their row carries the push and bonus distance; click the movement button when ready.",
       "FmRedirectManual": "{modName}: apply the redirect by hand (no Combat Tools movement available on this client).",
       "FmRedirectNoTargets": "{modName}: no eligible creature is adjacent, apply the redirect by hand.",
-      "PostHocCause": "Triggered by {owner} becoming a target of {roller}'s {ability}. The result can still be modified.",
+      "PostHocCause": "Triggered by {owner} becoming a target of {roller}'s {ability}.",
       "RedirectSwapNote": "{a} and {b} switch places. Move the tokens to swap their positions.",
       "HeldDamageEntry": "{amount} incoming damage",
       "HeldDamageEntryTyped": "{amount} incoming {type} damage",

@@ -105,6 +105,11 @@ function resolveTargetScope(result, targetType) {
   return { ...result, clauses: result.clauses.map((c) => c.scope === "TARGET" ? { ...c, scope, targetScoped: true } : c) };
 }
 
+
+export function changesTheStrike(clause) {
+  return !!(clause?.rollMod || clause?.redirect || clause?.halfOnUse || clause?.halfDamage || clause?.targetedHalf);
+}
+
 const carries = (clause, event) => clause.event === event || !!clause.events?.includes(event);
 
 function damageModLayer(result, id, effectText) {
