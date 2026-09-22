@@ -38,7 +38,6 @@ function _seedKnownTargets(message) {
   }
 }
 
-
 const _tierWatch = new Map();
 
 function _tierFor(message, target) {
@@ -51,9 +50,9 @@ function _tierFor(message, target) {
   return roll?.product == null ? null : Number(roll.product);
 }
 
-function _damageDealt(message) {
+function _anyApplied(message) {
   const state = message.getFlag(DSTD_ID, "state") ?? {};
-  return Object.keys(state.applications ?? {}).length > 0;
+  return Object.values(state.applications ?? {}).some((a) => a && a.status !== "undone");
 }
 
 function _tierMatchesClause(clause, tier) {
@@ -62,11 +61,56 @@ function _tierMatchesClause(clause, tier) {
   return tier != null && filter.includes(Number(tier));
 }
 
+const _rollerClause = (clause) => clause?.targetScoped === true || clause?.rollerScoped === true;
+
 function _tierCandidates(subjectActor, tokenDoc, rollerActor) {
   return collectTriggerMatches("POWER_ROLL_RESULT", subjectActor, tokenDoc)
-    .filter((m) => !m.malice && m.actor !== rollerActor
+    .filter((m) => !m.malice && m.actor !== rollerActor && !_rollerClause(m.clause)
       && (m.parse?.confidence === "high" || m.parse?.source === "manual")
       && (m.clause?.tierFilter?.length ?? 0) > 0);
+}
+
+function _rollerTierCandidates(rollerActor, rollerToken, ability) {
+  const signature = (ability?.system?.category ?? "") === "signature";
+  return collectTriggerMatches("POWER_ROLL_RESULT", rollerActor, rollerToken)
+    .filter((m) => !m.malice
+      && (m.parse?.confidence === "high" || m.parse?.source === "manual")
+      && (m.clause?.tierFilter?.length ?? 0) > 0
+      && _rollerClause(m.clause)
+      && (!m.clause?.signatureOnly || signature));
+}
+
+function _rollerToken(message, rollerActor) {
+  const doc = message.speaker?.scene && message.speaker?.token
+    ? game.scenes.get(message.speaker.scene)?.tokens?.get(message.speaker.token)
+    : null;
+  
+  return doc ?? rollerActor?.getActiveTokens?.(false, true)?.[0] ?? null;
+}
+
+function _rollerTier(message, targets) {
+  return targets?.length === 1 ? _tierFor(message, targets[0]) : _tierFor(message, null);
+}
+
+function _addRollerMatches({ message, matches, seen, targets, rollerActor, ability, queued = null }) {
+  const rollerToken = _rollerToken(message, rollerActor);
+  const candidates = _rollerTierCandidates(rollerActor, rollerToken, ability);
+  if (!candidates.length) return false;
+  const tier = _rollerTier(message, targets);
+  for (const m of candidates) {
+    if (!_tierMatchesClause(m.clause, tier)) continue;
+    if (seen.has(m.item.uuid) || queued?.has(m.item.uuid)) continue;
+    seen.add(m.item.uuid);
+    m._subjectTargetKey = null;
+    m._subjectTokenUuid = rollerToken?.uuid ?? null;
+    m._subjectTokenUuids = rollerToken?.uuid ? [rollerToken.uuid] : null;
+    m._subjectName = rollerToken?.name ?? rollerActor?.name ?? "";
+    m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ResolutionRollCause", {
+      roller: m._subjectName, ability: ability.name, tier: tier ?? "?",
+    });
+    matches.push(m);
+  }
+  return true;
 }
 
 function _pruneTierWatch() {
@@ -134,7 +178,9 @@ async function _tryDispatch(message) {
     }
   }
   
-  if (watching && !_damageDealt(message)) { _tierWatch.set(message.id, { at: Date.now() }); _pruneTierWatch(); }
+  if (_addRollerMatches({ message, matches, seen, targets, rollerActor, ability })) watching = true;
+
+  if (watching && !_anyApplied(message)) { _tierWatch.set(message.id, { at: Date.now() }); _pruneTierWatch(); }
 
   if (!matches.length) return;
 
@@ -154,12 +200,11 @@ async function _tryDispatch(message) {
   });
 }
 
-
 async function _tryTierRecheck(message) {
   if (!isPrimaryGM()) return;
   if (!getSetting("resolutionHolds")) return;
   if (!_tierWatch.has(message.id)) return;
-  if (_damageDealt(message)) { _tierWatch.delete(message.id); return; }
+  if (_anyApplied(message)) { _tierWatch.delete(message.id); return; }
   if (!game.combat?.started) return;
 
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
@@ -193,6 +238,8 @@ async function _tryTierRecheck(message) {
       matches.push(m);
     }
   }
+  _addRollerMatches({ message, matches, seen, targets, rollerActor, ability, queued });
+
   if (!matches.length) return;
 
   dbg(`tier recheck: ${ability.name} now matches ${matches.length} trigger(s)`);
@@ -306,4 +353,11 @@ Hooks.on("updateChatMessage", async (message, changes) => {
   if (added.length) _tryPostHocDispatch(message, added);
   
   await _tryTierRecheck(message);
+});
+
+Hooks.on("deleteChatMessage", (message) => {
+  _tierWatch.delete(message.id);
+  _knownTargets.delete(message.id);
+  _handled.delete(message.id);
+  _handledAt.delete(message.id);
 });

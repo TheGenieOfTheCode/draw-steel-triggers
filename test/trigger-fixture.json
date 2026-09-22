@@ -2387,7 +2387,13 @@
           "qualifiers": [
             "tier 1",
             "signature ability"
-          ]
+          ],
+          "tierFilter": [
+            1
+          ],
+          "postRoll": true,
+          "signatureOnly": true,
+          "rollerScoped": true
         }
       ]
     }

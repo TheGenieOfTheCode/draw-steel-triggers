@@ -1365,8 +1365,31 @@ function _onQueueSyncRequest() {
 }
 
 Hooks.once("ready", () => {
-  if (isPrimaryGM()) return;
-  asPrimaryGM("queueSyncRequest");
+  if (!isPrimaryGM()) { asPrimaryGM("queueSyncRequest"); return; }
+  _clearStaleResolutionLocks();
+});
+
+async function _clearStaleResolutionLocks() {
+  for (const message of game.messages.contents) {
+    if (!message.getFlag(MODULE_ID, "resolutionLock")) continue;
+    await message.unsetFlag(MODULE_ID, "resolutionLock").catch(() => {});
+    dbg(`cleared a stale resolution lock left on ${message.id}`);
+  }
+}
+
+Hooks.on("deleteChatMessage", (message) => {
+  if (!isPrimaryGM()) return;
+  let dropped = false;
+  for (const [resolutionId, hold] of _resolutionHolds) {
+    if (hold.messageId !== message.id) continue;
+    _queue = _queue.filter((e) => e.resolutionId !== resolutionId);
+    _resolutionHolds.delete(resolutionId);
+    const grace = _pendingResolutionGraces.get(resolutionId);
+    if (grace) { clearTimeout(grace.timer); _pendingResolutionGraces.delete(resolutionId); }
+    dbg(`resolution hold ${resolutionId} dropped, its card was deleted`);
+    dropped = true;
+  }
+  if (dropped) _broadcast();
 });
 
 const DSTD_ID = "draw-steel-target-damage";

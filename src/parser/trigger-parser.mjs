@@ -5,7 +5,7 @@ export const SPECIAL_CASES = {
   "your-fears-become-manifest": { clauses: [{ event: "ROUND_START", scope: "ANY" }] },
   "stinging-departure":         { clauses: [{ event: "GRAB_ENDS", scope: "SELF", asSource: true }] },
   "blood-for-blood":            { clauses: [{ event: "CONDITION_GAIN", scope: "ALLY", qualifiers: ["bleeding", "by the target"], condition: "bleeding" }] },
-  "wasnt-aiming-for-you":       { clauses: [{ event: "POWER_ROLL_RESULT", scope: "SELF", qualifiers: ["tier 1", "signature ability"] }] },
+  "wasnt-aiming-for-you":       { clauses: [{ event: "POWER_ROLL_RESULT", scope: "SELF", qualifiers: ["tier 1", "signature ability"], tierFilter: [1], postRoll: true, signatureOnly: true, rollerScoped: true }] },
   "brain-drain":                { clauses: [{ event: "RESISTS_POTENCY", scope: "GRABBED_CREATURE" }] },
   "still-your-tongue":          { clauses: [{ event: "NARRATIVE", scope: "ANY" }] },
   "timely-distraction":         { clauses: [{ event: "TEST_FAILED", scope: "ALLY" }] },
@@ -101,7 +101,8 @@ const TARGETING_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 function resolveTargetScope(result, targetType) {
   const scope = TARGET_TYPE_SCOPES[targetType];
   if (!scope || !result.clauses.some((c) => c.scope === "TARGET")) return result;
-  return { ...result, clauses: result.clauses.map((c) => c.scope === "TARGET" ? { ...c, scope } : c) };
+  
+  return { ...result, clauses: result.clauses.map((c) => c.scope === "TARGET" ? { ...c, scope, targetScoped: true } : c) };
 }
 
 const carries = (clause, event) => clause.event === event || !!clause.events?.includes(event);

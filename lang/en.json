@@ -295,6 +295,7 @@
       "HeldDamageCause": "Triggered by {name} being dealt {amount} damage. The damage is held.",
       "HeldDamageNotice": "{name}'s damage is held while triggered abilities are decided. See the Trigger Stack.",
       "ResolutionCause": "Triggered by {roller} striking {owner} ({ability}). The result can still be modified.",
+      "ResolutionRollCause": "Triggered by {roller}'s tier {tier} outcome on {ability}. The result can still be modified.",
       "ResolutionEntry": "{ability} resolution",
       "ResolutionEyebrow": "{name}'s strike is resolving",
       "ReleaseResolution": "Resolve Now",
