@@ -174,7 +174,9 @@ async function _turnTaker(combat, used) {
     const clause = getParsedTrigger(item)?.clauses?.find((c) => c.turnLock) ?? {};
     const pick = { taker: null, viaHesitation: false, squad: !!clause.squadTurn, bonus: !!clause.bonusTurn, manual: !!clause.manualTurn, item, used: u };
     if (clause.manualTurn) return pick;
-    if (dsid === "hesitation-is-weakness" || clause.squadTurn) {
+    
+    
+    if (dsid === "hesitation-is-weakness" || clause.squadTurn || clause.bonusTurn || item?.system?.target?.type === "self") {
       const taker = _combatantOfActor(combat, u.ownerActorUuid);
       if (taker) return { ...pick, taker, viaHesitation: dsid === "hesitation-is-weakness" };
       continue;
@@ -182,10 +184,6 @@ async function _turnTaker(combat, used) {
     const targets = await _useTargets(u.itemUuid);
     const tokenTargets = targets.map((doc) => combat.combatants.find((c) => c.tokenId === doc.id)).filter(Boolean);
     if (tokenTargets.length === 1) return { ...pick, taker: tokenTargets[0] };
-    if (!tokenTargets.length && item?.system?.target?.type === "self") {
-      const taker = _combatantOfActor(combat, u.ownerActorUuid);
-      if (taker) return { ...pick, taker };
-    }
     return pick;
   }
   return null;

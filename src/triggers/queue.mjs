@@ -1326,6 +1326,17 @@ Hooks.once("socketlib.ready", () => {
   socket.register("pickRedirectTarget", _onPickRedirectTarget);
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
   socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
+  socket.register("queueSyncRequest", _onQueueSyncRequest);
+});
+
+function _onQueueSyncRequest() {
+  if (!isPrimaryGM()) return;
+  _broadcast();
+}
+
+Hooks.once("ready", () => {
+  if (isPrimaryGM()) return;
+  asPrimaryGM("queueSyncRequest");
 });
 
 const DSTD_ID = "draw-steel-target-damage";

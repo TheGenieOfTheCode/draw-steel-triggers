@@ -1121,3 +1121,9 @@ button.dst-tt-pill.dst-tt-shared {
   60% { box-shadow: 0 0 0 3px var(--dst-flash-colour, var(--dst-tt-c0)); }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
+
+.dst-stack-buttons--not-yours button[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}

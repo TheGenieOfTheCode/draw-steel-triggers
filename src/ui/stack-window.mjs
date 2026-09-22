@@ -193,7 +193,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
           fmStopped: e.fmRunning === 0,
           isPending: e.state === "pending",
           gated: isGated(e),
-          showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.state === "pending" && canActOn(e),
+          
+          
+          showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.state === "pending",
+          notYours: !canActOn(e),
+          notYoursTooltip: game.i18n.format("DS_TRIGGERS.Queue.NotYoursTooltip", { owner: e.ownerName }),
           showRelease: isHeld && game.user.isGM,
           showApplyNow: isDamageHeld && game.user.isGM,
           showReleaseResolution: isResolutionHeld && game.user.isGM,
@@ -287,6 +291,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   static async #onUse(event, target) {
     const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
     if (!entry) return;
+    if (!canActOn(entry)) return;
     if (target.classList.contains("dst-use-gated") && !(game.user.isGM && event?.shiftKey)) {
       ui.notifications.warn("DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
       return;
@@ -302,7 +307,9 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static #onDecline(_event, target) {
-    resolveQueueEntry(target.dataset.id, "declined");
+    const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
+    if (!entry || !canActOn(entry)) return;
+    resolveQueueEntry(entry.id, "declined");
   }
 
   static #onDismiss(_event, target) {

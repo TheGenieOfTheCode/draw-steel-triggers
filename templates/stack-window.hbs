@@ -82,9 +82,9 @@
       <div class="dst-stack-embed-content" data-embed-for="{{id}}" {{#unless embedOpen}}hidden{{/unless}}>{{{embedHTML}}}</div>
       {{/if}}
       {{#if showButtons}}
-      <div class="dst-stack-buttons">
-        <button type="button" class="dst-stack-use{{#if gated}} dst-use-gated{{/if}}" data-action="useEntry" data-id="{{id}}"{{#if gated}} data-tooltip="{{@root.labels.gatedTooltip}}"{{/if}}><i class="fa-solid {{#if gated}}fa-lock{{else}}fa-bolt{{/if}}"></i> {{@root.labels.use}}</button>
-        <button type="button" data-action="declineEntry" data-id="{{id}}">{{@root.labels.decline}}</button>
+      <div class="dst-stack-buttons{{#if notYours}} dst-stack-buttons--not-yours{{/if}}">
+        <button type="button" class="dst-stack-use{{#if gated}} dst-use-gated{{/if}}" data-action="useEntry" data-id="{{id}}"{{#if notYours}} disabled data-tooltip="{{notYoursTooltip}}"{{else if gated}} data-tooltip="{{@root.labels.gatedTooltip}}"{{/if}}><i class="fa-solid {{#if gated}}fa-lock{{else}}fa-bolt{{/if}}"></i> {{@root.labels.use}}</button>
+        <button type="button" data-action="declineEntry" data-id="{{id}}"{{#if notYours}} disabled data-tooltip="{{notYoursTooltip}}"{{/if}}>{{@root.labels.decline}}</button>
         {{#if @root.isGM}}<button type="button" class="dst-stack-dismiss" data-action="dismissEntry" data-id="{{id}}" data-tooltip="{{@root.labels.dismissTooltip}}"><i class="fa-solid fa-eye-slash"></i></button>{{/if}}
       </div>
       {{/if}}

@@ -369,6 +369,7 @@
       "PillEditorTitle": "Modify Damage: {name}",
       "PillEditorNoRoll": "No damage roll found for this row.",
       "PlayerPriorityTooltip": "Player triggered actions resolve first. Director triggers unlock when they are decided. Shift-click to override.",
+      "NotYoursTooltip": "Only {owner}'s player or the Director can answer this one.",
       "PlayerPriorityWarn": "Player triggered actions resolve first. Wait for them to be decided, or shift-click to override.",
       "HeldDamageApply": "Apply",
       "HeldDamageDiscard": "Discard",
