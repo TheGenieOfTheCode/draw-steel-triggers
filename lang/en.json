@@ -302,6 +302,7 @@
       "RollModApplied": "{modName}: {name}'s result is now tier {tier}.",
       "RollModInjected": "{modName}: {effect} applied to the roll.",
       "RedirectApplied": "{modName}: {newName} becomes the target instead of {oldName}.",
+      "RedirectNoToken": "{modName}: its owner has no token on this scene, so the strike was left where it was.",
       "RedirectAfterHeader": "Manual Redirect",
       "RedirectAfterBody": "{owner} used {ability}. The ability's target becomes the strike's new target. Update the strike's targets by hand: remove {owner} and target the chosen creature instead.",
       "RedirectPostHocBody": "{owner} used {ability} in response to being targeted. The roll already happened, so apply the redirect by hand: update the triggering ability's targets as the effect describes.",

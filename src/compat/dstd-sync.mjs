@@ -1,5 +1,6 @@
 import { MODULE_ID, dbg, getSetting, isPrimaryGM } from "../util.mjs";
-import { getActiveDamageHolds } from "../triggers/queue.mjs";
+import { getActiveDamageHolds, queueSocket } from "../triggers/queue.mjs";
+import { noteTargetsChange } from "../triggers/detectors/resolution.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 
@@ -393,4 +394,71 @@ Hooks.once("ready", () => {
     for (const li of lis) _patchMessageEl(li);
   });
   observer.observe(chatLog, { childList: true, subtree: true });
+});
+
+async function _onApplyResolutionRedirect(payload) {
+  if (!isPrimaryGM() || !_dstdActive()) return;
+  const message = game.messages.get(payload.messageId);
+  if (!message) return;
+  const state = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state`);
+  if (!state?.targets?.length) return;
+
+  const origKey = String(payload.origTargetUuid ?? "");
+  const orig = state.targets.find((t) => String(t.tokenUuid ?? t.actorUuid ?? "") === origKey);
+  const newTarget = payload.newTarget;
+  if (!orig || !newTarget?.tokenUuid) return;
+  if (orig.tokenUuid === newTarget.tokenUuid) return;
+
+  const DamageRoll = ds?.rolls?.DamageRoll;
+  const overrides = state.damageOverrides ?? {};
+  const updates = {};
+  let moved = 0;
+
+  for (const part of message.system?.parts?.contents ?? []) {
+    const partId = part.id ?? part._id;
+    const rolls = part.rolls ?? [];
+    for (let i = 0; i < rolls.length; i++) {
+      const roll = rolls[i];
+      const isDamage = DamageRoll ? roll instanceof DamageRoll : roll?.constructor?.name === "DamageRoll";
+      if (!isDamage || roll?.isHeal) continue;
+      const fromId = _dstdOperationId(orig, partId, i);
+      const toId = _dstdOperationId(newTarget, partId, i);
+      const carried = overrides[fromId]
+        ? foundry.utils.deepClone(overrides[fromId])
+        : {
+          amount: Number(roll.total ?? 0), baseAmount: Number(roll.total ?? 0),
+          damageType: roll.type ?? roll.options?.type ?? "", typeLabel: roll.typeLabel ?? "",
+        };
+      const moving = { ...carried, dstRedirect: true, dstRedirectMod: payload.modName ?? "", dstRedirectFrom: orig.name ?? "" };
+      if (payload.halfOnUse && !moving.dstHalf) {
+        const owner = newTarget.actorUuid ? fromUuidSync(newTarget.actorUuid) : null;
+        moving.baseAmount = Number(moving.baseAmount ?? moving.amount ?? 0);
+        moving.amount = Math.floor(moving.baseAmount / 2);
+        moving.dstHalf = true;
+        moving.dstModName = payload.modName ?? "";
+        moving.dstSrcName = payload.ownerName || owner?.name || null;
+        moving.dstSrcTokenId = newTarget.tokenId ?? null;
+      }
+      updates[`flags.${DSTD_ID}.state.damageOverrides.${toId}`] = moving;
+      if (overrides[fromId]) updates[`flags.${DSTD_ID}.state.damageOverrides.-=${fromId}`] = null;
+      moved++;
+    }
+  }
+  if (!moved) return;
+
+  const targets = state.targets.filter((t) => String(t.tokenUuid ?? t.actorUuid ?? "") !== origKey);
+  if (!targets.some((t) => t.tokenUuid === newTarget.tokenUuid)) targets.push(newTarget);
+  updates[`flags.${DSTD_ID}.state.targets`] = targets;
+  updates[`flags.${DSTD_ID}.state.updatedAt`] = Date.now();
+
+  noteTargetsChange(payload.messageId, targets.map((t) => String(t.tokenUuid ?? t.actorUuid ?? "")));
+  await message.update(updates);
+  dbg(`resolution redirect: ${payload.modName} moved ${moved} damage row(s) from ${orig.name} to ${newTarget.name}`);
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RedirectApplied", {
+    modName: payload.modName ?? "", newName: newTarget.name ?? "", oldName: orig.name ?? "",
+  }));
+}
+
+Hooks.once("ready", () => {
+  queueSocket()?.register("applyResolutionRedirect", _onApplyResolutionRedirect);
 });

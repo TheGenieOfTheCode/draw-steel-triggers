@@ -83,6 +83,8 @@ async function _tryDispatch(message) {
       if (seen.has(m.item.uuid)) continue;
       seen.add(m.item.uuid);
       m._subjectTargetKey = String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__");
+      m._subjectTokenUuid = tokenDoc?.uuid ?? null;
+      m._subjectTokenUuids = tokenDoc?.uuid ? [tokenDoc.uuid] : null;
       m._subjectName = tokenDoc?.name ?? subjectActor.name;
       m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ResolutionCause", {
         roller: rollerActor?.name ?? "", ability: ability.name, owner: m._subjectName,
@@ -149,6 +151,8 @@ async function _tryPostHocDispatch(message, addedTargets) {
       seen.add(m.item.uuid);
       m._postHoc = true;
       m._subjectTargetKey = _targetKey(t).replace(/\./g, "__");
+      m._subjectTokenUuid = tokenDoc?.uuid ?? null;
+      m._subjectTokenUuids = tokenDoc?.uuid ? [tokenDoc.uuid] : null;
       m._subjectName = tokenDoc?.name ?? subjectActor.name;
       m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.PostHocCause", {
         roller: rollerActor?.name ?? "", ability: ability.name, owner: m._subjectName,

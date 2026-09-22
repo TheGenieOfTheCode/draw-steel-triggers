@@ -339,6 +339,7 @@ async function _onQueueResolve(id, outcome, userName) {
         rollMod: entry.rollMod ?? null, redirect: entry.redirect ?? null,
         halfOnUse: entry.halfOnUse ?? false, postHoc: entry.postHoc ?? false,
         subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
+        subjectTokenUuid: entry.subjectTokenUuid ?? null, subjectTokenUuids: entry.subjectTokenUuids ?? null,
       });
     }
     if (!_queue.some((e) => e.resolutionId === entry.resolutionId && e.state === "pending")) {
@@ -464,6 +465,33 @@ async function _finalizeResolutionHold(resolutionId) {
       messageId: hold.messageId,
     });
   }
+  
+  for (const u of used) {
+    if (!u.redirect || u.redirect === "after") continue;
+    const subject = u.subjectTokenUuid ?? (u.subjectTokenUuids ?? [])[0] ?? null;
+    if (!subject) continue;
+    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    const ownerToken = owner?.getActiveTokens?.(true, false)[0] ?? null;
+    if (!ownerToken) {
+      ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.RedirectNoToken", { modName: u.itemName }));
+      continue;
+    }
+    asPrimaryGM("applyResolutionRedirect", {
+      messageId: hold.messageId,
+      origTargetUuid: subject,
+      modName: u.itemName,
+      halfOnUse: u.halfOnUse === true,
+      ownerName: u.ownerName ?? owner?.name ?? "",
+      newTarget: {
+        tokenUuid: ownerToken.document.uuid, tokenId: ownerToken.id, sceneId: ownerToken.scene?.id ?? null,
+        actorUuid: owner?.uuid ?? null, actorId: owner?.id ?? null,
+        name: ownerToken.name ?? owner?.name ?? "",
+        tokenImg: ownerToken.document.texture?.src ?? null, actorImg: owner?.img ?? null,
+        img: ownerToken.document.texture?.src ?? owner?.img ?? null,
+      },
+    });
+  }
+
   _postRedirectReminders(used, { userId: hold.authorUserId ?? null });
   const stillHeld = [..._resolutionHolds.values()].some((h) => h.messageId === hold.messageId);
   if (message && !stillHeld) await message.unsetFlag(MODULE_ID, "resolutionLock").catch(() => {});
@@ -1239,6 +1267,8 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
       || (m._postHoc === true && m.clause?.targetedHalf === true),
     postHoc: m._postHoc === true,
     subjectTargetKey: m._subjectTargetKey ?? null,
+    subjectTokenUuid: m._subjectTokenUuid ?? null,
+    subjectTokenUuids: m._subjectTokenUuids ?? null,
     subjectName: m._subjectName ?? "",
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
