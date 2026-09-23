@@ -74,7 +74,7 @@ export const DAMAGE_MOD_TEXT = [
   /\bhalf (?:the |that |this |of the |any )?(?:\w+ )?damage\b/i,
   /\bdamage (?:is |taken is )?halved\b/i,
   /\b(?:reduce[sd]?|decrease[sd]?|lower[sd]?) (?:the |that |this |any |incoming )?damage\b/i,
-  /\btakes? no damage\b/i,
+  /\btak(?:e|es|ing) no damage\b/i,
   /\bignores? (?:the |that |this )?damage\b/i,
   /\b(?:damage )?immunity (?:\d+|equal to)\b/i,
 ];
@@ -98,6 +98,8 @@ const TARGET_TYPE_SCOPES = {
 
 const TARGETING_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 
+const POST_ROLL_PHRASE = /\bafter seeing the (?:outcome|result)\b|\bafter the (?:power )?roll is (?:made|resolved)\b/i;
+
 function resolveTargetScope(result, targetType) {
   const scope = TARGET_TYPE_SCOPES[targetType];
   if (!scope || !result.clauses.some((c) => c.scope === "TARGET")) return result;
@@ -108,6 +110,12 @@ function resolveTargetScope(result, targetType) {
 
 export function changesTheStrike(clause) {
   return !!(clause?.rollMod || clause?.redirect || clause?.halfOnUse || clause?.halfDamage || clause?.targetedHalf);
+}
+
+export const EFFECT_TODO = new Set(["final-orders"]);
+
+function todoLayer(result, id) {
+  return EFFECT_TODO.has(id) ? { ...result, flag: "EFFECT_TODO" } : result;
 }
 
 const carries = (clause, event) => clause.event === event || !!clause.events?.includes(event);
@@ -150,7 +158,13 @@ export const REDIRECT_TEXT = [
   [/switch(?:es)? places/i, "swap"],
   [/choose[\s\S]{0,90}?targets? (?:that|the) (?:enemy|creature) instead|chooses?[\s\S]{0,90}?to become the target/i, "chooser"],
   [/targeting them instead|reflects?[\w'’ ]* back/i, "reflect"],
-  [/becomes? the target|is the (?:strike|ability)['’]?s? new target|become the target instead/i, "self"],
+  /* "The ally is the target of the triggering strike instead": the new target is somebody the user names,
+     not the owner, which is the chooser flow. Kept to this exact shape so it cannot swallow the damage
+     transfer wording ("takes the damage instead of"), which is a different tier entirely. */
+  [/\bis the target of the triggering (?:strike|ability)\b/i, "chooser"],
+  /* Words get between "becomes the" and "target": Valiar Cloak says "becomes the triggering ability's
+     target instead", which the contiguous form missed entirely, leaving a plain redirect unflagged. */
+  [/becomes? the (?:[\w'’]+ ){0,3}target\b|is the (?:strike|ability)['’]?s? new target/i, "self"],
 ];
 
 const ROLL_MOD_SUBJECT = "(?:triggering )?(?:strike|power roll|ability roll)|it";
@@ -240,9 +254,19 @@ function redirectLayer(result, id, effectText) {
   if (!mode) return result;
   let stamped = 0;
   const clauses = result.clauses.map((c) => {
-    if (!TARGETING_EVENTS.has(c.event)) return c;
-    stamped++;
-    return { ...c, redirect: mode };
+    if (TARGETING_EVENTS.has(c.event)) {
+      stamped++;
+      return { ...c, redirect: mode };
+    }
+    /* Damage that has landed cannot be retargeted. Brawny Buffer is worded as an ally taking damage but
+       its effect makes the brain "the new target of the ability", so answering it at the damage offers a
+       redirect at the one moment it can no longer do anything. It belongs at the targeting, after the
+       roll, where the retarget machinery can still rewrite the row. */
+    if (c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE") {
+      stamped++;
+      return { ...c, event: "TARGETED_BY_ABILITY", events: ["TARGETED_BY_ABILITY"], postRoll: true, redirect: mode };
+    }
+    return c;
   });
   if (!stamped) return result;
   return { ...result, clauses, redirect: mode };
@@ -478,10 +502,7 @@ function normalizeTrigger(clean, ownerName) {
   return normalized;
 }
 
-/* The trigger sentence as spans: which words each clause's subject, event and qualifiers were read
-   from. Runs the same splitter and the same regex tables as parseTrigger, so a span can only point at
-   words the parser actually matched. Positions are in the returned sentence, which is the book text
-   unless a proper name had to become "the self" for the parser to read it. */
+
 export function annotateTrigger(text, { dsid, ownerName, effectText, targetType } = {}) {
   const clean = String(text ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   if (!clean) return { sentence: "", segments: [] };
@@ -543,7 +564,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id);
+  if (special) return todoLayer(bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id), id);
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -560,11 +581,17 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (scope === "UNKNOWN") ambiguous = true;
     const qualifiers = QUALIFIERS.map(rx => lc.match(rx)?.[0]).filter(Boolean);
     const entry = { event: events[0] || "UNKNOWN", events, scope, qualifiers };
+    
+    if (POST_ROLL_PHRASE.test(lc) && entry.event === "POWER_ROLL" && hits.includes("TARGETED_BY_STRIKE")) {
+      entry.event = "TARGETED_BY_STRIKE";
+      entry.events = ["TARGETED_BY_STRIKE"];
+    }
     if (entry.event === "TARGETED_BY_STRIKE" && !/\bstrik|\bstruck\b/.test(lc)) {
       entry.event = "TARGETED_BY_ABILITY";
-      entry.events = events.map((e) => e === "TARGETED_BY_STRIKE" ? "TARGETED_BY_ABILITY" : e);
+      entry.events = entry.events.map((e) => e === "TARGETED_BY_STRIKE" ? "TARGETED_BY_ABILITY" : e);
     }
     if (/\bis struck by\b/.test(lc)) entry.postRoll = true;
+    if (POST_ROLL_PHRASE.test(lc)) entry.postRoll = true;
     
     const tierMatch = lc.match(/\btier ([1-3])\b/);
     if (tierMatch && /\boutcome\b/.test(lc)) { entry.tierFilter = [Number(tierMatch[1])]; entry.postRoll = true; }
@@ -598,5 +625,5 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
     clauses.push(entry);
   }
-  return bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id);
+  return todoLayer(bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id), id);
 }

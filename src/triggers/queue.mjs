@@ -1057,16 +1057,51 @@ function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } 
   return { originDoc, range };
 }
 
+function _rangeEnforced() {
+  if (!game.modules.get("draw-steel-combat-tools")?.active) return false;
+  try {
+    if (!game.settings.get("draw-steel-combat-tools", "enforceAbilityRange")) return false;
+    return !(game.user.isGM && game.settings.get("draw-steel-combat-tools", "gmBypassRangeEnforcement"));
+  } catch { return false; }
+}
+
+function _legalRedirectTargets({ triggerItemUuid } = {}) {
+  if (!triggerItemUuid || !_rangeEnforced()) return null;
+  const getValidTargets = game.modules.get("draw-steel-combat-tools")?.api?.getValidTargets;
+  if (typeof getValidTargets !== "function") return null;
+  const trigItem = fromUuidSync(triggerItemUuid);
+  const ownerToken = trigItem?.actor?.getActiveTokens?.(false, false)?.[0] ?? null;
+  if (!ownerToken) return null;
+  const targetType = trigItem.system?.target?.type ?? "creature";
+  const range = abilityRangeSquares(trigItem) ?? 0;
+  try {
+    return new Set(getValidTargets(ownerToken, targetType, range).map((t) => t.document.uuid));
+  } catch (err) {
+    console.error("DS_TRIGGERS | valid redirect target lookup failed:", err);
+    return null;
+  }
+}
+
 async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
   const removeDoc = removeTokenUuid ? fromUuidSync(removeTokenUuid) : null;
   let tokens = canvas.tokens.placeables.filter((t) => t.actor && t.document.uuid !== removeDoc?.uuid);
-  let constraint = null;
-  try { constraint = _chooserRangeConstraint(removeDoc, ctx); } catch (err) { console.error("DS_TRIGGERS | chooser range constraint failed:", err); }
-  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: mod=${modName} candidates=${tokens.length} constraint=`, constraint ? { range: constraint.range, origin: constraint.originDoc?.name } : null);
-  if (constraint) {
-    const gridDist = canvas.grid.distance || 1;
-    tokens = tokens.filter((t) => footprintGap(constraint.originDoc, t.document) < constraint.range * gridDist);
-    if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: in-range candidates=${tokens.length}`);
+  const constraints = [];
+  try {
+    const fromText = _chooserRangeConstraint(removeDoc, ctx);
+    if (fromText) constraints.push(fromText);
+  } catch (err) { console.error("DS_TRIGGERS | chooser range constraint failed:", err); }
+  const legal = _legalRedirectTargets(ctx);
+  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: mod=${modName} candidates=${tokens.length} textConstraint=`, constraints.map((c) => ({ range: c.range, origin: c.originDoc?.name })), `legalTargets=${legal ? legal.size : "not enforced"}`);
+  const gridDist = canvas.grid.distance || 1;
+  for (const c of constraints) {
+    tokens = tokens.filter((t) => footprintGap(c.originDoc, t.document) < c.range * gridDist);
+  }
+  if (legal) tokens = tokens.filter((t) => legal.has(t.document.uuid));
+  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: eligible candidates=${tokens.length}`);
+  
+  if (!tokens.length && (constraints.length || legal)) {
+    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.RedirectNoneEligible", { modName }));
+    return null;
   }
   if (!tokens.length) return null;
   const picked = await _runTriggerPicker(tokens, game.i18n.format("DS_TRIGGERS.Queue.PickTarget", { modName }));

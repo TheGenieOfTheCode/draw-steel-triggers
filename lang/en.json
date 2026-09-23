@@ -106,6 +106,7 @@
         "RollModifying": "Roll modifying: using this applies {effect} to the triggering roll.",
         "Redirect": "Redirects on use: the triggering strike is retargeted {mode}.",
         "Revisit": "Marked for a later revisit; not detected yet.",
+      "EffectTodo": "Detected and held at the right moment, but its effect still needs applying by hand.",
         "DsctOnly": "Needs Draw Steel: Combat Tools data to detect.",
         "DsctGrab": "Reads grabs made through Draw Steel: Combat Tools.",
         "EventNeedsDsct": "{event}: needs Draw Steel: Combat Tools, which records who holds a grab."
@@ -310,6 +311,7 @@
       "RollModInjected": "{modName}: {effect} applied to the roll.",
       "RedirectApplied": "{modName}: {newName} becomes the target instead of {oldName}.",
       "RedirectNoToken": "{modName}: its owner has no token on this scene, so the strike was left where it was.",
+      "RedirectNoneEligible": "{modName}: it has no legal target to redirect onto, so the strike was left where it was.",
       "RedirectAfterHeader": "Manual Redirect",
       "RedirectAfterBody": "{owner} used {ability}. The ability's target becomes the strike's new target. Update the strike's targets by hand: remove {owner} and target the chosen creature instead.",
       "RedirectPostHocBody": "{owner} used {ability} in response to being targeted. The roll already happened, so apply the redirect by hand: update the triggering ability's targets as the effect describes.",

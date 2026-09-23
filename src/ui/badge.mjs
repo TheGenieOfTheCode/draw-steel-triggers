@@ -84,6 +84,7 @@ export function computeAutomationLevel(item) {
     mode: game.i18n.localize(`DS_TRIGGERS.Badge.RedirectMode.${redirectMode}`),
   }));
   if (parse.flag === "REVISIT") detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.Revisit"));
+  if (parse.flag === "EFFECT_TODO") detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.EffectTodo"));
   if (parse.flag === "DSCT_ONLY") detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DsctOnly"));
 
   if (manual) {

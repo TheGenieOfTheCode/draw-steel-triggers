@@ -1074,11 +1074,12 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "POWER_ROLL",
+          "event": "TARGETED_BY_ABILITY",
           "scope": "ALLY",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "postRoll": true
         }
       ]
     }
