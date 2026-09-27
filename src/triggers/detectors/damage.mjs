@@ -4,6 +4,9 @@ import { MODULE_ID, getSetting, dbg } from "../../util.mjs";
 
 let _pendingDamageType = null;
 
+
+let _pendingStaminaLoss = false;
+
 let _dealer = null;
 
 function _dealerFromMessage(message) {
@@ -29,12 +32,14 @@ Hooks.once("ready", () => {
   }, "WRAPPER");
 
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
-    _pendingDamageType = options?.type ?? null;
+    _pendingDamageType  = options?.type ?? null;
+    _pendingStaminaLoss = !!options?.staminaLoss;
     try {
       if (_tryHoldDamage(this, damage, options)) return this.parent;
       return wrapped(damage, options);
     } finally {
-      _pendingDamageType = null;
+      _pendingDamageType  = null;
+      _pendingStaminaLoss = false;
     }
   }, "MIXED");
 });
@@ -85,6 +90,7 @@ function _tryHoldDamage(model, damage, options) {
 
 Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
   if (change?.attribute !== "stamina" || !actor) return;
+  if (_pendingStaminaLoss) return;
   if (consumeDamageBypass(actor.uuid)) return;
   if (!getSetting("damageInterrupts")) return;
   if (!game.combat?.started) return;
@@ -185,7 +191,17 @@ Hooks.on("updateActor", (actor, changed, options) => {
   const prevTotal = prev.value + prev.temporary;
   const curTotal = cur.value + (cur.temporary ?? 0);
 
+  
   if (curTotal < prevTotal) {
+    dispatchTriggerEvent({
+      event: "LOSES_STAMINA",
+      subjectActor: actor,
+      subjectToken: token,
+      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.LosesStamina", { name: actor.name, amount: prevTotal - curTotal }),
+    });
+  }
+
+  if (curTotal < prevTotal && !options.staminaLoss) {
     dispatchTriggerEvent({
       event: "TAKES_DAMAGE",
       subjectActor: actor,

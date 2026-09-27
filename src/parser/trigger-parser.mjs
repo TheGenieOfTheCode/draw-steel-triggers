@@ -279,7 +279,7 @@ const EVENTS = [
   ["FORCE_MOVED",     /\b(is |are |be |being )?(force(d)? moved|pushed|pulled|slid)\b/i],
   ["FORCE_MOVES",     /\bforce moves?\b/i],
   
-  ["TAKES_DAMAGE",    /\b(takes? (?:[\w-]+(?:,? or | ?, | ))*damage|loses? stamina|is damaged|damages? (you|the target|them|it|an ally|the \w+)|deals? ([\w, ]+ )?damage to (you|the target|the \w+))/i],
+  ["TAKES_DAMAGE",    /\b(takes? (?:[\w-]+(?:,? or | ?, | ))*damage|is damaged|damages? (you|the target|them|it|an ally|the \w+)|deals? ([\w, ]+ )?damage to (you|the target|the \w+))/i],
   ["DEALS_DAMAGE",    /\b(deals? ([\w, ]+ )?damage|deals? rolled damage|damages? (a|an|another|any) )\b/i],
   ["TARGETED_BY_STRIKE", /\b(targets? (you|them|the target|an ally|an enemy|the \w+)\b|is targeted|targeted by|is struck by|makes? an? (melee |ranged )?strike against|strikes? (you|the target|the \w+))/i],
   ["MAKES_STRIKE",    /\bmakes? an? (melee |ranged )?strike( against (a|an|another|any) )?\b/i],
@@ -293,6 +293,7 @@ const EVENTS = [
   ["CONDITION_GAIN",  /\b(gains? (a|the) condition|is subject to an effect|gains? [^,]*condition|becomes? (grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding)|is (grabbed|restrained|frightened|taunted|knocked prone|made bleeding)|falls prone|grabs)\b/i],
   ["SAVING_THROW",    /\bsaving throw\b/i],
   ["REGAINS_STAMINA", /\bregains? stamina\b/i],
+  ["LOSES_STAMINA",   /\bloses? stamina\b/i],
   ["EFFECT_ENDS",     /\bends? the [\w -]+ effect\b/i],
   ["ZONE_ENTER",      /\benters? (the|a) [\w -]+\b/i],
   ["ZONE_TURN_START", /\bstarts? their turn (there|in|within|adjacent)\b/i],
