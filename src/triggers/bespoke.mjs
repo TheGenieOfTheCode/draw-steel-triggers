@@ -16,20 +16,22 @@ export async function runBespokeUse(item, entry) {
   }
 }
 
-const PILL_FLAG = "damagePills";
+const PILL_FLAG = "bespokePills";
 
 export function registerDamagePillBridge() {
   const api = game.modules.get(DSCT_ID)?.api;
   if (!api?.damagePills?.registerProvider) return;
   api.damagePills.registerProvider((message) => {
-    const entries = message.getFlag(MODULE_ID, PILL_FLAG) ?? [];
+    const entries = message.getFlag(MODULE_ID, PILL_FLAG);
+    if (!Array.isArray(entries)) return [];
     return entries.map((e) => ({ targetUuid: e.targetUuid, pill: e.pill }));
   });
   dbg("damage pill bridge registered with Combat Tools");
 }
 
 async function addDamagePill(message, targetUuid, pill) {
-  const existing = message.getFlag(MODULE_ID, PILL_FLAG) ?? [];
+  const flag = message.getFlag(MODULE_ID, PILL_FLAG);
+  const existing = Array.isArray(flag) ? flag : [];
   if (existing.some((e) => e.targetUuid === targetUuid && e.pill?.label === pill.label)) return;
   await message.setFlag(MODULE_ID, PILL_FLAG, [...existing, { targetUuid, pill }]);
 }
