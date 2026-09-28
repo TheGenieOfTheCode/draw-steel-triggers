@@ -1019,12 +1019,12 @@ function _applyRollMods(app, mods) {
 }
 
 async function _runTriggerPicker(tokens, hint) {
-  const api = game.modules.get("draw-steel-combat-tools")?.api;
-  if (!api?.colorTokenPicker) {
+  const picker = game.modules.get("draw-steel-ctlib")?.api?.runColoredTokenPicker;
+  if (!picker) {
     ui.notifications.warn(game.i18n.localize("DS_TRIGGERS.Queue.PickerUnavailable"));
     return null;
   }
-  return api.colorTokenPicker({
+  return picker({
     tokens,
     colorMap: new Map(tokens.map((t) => [t.id, "#d9a63f"])),
     hint,
@@ -1059,15 +1059,12 @@ function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } 
 
 function _rangeEnforced() {
   if (!game.modules.get("draw-steel-combat-tools")?.active) return false;
-  try {
-    if (!game.settings.get("draw-steel-combat-tools", "enforceAbilityRange")) return false;
-    return !(game.user.isGM && game.settings.get("draw-steel-combat-tools", "gmBypassRangeEnforcement"));
-  } catch { return false; }
+  try { return !!game.modules.get("draw-steel-ctlib")?.api?.rangeEnforced?.(); } catch { return false; }
 }
 
 function _legalRedirectTargets({ triggerItemUuid } = {}) {
   if (!triggerItemUuid || !_rangeEnforced()) return null;
-  const getValidTargets = game.modules.get("draw-steel-combat-tools")?.api?.getValidTargets;
+  const getValidTargets = game.modules.get("draw-steel-ctlib")?.api?.getValidTargets;
   if (typeof getValidTargets !== "function") return null;
   const trigItem = fromUuidSync(triggerItemUuid);
   const ownerToken = trigItem?.actor?.getActiveTokens?.(false, false)?.[0] ?? null;

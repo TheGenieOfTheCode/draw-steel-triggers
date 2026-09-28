@@ -339,7 +339,7 @@
       "FmRedirectPick": "{modName} | Click the new target to force move. Escape to cancel.",
       "PickSubject": "{modName} | Click which target's targeting is replaced. Escape to cancel.",
       "PickTarget": "{modName} | Click the new target. Escape to cancel.",
-      "PickerUnavailable": "Draw Steel: Combat Tools is required for the target picker; apply the redirect by hand.",
+      "PickerUnavailable": "The target picker needs Draw Steel: CTLib, which isn't enabled; apply the redirect by hand.",
       "AfterPickButton": "Pick New Target",
       "AfterPickOnlyOwner": "Only the trigger's owner or a Director can pick the redirect target.",
       "AfterPickNoMessage": "No recent strike message found targeting {owner}. Apply the redirect by hand.",

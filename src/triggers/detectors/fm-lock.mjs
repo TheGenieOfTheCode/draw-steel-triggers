@@ -242,8 +242,9 @@ async function _onDriveFmRedirect(payload) {
     return;
   }
   let picked = eligible[0];
-  if (api.colorTokenPicker) {
-    picked = await api.colorTokenPicker({
+  const picker = game.modules.get("draw-steel-ctlib")?.api?.runColoredTokenPicker;
+  if (picker) {
+    picked = await picker({
       tokens: eligible,
       colorMap: new Map(eligible.map((t) => [t.id, "#d9a63f"])),
       hint: game.i18n.format("DS_TRIGGERS.Queue.FmRedirectPick", { modName: payload.modName }),

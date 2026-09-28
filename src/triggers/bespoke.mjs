@@ -95,16 +95,16 @@ function pickUserFor(actor) {
 }
 
 export async function pickHarmonizeTarget(abilityName, excludeUuids = []) {
-  const api = game.modules.get(DSCT_ID)?.api;
+  const picker = game.modules.get("draw-steel-ctlib")?.api?.runColoredTokenPicker;
   const eligible = canvas.tokens.placeables.filter((t) =>
     t.actor && !excludeUuids.includes(t.document.uuid));
   if (!eligible.length) return null;
 
-  if (!api?.colorTokenPicker) {
+  if (!picker) {
     ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Bespoke.HarmonizeManual", { modName: abilityName }));
     return null;
   }
-  const picked = await api.colorTokenPicker({
+  const picked = await picker({
     tokens: eligible,
     colorMap: new Map(eligible.map((t) => [t.id, "#4aa3d9"])),
     hint: game.i18n.format("DS_TRIGGERS.Bespoke.HarmonizePick", { modName: abilityName }),
