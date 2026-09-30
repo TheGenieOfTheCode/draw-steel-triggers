@@ -16,7 +16,7 @@ import { computeAutomationLevel } from "./ui/badge.mjs";
 import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import { StackWindow } from "./ui/stack-window.mjs";
 import { toggleSnooze, isActorSnoozed, isTriggerSnoozed, setSnooze, clearSnooze, listSnoozes, registerSnoozeHooks } from "./ui/snooze.mjs";
-import { getQueueMirror, noteUseCancelled } from "./triggers/queue.mjs";
+import { getQueueMirror, noteUseCancelled, setReaper } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/ability-use.mjs";
@@ -161,6 +161,7 @@ Hooks.once("init", () => {
     TriggerEditor,
     StackWindow,
     getQueueMirror,
+    setReaper,
     parseTrigger,
     generateDSID,
     SPECIAL_CASES,

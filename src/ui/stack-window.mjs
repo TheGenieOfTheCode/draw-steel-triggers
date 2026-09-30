@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed } from "../triggers/queue.mjs";
 import { maliceChipURI } from "./malice-chip.mjs";
 import { buildAbilityPreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
@@ -40,6 +40,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     position: { width: STACK_WIDTH, height: "auto" },
     actions: {
       useEntry: StackWindow.#onUse,
+      chooseSubject: StackWindow.#onChooseSubject,
       declineEntry: StackWindow.#onDecline,
       dismissEntry: StackWindow.#onDismiss,
       markVillainUsed: StackWindow.#onMarkVillainUsed,
@@ -101,6 +102,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const isHeldKind = (e) => e.kind === "held" || e.kind === "damageHeld" || e.kind === "resolutionHeld";
     const groupKey = (e) => e.resumeId ?? e.damageId ?? e.resolutionId ?? e.promptId ?? null;
     const ordered = [...getQueueMirror()].sort((a, b) => {
+      const reaper = (a.kind === "reaper") - (b.kind === "reaper");
+      if (reaper) return reaper;
       const held = isHeldKind(a) - isHeldKind(b);
       if (held) return held;
       if (groupKey(a) && groupKey(a) === groupKey(b)) return (b.playerSide ? 1 : 0) - (a.playerSide ? 1 : 0);
@@ -120,7 +123,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       rosterOpen: (this._rosterOpen ??= !ordered.length),
       maliceChipURI: maliceChipURI(),
       labels: {
-        use: L("Use"), decline: L("Decline"), dismiss: L("Dismiss"),
+        use: L("Use"), choose: L("Choose"), chooseTooltip: L("ChooseTooltip"), decline: L("Decline"), dismiss: L("Dismiss"),
         dismissTooltip: L("DismissTooltip"), empty: L("Empty"),
         markUsed: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsed"),
         markUsedTooltip: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsedTooltip"),
@@ -136,6 +139,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         snoozeTooltip: L("SnoozeTooltip"),
         snoozeAllTooltip: L("SnoozeAllTooltip"),
         groupMuted: L("GroupMuted"),
+        reaperReason: L("ReaperReason"), reaperQuoteBy: L("ReaperQuoteBy"), reaperMemorial: L("ReaperMemorial"), reaperMaybe: L("ReaperMaybe"),
       },
       entries: ordered.map((e, i) => {
         const isHeld = e.kind === "held";
@@ -146,7 +150,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         const pendingCount = isHeld
           ? getQueueMirror().filter((q) => q.resumeId === e.resumeId && q.state === "pending").length
           : isDamageHeld
-            ? getQueueMirror().filter((q) => q.damageId === e.damageId && q.state === "pending").length
+            ? getQueueMirror().filter((q) => q.state === "pending" && [q.damageId, ...(q.choices ?? []).map((c) => c.damageId)].includes(e.damageId)).length
             : isResolutionHeld
               ? getQueueMirror().filter((q) => q.resolutionId === e.resolutionId && q.state === "pending").length
               : 0;
@@ -195,6 +199,13 @@ export class StackWindow extends ds.applications.api.DSApplication {
           fmRunningLabel: e.fmRunning == null ? "" : game.i18n.format("DS_TRIGGERS.Queue.FmNow", { n: e.fmRunning }),
           fmStopped: e.fmRunning === 0,
           isPending: e.state === "pending",
+          isChoosing: !!e.choices?.length,
+          isReaper: e.kind === "reaper",
+          reaperCertain: e.certain ?? [],
+          reaperMaybe: e.maybe ?? [],
+          reaperStatus: e.status === "picking"
+            ? game.i18n.format("DS_TRIGGERS.Queue.ReaperPicking", { name: e.picker ?? game.i18n.localize("DS_TRIGGERS.Queue.ReaperSomeone") })
+            : e.status === "impending" ? L("ReaperImpending") : null,
           gated: isGated(e),
           
           
@@ -294,7 +305,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static async #onUse(event, target) {
     const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
-    if (!entry) return;
+    if (!entry || entry.choices?.length) return;
     if (!canActOn(entry)) return;
     if (target.classList.contains("dst-use-gated") && !(game.user.isGM && event?.shiftKey)) {
       ui.notifications.warn("DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
@@ -308,6 +319,24 @@ export class StackWindow extends ds.applications.api.DSApplication {
       watchUseCancellation(item.uuid);
       await useWithTriggerContext(item, entry);
     }
+  }
+
+  static async #onChooseSubject(_event, target) {
+    const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
+    if (!entry?.choices?.length || !canActOn(entry)) return;
+    const byToken = new Map();
+    for (const c of entry.choices) {
+      const token = c.subjectTokenUuid ? fromUuidSync(c.subjectTokenUuid)?.object : null;
+      if (token && !byToken.has(token.id)) byToken.set(token.id, { token, choice: c });
+    }
+    let choice = null;
+    if (byToken.size <= 1) choice = [...byToken.values()][0]?.choice ?? entry.choices[0];
+    else {
+      const picked = await pickTriggerSubject([...byToken.values()].map((v) => v.token),
+        game.i18n.format("DS_TRIGGERS.Queue.PickChoice", { modName: entry.itemName }));
+      choice = picked ? byToken.get(picked.id)?.choice : null;
+    }
+    if (choice) chooseQueueSubject(entry.id, choice.key);
   }
 
   static #onDecline(_event, target) {

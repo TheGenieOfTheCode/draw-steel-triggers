@@ -1127,3 +1127,105 @@ button.dst-tt-pill.dst-tt-shared {
   cursor: not-allowed;
   filter: grayscale(0.6);
 }
+
+.dst-stack .dst-stack-entry--reaper {
+  --dst-death-red: #e0303a;
+  --dst-death-ember: #8e1a22;
+  border-color: #5c1219;
+  background: radial-gradient(ellipse at 50% 0%, #1c0508 0%, #0b0a0b 70%);
+  color: #d8d2cf;
+  box-shadow: 0 0 10px rgba(180, 20, 30, 0.35), inset 0 0 14px rgba(0, 0, 0, 0.8);
+}
+
+.dst-stack .dst-stack-entry--reaper .dst-stack-eyebrow {
+  border-bottom-color: rgba(142, 26, 34, 0.55);
+  opacity: 1;
+}
+
+.dst-stack .dst-stack-entry--reaper .dst-stack-held-icon {
+  color: var(--dst-death-red);
+  filter: drop-shadow(0 0 3px rgba(224, 48, 58, 0.7));
+}
+
+.dst-stack .dst-stack-entry--reaper .dst-stack-cause-text {
+  color: #b8474e;
+  font-style: italic;
+}
+
+.dst-stack .dst-stack-entry--reaper .dst-stack-age {
+  color: #8f8683;
+}
+
+.dst-stack .dst-stack-entry--reaper .dst-stack-name {
+  color: var(--dst-death-red);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 6px rgba(224, 48, 58, 0.75), 0 0 14px rgba(142, 26, 34, 0.6);
+  animation: dst-death-breathe 3.6s ease-in-out infinite;
+}
+
+@keyframes dst-death-breathe {
+  0%, 100% { text-shadow: 0 0 6px rgba(224, 48, 58, 0.75), 0 0 14px rgba(142, 26, 34, 0.6); }
+  50% { text-shadow: 0 0 9px rgba(224, 48, 58, 0.95), 0 0 22px rgba(142, 26, 34, 0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dst-stack .dst-stack-entry--reaper .dst-stack-name { animation: none; }
+}
+
+.dst-stack .dst-reaper-quote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+}
+
+.dst-stack .dst-reaper-attribution {
+  font-size: 0.9em;
+  font-style: italic;
+  white-space: nowrap;
+  color: #7d6f6c;
+  letter-spacing: 0.02em;
+}
+
+.dst-stack .dst-reaper-status {
+  margin-left: auto;
+  padding: 0 8px;
+  border: 1px solid #8e1a22;
+  border-radius: 8px;
+  font-size: 0.8em;
+  line-height: 1.6;
+  color: #e8a0a4;
+  background: rgba(142, 26, 34, 0.25);
+  white-space: nowrap;
+}
+
+.dst-reaper-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 6px 0 2px 2px;
+}
+
+.dst-reaper-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9em;
+  color: #d8d2cf;
+}
+
+.dst-reaper-token img {
+  width: 22px;
+  height: 22px;
+  border: none;
+  object-fit: contain;
+  filter: drop-shadow(0 0 3px rgba(224, 48, 58, 0.55));
+}
+
+.dst-reaper-token--maybe {
+  opacity: 0.45;
+}
+
+.dst-reaper-token--maybe img {
+  filter: grayscale(0.7);
+}

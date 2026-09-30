@@ -3,7 +3,25 @@
   {{#if entries.length}}
   <ul class="dst-stack-list">
     {{#each entries}}
-    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}{{#if isDamageHeld}} dst-stack-entry--held dst-stack-entry--damage{{/if}}{{#if isResolutionHeld}} dst-stack-entry--held dst-stack-entry--resolution{{/if}}">
+    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}{{#if isDamageHeld}} dst-stack-entry--held dst-stack-entry--damage{{/if}}{{#if isResolutionHeld}} dst-stack-entry--held dst-stack-entry--resolution{{/if}}{{#if isReaper}} dst-stack-entry--reaper{{/if}}">
+      {{#if isReaper}}
+      <div class="dst-stack-eyebrow">
+        <i class="fa-solid fa-skull dst-stack-held-icon"></i>
+        <span class="dst-reaper-quote" data-tooltip-html="{{@root.labels.reaperMemorial}}">
+          <span class="dst-stack-cause-text">{{@root.labels.reaperReason}}</span>
+          <span class="dst-reaper-attribution">{{{@root.labels.reaperQuoteBy}}}</span>
+        </span>
+        <span class="dst-stack-age" data-created-at="{{createdAt}}"></span>
+      </div>
+      <div class="dst-stack-title-row">
+        <span class="dst-stack-name">{{itemName}}</span>
+        {{#if reaperStatus}}<span class="dst-reaper-status"><i class="fa-solid fa-hand-pointer"></i> {{reaperStatus}}</span>{{/if}}
+      </div>
+      <div class="dst-reaper-list">
+        {{#each reaperCertain}}<span class="dst-reaper-token" data-tooltip="{{name}}"><img src="{{img}}" alt=""><span>{{name}}</span></span>{{/each}}
+        {{#each reaperMaybe}}<span class="dst-reaper-token dst-reaper-token--maybe" data-tooltip="{{name}} &middot; {{@root.labels.reaperMaybe}}"><img src="{{img}}" alt=""><span>{{name}}</span></span>{{/each}}
+      </div>
+      {{else}}
       <div class="dst-stack-eyebrow">
         {{#if isResolutionHeld}}
         <i class="fa-solid fa-dice-d10 dst-stack-held-icon"></i>
@@ -83,7 +101,11 @@
       {{/if}}
       {{#if showButtons}}
       <div class="dst-stack-buttons{{#if notYours}} dst-stack-buttons--not-yours{{/if}}">
+        {{#if isChoosing}}
+        <button type="button" class="dst-stack-use dst-stack-choose" data-action="chooseSubject" data-id="{{id}}"{{#if notYours}} disabled data-tooltip="{{notYoursTooltip}}"{{else}} data-tooltip="{{@root.labels.chooseTooltip}}"{{/if}}><i class="fa-solid fa-crosshairs"></i> {{@root.labels.choose}}</button>
+        {{else}}
         <button type="button" class="dst-stack-use{{#if gated}} dst-use-gated{{/if}}" data-action="useEntry" data-id="{{id}}"{{#if notYours}} disabled data-tooltip="{{notYoursTooltip}}"{{else if gated}} data-tooltip="{{@root.labels.gatedTooltip}}"{{/if}}><i class="fa-solid {{#if gated}}fa-lock{{else}}fa-bolt{{/if}}"></i> {{@root.labels.use}}</button>
+        {{/if}}
         <button type="button" data-action="declineEntry" data-id="{{id}}"{{#if notYours}} disabled data-tooltip="{{notYoursTooltip}}"{{/if}}>{{@root.labels.decline}}</button>
         {{#if showMarkUsed}}<button type="button" data-action="markVillainUsed" data-id="{{id}}" data-tooltip="{{@root.labels.markUsedTooltip}}"><i class="fa-solid fa-check"></i> {{@root.labels.markUsed}}</button>{{/if}}
         {{#if @root.isGM}}<button type="button" class="dst-stack-dismiss" data-action="dismissEntry" data-id="{{id}}" data-tooltip="{{@root.labels.dismissTooltip}}"><i class="fa-solid fa-eye-slash"></i></button>{{/if}}
@@ -103,6 +125,7 @@
       <div class="dst-stack-buttons">
         <button type="button" data-action="releaseResolutionNow" data-resolution-id="{{resolutionId}}" data-tooltip="{{@root.labels.releaseResolutionTooltip}}"><i class="fa-solid fa-play"></i> {{@root.labels.releaseResolution}}</button>
       </div>
+      {{/if}}
       {{/if}}
     </li>
     {{/each}}

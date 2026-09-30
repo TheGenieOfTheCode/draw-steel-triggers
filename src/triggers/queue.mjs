@@ -170,6 +170,7 @@ export function queueSocket() {
 }
 
 function _broadcast() {
+  if (!_queue.some((e) => e.kind === "damageHeld")) _queue = _queue.filter((e) => e.kind !== "reaper" || e.status !== "held");
   socket.executeForEveryone("queueSync", foundry.utils.deepClone(_queue));
 }
 
@@ -193,15 +194,63 @@ function _ensureDecisionTicker() {
   }, 1000);
 }
 
+function _mergeFamily(e) {
+  if (e.kind || e.villain || e.resumeId || e.resolutionId) return null;
+  if (e.damageId) return "damage";
+  if (e.promptId) return "prompt";
+  return null;
+}
+
+const _asChoice = (e) => ({
+  key: e.id,
+  subjectTokenUuid: e.subjectTokenUuid ?? null,
+  causeLabel: e.causeLabel ?? "",
+  damageId: e.damageId ?? null,
+  heldDamage: e.heldDamage ?? null,
+  promptId: e.promptId ?? null,
+  triggerDamage: e.triggerDamage ?? null,
+  halfDamage: e.halfDamage ?? false,
+  sourceMessageId: e.sourceMessageId ?? null,
+});
+
+function _addChoice(into, e) {
+  into.choices ??= [_asChoice(into)];
+  into.choices.push(_asChoice(e));
+  into.causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ChoiceCause", { count: into.choices.length });
+}
+
+function _takeChoice(entry, choice) {
+  const { key, ...fields } = choice;
+  Object.assign(entry, fields);
+  delete entry.choices;
+}
+
+const _choiceIds = (e, field) => [e[field], ...(e.choices ?? []).map((c) => c[field])].filter(Boolean);
+
+function _groupPending(field, id) {
+  return _queue.some((e) => e.state === "pending" && _choiceIds(e, field).includes(id));
+}
+
 function _onQueueAdd(entries) {
   if (!isPrimaryGM()) return;
 
-  
-  
-  const fresh = entries.filter((e) => (e.damageId || e.resolutionId)
-    ? true
-    : !_queue.some((q) => q.itemUuid === e.itemUuid && q.state === "pending"));
-  if (!fresh.length) return;
+  const fresh = [];
+  let merged = false;
+  for (const e of entries) {
+    const family = _mergeFamily(e);
+    const into = family && _queue.find((q) => q.itemUuid === e.itemUuid && q.state === "pending" && _mergeFamily(q) === family);
+    if (into) {
+      _addChoice(into, e);
+      merged = true;
+      continue;
+    }
+    if (!e.damageId && !e.resolutionId && _queue.some((q) => q.itemUuid === e.itemUuid && q.state === "pending")) continue;
+    fresh.push(e);
+  }
+  if (!fresh.length) {
+    if (merged) _broadcast();
+    return;
+  }
   const damageEntry = fresh.find((e) => e.damageId && e.heldDamage);
   if (damageEntry && !_damageHolds.has(damageEntry.damageId)) {
     _damageHolds.set(damageEntry.damageId, { ...damageEntry.heldDamage, anyUsed: false, createdAt: damageEntry.createdAt });
@@ -332,9 +381,9 @@ async function _onQueueResolve(id, outcome, userName) {
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
       (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false });
     }
-    if (!_queue.some((e) => e.damageId === entry.damageId && e.state === "pending")) {
-      _completeDamageGroup(entry.damageId);
-    }
+  }
+  for (const damageId of new Set(_choiceIds(entry, "damageId"))) {
+    if (_damageHolds.has(damageId) && !_groupPending("damageId", damageId)) _completeDamageGroup(damageId);
   }
   if (entry.resolutionId && _resolutionHolds.has(entry.resolutionId)) {
     const hold = _resolutionHolds.get(entry.resolutionId);
@@ -636,8 +685,21 @@ async function _finalizeDamageHold(damageId) {
   Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: Number(result) });
 }
 
+const _squadWrites = new Map();
+
 async function _applyHeldDamage(hold, amount) {
   if (!(amount > 0)) return;
+  if (hold.squad) {
+    const key = hold.squad.groupUuid;
+    const run = (_squadWrites.get(key) ?? Promise.resolve()).then(async () => {
+      const group = await fromUuid(key).catch(() => null);
+      if (!group) return;
+      await group.update({ "system.staminaValue": Number(group.system?.staminaValue ?? 0) - amount },
+        { ds: hold.squad.ds, dstd: hold.squad.dstd, dstBypass: true });
+    });
+    _squadWrites.set(key, run.catch(() => {}));
+    return run;
+  }
   const actor = await fromUuid(hold.actorUuid).catch(() => null);
   if (!actor) return;
   _damageBypass.add(hold.actorUuid);
@@ -1288,6 +1350,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     resume: null,
     damageId,
     heldDamage,
+    subjectTokenUuid: heldDamage.tokenUuid ?? null,
     halfDamage: m.clause?.halfDamage ?? false,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
@@ -1405,7 +1468,16 @@ function _onApplyHeldDamageNow(damageId) {
   }
   
   for (const e of _queue) {
-    if (e.damageId === damageId && e.state === "pending") {
+    if (e.state !== "pending") continue;
+    if (e.choices) {
+      e.choices = e.choices.filter((c) => c.damageId !== damageId);
+      if (e.choices.length === 1) _takeChoice(e, e.choices[0]);
+      else if (e.choices.length) {
+        if (e.damageId === damageId) Object.assign(e, { damageId: e.choices[0].damageId, heldDamage: e.choices[0].heldDamage });
+        continue;
+      }
+    }
+    if (e.damageId === damageId) {
       e.damageId = null;
       e.heldDamage = null;
     }
@@ -1419,10 +1491,56 @@ export function resolveQueueEntry(id, outcome) {
   asPrimaryGM("queueResolve", id, outcome, game.user.name);
 }
 
+export function setReaper(data) {
+  asPrimaryGM("reaperSet", data ?? null);
+}
+
+function _onReaperSet(data) {
+  if (!isPrimaryGM()) return;
+  const since = _queue.find((e) => e.kind === "reaper")?.createdAt ?? Date.now();
+  _queue = _queue.filter((e) => e.kind !== "reaper");
+  const certain = data?.certain ?? [], maybe = data?.maybe ?? [];
+  const status = data?.status ?? "held";
+  const shown = status === "held" ? (certain.length || maybe.length) && _queue.some((e) => e.kind === "damageHeld") : !!data;
+  if (shown) {
+    _queue.push({
+      id: "reaper", kind: "reaper", itemUuid: null, ownerName: "", ownerActorUuid: null,
+      itemName: game.i18n.localize("DS_TRIGGERS.Queue.ReaperTitle"),
+      certain, maybe, status, picker: data.picker ?? null, state: "held", createdAt: since,
+    });
+  }
+  _broadcast();
+}
+
+export function chooseQueueSubject(id, key) {
+  asPrimaryGM("queueChoose", id, key);
+}
+
+function _onQueueChoose(id, key) {
+  if (!isPrimaryGM()) return;
+  const entry = _queue.find((e) => e.id === id);
+  if (!entry?.choices || entry.state !== "pending") return;
+  const chosen = entry.choices.find((c) => c.key === key);
+  if (!chosen) return;
+  const dropped = entry.choices.filter((c) => c !== chosen);
+  _takeChoice(entry, chosen);
+  dbg(`queue choose ${id}: ${entry.itemName} answers ${chosen.subjectTokenUuid}`);
+  for (const damageId of new Set(dropped.map((c) => c.damageId).filter(Boolean))) {
+    if (damageId !== entry.damageId && _damageHolds.has(damageId) && !_groupPending("damageId", damageId)) _completeDamageGroup(damageId);
+  }
+  _broadcast();
+}
+
+export function pickTriggerSubject(tokens, hint) {
+  return _runTriggerPicker(tokens, hint);
+}
+
 Hooks.once("socketlib.ready", () => {
   socket = socketlib.registerModule(MODULE_ID);
   socket.register("queueAdd", _onQueueAdd);
   socket.register("queueResolve", _onQueueResolve);
+  socket.register("queueChoose", _onQueueChoose);
+  socket.register("reaperSet", _onReaperSet);
   socket.register("queueSync", _onQueueSync);
   socket.register("resumeRoll", _onResumeRoll);
   socket.register("releaseHeld", _onReleaseHeld);

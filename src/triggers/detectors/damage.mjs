@@ -79,6 +79,7 @@ function _tryHoldDamage(model, damage, options) {
     heldDamage: {
       actorUuid: actor.uuid,
       actorName: actor.name,
+      tokenUuid: token?.uuid ?? null,
       amount: damage,
       damageType: options?.type ?? null,
       damageOptions,
@@ -107,9 +108,42 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
 
   enqueueDamageHold(matches, {
     causeLabel: game.i18n.format("DS_TRIGGERS.Queue.HeldDamageCause", { name: actor.name, amount }),
-    heldDamage: { actorUuid: actor.uuid, actorName: actor.name, amount },
+    heldDamage: { actorUuid: actor.uuid, actorName: actor.name, tokenUuid: token?.uuid ?? null, amount },
   });
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: actor.name }));
+  return false;
+});
+
+
+Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
+  if (options?.dstBypass || options?.staminaLoss) return;
+  const next = foundry.utils.getProperty(changes, "system.staminaValue");
+  const prev = Number(group.system?.staminaValue);
+  if (next === undefined || !Number.isFinite(prev) || !(prev - Number(next) > 0)) return;
+  const tokenId = options?.dstd?.primaryTargetId;
+  if (!tokenId) return;
+  if (!getSetting("damageInterrupts")) return;
+  if (!game.combat?.started) return;
+  const token = group.parent?.scene?.tokens?.get(tokenId) ?? canvas.scene?.tokens?.get(tokenId) ?? null;
+  const actor = token?.actor;
+  if (!actor) return;
+  const damageType = options?.ds?.damageType || null;
+  const matches = _holdMatches(actor, token, damageType);
+  if (!matches.length) return;
+
+  const amount = prev - Number(next);
+  enqueueDamageHold(matches, {
+    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.HeldDamageCause", { name: token.name, amount }),
+    heldDamage: {
+      actorUuid: actor.uuid,
+      actorName: token.name,
+      tokenUuid: token.uuid,
+      amount,
+      damageType,
+      squad: { groupUuid: group.uuid, ds: foundry.utils.deepClone(options.ds ?? {}), dstd: foundry.utils.deepClone(options.dstd) },
+    },
+  });
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: token.name }));
   return false;
 });
 
