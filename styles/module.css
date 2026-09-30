@@ -1199,6 +1199,22 @@ button.dst-tt-pill.dst-tt-shared {
   white-space: nowrap;
 }
 
+.dst-stack .dst-stack-title-row .ctlib-faces {
+  font-size: 0.9em;
+}
+
+.dst-reaper-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.9em;
+  color: #d8d2cf;
+}
+
+.dst-reaper-group.is-faded .dst-reaper-label {
+  opacity: 0.5;
+}
+
 .dst-reaper-list {
   display: flex;
   flex-wrap: wrap;

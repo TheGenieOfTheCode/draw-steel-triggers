@@ -7,6 +7,57 @@ import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from ".
 import { runBespokeUse } from "../triggers/bespoke.mjs";
 
 const STACK_WIDTH = 500;
+const CTLIB_ID = "draw-steel-ctlib";
+
+const ctlib = () => (game.modules.get(CTLIB_ID)?.active ? game.modules.get(CTLIB_ID).api : null);
+
+const tokenOfActor = (uuid) => {
+  const actor = uuid ? fromUuidSync(uuid) : null;
+  if (!actor) return null;
+  if (actor.token) return actor.token;
+  const tokens = actor.getActiveTokens?.(false, true) ?? [];
+  return tokens.find((t) => t.parent === canvas.scene) ?? tokens[0] ?? null;
+};
+
+const faceChain = (docs, faded = () => false) => {
+  const lib = ctlib();
+  if (!lib?.faceChainHTML) return "";
+  const faces = docs.filter(Boolean).map((d) => lib.faceFromToken(d, { faded: faded(d) })).filter(Boolean);
+  return faces.length ? lib.faceChainHTML(faces) : "";
+};
+
+function reaperGroups(e) {
+  const lib = ctlib();
+  if (!lib?.groupFaces) return null;
+  const faces = [
+    ...(e.certain ?? []).map((t) => lib.faceFromToken(fromUuidSync(t.uuid))),
+    ...(e.maybe ?? []).map((t) => lib.faceFromToken(fromUuidSync(t.uuid), { faded: true })),
+  ].filter(Boolean);
+  return lib.groupFaces(faces).map((g) => ({ label: g.label, faded: g.faded, facesHTML: lib.faceChainHTML(g.faces) }));
+}
+
+function mergeSquadHolds(entries, mirror) {
+  const holders = (damageId) => mirror
+    .filter((q) => q.state === "pending" && [q.damageId, ...(q.choices ?? []).map((c) => c.damageId)].includes(damageId))
+    .map((q) => q.id).sort().join(",");
+  const out = [];
+  const byKey = new Map();
+  for (const e of entries) {
+    const squad = e.kind === "damageHeld" ? e.heldDamage?.squad?.groupUuid : null;
+    if (!squad) { out.push(e); continue; }
+    const key = [squad, e.heldDamage.amount, e.heldDamage.damageType ?? "", e.state, holders(e.damageId)].join("|");
+    const into = byKey.get(key);
+    if (into) {
+      into.damageIds.push(e.damageId);
+      into.subjectUuids.push(e.heldDamage.tokenUuid);
+      continue;
+    }
+    const row = { ...e, damageIds: [e.damageId], subjectUuids: [e.heldDamage.tokenUuid] };
+    byKey.set(key, row);
+    out.push(row);
+  }
+  return out;
+}
 const ROSTER_OPEN_WIDTH = 758;
 const DSCT_ID = "draw-steel-combat-tools";
 
@@ -109,9 +160,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
       if (groupKey(a) && groupKey(a) === groupKey(b)) return (b.playerSide ? 1 : 0) - (a.playerSide ? 1 : 0);
       return 0;
     });
+    const shown = mergeSquadHolds(ordered, getQueueMirror());
     const isGated = (e) => !e.playerSide && !isHeldKind(e) && groupKey(e)
       && getQueueMirror().some((q) => !isHeldKind(q) && groupKey(q) === groupKey(e) && q.playerSide && q.state === "pending");
-    const embeds = await Promise.all(ordered.map((e) => e.itemUuid
+    const embeds = await Promise.all(shown.map((e) => e.itemUuid
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
       : Promise.resolve("")));
     const roster = buildRoster();
@@ -120,7 +172,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       roster,
       
       
-      rosterOpen: (this._rosterOpen ??= !ordered.length),
+      rosterOpen: (this._rosterOpen ??= !shown.length),
       maliceChipURI: maliceChipURI(),
       labels: {
         use: L("Use"), choose: L("Choose"), chooseTooltip: L("ChooseTooltip"), decline: L("Decline"), dismiss: L("Dismiss"),
@@ -141,7 +193,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         groupMuted: L("GroupMuted"),
         reaperReason: L("ReaperReason"), reaperQuoteBy: L("ReaperQuoteBy"), reaperMemorial: L("ReaperMemorial"), reaperMaybe: L("ReaperMaybe"),
       },
-      entries: ordered.map((e, i) => {
+      entries: shown.map((e, i) => {
         const isHeld = e.kind === "held";
         const isDamageHeld = e.kind === "damageHeld";
         const isResolutionHeld = e.kind === "resolutionHeld";
@@ -201,6 +253,14 @@ export class StackWindow extends ds.applications.api.DSApplication {
           isPending: e.state === "pending",
           isChoosing: !!e.choices?.length,
           isReaper: e.kind === "reaper",
+          reaperGroups: e.kind === "reaper" ? reaperGroups(e) : null,
+          ownerFaces: isDamageHeld
+            ? faceChain((e.subjectUuids ?? [e.heldDamage?.tokenUuid]).map((u) => (u ? fromUuidSync(u) : null)))
+            : e.itemUuid ? faceChain([tokenOfActor(e.ownerActorUuid)]) : "",
+          damageIdsJoined: (e.damageIds ?? [e.damageId]).filter(Boolean).join(","),
+          itemName: isDamageHeld && (e.damageIds?.length ?? 1) > 1
+            ? game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEach", { entry: e.itemName })
+            : e.itemName,
           reaperCertain: e.certain ?? [],
           reaperMaybe: e.maybe ?? [],
           reaperStatus: e.status === "picking"
@@ -255,6 +315,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
     this._fitRoster();
 
+    ctlib()?.activateFaces?.(this.element);
     this._openEmbeds ??= new Set();
     for (const toggle of this.element.querySelectorAll(".dst-stack-embed-toggle")) {
       toggle.addEventListener("click", () => {
@@ -359,7 +420,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static #onApplyHeldNow(_event, target) {
-    applyHeldDamageNow(target.dataset.damageId);
+    for (const id of (target.dataset.damageIds ?? "").split(",").filter(Boolean)) applyHeldDamageNow(id);
   }
 
   static #onReleaseResolutionNow(_event, target) {

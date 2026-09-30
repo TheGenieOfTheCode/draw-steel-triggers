@@ -18,8 +18,12 @@
         {{#if reaperStatus}}<span class="dst-reaper-status"><i class="fa-solid fa-hand-pointer"></i> {{reaperStatus}}</span>{{/if}}
       </div>
       <div class="dst-reaper-list">
+        {{#if reaperGroups}}
+        {{#each reaperGroups}}<span class="dst-reaper-group{{#if faded}} is-faded{{/if}}">{{{facesHTML}}}<span class="dst-reaper-label">{{label}}</span></span>{{/each}}
+        {{else}}
         {{#each reaperCertain}}<span class="dst-reaper-token" data-tooltip="{{name}}"><img src="{{img}}" alt=""><span>{{name}}</span></span>{{/each}}
         {{#each reaperMaybe}}<span class="dst-reaper-token dst-reaper-token--maybe" data-tooltip="{{name}} &middot; {{@root.labels.reaperMaybe}}"><img src="{{img}}" alt=""><span>{{name}}</span></span>{{/each}}
+        {{/if}}
       </div>
       {{else}}
       <div class="dst-stack-eyebrow">
@@ -73,6 +77,7 @@
         {{#if iconSrc}}<img class="dst-stack-icon" src="{{iconSrc}}" alt="">{{/if}}
         <span class="dst-stack-name{{#if isDamageHeld}} dst-stack-name--damage{{/if}}">{{itemName}}</span>
         {{/if}}
+        {{{ownerFaces}}}
         {{#if ownerClickable}}
         <a class="dst-stack-owner dst-stack-owner-link" data-action="openOwner" data-uuid="{{ownerActorUuid}}">{{ownerName}}</a>
         {{else}}
@@ -118,7 +123,7 @@
       {{/if}}
       {{#if showApplyNow}}
       <div class="dst-stack-buttons">
-        <button type="button" data-action="applyHeldNow" data-damage-id="{{damageId}}" data-tooltip="{{@root.labels.applyNowTooltip}}"><i class="fa-solid fa-heart-crack"></i> {{@root.labels.applyNow}}</button>
+        <button type="button" data-action="applyHeldNow" data-damage-ids="{{damageIdsJoined}}" data-tooltip="{{@root.labels.applyNowTooltip}}"><i class="fa-solid fa-heart-crack"></i> {{@root.labels.applyNow}}</button>
       </div>
       {{/if}}
       {{#if showReleaseResolution}}
