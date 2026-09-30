@@ -1467,6 +1467,8 @@ function _onApplyHeldDamageNow(damageId) {
     _pendingDamageGraces.delete(damageId);
   }
   
+  
+  const spent = new Set();
   for (const e of _queue) {
     if (e.state !== "pending") continue;
     if (e.choices) {
@@ -1477,11 +1479,9 @@ function _onApplyHeldDamageNow(damageId) {
         continue;
       }
     }
-    if (e.damageId === damageId) {
-      e.damageId = null;
-      e.heldDamage = null;
-    }
+    if (e.damageId === damageId) spent.add(e.id);
   }
+  _queue = _queue.filter((e) => !spent.has(e.id));
   _removeDamageHeldEntry(damageId);
   _finalizeDamageHold(damageId);
   _broadcast();
