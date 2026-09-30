@@ -429,6 +429,7 @@ for (const hook of ["createCombat", "deleteCombat"]) Hooks.on(hook, () => StackW
 Hooks.on("updateCombat", (combat, changed) => { if ("round" in changed || "active" in changed) StackWindow.refresh(); });
 Hooks.on("createCombatant", () => StackWindow.refresh());
 Hooks.on("deleteCombatant", () => StackWindow.refresh());
+Hooks.on("updateCombatant", (_combatant, changed) => { if ("defeated" in changed) StackWindow.refresh(); });
 
 Hooks.on("getSceneControlButtons", (controls) => {
   const tokenControl = controls.tokens ?? controls.token;

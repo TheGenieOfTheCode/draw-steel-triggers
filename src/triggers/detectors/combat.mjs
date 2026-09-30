@@ -2,7 +2,7 @@ import { dispatchTriggerEvent } from "../dispatch.mjs";
 
 Hooks.on("combatTurnChange", (combat, previous, current) => {
   const prevCombatant = combat.combatants.get(previous?.combatantId);
-  if (prevCombatant?.actor) {
+  if (prevCombatant?.actor && !prevCombatant.isDefeated) {
     dispatchTriggerEvent({
       event: "TURN_END",
       subjectActor: prevCombatant.actor,
@@ -17,7 +17,7 @@ Hooks.on("combatTurnChange", (combat, previous, current) => {
     });
   }
   const currCombatant = combat.combatants.get(current?.combatantId);
-  if (currCombatant?.actor) {
+  if (currCombatant?.actor && !currCombatant.isDefeated) {
     dispatchTriggerEvent({
       event: "TURN_START",
       subjectActor: currCombatant.actor,

@@ -69,7 +69,7 @@ function _combatActors() {
   const heroes = new Map();
   for (const combatant of combat.combatants) {
     const actor = combatant.actor;
-    if (!actor) continue;
+    if (!actor || combatant.isDefeated) continue;
     const bucket = actor.hasPlayerOwner ? heroes : monsters;
     if (!bucket.has(actor.id)) bucket.set(actor.id, actor);
   }

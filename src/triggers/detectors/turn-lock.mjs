@@ -123,7 +123,7 @@ Hooks.on("preUpdateCombatantGroup", (group, changed, options, userId) => {
   if (!(changed.initiative < (Number(group.initiative) || 0))) return;
   if (_groupHeld(group)) return false;
 
-  const next = [...group.members].find((c) => c.initiative) ?? null;
+  const next = [...group.members].find((c) => c.initiative && !c.isDefeated) ?? null;
   if (!next) return;
   if (_passedStart?.id === next.id && Date.now() < _passedStart.until) return;
   const prev = combat.turn != null ? combat.combatant : null;
@@ -241,7 +241,7 @@ async function _onResumeTurn(resume, used = []) {
 
   if (squad) {
     const group = taker.group;
-    const others = group ? [...group.members].filter((m) => m !== taker && m.actor && !isMinionActor(m.actor)) : [];
+    const others = group ? [...group.members].filter((m) => m !== taker && m.actor && !m.isDefeated && !isMinionActor(m.actor)) : [];
     if (!group || others.length) {
       if (others.length) _squadRefusal(taker, u, others);
       return standDown("DS_TRIGGERS.Queue.TurnTakenManual");
