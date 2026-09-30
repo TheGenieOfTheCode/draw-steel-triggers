@@ -12,7 +12,7 @@ let _dealer = null;
 function _dealerFromMessage(message) {
   if (!message) return null;
   const speaker = message.speaker ?? {};
-  const token = speaker.token ? canvas.tokens?.get(speaker.token) ?? null : null;
+  const token = speaker.token ? canvas.tokens?.get(speaker.token)?.document ?? null : null;
   const actor = token?.actor ?? (speaker.actor ? game.actors.get(speaker.actor) : null);
   return actor ? { actor, token } : null;
 }
@@ -166,6 +166,17 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
+        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null },
+      });
+      dispatchTriggerEvent({
+        event: "TAKES_DAMAGE",
+        subjectActor: victim,
+        subjectToken: doc instanceof TokenDocument ? doc : null,
+        causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
+          name: dealer.actor.name, target: victim.name, amount: r.amount,
+        }),
+        triggerDamage: Number(r.amount),
+        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token },
       });
     }
   }
@@ -207,6 +218,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
+      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null },
     });
 
     
@@ -219,7 +231,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
           name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
-        victimActorUuid: actor.uuid,
+        eventContext: { victimActor: actor, victimToken: token },
       });
     }
   }

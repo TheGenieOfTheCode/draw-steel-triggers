@@ -2601,7 +2601,8 @@
         {
           "event": "DEALS_DAMAGE",
           "scope": "ANY",
-          "qualifiers": []
+          "qualifiers": [],
+          "victimScope": "ALLY"
         }
       ]
     }
@@ -2785,6 +2786,7 @@
           "qualifiers": [
             "within 5 squares"
           ],
+          "dealerScope": "ENEMY",
           "range": 5
         }
       ]
@@ -4856,14 +4858,16 @@
           "scope": "ANY",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "victimScope": "ALLY"
         },
         {
           "event": "TAKES_DAMAGE",
           "scope": "ANY",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -5070,7 +5074,8 @@
         {
           "event": "DEALS_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "victimScope": "ALLY"
         }
       ]
     }
@@ -5620,7 +5625,8 @@
         {
           "event": "DEALS_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "victimScope": "ALLY"
         }
       ]
     }

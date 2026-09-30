@@ -603,6 +603,12 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (using) entry.abilityDsid = generateDSID(using[1]);
 
     Object.assign(entry, abilityFiltersFrom(clause, effectText));
+    /* "Deals damage to an ally" names the one who is hit, on the owner's side. Without it the clause
+       fires on every hit anybody lands. */
+    const victim = entry.event === "DEALS_DAMAGE" && lc.match(/\b(?:deals? [\w, ]*damage to|damages?) (?:an?|any) (ally|enemy)\b/);
+    if (victim) entry.victimScope = victim[1] === "ally" ? "ALLY" : "ENEMY";
+    const dealerSide = entry.event === "TAKES_DAMAGE" && lc.match(/\btakes? [\w, ]*damage from an? (ally|enemy)\b/);
+    if (dealerSide) entry.dealerScope = dealerSide[1] === "ally" ? "ALLY" : "ENEMY";
     const eff = lc.match(/ends? the ([\w -]+?) effect/); if (eff) entry.effectName = eff[1];
     const zone = lc.match(/\b(?:enters?|starts? their turn (?:in|within|adjacent to)) (?:the|a) ([\w -]+?)(?: or|,|$)/); if (zone) entry.zone = zone[1];
     const excl = lc.match(/(?:doesn['’]t|does not) also targets? (?:the )?([\w'’ -]+?)(?=[.,]|$| with| using)/);

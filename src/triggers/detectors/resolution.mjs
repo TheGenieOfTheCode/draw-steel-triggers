@@ -190,7 +190,7 @@ async function _tryDispatch(message) {
     const tier = _tierFor(message, t);
     const candidates = _tierCandidates(subjectActor, tokenDoc, rollerActor);
     if (candidates.length) watching = true;
-    const list = events.flatMap((event) => collectTriggerMatches(event, subjectActor, tokenDoc))
+    const list = events.flatMap((event) => collectTriggerMatches(event, subjectActor, tokenDoc, null, dealer))
       .filter((m) => !m.malice && m.clause?.postRoll === true && m.actor !== rollerActor
         && (m.parse?.confidence === "high" || m.parse?.source === "manual")
         && !(m.clause?.excludeSelfTarget && targetActors.has(m.actor)))
@@ -231,6 +231,7 @@ async function _tryTierRecheck(message) {
   const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
   if (!ability || ability.type !== "ability") return;
   const rollerActor = ability.actor;
+  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor) };
   const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
 
   const queued = new Set((getQueueMirror() ?? [])
@@ -277,6 +278,7 @@ async function _tryPostHocDispatch(message, addedTargets) {
   if (!ability || ability.type !== "ability") return;
   const strike = ability.system.keywords?.has?.("strike") ?? false;
   const rollerActor = ability.actor;
+  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor) };
 
   const allTargets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
   const targetActors = new Set();
@@ -297,7 +299,7 @@ async function _tryPostHocDispatch(message, addedTargets) {
       ?? (t.actorUuid ? await fromUuid(t.actorUuid).catch(() => null) : null);
     if (!subjectActor) continue;
     const events = strike ? ["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"] : ["TARGETED_BY_ABILITY"];
-    const list = events.flatMap((event) => collectTriggerMatches(event, subjectActor, tokenDoc))
+    const list = events.flatMap((event) => collectTriggerMatches(event, subjectActor, tokenDoc, null, dealer))
       .filter((m) => !m.malice && m.actor !== rollerActor
         && (m.parse?.confidence === "high" || m.parse?.source === "manual")
         && !(m.clause?.excludeSelfTarget && targetActors.has(m.actor)));

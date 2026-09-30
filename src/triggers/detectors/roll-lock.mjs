@@ -14,7 +14,8 @@ function _hasDamage(ability) {
 }
 
 function _lockMatches(event, subjectActor, subjectToken, rollerActor) {
-  return collectTriggerMatches(event, subjectActor, subjectToken).filter((m) =>
+  const dealer = { dealerActor: rollerActor, dealerToken: rollerActor?.getActiveTokens?.(false, true)?.[0] ?? null };
+  return collectTriggerMatches(event, subjectActor, subjectToken, null, dealer).filter((m) =>
     !m.malice
     && m.actor !== rollerActor
     && (m.parse?.confidence === "high" || m.parse?.source === "manual"));

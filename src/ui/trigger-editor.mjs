@@ -532,6 +532,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         delete out.excludeSelfTarget;
       }
       if (!ROLL_MOD_EVENTS.has(out.event)) delete out.rollMod;
+      if (out.event !== "DEALS_DAMAGE") delete out.victimScope;
+      if (out.event !== "TAKES_DAMAGE" && !TARGETING_EVENTS.has(out.event)) delete out.dealerScope;
       if (!out.postRoll) delete out.halfOnUse;
       return out;
     });

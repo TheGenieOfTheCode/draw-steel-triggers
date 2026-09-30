@@ -228,8 +228,20 @@ function grabsHeldBy(ownerActor, status) {
   return count;
 }
 
-function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null) {
+function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
   switch (event) {
+    case "DEALS_DAMAGE":
+      if (!clause.victimScope || !ctx.victimActor) return true;
+      return scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null);
+    
+    case "TAKES_DAMAGE":
+      if (!clause.dealerScope) return !ctx.dealerOnly;
+      if (!ctx.dealerActor) return false;
+      return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
+    case "TARGETED_BY_ABILITY":
+    case "TARGETED_BY_STRIKE":
+      if (!clause.dealerScope || !ctx.dealerActor) return true;
+      return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "CONDITION_GAIN": {
       if (clause.condition && ctx.condition !== clause.condition) return false;
       if (clause.durationFilter === "save-or-eot" && !SAVE_OR_EOT.has(ctx.expiry)) return false;
@@ -298,7 +310,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       }
       const clause = entry.parse?.clauses?.find(c =>
         c.event === event && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
-        && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item)
+        && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
