@@ -2,7 +2,13 @@
   "id": "draw-steel-triggers",
   "title": "Draw Steel: Triggers",
   "description": "<p>Automates triggered and free triggered abilities for the Draw Steel system. Reads each ability's trigger text, detects when its condition happens in play, and either reminds the controller or holds the roll until they decide.</p>",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "manifest": "https://github.com/TheGenieOfTheCode/draw-steel-triggers/releases/latest/download/module.json",
+  "download": "https://github.com/TheGenieOfTheCode/draw-steel-triggers/releases/download/v1.0.0/draw-steel-triggers.zip",
+  "bugs": "https://github.com/TheGenieOfTheCode/draw-steel-triggers/issues",
+  "readme": "https://github.com/TheGenieOfTheCode/draw-steel-triggers/blob/main/README.md",
+  "license": "https://github.com/TheGenieOfTheCode/draw-steel-triggers/blob/main/LICENSE",
+  "changelog": "https://github.com/TheGenieOfTheCode/draw-steel-triggers/releases",
   "socket": true,
   "compatibility": { "minimum": "14", "verified": "14" },
   "authors": [{ "name": "Ady", "discord": "AdyGenie" }],
@@ -15,8 +21,8 @@
       { "id": "draw-steel-target-damage", "type": "module", "compatibility": {} }
     ],
     "recommends": [
-      { "id": "draw-steel-combat-tools", "type": "module", "compatibility": {} },
-      { "id": "lib-wrapper", "type": "module", "compatibility": { "minimum": "1.12.0" } }
+      { "id": "draw-steel-combat-tools", "type": "module", "reason": "[Combat Tools] Performs forced movement, so triggers set off by being pushed, pulled or slid can fire.", "compatibility": {} },
+      { "id": "lib-wrapper", "type": "module", "reason": "[Compatible] Lets triggers that reduce or prevent damage hold it before it lands, rather than prompting afterwards.", "compatibility": { "minimum": "1.12.0" } }
     ]
   },
   "esmodules": [
