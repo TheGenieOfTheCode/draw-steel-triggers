@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed } from "../triggers/queue.mjs";
 import { maliceChipURI } from "./malice-chip.mjs";
 import { buildAbilityPreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
@@ -42,6 +42,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       useEntry: StackWindow.#onUse,
       declineEntry: StackWindow.#onDecline,
       dismissEntry: StackWindow.#onDismiss,
+      markVillainUsed: StackWindow.#onMarkVillainUsed,
       releaseHeld: StackWindow.#onReleaseHeld,
       releaseResolutionNow: StackWindow.#onReleaseResolutionNow,
       applyHeldNow: StackWindow.#onApplyHeldNow,
@@ -121,6 +122,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
       labels: {
         use: L("Use"), decline: L("Decline"), dismiss: L("Dismiss"),
         dismissTooltip: L("DismissTooltip"), empty: L("Empty"),
+        markUsed: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsed"),
+        markUsedTooltip: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsedTooltip"),
         release: L("Release"), releaseTooltip: L("ReleaseTooltip"),
         applyNow: L("ApplyNow"), applyNowTooltip: L("ApplyNowTooltip"),
         releaseResolution: L("ReleaseResolution"), releaseResolutionTooltip: L("ReleaseResolutionTooltip"),
@@ -196,6 +199,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
           
           
           showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.state === "pending",
+          showMarkUsed: !!e.villain && game.user.isGM && e.state === "pending",
           notYours: !canActOn(e),
           notYoursTooltip: game.i18n.format("DS_TRIGGERS.Queue.NotYoursTooltip", { owner: e.ownerName }),
           showRelease: isHeld && game.user.isGM,
@@ -314,6 +318,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static #onDismiss(_event, target) {
     resolveQueueEntry(target.dataset.id, "dismissed");
+  }
+
+  static #onMarkVillainUsed(_event, target) {
+    if (!game.user.isGM) return;
+    markVillainUsed(target.dataset.id);
   }
 
   static #onReleaseHeld(_event, target) {

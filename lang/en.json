@@ -39,6 +39,10 @@
         "Name": "Turn Interrupts",
         "Hint": "Hold a creature's activation while triggered abilities that can take the turn instead, such as Prescient Grace, Hesitation is Weakness, Fulfill Your Destiny or Time Loop, wait for a Use or Decline decision. Only applies during combat."
       },
+      "OfferVillainActions": {
+        "Name": "Offer Villain Actions",
+        "Hint": "When a hero's turn ends, offer the Director the villain actions each standing villain has not used yet, and hold the turn until they choose. Each one is offered once per combat, and a villain that has used one waits for the next round."
+      },
       "RollLock": {
         "Name": "Roll Lock",
         "Hint": "Hold ability rolls while triggered abilities that could interrupt them wait for a Use or Decline decision. Only applies during combat."
@@ -470,6 +474,15 @@
       "For10Minutes": "10 minutes from now",
       "For30Minutes": "30 minutes from now",
       "UntilUnsnoozed": "Until I turn it back on"
+    },
+    "Villain": {
+      "Cause": "Villain Action {n}: {name}'s turn ended",
+      "MarkUsed": "Mark as Used",
+      "MarkUsedTooltip": "Record this villain action as used without posting it, and send away the rest for this round.",
+      "MenuMarkUsed": "Mark Villain Action Used",
+      "MenuMarkUnused": "Mark Villain Action Unused",
+      "MarkedUsed": "{name} is marked as used for this combat.",
+      "MarkedUnused": "{name} can be offered again."
     }
   }
 }

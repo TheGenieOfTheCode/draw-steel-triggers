@@ -2,6 +2,7 @@ import { MODULE_ID, getSetting, dbg } from "../../util.mjs";
 import { activationsLeft, collectTriggerMatches, isMinionActor, noteOncePerRoundUse } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket } from "../queue.mjs";
 import { getParsedTrigger } from "../registry.mjs";
+import { villainMatches } from "../villain-actions.mjs";
 
 const _skipStartOnce = new Set();
 let _startedViaHesitation = null;
@@ -33,7 +34,8 @@ let _passedStart = null;
 
 function _holdTurn(combat, prev, next, { turn, direction = 1, group = null, skipStart = false }) {
   const matches = [];
-  if (prev?.actor) {
+  const locks = getSetting("turnInterrupts");
+  if (prev?.actor && locks) {
     if (prev.id !== _startedViaHesitation) {
       for (const m of _lockMatches("TURN_END", prev)) {
         m._lockEvent = "TURN_END";
@@ -43,13 +45,16 @@ function _holdTurn(combat, prev, next, { turn, direction = 1, group = null, skip
     }
     _startedViaHesitation = null;
   }
-  if (next?.actor && !skipStart) {
+  if (next?.actor && !skipStart && locks) {
     for (const m of _lockMatches("TURN_START", next)) {
       if (matches.some((x) => x.item.uuid === m.item.uuid)) continue;
       m._lockEvent = "TURN_START";
       m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.Cause.TURN_START_LOCK", { name: next.name });
       matches.push(m);
     }
+  }
+  for (const m of villainMatches(combat, prev)) {
+    if (!matches.some((x) => x.item.uuid === m.item.uuid)) matches.push(m);
   }
   if (!matches.length) return false;
 
@@ -95,7 +100,7 @@ Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
     return;
   }
   if (!("turn" in changed)) return;
-  if (!getSetting("turnInterrupts") || !combat.started) return;
+  if (!(getSetting("turnInterrupts") || getSetting("offerVillainActions")) || !combat.started) return;
   if (options.dstTurnResume) return;
   if (userId !== game.user.id) return;
 
@@ -112,7 +117,7 @@ Hooks.on("preUpdateCombat", (combat, changed, options, userId) => {
 Hooks.on("preUpdateCombatantGroup", (group, changed, options, userId) => {
   if (!("initiative" in changed)) return;
   const combat = group.parent;
-  if (!getSetting("turnInterrupts") || !combat?.started) return;
+  if (!(getSetting("turnInterrupts") || getSetting("offerVillainActions")) || !combat?.started) return;
   if (options.dstTurnResume) return;
   if (userId !== game.user.id) return;
   if (!(changed.initiative < (Number(group.initiative) || 0))) return;

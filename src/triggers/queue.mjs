@@ -1,3 +1,4 @@
+import { setVillainUsed } from "./villain-actions.mjs";
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM } from "../util.mjs";
 import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
@@ -69,7 +70,8 @@ function _onUseCancelled(itemUuid) {
     if (e.itemUuid === itemUuid && e.state === "used" && !e.useCancelled) {
       e.useCancelled = true;
       e.state = "declined";
-      _postDeclineRecord(e.ownerActorUuid, e.ownerName, e.itemName);
+      if (e.villain) _recordVillain(e, false);
+      else _postDeclineRecord(e.ownerActorUuid, e.ownerName, e.itemName);
       touched = true;
     }
   }
@@ -214,7 +216,7 @@ function _onQueueAdd(entries) {
   }
   if (getSetting("stackDecisionTimer")) {
     for (const e of fresh) {
-      if (e.state === "pending") e.decideUntil = Date.now() + _graceMs();
+      if (e.state === "pending" && !e.villain) e.decideUntil = Date.now() + _graceMs();
     }
     _ensureDecisionTicker();
   }
@@ -258,7 +260,12 @@ async function _onQueueResolve(id, outcome, userName) {
     }
   }
 
-  if (outcome === "declined") _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
+  if (outcome === "used" && entry.villain) {
+    _recordVillain(entry, true);
+    _dismissVillainSiblings(entry);
+  }
+
+  if (outcome === "declined" && !entry.villain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
 
   if (entry.resumeId) {
     const stillLocked = _queue.some((e) => e.resumeId === entry.resumeId && e.state === "pending");
@@ -280,6 +287,7 @@ async function _onQueueResolve(id, outcome, userName) {
             fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
             subjectTokenUuids: e.subjectTokenUuids ?? null,
+            villain: e.villain ?? null,
           }));
         const awaiting = new Set(usedEntries.filter((u) => !_postedAfterUse(u.itemUuid, u.usedAt)).map((u) => u.itemUuid));
         if (!awaiting.size) {
@@ -693,7 +701,7 @@ async function _resolveRetargetPicks(retargets, resume) {
 function _finishResume(usedEntries, resume) {
   if (getSetting("debugMode")) console.log(`DS_TRIGGERS | finishResume: used=${(usedEntries ?? []).map((u) => `${u.itemName}:${u.redirect ?? "-"}`).join(",")} resume=${resume?.itemUuid ?? resume?.fmId ?? resume?.kind ?? null}`);
   if (resume?.kind === "turn") {
-    asPrimaryGM("resumeTurn", resume, (usedEntries ?? []).map((u) => ({
+    asPrimaryGM("resumeTurn", resume, (usedEntries ?? []).filter((u) => !u.villain).map((u) => ({
       itemUuid: u.itemUuid, ownerActorUuid: u.ownerActorUuid, ownerName: u.ownerName, itemName: u.itemName,
     })));
     return;
@@ -760,6 +768,42 @@ function _refreshFmRunning(abilityUuid) {
     if (held.fmRunning === 0) _dismissPendingRedirects(held.resumeId, "the correction emptied it");
   }
   return touched;
+}
+
+function _recordVillain(entry, used) {
+  const combat = game.combats.get(entry.villain?.combatId);
+  setVillainUsed(combat, entry.villain?.tokenId, fromUuidSync(entry.itemUuid)?.id, used).catch((err) => dbg("villain record failed", err));
+}
+
+function _dismissVillainSiblings(entry) {
+  for (const other of _queue) {
+    if (other === entry || other.state !== "pending" || other.villain?.tokenId !== entry.villain.tokenId) continue;
+    other.state = "dismissed";
+    dbg(`queue dismiss ${other.id} (${other.itemName}): the villain has acted this round`);
+  }
+}
+
+async function _onVillainMarkUsed(id) {
+  if (!isPrimaryGM()) return;
+  const entry = _queue.find((e) => e.id === id);
+  if (!entry?.villain || entry.state !== "pending") return;
+  _recordVillain(entry, true);
+  _dismissVillainSiblings(entry);
+  await _onQueueResolve(id, "dismissed");
+}
+
+async function _onVillainDismiss(tokenId) {
+  if (!isPrimaryGM()) return;
+  const ids = _queue.filter((e) => e.state === "pending" && e.villain?.tokenId === tokenId).map((e) => e.id);
+  for (const id of ids) await _onQueueResolve(id, "dismissed");
+}
+
+export function markVillainUsed(id) {
+  return asPrimaryGM("villainMarkUsed", id);
+}
+
+export function dismissVillainEntries(tokenId) {
+  return asPrimaryGM("villainDismiss", tokenId);
 }
 
 function _dismissPendingRedirects(resumeId, why) {
@@ -1165,6 +1209,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmChar: m._fmChar ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     subjectTokenUuids: m._subjectTokenUuids ?? null,
+    villain: m._villain ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
     lock: true,
     state: "pending",
@@ -1389,6 +1434,8 @@ Hooks.once("socketlib.ready", () => {
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
   socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
   socket.register("queueSyncRequest", _onQueueSyncRequest);
+  socket.register("villainMarkUsed", _onVillainMarkUsed);
+  socket.register("villainDismiss", _onVillainDismiss);
 });
 
 function _onQueueSyncRequest() {

@@ -22,6 +22,7 @@ import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/ability-use.mjs";
 import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
+import "./triggers/villain-actions.mjs";
 import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
@@ -65,6 +66,14 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "turnInterrupts", {
     name: "DS_TRIGGERS.Settings.TurnInterrupts.Name",
     hint: "DS_TRIGGERS.Settings.TurnInterrupts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "offerVillainActions", {
+    name: "DS_TRIGGERS.Settings.OfferVillainActions.Name",
+    hint: "DS_TRIGGERS.Settings.OfferVillainActions.Hint",
     scope: "world",
     config: true,
     type: Boolean,
