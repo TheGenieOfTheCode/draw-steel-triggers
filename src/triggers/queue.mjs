@@ -1513,7 +1513,7 @@ function _onReaperSet(data) {
 }
 
 export function chooseQueueSubject(id, key) {
-  asPrimaryGM("queueChoose", id, key);
+  return asPrimaryGM("queueChoose", id, key);
 }
 
 function _onQueueChoose(id, key) {

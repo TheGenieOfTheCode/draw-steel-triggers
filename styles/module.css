@@ -1262,3 +1262,9 @@ button.dst-tt-pill.dst-tt-shared {
 .dst-reaper-token--maybe img {
   filter: grayscale(0.7);
 }
+
+.dst-stack .dst-stack-cause-text .ctlib-faces {
+  font-size: 0.9em;
+  vertical-align: middle;
+  margin: 0 1px;
+}

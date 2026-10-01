@@ -36,6 +36,22 @@ function reaperGroups(e) {
   return lib.groupFaces(faces).map((g) => ({ label: g.label, faded: g.faded, facesHTML: lib.faceChainHTML(g.faces) }));
 }
 
+function choiceCauseHTML(e) {
+  const docs = [];
+  const seen = new Set();
+  for (const c of e.choices ?? []) {
+    const doc = c.subjectTokenUuid ? fromUuidSync(c.subjectTokenUuid) : null;
+    if (doc && !seen.has(doc.uuid)) { seen.add(doc.uuid); docs.push(doc); }
+  }
+  const key = `DS_TRIGGERS.Queue.ChoiceEvent.${e.event}`;
+  const event = game.i18n.has(key) ? game.i18n.localize(key) : "";
+  return game.i18n.format("DS_TRIGGERS.Queue.ChoiceCauseFaces", {
+    faces: faceChain(docs),
+    count: docs.length || e.choices.length,
+    event,
+  }).replace(/\s+\./, ".");
+}
+
 function mergeSquadHolds(entries, mirror) {
   const holders = (damageId) => mirror
     .filter((q) => q.state === "pending" && [q.damageId, ...(q.choices ?? []).map((c) => c.damageId)].includes(damageId))
@@ -252,6 +268,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
           fmStopped: e.fmRunning === 0,
           isPending: e.state === "pending",
           isChoosing: !!e.choices?.length,
+          choiceCauseHTML: e.choices?.length ? choiceCauseHTML(e) : null,
           isReaper: e.kind === "reaper",
           reaperGroups: e.kind === "reaper" ? reaperGroups(e) : null,
           ownerFaces: isDamageHeld
@@ -368,10 +385,17 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
     if (!entry || entry.choices?.length) return;
     if (!canActOn(entry)) return;
-    if (target.classList.contains("dst-use-gated") && !(game.user.isGM && event?.shiftKey)) {
-      ui.notifications.warn("DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
-      return;
-    }
+    if (StackWindow.#gated(event, target)) return;
+    await StackWindow.#useEntry(entry);
+  }
+
+  static #gated(event, target) {
+    if (!target.classList.contains("dst-use-gated") || (game.user.isGM && event?.shiftKey)) return false;
+    ui.notifications.warn("DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
+    return true;
+  }
+
+  static async #useEntry(entry) {
     const item = await fromUuid(entry.itemUuid).catch(() => null);
     resolveQueueEntry(entry.id, "used");
     if (item) {
@@ -382,9 +406,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
     }
   }
 
-  static async #onChooseSubject(_event, target) {
+  
+  static async #onChooseSubject(event, target) {
     const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
     if (!entry?.choices?.length || !canActOn(entry)) return;
+    if (StackWindow.#gated(event, target)) return;
     const byToken = new Map();
     for (const c of entry.choices) {
       const token = c.subjectTokenUuid ? fromUuidSync(c.subjectTokenUuid)?.object : null;
@@ -397,7 +423,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
         game.i18n.format("DS_TRIGGERS.Queue.PickChoice", { modName: entry.itemName }));
       choice = picked ? byToken.get(picked.id)?.choice : null;
     }
-    if (choice) chooseQueueSubject(entry.id, choice.key);
+    if (!choice) return;
+    await chooseQueueSubject(entry.id, choice.key);
+    const { key, ...fields } = choice;
+    const chosen = { ...entry, ...fields };
+    delete chosen.choices;
+    await StackWindow.#useEntry(chosen);
   }
 
   static #onDecline(_event, target) {
