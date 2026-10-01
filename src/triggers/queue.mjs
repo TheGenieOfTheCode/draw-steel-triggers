@@ -417,7 +417,6 @@ function _completeDamageGroup(damageId) {
     .filter((u) => !u.cancelled && !_postedAfterUse(u.itemUuid, u.usedAt))
     .map((u) => u.itemUuid));
   if (!awaiting.size) {
-    _removeDamageHeldEntry(damageId);
     _finalizeDamageHold(damageId);
     return;
   }
@@ -449,8 +448,6 @@ function _endDamageGrace(damageId, expired) {
     }
     hold.anyUsed = (hold.usedItems?.size ?? 0) > 0;
   }
-  _removeDamageHeldEntry(damageId);
-  _broadcast();
   _finalizeDamageHold(damageId);
 }
 
@@ -623,8 +620,39 @@ async function _applyRollModOverride(hold, u) {
 
 async function _finalizeDamageHold(damageId) {
   const hold = _damageHolds.get(damageId);
-  if (!hold) return;
+  if (!hold) {
+    _removeDamageHeldEntry(damageId);
+    _broadcast();
+    return;
+  }
   _damageHolds.delete(damageId);
+  const heldEntry = _queue.find((e) => e.damageId === damageId && e.kind === "damageHeld");
+  if (heldEntry) {
+    heldEntry.state = "resolving";
+    delete heldEntry.graceUntil;
+    _broadcast();
+  }
+  try {
+    await _settleDamageHold(hold);
+  } finally {
+    _removeDamageHeldEntry(damageId);
+    _broadcast();
+  }
+}
+
+function _uncappedSquadHit(hold, actor) {
+  const message = hold.dstd?.messageId ? game.messages.get(hold.dstd.messageId) : null;
+  const record = message ? foundry.utils.getProperty(message.flags, `draw-steel-target-damage.state.applications.${hold.dstd.opId}`) : null;
+  const amount = Number(record?.amount);
+  if (!Number.isFinite(amount)) return null;
+  const damage = actor?.system?.damage ?? {};
+  const type = record.damageType ?? "";
+  const weakness = Math.max(Number(damage.weaknesses?.all ?? 0) || 0, Number(damage.weaknesses?.[type] ?? 0) || 0);
+  const immunity = Math.max(Number(damage.immunities?.all ?? 0) || 0, Number(damage.immunities?.[type] ?? 0) || 0);
+  return Math.max(0, amount + weakness - immunity);
+}
+
+async function _settleDamageHold(hold) {
   if (!hold.anyUsed) {
     await _applyHeldDamage(hold, hold.amount);
     Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: hold.amount });
@@ -638,8 +666,12 @@ async function _finalizeDamageHold(damageId) {
   const typeLabel = hold.damageType
     ? game.i18n.localize(ds.CONFIG.damageTypes?.[hold.damageType]?.label ?? hold.damageType)
     : null;
-  const amountLabel = typeLabel ? `${hold.amount} ${typeLabel}` : hold.amount;
+  
+  const cap = hold.squad?.areaCap ?? null;
+  const base = cap && hold.amount >= cap ? Math.max(hold.amount, _uncappedSquadHit(hold, actor) ?? 0) : hold.amount;
+  const amountLabel = typeLabel ? `${base} ${typeLabel}` : base;
   let mitigationNote = "";
+  if (cap) mitigationNote += `<p class="hint">${F("HeldDamageAreaCap", { n: cap })}</p>`;
   if (hold.damageOptions && actor?.system?.calculateImmunityAndWeakness) {
     const { immunity = 0, weakness = 0 } = actor.system.calculateImmunityAndWeakness({ ...hold.damageOptions });
     if (immunity > 0) mitigationNote += `<p class="hint">${F("HeldDamageImmunityNote", { n: immunity })}</p>`;
@@ -658,16 +690,16 @@ async function _finalizeDamageHold(damageId) {
   const outcome = await openDamageModWindow({
     title: F("HeldDamageTitle", { name: actor?.name ?? "" }),
     hint: `${F("HeldDamageHint", { amount: amountLabel })}${mitigationNote}`,
-    base: hold.amount,
+    base,
     pills: seedPills,
   });
-  const result = outcome ? outcome.final : null;
+  const result = outcome ? (cap ? Math.min(Number(outcome.final), cap) : outcome.final) : null;
 
   if (result != null && Number(result) >= 0 && hold.dstd?.messageId && hold.dstd?.opId) {
     const dstdMessage = game.messages.get(hold.dstd.messageId);
     if (dstdMessage && outcome.pills.length) {
       dstdMessage.setFlag(MODULE_ID, `damagePills.${hold.dstd.opId}`, {
-        base: hold.amount,
+        base,
         pills: outcome.pills.map((p) => ({ kind: p.kind, value: p.value ?? null, label: p.label ?? "", src: p.src ?? null, srcTokenId: p.srcTokenId ?? null, source: p.source ?? "manual", ...(p.enabled === false ? { enabled: false } : {}) })),
         final: Number(result),
       }).catch(() => {});
@@ -1482,7 +1514,6 @@ function _onApplyHeldDamageNow(damageId) {
     if (e.damageId === damageId) spent.add(e.id);
   }
   _queue = _queue.filter((e) => !spent.has(e.id));
-  _removeDamageHeldEntry(damageId);
   _finalizeDamageHold(damageId);
   _broadcast();
 }

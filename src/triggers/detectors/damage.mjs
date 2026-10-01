@@ -140,7 +140,12 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
       tokenUuid: token.uuid,
       amount,
       damageType,
-      squad: { groupUuid: group.uuid, ds: foundry.utils.deepClone(options.ds ?? {}), dstd: foundry.utils.deepClone(options.dstd) },
+      squad: {
+        groupUuid: group.uuid,
+        ds: foundry.utils.deepClone(options.ds ?? {}),
+        dstd: foundry.utils.deepClone(options.dstd),
+        areaCap: options.dstd?.isAreaAbility ? Number(actor.system?.stamina?.max) || null : null,
+      },
     },
   });
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: token.name }));

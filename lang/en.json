@@ -276,6 +276,8 @@
       "HeldDamageEach": "{entry} each",
       "ChooseTooltip": "This was triggered more than once. Pick which creature it answers, and it is used against them.",
       "ChoiceCause": "Triggered by {count} creatures. Choose one.",
+      "Resolving": "being resolved",
+      "HeldDamageAreaCap": "Area damage to a minion is capped at {n} after these modifiers.",
       "ChoiceCauseFaces": "Triggered by {faces} {count} creatures {event}. Choose one.",
       "ChoiceEvent": {
         "WOULD_TAKE_DAMAGE": "being dealt damage",

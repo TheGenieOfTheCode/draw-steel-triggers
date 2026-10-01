@@ -291,12 +291,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
           notYours: !canActOn(e),
           notYoursTooltip: game.i18n.format("DS_TRIGGERS.Queue.NotYoursTooltip", { owner: e.ownerName }),
           showRelease: isHeld && game.user.isGM,
-          showApplyNow: isDamageHeld && game.user.isGM,
+          showApplyNow: isDamageHeld && game.user.isGM && e.state !== "resolving",
           showReleaseResolution: isResolutionHeld && game.user.isGM,
           isGrace: e.state === "grace",
           graceRemaining: e.graceUntil ? Math.max(0, Math.ceil((e.graceUntil - Date.now()) / 1000)) : null,
           heldStatus: (isHeld || isDamageHeld || isResolutionHeld)
-            ? (e.state === "grace" ? null : game.i18n.format("DS_TRIGGERS.Queue.WaitingOn", { count: pendingCount }))
+            ? (e.state === "grace" ? null : e.state === "resolving" ? L("Resolving") : game.i18n.format("DS_TRIGGERS.Queue.WaitingOn", { count: pendingCount }))
             : null,
           stateLabel: L(`State.${e.state}`),
         };
