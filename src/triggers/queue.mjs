@@ -1,5 +1,5 @@
 import { setVillainUsed } from "./villain-actions.mjs";
-import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } from "../util.mjs";
 import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
@@ -707,7 +707,7 @@ async function _settleDamageHold(hold) {
   }
 
   if (result == null || !(Number(result) > 0)) {
-    ui.notifications.warn(F("HeldDamageDiscarded", { name: actor?.name ?? "" }));
+    batchedNotice("HeldDamageDiscarded", actor?.name ?? "", { level: "warn" });
     Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
     return;
   }

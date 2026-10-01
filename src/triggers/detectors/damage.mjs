@@ -1,6 +1,6 @@
 import { dispatchTriggerEvent, collectTriggerMatches } from "../dispatch.mjs";
 import { enqueueDamageHold, consumeDamageBypass } from "../queue.mjs";
-import { MODULE_ID, getSetting, dbg } from "../../util.mjs";
+import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
 
 let _pendingDamageType = null;
 
@@ -85,7 +85,7 @@ function _tryHoldDamage(model, damage, options) {
       damageOptions,
     },
   });
-  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: actor.name }));
+  batchedNotice("HeldDamageNotice", actor.name);
   return true;
 }
 
@@ -110,7 +110,7 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
     causeLabel: game.i18n.format("DS_TRIGGERS.Queue.HeldDamageCause", { name: actor.name, amount }),
     heldDamage: { actorUuid: actor.uuid, actorName: actor.name, tokenUuid: token?.uuid ?? null, amount },
   });
-  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: actor.name }));
+  batchedNotice("HeldDamageNotice", actor.name);
   return false;
 });
 
@@ -148,7 +148,7 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
       },
     },
   });
-  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.HeldDamageNotice", { name: token.name }));
+  batchedNotice("HeldDamageNotice", token.name);
   return false;
 });
 

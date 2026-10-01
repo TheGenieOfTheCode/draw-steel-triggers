@@ -1,4 +1,4 @@
-import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
+import { getSetting, dbg, isPrimaryGM, batchedNotice } from "../../util.mjs";
 import { collectTriggerMatches, footprintGap } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { generateDSID } from "../../parser/trigger-parser.mjs";
@@ -109,7 +109,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
       ownerName: target.name,
     },
   });
-  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmHeld", { name: target.name }));
+  batchedNotice("FmHeld", target.name);
   return false;
 });
 
