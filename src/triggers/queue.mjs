@@ -652,6 +652,18 @@ function _uncappedSquadHit(hold, actor) {
   return Math.max(0, amount + weakness - immunity);
 }
 
+export function noteHeldLinked(hold) {
+  if (!hold?.squad?.areaCap) return;
+  const damageId = [..._damageHolds].find(([, h]) => h === hold)?.[0];
+  if (!damageId) return;
+  const original = _uncappedSquadHit(hold, fromUuidSync(hold.actorUuid));
+  if (!(original > hold.amount)) return;
+  for (const e of _queue) {
+    if (e.damageId === damageId && e.heldDamage) e.heldDamage = { ...e.heldDamage, original };
+  }
+  _broadcast();
+}
+
 async function _settleDamageHold(hold) {
   if (!hold.anyUsed) {
     await _applyHeldDamage(hold, hold.amount);

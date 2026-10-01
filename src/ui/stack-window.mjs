@@ -52,6 +52,19 @@ function choiceCauseHTML(e) {
   }).replace(/\s+\./, ".");
 }
 
+function cappedNameHTML(e) {
+  const original = Number(e.heldDamage?.original);
+  const amount = Number(e.heldDamage?.amount);
+  if (!(original > amount)) return null;
+  const name = (e.damageIds?.length ?? 1) > 1
+    ? game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEach", { entry: e.itemName })
+    : e.itemName;
+  const at = name.indexOf(String(amount));
+  if (at < 0) return null;
+  const esc = foundry.utils.escapeHTML;
+  return `${esc(name.slice(0, at))}<s class="dst-capped-from">${original}</s> ${amount}${esc(name.slice(at + String(amount).length))}`;
+}
+
 function mergeSquadHolds(entries, mirror) {
   const holders = (damageId) => mirror
     .filter((q) => q.state === "pending" && [q.damageId, ...(q.choices ?? []).map((c) => c.damageId)].includes(damageId))
@@ -207,6 +220,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         snoozeTooltip: L("SnoozeTooltip"),
         snoozeAllTooltip: L("SnoozeAllTooltip"),
         groupMuted: L("GroupMuted"),
+        area: L("Area"), areaTooltip: L("AreaTooltip"),
         reaperReason: L("ReaperReason"), reaperQuoteBy: L("ReaperQuoteBy"), reaperMemorial: L("ReaperMemorial"), reaperMaybe: L("ReaperMaybe"),
       },
       entries: shown.map((e, i) => {
@@ -270,6 +284,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
           isChoosing: !!e.choices?.length,
           choiceCauseHTML: e.choices?.length ? choiceCauseHTML(e) : null,
           isReaper: e.kind === "reaper",
+          isArea: isDamageHeld && !!e.heldDamage?.squad?.areaCap,
+          itemNameHTML: isDamageHeld ? cappedNameHTML(e) : null,
           reaperGroups: e.kind === "reaper" ? reaperGroups(e) : null,
           ownerFaces: isDamageHeld
             ? faceChain((e.subjectUuids ?? [e.heldDamage?.tokenUuid]).map((u) => (u ? fromUuidSync(u) : null)))

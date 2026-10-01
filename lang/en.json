@@ -277,6 +277,8 @@
       "ChooseTooltip": "This was triggered more than once. Pick which creature it answers, and it is used against them.",
       "ChoiceCause": "Triggered by {count} creatures. Choose one.",
       "Resolving": "being resolved",
+      "Area": "Area",
+      "AreaTooltip": "Area damage. A minion takes no more than its own Stamina from it, after any modifiers.",
       "HeldDamageAreaCap": "Area damage to a minion is capped at {n} after these modifiers.",
       "ChoiceCauseFaces": "Triggered by {faces} {count} creatures {event}. Choose one.",
       "ChoiceEvent": {

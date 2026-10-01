@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, getSetting, isPrimaryGM } from "../util.mjs";
-import { getActiveDamageHolds, queueSocket } from "../triggers/queue.mjs";
+import { getActiveDamageHolds, queueSocket, noteHeldLinked } from "../triggers/queue.mjs";
 import { noteTargetsChange } from "../triggers/detectors/resolution.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
@@ -67,6 +67,7 @@ function _markHeldRecords(message) {
         if (!_targetMatches(entry.target, hold.actorUuid)) continue;
         if (_linkedToActiveHold(message.id, opId, hold)) break;
         hold.dstd = { messageId: message.id, opId };
+        setTimeout(() => noteHeldLinked(hold), 0);
       }
       updates[`flags.${DSTD_ID}.state.applications.${opId}.dstHeld`] = true;
       break;

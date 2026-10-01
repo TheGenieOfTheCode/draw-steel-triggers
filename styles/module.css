@@ -348,6 +348,18 @@ button.dst-dstd-held-btn > i {
   color: #58b158;
 }
 
+.dst-stack .dst-chip--area {
+  border: 1px solid light-dark(#6e4c0e, #d9a63f);
+  color: light-dark(#6e4c0e, #d9a63f);
+}
+
+.dst-stack .dst-capped-from {
+  opacity: 0.75;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: #f2ecf8;
+}
+
 .dst-stack .dst-stack-title-row {
   display: flex;
   align-items: center;

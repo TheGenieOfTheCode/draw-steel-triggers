@@ -79,7 +79,8 @@
         {{else}}
         {{#if isDamageHeld}}<span class="dst-stack-damage-icon"><i class="fa-solid fa-heart-crack"></i></span>{{/if}}
         {{#if iconSrc}}<img class="dst-stack-icon" src="{{iconSrc}}" alt="">{{/if}}
-        <span class="dst-stack-name{{#if isDamageHeld}} dst-stack-name--damage{{/if}}">{{itemName}}</span>
+        <span class="dst-stack-name{{#if isDamageHeld}} dst-stack-name--damage{{/if}}">{{#if itemNameHTML}}{{{itemNameHTML}}}{{else}}{{itemName}}{{/if}}</span>
+        {{#if isArea}}<span class="dst-chip dst-chip--area" data-tooltip="{{@root.labels.areaTooltip}}">{{@root.labels.area}}</span>{{/if}}
         {{/if}}
         {{{ownerFaces}}}
         {{#if ownerClickable}}
