@@ -1168,8 +1168,25 @@ button.dst-tt-pill.dst-tt-shared {
   50% { text-shadow: 0 0 9px rgba(224, 48, 58, 0.95), 0 0 22px rgba(142, 26, 34, 0.85); }
 }
 
+.theme-light .dst-stack .dst-stack-entry--reaper {
+  background: radial-gradient(ellipse at 50% 0%, #2a0f12 0%, #1d1919 75%);
+  border-color: #6b1a20;
+  box-shadow: 0 0 0 1px rgba(255, 250, 240, 0.55), 0 2px 6px rgba(60, 10, 14, 0.35);
+}
+
+.theme-light .dst-stack .dst-stack-entry--reaper .dst-stack-name {
+  text-shadow: 0 0 5px rgba(224, 48, 58, 0.55);
+  animation-name: dst-death-breathe-soft;
+}
+
+@keyframes dst-death-breathe-soft {
+  0%, 100% { text-shadow: 0 0 5px rgba(224, 48, 58, 0.55); }
+  50% { text-shadow: 0 0 7px rgba(224, 48, 58, 0.75); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .dst-stack .dst-stack-entry--reaper .dst-stack-name { animation: none; }
+  .dst-stack .dst-stack-entry--reaper .dst-stack-name,
+  .theme-light .dst-stack .dst-stack-entry--reaper .dst-stack-name { animation: none; }
 }
 
 .dst-stack .dst-reaper-quote {
