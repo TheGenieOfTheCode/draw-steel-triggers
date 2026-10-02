@@ -1,6 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed } from "../triggers/queue.mjs";
-import { maliceChipURI } from "./malice-chip.mjs";
 import { buildAbilityPreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from "./snooze.mjs";
@@ -202,7 +201,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       
       
       rosterOpen: (this._rosterOpen ??= !shown.length),
-      maliceChipURI: maliceChipURI(),
+      maliceChipURI: ctlib()?.resourceTokenURI?.("malice"),
       labels: {
         use: L("Use"), choose: L("Choose"), chooseTooltip: L("ChooseTooltip"), decline: L("Decline"), dismiss: L("Dismiss"),
         dismissTooltip: L("DismissTooltip"), empty: L("Empty"),

@@ -500,7 +500,6 @@
       "Everything": "Everything",
       "PickTitle": "Snooze this trigger",
       "PickFor": "Stop offering {name} until when?",
-      "Cancel": "Cancel",
       "UntilTurnStart": "The start of its next turn",
       "UntilTurnEnd": "The end of its next turn",
       "UntilRoundEnd": "The end of this round",

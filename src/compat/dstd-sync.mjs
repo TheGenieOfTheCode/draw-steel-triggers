@@ -357,44 +357,18 @@ Hooks.once("ready", () => {
   });
 });
 
-function _patchMessageEl(li) {
-  const message = li?.dataset?.messageId ? game.messages.get(li.dataset.messageId) : null;
-  if (!message) return;
-  _patchMessageLabels(message, li);
-  _applyResolutionLock(message, li);
-}
-
-Hooks.on("renderChatMessageHTML", (message, html) => {
-  if (!_dstdActive()) return;
-  const patch = () => {
-    _patchMessageLabels(message, html);
-    _applyResolutionLock(message, html);
-  };
-  patch();
-  setTimeout(() => { if (html.isConnected) patch(); }, 100);
-  setTimeout(() => { if (html.isConnected) patch(); }, 400);
-});
-
-Hooks.once("ready", () => {
-  if (!_dstdActive()) return;
-  const chatLog = document.querySelector("#chat-log") ?? document.querySelector("#chat") ?? document.body;
-  const observer = new MutationObserver((mutations) => {
-    const lis = new Set();
-    for (const m of mutations) {
-      if (m.target instanceof HTMLElement) {
-        const li = m.target.closest?.("li.chat-message");
-        if (li) lis.add(li);
-      }
-      for (const node of m.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
-        const li = node.closest?.("li.chat-message");
-        if (li) lis.add(li);
-        else for (const sub of node.querySelectorAll?.("li.chat-message") ?? []) lis.add(sub);
-      }
-    }
-    for (const li of lis) _patchMessageEl(li);
+Hooks.once("setup", () => {
+  game.modules.get("draw-steel-ctlib").api.registerPanelDecorator({
+    id: "triggers-held-damage",
+    priority: 500,
+    watch: "any",
+    immediate: true,
+    retry: [100, 400],
+    decorate: ({ message, root }) => {
+      _patchMessageLabels(message, root);
+      _applyResolutionLock(message, root);
+    },
   });
-  observer.observe(chatLog, { childList: true, subtree: true });
 });
 
 async function _onApplyResolutionRedirect(payload) {

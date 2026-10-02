@@ -2,7 +2,6 @@ import { MODULE_ID, getSetting, dbg, emblemHTML, isPrimaryGM } from "../util.mjs
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
-import { maliceChipURI } from "../ui/malice-chip.mjs";
 import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 
@@ -449,7 +448,7 @@ async function _sendMaliceCard(matches, subjectActor) {
       <div class="dst-malice-feature-head">
         <a class="dst-malice-expand"><i class="fa-solid fa-chevron-right dst-malice-chevron"></i></a>
         ${link}${typeTag}
-        <span class="dst-malice-feature-cost"><img class="dst-malice-chip" src="${maliceChipURI()}" alt="">${cost} ${game.i18n.localize("DS_TRIGGERS.Reminder.Malice")}</span>
+        <span class="dst-malice-feature-cost"><img class="dst-malice-chip" src="${game.modules.get("draw-steel-ctlib").api.resourceTokenURI("malice")}" alt="">${cost} ${game.i18n.localize("DS_TRIGGERS.Reminder.Malice")}</span>
       </div>
       <div class="dst-malice-feature-embed dst-collapsed">${preview}</div>
     </div>`;

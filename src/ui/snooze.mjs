@@ -147,53 +147,24 @@ export function registerSnoozeHooks() {
 export async function promptSnooze(abilityName) {
   const L = (k) => game.i18n.localize(`DS_TRIGGERS.Snooze.${k}`);
   const options = [
-    { value: "turnStart", label: L("UntilTurnStart") },
-    { value: "turnEnd", label: L("UntilTurnEnd") },
-    { value: "roundEnd", label: L("UntilRoundEnd") },
-    { value: "combatEnd", label: L("UntilCombatEnd") },
-    { value: "min10", label: L("For10Minutes") },
-    { value: "min30", label: L("For30Minutes") },
-    { value: "manual", label: L("UntilUnsnoozed") },
+    { action: "turnStart", label: L("UntilTurnStart"), icon: "fa-solid fa-hourglass-start" },
+    { action: "turnEnd", label: L("UntilTurnEnd"), icon: "fa-solid fa-hourglass-end" },
+    { action: "roundEnd", label: L("UntilRoundEnd"), icon: "fa-solid fa-rotate" },
+    { action: "combatEnd", label: L("UntilCombatEnd"), icon: "fa-solid fa-flag-checkered" },
+    { action: "min10", label: L("For10Minutes"), icon: "fa-solid fa-clock" },
+    { action: "min30", label: L("For30Minutes"), icon: "fa-solid fa-clock" },
+    { action: "manual", label: L("UntilUnsnoozed"), icon: "fa-solid fa-bell-slash" },
   ];
 
-  
-  const content = `<div class="dst-snooze-picker"><p>`
-    + game.i18n.format("DS_TRIGGERS.Snooze.PickFor", { name: abilityName })
-    + `</p>`
-    + options.map((o) => `<button type="button" data-choice="${o.value}">${o.label}</button>`).join("")
-    + `</div>`;
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const dialog = new foundry.applications.api.DialogV2({
-      window: { title: L("PickTitle") },
-      classes: ["draw-steel", "dst-snooze-dialog"],
-      content,
-      buttons: [{ action: "cancel", label: L("Cancel"), default: true }],
-      submit: () => { if (!settled) resolve(null); },
-    });
-
-    dialog.render({ force: true }).then((app) => {
-      
-      const onClose = (closed) => {
-        if (closed !== app) return;
-        Hooks.off("closeDialogV2", onClose);
-        if (!settled) resolve(null);
-      };
-      Hooks.on("closeDialogV2", onClose);
-
-      app.element.addEventListener("click", (ev) => {
-        const button = ev.target.closest("[data-choice]");
-        if (!button) return;
-        settled = true;
-        const choice = button.dataset.choice;
-        const label = options.find((o) => o.value === choice)?.label ?? "";
-        if (choice === "manual") resolve({ label });
-        else if (choice === "min10") resolve({ until: Date.now() + 600000, label });
-        else if (choice === "min30") resolve({ until: Date.now() + 1800000, label });
-        else resolve({ event: choice, label });
-        app.close();
-      });
-    });
+  const choice = await game.modules.get("draw-steel-ctlib").api.stackedPrompt({
+    title: L("PickTitle"),
+    heading: game.i18n.format("DS_TRIGGERS.Snooze.PickFor", { name: foundry.utils.escapeHTML(abilityName) }),
+    options,
   });
+  if (!choice) return null;
+  const label = options.find((o) => o.action === choice)?.label ?? "";
+  if (choice === "manual") return { label };
+  if (choice === "min10") return { until: Date.now() + 600000, label };
+  if (choice === "min30") return { until: Date.now() + 1800000, label };
+  return { event: choice, label };
 }
