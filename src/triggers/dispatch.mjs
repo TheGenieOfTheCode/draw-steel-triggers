@@ -81,17 +81,10 @@ export function abilityRangeSquares(item) {
 }
 
 export function footprintGap(docA, docB) {
-  const GS = canvas.grid.size;
-  const aL = docA.x, aT = docA.y, aR = aL + docA.width * GS, aB = aT + docA.height * GS;
-  const bL = docB.x, bT = docB.y, bR = bL + docB.width * GS, bB = bT + docB.height * GS;
-  let px, qx, py, qy;
-  if (aR <= bL) { px = aR; qx = bL; }
-  else if (bR <= aL) { px = aL; qx = bR; }
-  else { px = qx = Math.max(aL, bL); }
-  if (aB <= bT) { py = aB; qy = bT; }
-  else if (bB <= aT) { py = aT; qy = bB; }
-  else { py = qy = Math.max(aT, bT); }
-  return canvas.grid.measurePath([{ x: px, y: py }, { x: qx, y: qy }]).distance;
+  return game.modules.get("draw-steel-ctlib").api.footprintDistFromBounds(
+    docA.x, docA.y, docA.width, docA.height,
+    docB.x, docB.y, docB.width, docB.height,
+  );
 }
 
 function rangeMatches(clause, item, ownerActor, ownerToken, subjectActor, subjectToken) {
