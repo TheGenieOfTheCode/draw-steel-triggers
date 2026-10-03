@@ -32,7 +32,7 @@ const HOLD_WINDOW_MS = 3000;
 let _heldGroup = null;
 let _passedStart = null;
 
-function _holdTurn(combat, prev, next, { turn, direction = 1, group = null, skipStart = false }) {
+function _holdTurn(combat, prev, next, { turn, direction = 1, group = null, skipStart = false, round = false }) {
   const matches = [];
   const locks = getSetting("turnInterrupts");
   if (prev?.actor && locks) {
@@ -75,6 +75,7 @@ function _holdTurn(combat, prev, next, { turn, direction = 1, group = null, skip
       nextInitiative: next?.initiative ?? null,
       groupId: group?.id ?? null,
       groupInitiative: group?.initiative ?? null,
+      round,
     },
     held: {
       itemUuid: null,
@@ -130,6 +131,33 @@ Hooks.on("preUpdateCombatantGroup", (group, changed, options, userId) => {
   if (prev && prev.id === next.id) return;
   const turn = combat.turns.findIndex((c) => c === next);
   if (_holdTurn(combat, prev, next, { turn, group, skipStart: _skipStartOnce.has(next.id) })) return false;
+});
+
+const _passRound = new Set();
+
+const _advanceRound = (combat) => {
+  _passRound.add(combat.id);
+  return combat.nextRound();
+};
+
+function _holdNextRound(wrapped, ...args) {
+  if (_passRound.delete(this.id)) return wrapped(...args);
+  if (!this.started || !(getSetting("turnInterrupts") || getSetting("offerVillainActions"))) return wrapped(...args);
+  const prev = this.turn != null ? this.combatant : null;
+  if (!prev) return wrapped(...args);
+  if (_holdTurn(this, prev, null, { turn: null, round: true })) return Promise.resolve(this);
+  return wrapped(...args);
+}
+
+Hooks.once("init", () => {
+  const target = "CONFIG.Combat.documentClass.prototype.nextRound";
+  if (game.modules.get("lib-wrapper")?.active) {
+    libWrapper.register(MODULE_ID, target, _holdNextRound, "MIXED");
+    return;
+  }
+  const proto = CONFIG.Combat.documentClass.prototype;
+  const original = proto.nextRound;
+  proto.nextRound = function (...args) { return _holdNextRound.call(this, original.bind(this), ...args); };
 });
 
 function _combatantOfActor(combat, actorUuid) {
@@ -212,7 +240,8 @@ async function _onResumeTurn(resume, used = []) {
   _heldGroup = null;
   const heldGroup = resume.groupId ? combat.groups?.get(resume.groupId) ?? null : null;
   if (!used.length) {
-    dbg(`turn lock released: ${next?.name ?? prev?.name ?? "turn"} continues`);
+    dbg(`turn lock released: ${next?.name ?? prev?.name ?? "turn"} continues${resume.round ? " into the next round" : ""}`);
+    if (resume.round) { await _advanceRound(combat); return; }
     await combat.update({ turn: resume.turn }, { direction: resume.direction ?? 1, dstTurnResume: true });
     
     if (heldGroup) await heldGroup.update({ initiative: Math.max(0, (Number(resume.groupInitiative) || 1) - 1) }, { dstTurnResume: true });
@@ -233,7 +262,10 @@ async function _onResumeTurn(resume, used = []) {
     
     if (next && !pick?.manual) _skipStartOnce.delete(next.id);
     ui.notifications.warn(game.i18n.format(key, { owner: u.ownerName, ability: u.itemName, name: putBack, ...extra }));
-    if (!next) await combat.update({ turn: resume.turn }, { direction: resume.direction ?? 1, dstTurnResume: true });
+    if (!next) {
+      if (resume.round) await _advanceRound(combat);
+      else await combat.update({ turn: resume.turn }, { direction: resume.direction ?? 1, dstTurnResume: true });
+    }
   };
   if (!pick?.taker) return standDown(pick?.manual ? "DS_TRIGGERS.Queue.TurnPutBack" : "DS_TRIGGERS.Queue.TurnTakenManual");
   const { taker, viaHesitation, squad, bonus, item } = pick;
