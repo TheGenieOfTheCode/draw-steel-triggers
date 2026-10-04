@@ -167,6 +167,7 @@ async function _tryDispatch(message) {
   if (!ability || ability.type !== "ability") return;
   const strike = ability.system.keywords?.has?.("strike") ?? false;
   const rollerActor = ability.actor;
+  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor) };
 
   _handled.add(message.id);
   _handledAt.set(message.id, Date.now());
