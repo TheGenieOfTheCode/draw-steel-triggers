@@ -9,6 +9,8 @@ let _pendingStaminaLoss = false;
 
 let _dealer = null;
 
+const _typeFor = new Map();
+
 function _dealerFromMessage(message) {
   if (!message) return null;
   const speaker = message.speaker ?? {};
@@ -21,9 +23,15 @@ Hooks.once("ready", () => {
   if (!game.modules.get("lib-wrapper")?.active) return;
 
   libWrapper.register(MODULE_ID, "ds.rolls.DamageRoll.applyDamageCallback", async function (wrapped, event) {
-    const li = event?.currentTarget?.closest?.("[data-message-id]");
-    _dealer = _dealerFromMessage(li ? game.messages.get(li.dataset.messageId) : null);
-    if (_dealer) dbg(`system damage button: dealer is ${_dealer.actor.name}`);
+    const button = event?.currentTarget;
+    const li = button?.closest?.("[data-message-id]");
+    const message = li ? game.messages.get(li.dataset.messageId) : null;
+    _dealer = _dealerFromMessage(message);
+    if (_dealer) {
+      const part = button.closest?.("[data-message-part]")?.dataset.messagePart ?? "";
+      _dealer.surges = Number(message.getFlag(MODULE_ID, "surgeRolls")?.[`${part}:${button.dataset.index}`]) || 0;
+      dbg(`system damage button: dealer is ${_dealer.actor.name}${_dealer.surges ? `, ${_dealer.surges} surge(s) in the damage` : ""}`);
+    }
     try {
       return await wrapped(event);
     } finally {
@@ -31,8 +39,24 @@ Hooks.once("ready", () => {
     }
   }, "WRAPPER");
 
+  
+  libWrapper.register(MODULE_ID, "ds.data.pseudoDocuments.messageParts.AbilityResult.prototype.modifyDamageDialog", async function (wrapped, ...args) {
+    let actor = this.ability?.actor;
+    if (actor?.type === "retainer") actor = actor.system.retainer?.mentor ?? actor;
+    const before = Number(actor?.system?.hero?.surges ?? 0);
+    const roll = await wrapped(...args);
+    const spent = before - Number(actor?.system?.hero?.surges ?? 0);
+    const message = this.message ?? this.parent;
+    if (roll && spent > 0 && message?.isOwner) {
+      const key = `${this.id}:${(this.rolls?.length ?? 1) - 1}`;
+      await message.update({ [`flags.${MODULE_ID}.surgeRolls.${key}`]: spent });
+    }
+    return roll;
+  }, "WRAPPER");
+
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
     _pendingDamageType  = options?.type ?? null;
+    if (this.parent?.uuid) _typeFor.set(this.parent.uuid, options?.type ?? "");
     _pendingStaminaLoss = !!options?.staminaLoss;
     try {
       if (_tryHoldDamage(this, damage, options)) return this.parent;
@@ -205,7 +229,7 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null },
+        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null },
       });
       dispatchTriggerEvent({
         event: "TAKES_DAMAGE",
@@ -215,7 +239,7 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token },
+        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null },
       });
     }
   }
@@ -238,6 +262,8 @@ Hooks.on("updateActor", (actor, changed, options) => {
   if (!cur) return;
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
+  const damageType = _typeFor.get(actor.uuid) ?? null;
+  _typeFor.delete(actor.uuid);
   const prevTotal = prev.value + prev.temporary;
   const curTotal = cur.value + (cur.temporary ?? 0);
 
@@ -257,7 +283,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
-      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null },
+      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType },
     });
 
     
@@ -270,7 +296,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
           name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
-        eventContext: { victimActor: actor, victimToken: token },
+        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null },
       });
     }
   }

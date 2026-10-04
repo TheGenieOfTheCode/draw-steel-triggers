@@ -4,6 +4,7 @@ import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
 import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
+import { noteGainEvent } from "./resource-gains.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
@@ -331,6 +332,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {} }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
+  noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext });
 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, ...eventContext });
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {

@@ -23,6 +23,7 @@ import "./triggers/detectors/ability-use.mjs";
 import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
+import { ownsResourceGain } from "./triggers/resource-gains.mjs";
 import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
@@ -78,6 +79,18 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true
+  });
+  game.settings.register(MODULE_ID, "resourceGains", {
+    name: "DS_TRIGGERS.Settings.ResourceGains.Name",
+    hint: "DS_TRIGGERS.Settings.ResourceGains.Hint",
+    scope: "world",
+    config: game.modules.get("draw-steel-resources-ui")?.active ?? false,
+    type: String,
+    choices: {
+      auto: "DS_TRIGGERS.Settings.ResourceGains.Auto",
+      off: "DS_TRIGGERS.Settings.ResourceGains.Off",
+    },
+    default: "auto"
   });
   game.settings.register(MODULE_ID, "rollLockGrace", {
     name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
@@ -180,6 +193,7 @@ Hooks.once("init", () => {
     clearSnooze,
     listSnoozes,
     noteUseCancelled,
+    ownsResourceGain,
   };
 });
 
