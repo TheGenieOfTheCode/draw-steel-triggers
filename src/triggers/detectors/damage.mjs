@@ -90,6 +90,7 @@ function _tryHoldDamage(model, damage, options) {
   const damageOptions = {};
   if (options?.type) damageOptions.type = options.type;
   if (options?.ignoredImmunities?.length) damageOptions.ignoredImmunities = [...options.ignoredImmunities];
+  if (options?.dsbl) damageOptions.dsbl = foundry.utils.deepClone(options.dsbl);
 
   const typeLabel = options?.type
     ? game.i18n.localize(ds.CONFIG.damageTypes?.[options.type]?.label ?? options.type)
