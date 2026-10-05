@@ -168,6 +168,14 @@ Hooks.once("init", () => {
     default: true,
     requiresModule: { id: "draw-steel-resources-ui", label: "Resources UI" },
   });
+  game.settings.register(MODULE_ID, "rosterGains", {
+    name: "DS_TRIGGERS.Settings.RosterGains.Name",
+    hint: "DS_TRIGGERS.Settings.RosterGains.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
   game.settings.register(MODULE_ID, "debugMode", {
     name: "DS_TRIGGERS.Settings.DebugMode.Name",
     hint: "DS_TRIGGERS.Settings.DebugMode.Hint",
@@ -221,12 +229,15 @@ const SETTING_HEADERS = {
   debugMode: "Debug",
 };
 
+const HEADER_FALLBACK = { Resources: ["rosterGains"] };
+
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
   if (!root) return;
+  const groupOf = (key) => root.querySelector(`[name="${MODULE_ID}.${key}"]`)?.closest(".form-group")
+    ?? root.querySelector(`[data-setting-id="${MODULE_ID}.${key}"]`);
   for (const [key, header] of Object.entries(SETTING_HEADERS)) {
-    const el = root.querySelector(`[name="${MODULE_ID}.${key}"]`)?.closest(".form-group")
-      ?? root.querySelector(`[data-setting-id="${MODULE_ID}.${key}"]`);
+    const el = [key, ...(HEADER_FALLBACK[header] ?? [])].map(groupOf).find(Boolean);
     if (!el || el.previousElementSibling?.classList?.contains("dst-settings-header")) continue;
     const h = document.createElement("h3");
     h.className = "dst-settings-header";

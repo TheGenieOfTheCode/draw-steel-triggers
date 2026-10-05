@@ -1,5 +1,7 @@
 import { getTriggeredAbilities, isMaliceAbility } from "../triggers/registry.mjs";
 import { snoozeFor } from "./snooze.mjs";
+import { heroGainLines, gainsActive, gainSnoozeId, lineText } from "../triggers/resource-gains.mjs";
+import { MODULE_ID } from "../util.mjs";
 
 const COMPANION = "draw-steel-companion.companion";
 
@@ -94,6 +96,24 @@ function _playerActors() {
   return out;
 }
 
+function _gainGroup(actor) {
+  const rows = heroGainLines(actor)
+    .filter(({ line }) => line.enabled && line.automated)
+    .map(({ item, line }) => {
+      const dsid = gainSnoozeId(line);
+      const snooze = snoozeFor(actor, dsid);
+      return {
+        costBadge: { malice: false, label: `+${line.amount}` },
+        cost: 0, uuid: item.uuid, dsid, name: line.name, trigger: lineText(line), free: false, noEmbed: true,
+        snoozed: !!snooze, snoozeLabel: snooze?.label ?? "", actorUuid: actor.uuid,
+      };
+    })
+    .sort(_byName);
+  return rows.length ? _group(actor, rows) : null;
+}
+
+const _showGains = () => gainsActive() && game.settings.get(MODULE_ID, "rosterGains");
+
 export function buildRoster() {
   const L = (k) => game.i18n.localize(`DS_TRIGGERS.Queue.${k}`);
   const sections = [];
@@ -121,9 +141,13 @@ export function buildRoster() {
       });
     }
     if (heroGroups.length) sections.push({ id: "heroes", label: L("SectionHeroes"), groups: heroGroups, collapsed: true, divided: true });
+    const gainGroups = _showGains() ? heroes.filter((a) => a.type === "hero").map(_gainGroup).filter(Boolean) : [];
+    if (gainGroups.length) sections.push({ id: "gains", label: L("SectionGains"), groups: gainGroups, collapsed: true, divided: true });
   } else {
     const groups = collect(_playerActors());
     if (groups.length) sections.push({ id: "mine", label: L("SectionMine"), groups, collapsed: false });
+    const gainGroups = _showGains() ? _playerActors().filter((a) => a.type === "hero").map(_gainGroup).filter(Boolean) : [];
+    if (gainGroups.length) sections.push({ id: "gains", label: L("SectionGains"), groups: gainGroups, collapsed: false });
     if (maliceRows.size) {
       sections.push({ id: "malice", label: L("SectionMalice"), flat: [...maliceRows.values()].sort(_byCost), collapsed: false });
     }

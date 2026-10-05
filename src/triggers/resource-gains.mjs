@@ -3,6 +3,7 @@ import { isMaliceAbility } from "./registry.mjs";
 import { footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
+import { isTriggerSnoozed } from "../ui/snooze.mjs";
 
 const RUI = "draw-steel-resources-ui";
 const CT = "draw-steel-combat-tools";
@@ -16,6 +17,13 @@ const _lineCache = new Map();
 const _offered = new Map();
 
 export const gainsActive = () => getSetting("resourceGains") !== "off";
+
+export const gainSnoozeId = (line) => `gain:${line.key}`;
+
+export function lineText(line) {
+  const text = String(line.sentence ?? "").replace(/^additionally,\s*/i, "");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 const _token = (t) => t?.document ?? t ?? null;
 const _near = (a, b, squares) => {
@@ -222,7 +230,7 @@ function _cardHTML({ actor, resource, total, previous, current, line, item, roll
   const source = line.upgradedBy ? `${line.name}, ${line.upgradedBy}` : line.name;
   return `<div class="dst-gain-card">
     <div class="dst-gain-head">${L("Gained", { name: actor.name, amount: `<strong>${total}</strong>`, resource })}</div>
-    <div class="dst-gain-method"><em>${line.sentence}</em> <span class="dst-gain-source">(${source})</span></div>
+    <div class="dst-gain-method"><em>${lineText(line)}</em> <span class="dst-gain-source">(${source})</span></div>
     ${rollHTML ?? ""}
     <div class="dst-gain-foot">
       <span class="dst-gain-summary">${resource}: ${previous} → ${current}</span>
@@ -258,7 +266,7 @@ async function _gain(combat, actor, item, line) {
       speaker: ChatMessage.getSpeaker({ actor }),
       content: _cardHTML({ actor, resource, total, previous, current, line, item, rollHTML: dice ? await roll.render() : null }),
       ...(dice ? { rolls: [roll] } : {}),
-      flags: { [MODULE_ID]: { resourceGain: { actorId: actor.id, record: key, amount: total, previous, current, method: line.sentence } } },
+      flags: { [MODULE_ID]: { resourceGain: { actorId: actor.id, record: key, amount: total, previous, current, method: lineText(line) } } },
     }, { keepId: true });
     dbg(`resource gain: ${actor.name} ${line.key} +${total}`);
   } catch (err) {
@@ -289,6 +297,7 @@ export function noteGainEvent(e) {
   for (const { actor, token } of _heroes(combat)) {
     for (const { item, line } of heroGainLines(actor)) {
       if (!line.enabled || !line.automated) continue;
+      if (isTriggerSnoozed(actor, gainSnoozeId(line))) continue;
       let hit = false;
       try { hit = _lineMatches(line, e, actor, token); } catch (err) { dbg(`resource gain line ${line.key} threw`, err); }
       if (!hit) continue;
@@ -308,7 +317,7 @@ function _offer(combat, actor, item, line, e) {
   enqueuePromptEntries([{
     actor, item,
     _itemName: line.name,
-    _causeLabel: L("StackCause", { amount: line.amount, resource, line: line.sentence }),
+    _causeLabel: L("StackCause", { amount: line.amount, resource, line: lineText(line) }),
     _gain: { line: line.key, record },
   }], { event: e.event, causeLabel: e.causeLabel ?? "" });
 }

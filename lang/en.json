@@ -136,6 +136,10 @@
         "Name": "Resources UI Sync",
         "Hint": "Mark each gain as used in Draw Steel - Resources UI, and let its undo button take a gain back."
       },
+      "RosterGains": {
+        "Name": "Resource Gains in the Trigger List",
+        "Hint": "List each hero's heroic resource gains in the Trigger Stack's trigger list, so you can snooze them like any other trigger."
+      },
       "RollLock": {
         "Name": "Roll Lock",
         "Hint": "Hold ability rolls while triggered abilities that could interrupt them wait for a Use or Decline decision. Only applies during combat."
@@ -545,6 +549,7 @@
       "SectionMalice": "Malice Actions",
       "SectionHeroes": "Heroes",
       "SectionMine": "Mine",
+      "SectionGains": "Heroic Resource Gains",
       "RosterToggle": "Show or hide the trigger list"
     },
     "MaliceCard": {

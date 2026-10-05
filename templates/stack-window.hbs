@@ -170,7 +170,7 @@
     {{#each flat}}
     <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}">
       <div class="dst-roster-line">
-        <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}">
+        <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}"{{#if noEmbed}} style="visibility: hidden" tabindex="-1"{{/if}}>
           <i class="fa-solid fa-angle-right"></i>
         </button>
         <span class="dst-roster-name">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</span>
@@ -201,7 +201,7 @@
       {{#each abilities}}
       <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}">
         <div class="dst-roster-line">
-          <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}">
+          <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}"{{#if noEmbed}} style="visibility: hidden" tabindex="-1"{{/if}}>
             <i class="fa-solid fa-angle-right"></i>
           </button>
           <span class="dst-roster-name">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</span>
