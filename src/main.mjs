@@ -23,7 +23,7 @@ import "./triggers/detectors/ability-use.mjs";
 import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
-import { ownsResourceGain } from "./triggers/resource-gains.mjs";
+import { ownsResourceGain, canUndoResourceGain, undoResourceGain } from "./triggers/resource-gains.mjs";
 import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
@@ -84,7 +84,7 @@ Hooks.once("init", () => {
     name: "DS_TRIGGERS.Settings.ResourceGains.Name",
     hint: "DS_TRIGGERS.Settings.ResourceGains.Hint",
     scope: "world",
-    config: game.modules.get("draw-steel-resources-ui")?.active ?? false,
+    config: true,
     type: String,
     choices: {
       auto: "DS_TRIGGERS.Settings.ResourceGains.Auto",
@@ -194,6 +194,8 @@ Hooks.once("init", () => {
     listSnoozes,
     noteUseCancelled,
     ownsResourceGain,
+    canUndoResourceGain,
+    undoResourceGain,
   };
 });
 

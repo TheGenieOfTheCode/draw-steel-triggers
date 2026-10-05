@@ -1,29 +1,25 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
-import { footprintGap } from "./dispatch.mjs";
+import { footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
+import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 
 const RUI = "draw-steel-resources-ui";
 const CT = "draw-steel-combat-tools";
 const FLAG = "resourceGains";
+const LINES_FLAG = "gainLines";
 
 let _rui = null;
 const _busy = new Set();
 const _turnHeroes = new Map();
+const _lineCache = new Map();
 
-export const gainsActive = () => !!_rui && game.modules.get(RUI)?.active && getSetting("resourceGains") !== "off";
+export const gainsActive = () => getSetting("resourceGains") !== "off";
 
 const _token = (t) => t?.document ?? t ?? null;
 const _near = (a, b, squares) => {
   a = _token(a); b = _token(b);
   if (!a || !b || a.parent !== b.parent) return false;
   return footprintGap(a, b) < squares * canvas.grid.distance;
-};
-const _ally = (actor, token, hero, heroToken) => {
-  if (!actor) return false;
-  if (actor === hero) return true;
-  const a = _token(token), h = _token(heroToken);
-  if (a && h) return a.disposition === h.disposition;
-  return actor.type === "hero";
 };
 
 const _origin = (effect) => {
@@ -42,8 +38,6 @@ const _typed = (e) => {
   const type = e.eventContext?.damageType;
   return typeof type === "string" && !["", "untyped", "holy"].includes(type);
 };
-
-const _surged = (e) => Number(e.eventContext?.surgeSpend) > 0;
 
 const _threeHeroes = (e) => {
   const combat = game.combat;
@@ -69,62 +63,197 @@ const _inLineOfEffect = (heroToken, otherToken) => {
   return !!game.modules.get("draw-steel-ctlib")?.api?.hasSightToToken?.(a, b);
 };
 
-const RULES = {
-  fury: {
-    "damage-trigger": (e, hero) => e.event === "TAKES_DAMAGE" && e.subjectActor === hero,
-    "winded-dying": (e, hero) => e.event === "WINDED_OR_DYING" && e.subjectActor === hero,
-  },
-  elementalist: {
-    "damage-trigger": (e, hero, tok) => e.event === "TAKES_DAMAGE" && _typed(e)
-      && (e.subjectActor === hero || _near(tok, e.subjectToken, 10)),
-  },
-  talent: {
-    "force-move-trigger": (e) => e.event === "FORCE_MOVED",
-  },
-  null: {
-    "malice-trigger": (e) => e.event === "USES_ABILITY" && isMaliceAbility(e.usedAbility),
-  },
-  shadow: {
-    "surge-damage-trigger": (e, hero) => e.event === "DEALS_DAMAGE" && e.subjectActor === hero && _surged(e),
-  },
-  tactician: {
-    "mark-damage-trigger": (e, hero, tok) => e.event === "DEALS_DAMAGE"
-      && _ally(e.subjectActor, e.subjectToken, hero, tok) && markedBy(e.eventContext?.victimActor, hero),
-    "ally-heroic-trigger": (e, hero, tok) => e.event === "USES_ABILITY" && e.subjectActor !== hero
-      && e.usedAbility?.system?.category === "heroic"
-      && _ally(e.subjectActor, e.subjectToken, hero, tok) && _near(tok, e.subjectToken, 10),
-  },
-  censor: {
-    "judged-damages-you": (e, hero) => e.event === "TAKES_DAMAGE" && e.subjectActor === hero
-      && judgedBy(e.eventContext?.dealerActor, hero),
-    "damage-judged": (e, hero) => e.event === "DEALS_DAMAGE" && e.subjectActor === hero
-      && judgedBy(e.eventContext?.victimActor, hero),
-  },
-  troubadour: {
-    "three-heroes-trigger": (e) => e.threeHeroes === true,
-    "winded-trigger": (e) => e.event === "WINDED_OR_DYING" && e.subjectActor?.type === "hero",
-    "natural-19-20-trigger": (e, hero, tok) => e.event === "NATURAL_19_20" && _inLineOfEffect(tok, e.subjectToken),
-    "hero-dies-trigger": (e) => _heroDied(e),
-  },
+const GATES = {
+  dealerJudged: (e, hero) => judgedBy(e.eventContext.dealerActor, hero),
+  victimJudged: (e, hero) => judgedBy(e.eventContext.victimActor, hero),
+  victimMarked: (e, hero) => markedBy(e.eventContext.victimActor, hero),
+  typedDamage: (e) => _typed(e),
+  surged: (e) => Number(e.eventContext.surgeSpend) > 0,
+  threeSurges: (e) => Number(e.eventContext.surgeSpend) >= 3,
+  maliceAbility: (e) => isMaliceAbility(e.usedAbility),
+  lineOfEffect: (e, hero, tok) => _inLineOfEffect(tok, e.subjectToken),
+  threeHeroes: (e) => e.threeHeroes === true,
+  heroDeath: (e) => _heroDied(e),
 };
 
-const familyOf = (id) => String(id).replace(/-lv\d+$/, "");
-const scopeKey = (scope) => (scope === "turn" ? "turn" : scope === "encounter" ? "encounter" : "round");
-const _record = (combat) => combat?.getFlag(MODULE_ID, FLAG) ?? {};
-const _recordKey = (actor, family) => `${actor.id}-${family}`;
+const classItem = (actor) => actor?.items?.find((i) => i.type === "class") ?? null;
+export const resourceName = (actor) => classItem(actor)?.system?.primary ?? null;
 
-function _ruiUsed(actor, trackKey) {
-  let shared = false;
-  try { shared = game.settings.get(RUI, "combatTracking") && game.settings.get(RUI, "sharedTracking"); } catch { shared = false; }
-  if (shared) return (actor.getFlag(RUI, "usedEntries") ?? []).includes(trackKey);
-  return !!_rui?.ResourceApp?._usedEntries?.[actor.id]?.has(trackKey);
+export function itemGainLines(item, resource = resourceName(item?.actor)) {
+  if (!item || !resource || !["feature", "subclass"].includes(item.type)) return [];
+  const html = item.system?.description?.value ?? "";
+  const cached = _lineCache.get(item.uuid);
+  if (cached && cached.html === html && cached.resource === resource) return cached.lines;
+  const lines = featureGainLines(html, { resource, dsid: item.system?._dsid ?? "" });
+  _lineCache.set(item.uuid, { html, resource, lines });
+  return lines;
 }
 
-function _spent(combat, actor, family, entry) {
-  if (!entry.trackUsage) return false;
-  const rec = _record(combat)[_recordKey(actor, family)];
-  if (rec && (entry.trackUsage === "encounter" || rec.round === combat.round)) return true;
-  return _ruiUsed(actor, `${scopeKey(entry.trackUsage)}:${entry.id}`);
+export function effectiveLine(item, line) {
+  const saved = item.getFlag(MODULE_ID, LINES_FLAG)?.[line.key] ?? {};
+  const out = { ...line, enabled: saved.enabled ?? !line.optional };
+  if (saved.amount) out.amount = String(saved.amount);
+  if (Array.isArray(saved.clauses) && saved.clauses.length) out.parse = { clauses: saved.clauses, confidence: "high", source: "manual" };
+  if (Array.isArray(saved.gates)) out.gates = saved.gates;
+  if (saved.once !== undefined) out.once = saved.once;
+  out.automated = lineAutomated({ ...out, manual: out.parse?.source === "manual" ? [] : out.manual });
+  return out;
+}
+
+const _sig = (line) => {
+  const c = line.parse?.clauses?.[0] ?? {};
+  return [c.event, c.scope, line.once, c.range ?? "", [...line.gates].sort().join(","), (c.damageTypes ?? []).join(",")].join("|");
+};
+const _size = (amount) => {
+  const m = String(amount).match(/^(\d+)d(\d+)(?:\+(\d+))?$/);
+  return m ? Number(m[1]) * (Number(m[2]) + 1) / 2 + Number(m[3] ?? 0) : Number(amount) || 0;
+};
+
+export function heroGainLines(actor) {
+  const resource = resourceName(actor);
+  if (!resource) return [];
+  const bases = [];
+  const upgrades = [];
+  const seen = new Set();
+  for (const item of actor.items) {
+    for (const line of itemGainLines(item, resource)) {
+      if (line.kind !== "trigger" && line.kind !== "upgrade") continue;
+      if (seen.has(line.key)) continue;
+      seen.add(line.key);
+      const entry = { item, line: effectiveLine(item, line) };
+      (line.kind === "upgrade" ? upgrades : bases).push(entry);
+    }
+  }
+  for (const up of upgrades) {
+    const base = bases.find((b) => b.line.kind === "trigger" && _sig(b.line) === _sig(up.line));
+    if (!base) { bases.push(up); continue; }
+    if (_size(up.line.amount) > _size(base.line.amount)) {
+      base.line = { ...base.line, amount: up.line.amount, upgradedBy: up.item.name };
+    }
+  }
+  return bases;
+}
+
+function _lineMatches(line, e, hero, heroToken) {
+  const ctx = e.eventContext;
+  return (line.parse?.clauses ?? []).some((clause) => {
+    if (clause.event !== e.event) return false;
+    if (e.event === "TAKES_DAMAGE" && ctx.dealerOnly && !line.gates.includes("dealerJudged")) return false;
+    const subjectToken = _token(e.subjectToken);
+    if (!scopeMatches(clause, hero, _token(heroToken)?.disposition ?? null, e.subjectActor, subjectToken?.disposition ?? null)) return false;
+    if (Number.isFinite(clause.range) && clause.range > 0 && e.subjectActor && e.subjectActor !== hero
+      && !_near(heroToken, subjectToken, clause.range)) return false;
+    if (clause.damageTypes?.length && !clause.damageTypes.includes(ctx.damageType)) return false;
+    if (e.event === "USES_ABILITY" && !usedAbilityMatches(clause, e.usedAbility, hero, ctx)) return false;
+    return line.gates.every((id) => GATES[id]?.(e, hero, heroToken) ?? false);
+  });
+}
+
+const scopeKey = (scope) => (scope === "turn" ? "turn" : scope === "encounter" ? "encounter" : "round");
+const _record = (combat) => combat?.getFlag(MODULE_ID, FLAG) ?? {};
+const _recordKey = (actor, line) => `${actor.id}-${line.key}`;
+
+function _ruiStore(actor) {
+  let shared = false;
+  try { shared = game.settings.get(RUI, "combatTracking") && game.settings.get(RUI, "sharedTracking"); } catch { shared = false; }
+  if (shared) return { shared: true, keys: actor.getFlag(RUI, "usedEntries") ?? [] };
+  const app = _rui?.ResourceApp;
+  if (!app) return { shared: false, set: new Set() };
+  app._usedEntries ??= {};
+  app._usedEntries[actor.id] ??= new Set();
+  return { shared: false, set: app._usedEntries[actor.id] };
+}
+
+function _ruiUsed(actor, trackKey) {
+  if (!_rui || !trackKey) return false;
+  const store = _ruiStore(actor);
+  return store.shared ? store.keys.includes(trackKey) : store.set.has(trackKey);
+}
+
+async function _ruiMark(actor, trackKey, used) {
+  if (!_rui || !trackKey) return;
+  const store = _ruiStore(actor);
+  if (store.shared) {
+    const keys = used ? [...new Set([...store.keys, trackKey])] : store.keys.filter((k) => k !== trackKey);
+    await actor.setFlag(RUI, "usedEntries", keys);
+  } else if (used) store.set.add(trackKey);
+  else store.set.delete(trackKey);
+  if (_rui.ResourceApp._instance?.rendered) _rui.ResourceApp._instance.render(false);
+}
+
+const _words = (s) => String(s ?? "").toLowerCase().replace(/<[^>]+>/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+
+function _ruiTrackKey(actor, line) {
+  if (!_rui) return null;
+  try {
+    const classDef = _rui.getClassDefinition(actor);
+    if (!classDef) return null;
+    const want = _words(line.trigger);
+    if (!want) return null;
+    const entries = _rui.resolveEntries(classDef.gains ?? [], _rui.getHeroLevel(actor));
+    const entry = entries.find((en) => en.id && !en.isGroupHeader && _words(en.description).includes(want));
+    return entry ? `${scopeKey(entry.trackUsage)}:${entry.id}` : null;
+  } catch { return null; }
+}
+
+function _spent(combat, actor, line, trackKey) {
+  if (line.once) {
+    const rec = _record(combat)[_recordKey(actor, line)];
+    if (rec && (line.once === "encounter" || rec.round === combat.round)) return true;
+  }
+  return !!(line.once && _ruiUsed(actor, trackKey));
+}
+
+const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Gain.${key}`));
+
+function _cardHTML({ actor, resource, total, previous, current, line, item, rollHTML }) {
+  const source = line.upgradedBy ? `${item.name}, ${line.upgradedBy}` : item.name;
+  return `<div class="dst-gain-card">
+    <div class="dst-gain-head">${L("Gained", { name: actor.name, amount: `<strong>${total}</strong>`, resource })}</div>
+    <div class="dst-gain-method"><em>${line.sentence}</em> <span class="dst-gain-source">(${source})</span></div>
+    ${rollHTML ?? ""}
+    <div class="dst-gain-foot">
+      <span class="dst-gain-summary">${resource}: ${previous} → ${current}</span>
+      <button type="button" class="dst-gain-undo" data-tooltip="${L("UndoTooltip")}"><i class="fa-solid fa-rotate-left"></i> ${L("Undo")}</button>
+    </div>
+  </div>`;
+}
+
+async function _gain(combat, actor, item, line) {
+  const once = !!line.once;
+  const key = once ? _recordKey(actor, line) : `${_recordKey(actor, line)}-${foundry.utils.randomID(6)}`;
+  const trackKey = _ruiTrackKey(actor, line);
+  if (_busy.has(key) || _spent(combat, actor, line, trackKey)) return;
+  _busy.add(key);
+  try {
+    const roll = await new Roll(String(line.amount), actor.getRollData()).evaluate();
+    const total = Number(roll.total) || 0;
+    const previous = Number(actor.system?.hero?.primary?.value ?? 0);
+    const current = previous + total;
+    await actor.update({ "system.hero.primary.value": current });
+    if (once) await _ruiMark(actor, trackKey, true);
+    const resource = resourceName(actor);
+    const dice = roll.dice.length > 0;
+    
+    const cardId = foundry.utils.randomID();
+    await combat.update({
+      [`flags.${MODULE_ID}.${FLAG}.${key}`]: {
+        actorId: actor.id, line: line.key, itemId: item.id, trackKey, amount: total, round: combat.round, cardIds: [cardId],
+      },
+    });
+    await ChatMessage.create({
+      _id: cardId,
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: _cardHTML({ actor, resource, total, previous, current, line, item, rollHTML: dice ? await roll.render() : null }),
+      ...(dice ? { rolls: [roll] } : {}),
+      flags: { [MODULE_ID]: { resourceGain: { actorId: actor.id, record: key, amount: total, previous, current, method: line.sentence } } },
+    }, { keepId: true });
+    dbg(`resource gain: ${actor.name} ${line.key} +${total}`);
+  } catch (err) {
+    console.warn(`${MODULE_ID} | resource gain ${line.key} for ${actor.name} failed`, err);
+  } finally {
+    _busy.delete(key);
+  }
 }
 
 function _heroes(combat) {
@@ -139,46 +268,6 @@ function _heroes(combat) {
   return out;
 }
 
-function _liveEntry(actor, family) {
-  const classDef = _rui.getClassDefinition(actor);
-  if (!classDef) return null;
-  const entries = _rui.resolveEntries(classDef.gains ?? [], _rui.getHeroLevel(actor));
-  return entries.find((en) => en.id && familyOf(en.id) === family && !en.isDescriptionOnly && !en.isGroupHeader) ?? null;
-}
-
-function _classKey(actor) {
-  const classDef = _rui.getClassDefinition(actor);
-  if (!classDef) return null;
-  return Object.entries(_rui.CLASS_DEFINITIONS).find(([, def]) => def === classDef)?.[0] ?? classDef.id ?? null;
-}
-
-async function _gain(combat, actor, family, entry) {
-  const key = _recordKey(actor, family);
-  if (_busy.has(key) || _spent(combat, actor, family, entry)) return;
-  _busy.add(key);
-  try {
-    const before = Number(actor.system?.hero?.primary?.value ?? 0);
-    const cardIds = [];
-    const hook = Hooks.on("createChatMessage", (m) => {
-      if (m.speaker?.actor === actor.id && (m.content ?? "").includes("dsresources-chat-card")) cardIds.push(m.id);
-    });
-    try { await _rui.ResourceApp.executeGainHeroic(actor, entry.id); }
-    finally { Hooks.off("createChatMessage", hook); }
-    const amount = Number(actor.system?.hero?.primary?.value ?? 0) - before;
-    dbg(`resource gain: ${actor.name} ${entry.id} +${amount}`);
-    if (!entry.trackUsage) return;
-    await combat.update({
-      [`flags.${MODULE_ID}.${FLAG}.${key}`]: {
-        actorId: actor.id, gainId: entry.id, trackKey: `${scopeKey(entry.trackUsage)}:${entry.id}`, amount, round: combat.round, cardIds,
-      },
-    });
-  } catch (err) {
-    console.warn(`${MODULE_ID} | resource gain ${entry.id} for ${actor.name} failed`, err);
-  } finally {
-    _busy.delete(key);
-  }
-}
-
 export function noteGainEvent(e) {
   if (!gainsActive() || !isPrimaryGM()) return;
   const combat = game.combat;
@@ -186,14 +275,11 @@ export function noteGainEvent(e) {
   e = { ...e, eventContext: e.eventContext ?? {} };
   e.threeHeroes = _threeHeroes(e);
   for (const { actor, token } of _heroes(combat)) {
-    const rules = RULES[_classKey(actor)];
-    if (!rules) continue;
-    for (const [family, test] of Object.entries(rules)) {
+    for (const { item, line } of heroGainLines(actor)) {
+      if (!line.enabled || !line.automated) continue;
       let hit = false;
-      try { hit = test(e, actor, token); } catch (err) { dbg(`resource gain rule ${family} threw`, err); }
-      if (!hit) continue;
-      const entry = _liveEntry(actor, family);
-      if (entry) _gain(combat, actor, family, entry);
+      try { hit = _lineMatches(line, e, actor, token); } catch (err) { dbg(`resource gain line ${line.key} threw`, err); }
+      if (hit) _gain(combat, actor, item, line);
     }
   }
 }
@@ -202,20 +288,31 @@ export function ownsResourceGain(actorId, trackKey) {
   return Object.values(_record(game.combat)).some((rec) => rec.actorId === actorId && rec.trackKey === trackKey);
 }
 
-async function _afterUndo(trackKey) {
+export async function undoGain(recordKey) {
+  const combat = game.combat;
+  const rec = _record(combat)[recordKey];
+  if (!rec) return false;
+  const actor = game.actors.get(rec.actorId);
+  if (actor) {
+    const value = Number(actor.system?.hero?.primary?.value ?? 0);
+    await actor.update({ "system.hero.primary.value": value - Number(rec.amount || 0) }, { dsblQuiet: true });
+    if (rec.trackKey && _ruiUsed(actor, rec.trackKey)) await _ruiMark(actor, rec.trackKey, false);
+  }
+  const cards = (rec.cardIds ?? []).filter((id) => game.messages.has(id));
+  await combat.update({ [`flags.${MODULE_ID}.${FLAG}.${recordKey}`]: new foundry.data.operators.ForcedDeletion() });
+  if (cards.length) await ChatMessage.deleteDocuments(cards);
+  dbg(`resource gain undone: ${actor?.name} ${rec.line} -${rec.amount}`);
+  return true;
+}
+
+async function _afterRuiUndo(trackKey) {
   const combat = game.combat;
   if (!combat || !trackKey) return;
   for (const [key, rec] of Object.entries(_record(combat))) {
     if (rec.trackKey !== trackKey) continue;
     const actor = game.actors.get(rec.actorId);
     if (!actor || _ruiUsed(actor, trackKey)) continue;
-    const value = Number(actor.system?.hero?.primary?.value ?? 0);
-    await actor.update({ "system.hero.primary.value": Math.max(0, value - Number(rec.amount || 0)) }, { dsblQuiet: true });
-    
-    const cards = (rec.cardIds ?? []).filter((id) => game.messages.has(id));
-    if (cards.length) await ChatMessage.deleteDocuments(cards);
-    await combat.update({ [`flags.${MODULE_ID}.${FLAG}.${key}`]: new foundry.data.operators.ForcedDeletion() });
-    dbg(`resource gain undone: ${actor.name} ${rec.gainId} -${rec.amount}`);
+    await undoGain(key);
   }
 }
 
@@ -226,7 +323,7 @@ function _wrapUndo(ResourceApp) {
     const wrapped = async function (event, target) {
       const trackKey = target?.dataset?.trackKey;
       await original.call(this, event, target);
-      if (game.user.isGM) await _afterUndo(trackKey);
+      if (game.user.isGM) await _afterRuiUndo(trackKey);
       else await _socket?.executeAsGM("resourceGainUndo", trackKey);
     };
     wrapped._dstWrapped = true;
@@ -244,19 +341,44 @@ Hooks.once("ready", async () => {
       import(`/modules/${RUI}/src/resources/resource-logic.mjs`),
       import(`/modules/${RUI}/src/resources/resource-data.mjs`),
     ]);
-    if (typeof app.ResourceApp?.executeGainHeroic !== "function") throw new Error("ResourceApp.executeGainHeroic is missing");
     _rui = { ResourceApp: app.ResourceApp, ...logic, CLASS_DEFINITIONS: data.CLASS_DEFINITIONS };
     _wrapUndo(app.ResourceApp);
   } catch (err) {
     _rui = null;
-    console.warn(`${MODULE_ID} | Draw Steel - Resources UI could not be read, so heroic resource gains stay manual`, err);
+    console.warn(`${MODULE_ID} | Draw Steel - Resources UI could not be read, so gains made here are not marked used there`, err);
   }
 });
 
 let _socket = null;
 Hooks.once("socketlib.ready", () => {
   _socket = socketlib.registerModule(MODULE_ID);
-  _socket?.register("resourceGainUndo", (trackKey) => _afterUndo(trackKey));
+  _socket?.register("resourceGainUndo", (trackKey) => _afterRuiUndo(trackKey));
+  _socket?.register("resourceGainUndoRecord", (recordKey) => undoGain(recordKey));
+});
+
+export function canUndoResourceGain(message) {
+  const gain = message?.flags?.[MODULE_ID]?.resourceGain;
+  if (!gain || !_record(game.combat)[gain.record]) return false;
+  return game.user.isGM || !!game.actors.get(gain.actorId)?.isOwner;
+}
+
+export async function undoResourceGain(message) {
+  if (!canUndoResourceGain(message)) return false;
+  const { record } = message.flags[MODULE_ID].resourceGain;
+  if (isPrimaryGM()) return undoGain(record);
+  return _socket?.executeAsGM("resourceGainUndoRecord", record);
+}
+
+Hooks.on("renderChatMessageHTML", (message, html) => {
+  if (!message.getFlag(MODULE_ID, "resourceGain")) return;
+  const button = html.querySelector(".dst-gain-undo");
+  if (!button) return;
+  if (!canUndoResourceGain(message)) { button.remove(); return; }
+  button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    button.disabled = true;
+    await undoResourceGain(message);
+  });
 });
 
 Hooks.on("createChatMessage", (message) => {

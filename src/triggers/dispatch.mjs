@@ -13,7 +13,7 @@ const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
 
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
 
-function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor, subjectDisposition) {
+export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor, subjectDisposition) {
   if (!subjectActor) return true;
   if (!BASE_SCOPES.has(clause.scope)) return false;
   const isSelf = ownerActor === subjectActor;
@@ -104,7 +104,6 @@ function inSameCombatGroup(actorA, actorB) {
   return combat.combatants.find(c => c.actor === actorB)?.group === groupA;
 }
 
-
 export function activationsLeft(combatant) {
   return Number(combatant?.group ? combatant.group.initiative : combatant?.initiative) || 0;
 }
@@ -114,7 +113,6 @@ function isSquadCaptain(actor) {
   const group = combatant?.group;
   return !!group && group.system?.captainId === combatant.id;
 }
-
 
 const _roundUses = new Map();
 const _roundUseKey = (actor, item) => `${actor?.uuid}|${item?.system?._dsid ?? item?.dsid ?? item?.name ?? ""}`;
@@ -146,7 +144,7 @@ const opposed = (docA, docB) => {
   return (docA.actor?.hasPlayerOwner ?? false) !== (docB.actor?.hasPlayerOwner ?? false);
 };
 
-function usedAbilityMatches(clause, used, owner, context = {}) {
+export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType
     && clause.abilityCostMax == null && clause.abilityCategory == null && clause.abilityTargetCount == null;
 

@@ -1277,3 +1277,40 @@ button.dst-tt-pill.dst-tt-shared {
   vertical-align: middle;
   margin: 0 1px;
 }
+
+.dst-gain-card {
+  border: 1px solid rgba(184, 146, 46, 0.4);
+  border-radius: 5px;
+  padding: 4px 8px 5px;
+}
+
+.dst-gain-card .dst-gain-head {
+  font-size: 1.02em;
+}
+
+.dst-gain-card .dst-gain-method {
+  font-size: 0.85em;
+  opacity: 0.85;
+  margin: 2px 0;
+}
+
+.dst-gain-card .dst-gain-source {
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.dst-gain-card .dst-gain-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.85em;
+}
+
+.dst-gain-card .dst-gain-undo {
+  flex: 0 0 auto;
+  width: auto;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 0.95em;
+}

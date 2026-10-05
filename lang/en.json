@@ -1,5 +1,10 @@
 {
   "DS_TRIGGERS": {
+    "Gain": {
+      "Gained": "{name} gained {amount} {resource}",
+      "Undo": "Undo",
+      "UndoTooltip": "Take this gain back"
+    },
     "Settings": {
       "Headers": {
         "General": "General",
@@ -45,7 +50,7 @@
       },
       "ResourceGains": {
         "Name": "Heroic Resource Gains",
-        "Hint": "Gain heroic resources that come from events (a Fury taking damage, a creature force moved) automatically through Draw Steel - Resources UI, once per round or encounter as written. Its undo button takes a gain back.",
+        "Hint": "Gain heroic resources that come from events (a Fury taking damage, a creature force moved) automatically, as each hero's own features write them, once per round or encounter where the text says so. Each gain posts a card with an Undo button. With Draw Steel - Resources UI active, a gain is also marked used there.",
         "Auto": "Gain automatically",
         "Off": "Off"
       },
