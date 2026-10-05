@@ -3,7 +3,35 @@
     "Gain": {
       "Gained": "{name} gained {amount} {resource}",
       "Undo": "Undo",
-      "UndoTooltip": "Take this gain back"
+      "UndoTooltip": "Take this gain back",
+      "WidgetAuto": "Triggers gains this automatically. Click to open the trigger builder.",
+      "WidgetOff": "Turned off. Click to open the trigger builder.",
+      "WidgetManual": "Triggers reads this line but cannot detect it yet: {why}. Click to open the trigger builder.",
+      "WidgetOptional": "One of the events you can choose. Turn it on in the trigger builder.",
+      "WidgetUpgrade": "Raises the gain from {base}.",
+      "ManualGeneric": "an event Triggers does not detect yet",
+      "Legend": "Heroic resource gain",
+      "Enabled": "Gain automatically",
+      "Amount": "Amount",
+      "Once": "How often",
+      "OnceRound": "Once per combat round",
+      "OnceEncounter": "Once per encounter",
+      "OnceNone": "Every time",
+      "Upgraded": "Raised to {amount} by {name}.",
+      "ManualWhy": "Not detected yet: {why}. Change the clauses below to have Triggers gain it anyway.",
+      "Checks": "Also checks: {list}.",
+      "Gate": {
+        "dealerJudged": "the creature dealing the damage is judged by you",
+        "victimJudged": "the damaged creature is judged by you",
+        "victimMarked": "the damaged creature is marked by you",
+        "typedDamage": "the damage is not untyped or holy",
+        "surged": "the damage used 1 or more surges",
+        "threeSurges": "the damage used 3 surges",
+        "maliceAbility": "the ability costs Malice",
+        "lineOfEffect": "the creature is within your line of effect",
+        "threeHeroes": "three or more heroes used an ability this turn",
+        "heroDeath": "a hero died"
+      }
     },
     "Settings": {
       "Headers": {

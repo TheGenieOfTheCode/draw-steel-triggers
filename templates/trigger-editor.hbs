@@ -2,6 +2,32 @@
   <p class="dst-editor-trigger-text">{{#if triggerText}}<span class="dst-tt-pills">{{#each triggerPills}}{{#if isPill}}<button type="button" class="dst-tt-pill dst-tt-{{kind}} {{colour}}" data-index="{{clause}}" data-indexes="{{indexes}}" data-field="{{field}}" data-tooltip="{{tooltip}}"{{#if style}} style="{{style}}"{{/if}}>{{text}}</button>{{else}}<span class="dst-tt-plain">{{text}}</span>{{/if}}{{/each}}</span>{{else}}<em>{{noTriggerText}}</em>{{/if}}</p>
   <p class="dst-editor-status">{{statusLine}}</p>
 
+  {{#if gain}}
+  <fieldset class="dst-editor-gain">
+    <legend>{{gain.legend}}</legend>
+    <p class="dst-hint dst-gain-sentence"><em>{{gain.sentence}}</em></p>
+    {{#if gain.manualWhy}}<p class="dst-hint dst-gain-manual">{{gain.manualWhy}}</p>{{/if}}
+    <div class="form-group">
+      <label>{{gain.labels.enabled}}</label>
+      <div class="form-fields"><input type="checkbox" data-gain-field="enabled" {{#if gain.enabled}}checked{{/if}}></div>
+    </div>
+    <div class="form-group">
+      <label>{{gain.labels.amount}}</label>
+      <div class="form-fields"><input type="text" data-gain-field="amount" value="{{gain.amount}}"></div>
+    </div>
+    {{#if gain.upgradedBy}}<p class="dst-hint">{{gain.upgradedBy}}</p>{{/if}}
+    <div class="form-group">
+      <label>{{gain.labels.once}}</label>
+      <div class="form-fields">
+        <select data-gain-field="once">
+          {{#each gain.onceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+    </div>
+    {{#if gain.checks}}<p class="dst-hint">{{gain.checks}}</p>{{/if}}
+  </fieldset>
+  {{/if}}
+
   <div class="dst-editor-clauses">
     {{#each clauses}}
     <fieldset class="dst-editor-clause" data-index="{{index}}">
@@ -149,6 +175,7 @@
 
   <button type="button" class="dst-editor-add" data-action="addClause"><i class="fa-solid fa-plus"></i> {{labels.addClause}}</button>
 
+  {{#unless gain}}
   <div class="form-group dst-editor-malice">
     <label>{{labels.malice}}</label>
     <div class="form-fields">
@@ -158,6 +185,7 @@
     </div>
   </div>
   <p class="dst-hint">{{hints.malice}}</p>
+  {{/unless}}
 
   <footer class="dst-editor-footer">
     <button type="button" data-action="saveOverride" data-tooltip="{{hints.save}}"><i class="fa-solid fa-floppy-disk"></i> {{labels.save}}</button>

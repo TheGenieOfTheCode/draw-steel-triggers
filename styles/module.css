@@ -1314,3 +1314,42 @@ button.dst-tt-pill.dst-tt-shared {
   padding: 0 8px;
   font-size: 0.95em;
 }
+
+button.dst-line-widget {
+  display: inline-block;
+  box-sizing: border-box;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 0.3em 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent center / contain no-repeat;
+  box-shadow: none;
+  font-size: inherit;
+  line-height: 0;
+  vertical-align: -0.22em;
+  cursor: pointer;
+}
+
+button.dst-line-widget:hover,
+button.dst-line-widget:focus-visible {
+  box-shadow: 0 0 5px #b06cf0;
+  outline: none;
+}
+
+button.dst-line-widget:disabled { cursor: default; }
+
+.dst-line-widget--manual { filter: grayscale(1) brightness(1.15); }
+.dst-line-widget--off,
+.dst-line-widget--optional { filter: grayscale(1); opacity: 0.5; }
+
+button.dst-line-widget--emblem {
+  border: 1px solid var(--dst-gold-text, #d9a63f);
+  background: var(--dst-gold-text, #d9a63f);
+  -webkit-mask: url("../icons/emblem.svg") center / 80% no-repeat;
+  mask: url("../icons/emblem.svg") center / 80% no-repeat;
+}

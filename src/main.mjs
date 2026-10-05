@@ -24,6 +24,7 @@ import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
 import { ownsResourceGain, canUndoResourceGain, undoResourceGain } from "./triggers/resource-gains.mjs";
+import "./ui/line-widgets.mjs";
 import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";

@@ -1,6 +1,7 @@
 import { MODULE_ID } from "../util.mjs";
 import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility, triggerEffectText } from "../triggers/registry.mjs";
 import { explainAbilityFilters, explainClauseFlags, annotateTrigger } from "../parser/trigger-parser.mjs";
+import { heroGainLines } from "../triggers/resource-gains.mjs";
 
 const L = (k, data) => data
   ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
@@ -43,7 +44,7 @@ function describeFilter(id, fields) {
   }
 }
 
-function qualifierPills(clause, item) {
+function qualifierPills(clause, triggerText, effectText) {
   const off = new Set(clause.filtersOff ?? []);
   const pills = [];
   const consumed = [];
@@ -59,7 +60,7 @@ function qualifierPills(clause, item) {
     if (distance) consumed.push(distance);
   }
 
-  for (const f of explainAbilityFilters(item?.system?.trigger ?? "", item ? triggerEffectText(item) : "")) {
+  for (const f of explainAbilityFilters(triggerText, effectText)) {
     pills.push({
       id: f.id, text: f.fragment,
       tooltip: describeFilter(f.id, f.fields) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
@@ -69,7 +70,7 @@ function qualifierPills(clause, item) {
   }
 
   
-  for (const f of explainClauseFlags(clause, item?.system?.trigger ?? "", item ? triggerEffectText(item) : "")) {
+  for (const f of explainClauseFlags(clause, triggerText, effectText)) {
     pills.push({
       id: f.id, text: f.fragment,
       tooltip: describeFilter(f.id, clause) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
@@ -147,10 +148,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     form: { template: `modules/${MODULE_ID}/templates/trigger-editor.hbs` },
   };
 
-  constructor(item, options = {}) {
-    super(options);
+  
+  constructor(item, { line = null, ...options } = {}) {
+    super(line ? { ...options, id: "dst-trigger-editor-line" } : options);
     this.item = item;
-    const parse = getParsedTrigger(item);
+    this._line = line;
+    this._triggerText = line ? (line.trigger ? `${line.trigger}.` : "") : (item.system.trigger ?? "");
+    this._effectText = line ? "" : triggerEffectText(item);
+    const parse = line ? line.parse : getParsedTrigger(item);
     this._clauses = (parse?.clauses ?? [{ event: "UNKNOWN", scope: "SELF", qualifiers: [] }])
       .map((c) => foundry.utils.deepClone(c));
     const keywordIds = new Set(Object.keys(ds.CONFIG.monsters?.keywords ?? {}));
@@ -165,6 +170,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   }
 
   get title() {
+    if (this._line) return game.i18n.format("DS_TRIGGERS.Editor.Title", { name: `${this.item.name}: ${this._line.trigger || this._line.sentence}`.slice(0, 80) });
     return game.i18n.format("DS_TRIGGERS.Editor.Title", { name: this.item.name });
   }
 
@@ -175,10 +181,10 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       .sort((a, b) => a.label.localeCompare(b.label));
     const damageTypes = Object.entries(ds.CONFIG.damageTypes ?? {})
       .map(([value, cfg]) => ({ value, label: game.i18n.localize(cfg.label ?? value) }));
-    const annotated = annotateTrigger(this.item.system.trigger ?? "", {
+    const annotated = annotateTrigger(this._triggerText, this._line ? {} : {
       dsid: this.item.system?._dsid ?? this.item.dsid,
       ownerName: this.item.actor?.name ?? "",
-      effectText: triggerEffectText(this.item),
+      effectText: this._effectText,
       targetType: this.item.system?.target?.type,
     });
     const triggerPills = annotated.segments.map((s) => {
@@ -194,13 +200,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       };
     });
     return {
-      triggerText: this.item.system.trigger ?? "",
+      triggerText: this._triggerText,
       triggerPills,
+      gain: this._line ? this._gainContext() : null,
       noTriggerText: L("NoTriggerText"),
       statusLine: game.i18n.format("DS_TRIGGERS.Editor.Status", {
         source: this._source, confidence: this._confidence || "n/a",
       }),
-      isManual: !!this.item.getFlag(MODULE_ID, "manual"),
+      isManual: this._line ? !!this.item.getFlag(MODULE_ID, `gainLines.${this._line.key}`) : !!this.item.getFlag(MODULE_ID, "manual"),
       removeTooltip: L("RemoveClause"),
       labels: {
         event: L("Event"), scope: L("Scope"), range: L("Range"),
@@ -243,7 +250,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         })),
         rangeCustom: Number.isFinite(c.range),
         rangeValue: Number.isFinite(c.range) ? c.range : 1,
-        qualifiers: qualifierPills(c, this.item),
+        qualifiers: qualifierPills(c, this._triggerText, this._effectText),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
         showHold: c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
         holdChecked: c.event === "WOULD_TAKE_DAMAGE",
@@ -430,7 +437,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     for (const k of ["abilityDsid", "abilityType", "abilityCostMax", "abilityCategory",
       "abilityCostScales", "abilityTargetCount", "abilityTargetSide"]) delete clause[k];
 
-    for (const f of explainAbilityFilters(this.item?.system?.trigger ?? "", this.item ? triggerEffectText(this.item) : "")) {
+    for (const f of explainAbilityFilters(this._triggerText, this._effectText)) {
       if (!off.has(f.id)) Object.assign(clause, f.fields);
     }
 
@@ -515,6 +522,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (select.value) clause.groupName = select.value;
       else delete clause.groupName;
     }
+    if (this._line) {
+      const enabled = el.querySelector('input[data-gain-field="enabled"]');
+      const amount = el.querySelector('input[data-gain-field="amount"]');
+      const once = el.querySelector('select[data-gain-field="once"]');
+      if (enabled) this._line.enabled = enabled.checked;
+      if (amount?.value.trim()) this._line.amount = amount.value.trim().replace(/s+/g, "");
+      if (once) this._line.once = once.value || null;
+    }
     const maliceSel = el.querySelector('select[data-field="malice"]');
     if (maliceSel) this._malice = maliceSel.value === "default" ? undefined : maliceSel.value === "true";
   }
@@ -552,8 +567,40 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     this.render();
   }
 
+  _gainContext() {
+    const line = this._line;
+    const folded = this.item.actor ? heroGainLines(this.item.actor).find((e) => e.line.key === line.key)?.line : null;
+    const gates = (line.gates ?? []).map((id) => game.i18n.localize(`DS_TRIGGERS.Gain.Gate.${id}`));
+    return {
+      legend: game.i18n.localize("DS_TRIGGERS.Gain.Legend"),
+      sentence: line.sentence,
+      enabled: !!line.enabled,
+      amount: line.amount,
+      manualWhy: line.manual?.length ? game.i18n.format("DS_TRIGGERS.Gain.ManualWhy", { why: line.manual.join(", ") }) : "",
+      checks: gates.length ? game.i18n.format("DS_TRIGGERS.Gain.Checks", { list: gates.join(", ") }) : "",
+      upgradedBy: folded?.upgradedBy ? game.i18n.format("DS_TRIGGERS.Gain.Upgraded", { amount: folded.amount, name: folded.upgradedBy }) : "",
+      onceOptions: [["round", "OnceRound"], ["encounter", "OnceEncounter"], ["", "OnceNone"]].map(([value, key]) => ({
+        value, label: game.i18n.localize(`DS_TRIGGERS.Gain.${key}`), selected: (line.once ?? "") === value,
+      })),
+      labels: {
+        enabled: game.i18n.localize("DS_TRIGGERS.Gain.Enabled"),
+        amount: game.i18n.localize("DS_TRIGGERS.Gain.Amount"),
+        once: game.i18n.localize("DS_TRIGGERS.Gain.Once"),
+      },
+    };
+  }
+
   static async #onSaveOverride() {
     this._syncFromDOM();
+    if (this._line) {
+      const line = this._line;
+      await this.item.update({ [`flags.${MODULE_ID}.gainLines.${line.key}`]: {
+        clauses: this._exportClauses(), enabled: !!line.enabled, amount: line.amount, once: line.once ?? null,
+      } });
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this.item.name }));
+      this.close();
+      return;
+    }
     const update = {
       [`flags.${MODULE_ID}.manual`]: true,
       [`flags.${MODULE_ID}.trigger`]: { clauses: this._exportClauses() },
@@ -568,6 +615,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   static async #onResetParser() {
     this._syncFromDOM();
+    if (this._line) {
+      await this.item.update({ [`flags.${MODULE_ID}.gainLines.-=${this._line.key}`]: null });
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.ResetDone", { name: this.item.name }));
+      this.close();
+      return;
+    }
     const update = {
       [`flags.${MODULE_ID}.-=manual`]: null,
       [`flags.${MODULE_ID}.-=trigger`]: null,
