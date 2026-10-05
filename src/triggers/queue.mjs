@@ -1,4 +1,5 @@
 import { setVillainUsed } from "./villain-actions.mjs";
+import { resolveStackGain } from "./resource-gains.mjs";
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } from "../util.mjs";
 import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
@@ -265,7 +266,7 @@ function _onQueueAdd(entries) {
   }
   if (getSetting("stackDecisionTimer")) {
     for (const e of fresh) {
-      if (e.state === "pending" && !e.villain) e.decideUntil = Date.now() + _graceMs();
+      if (e.state === "pending" && !e.villain && !e.gain) e.decideUntil = Date.now() + _graceMs();
     }
     _ensureDecisionTicker();
   }
@@ -314,7 +315,9 @@ async function _onQueueResolve(id, outcome, userName) {
     _dismissVillainSiblings(entry);
   }
 
-  if (outcome === "declined" && !entry.villain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
+  if (entry.gain) resolveStackGain(entry, outcome);
+
+  if (outcome === "declined" && !entry.villain && !entry.gain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
 
   if (entry.resumeId) {
     const stillLocked = _queue.some((e) => e.resumeId === entry.resumeId && e.state === "pending");
@@ -1373,6 +1376,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     subjectTokenUuid: m._subjectTokenUuid ?? subjectTokenUuid,
     sourceMessageId,
     playerSide: m.actor.hasPlayerOwner ?? false,
+    gain: m._gain ?? null,
   }));
   asPrimaryGM("queueAdd", entries);
 }

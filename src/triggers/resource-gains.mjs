@@ -2,6 +2,7 @@ import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
+import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
 
 const RUI = "draw-steel-resources-ui";
 const CT = "draw-steel-combat-tools";
@@ -12,6 +13,7 @@ let _rui = null;
 const _busy = new Set();
 const _turnHeroes = new Map();
 const _lineCache = new Map();
+const _offered = new Map();
 
 export const gainsActive = () => getSetting("resourceGains") !== "off";
 
@@ -184,7 +186,7 @@ async function _ruiMark(actor, trackKey, used) {
 const _words = (s) => String(s ?? "").toLowerCase().replace(/<[^>]+>/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
 
 function _ruiTrackKey(actor, line) {
-  if (!_rui) return null;
+  if (!_rui || !getSetting("resourcesUiSync")) return null;
   try {
     const classDef = _rui.getClassDefinition(actor);
     if (!classDef) return null;
@@ -279,9 +281,38 @@ export function noteGainEvent(e) {
       if (!line.enabled || !line.automated) continue;
       let hit = false;
       try { hit = _lineMatches(line, e, actor, token); } catch (err) { dbg(`resource gain line ${line.key} threw`, err); }
-      if (hit) _gain(combat, actor, item, line);
+      if (!hit) continue;
+      if (getSetting("resourceGains") === "stack") _offer(combat, actor, item, line, e);
+      else _gain(combat, actor, item, line);
     }
   }
+}
+
+function _offer(combat, actor, item, line, e) {
+  const record = _recordKey(actor, line);
+  if (_spent(combat, actor, line, _ruiTrackKey(actor, line))) return;
+  if (line.once && (Date.now() - (_offered.get(record) ?? 0) < 3000
+    || getQueueMirror().some((q) => q.state === "pending" && q.gain?.record === record))) return;
+  _offered.set(record, Date.now());
+  const resource = resourceName(actor);
+  enqueuePromptEntries([{
+    actor, item,
+    _causeLabel: L("StackCause", { amount: line.amount, resource, line: line.sentence }),
+    _gain: { line: line.key, record },
+  }], { event: e.event, causeLabel: e.causeLabel ?? "" });
+}
+
+export async function resolveStackGain(entry, outcome) {
+  const combat = game.combat;
+  const actor = fromUuidSync(entry.ownerActorUuid);
+  if (!combat?.started || !actor) return;
+  const found = heroGainLines(actor).find((x) => x.line.key === entry.gain.line);
+  if (!found) return;
+  if (outcome === "used") return _gain(combat, actor, found.item, found.line);
+  if (!found.line.once) return;
+  await combat.update({ [`flags.${MODULE_ID}.${FLAG}.${entry.gain.record}`]: {
+    actorId: actor.id, line: found.line.key, declined: true, amount: 0, round: combat.round, cardIds: [],
+  } });
 }
 
 export function ownsResourceGain(actorId, trackKey) {

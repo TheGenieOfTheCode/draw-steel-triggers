@@ -330,7 +330,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {} }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
-  noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext });
+  noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext, causeLabel });
 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, ...eventContext });
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {

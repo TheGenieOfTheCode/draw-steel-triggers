@@ -57,9 +57,74 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "damagePrompts", {
+    name: "DS_TRIGGERS.Settings.DamagePrompts.Name",
+    hint: "DS_TRIGGERS.Settings.DamagePrompts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "conditionPrompts", {
+    name: "DS_TRIGGERS.Settings.ConditionPrompts.Name",
+    hint: "DS_TRIGGERS.Settings.ConditionPrompts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "stackDecisionTimer", {
+    name: "DS_TRIGGERS.Settings.StackDecisionTimer.Name",
+    hint: "DS_TRIGGERS.Settings.StackDecisionTimer.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
   game.settings.register(MODULE_ID, "rollLock", {
     name: "DS_TRIGGERS.Settings.RollLock.Name",
     hint: "DS_TRIGGERS.Settings.RollLock.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "rollLockGrace", {
+    name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
+    hint: "DS_TRIGGERS.Settings.RollLockGrace.Hint",
+    scope: "world",
+    config: true,
+    type: Number,
+    default: 15
+  });
+  game.settings.register(MODULE_ID, "resolutionHolds", {
+    name: "DS_TRIGGERS.Settings.ResolutionHolds.Name",
+    hint: "DS_TRIGGERS.Settings.ResolutionHolds.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "holdInertTriggers", {
+    name: "DS_TRIGGERS.Settings.HoldInertTriggers.Name",
+    hint: "DS_TRIGGERS.Settings.HoldInertTriggers.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
+  game.settings.register(MODULE_ID, "damageInterrupts", {
+    name: "DS_TRIGGERS.Settings.DamageInterrupts.Name",
+    hint: "DS_TRIGGERS.Settings.DamageInterrupts.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "fmInterrupts", {
+    name: "DS_TRIGGERS.Settings.FmInterrupts.Name",
+    hint: "DS_TRIGGERS.Settings.FmInterrupts.Hint",
+    requiresModule: { id: "draw-steel-combat-tools", label: "Combat Tools" },
     scope: "world",
     config: true,
     type: Boolean,
@@ -89,73 +154,19 @@ Hooks.once("init", () => {
     type: String,
     choices: {
       auto: "DS_TRIGGERS.Settings.ResourceGains.Auto",
+      stack: "DS_TRIGGERS.Settings.ResourceGains.Stack",
       off: "DS_TRIGGERS.Settings.ResourceGains.Off",
     },
     default: "auto"
   });
-  game.settings.register(MODULE_ID, "rollLockGrace", {
-    name: "DS_TRIGGERS.Settings.RollLockGrace.Name",
-    hint: "DS_TRIGGERS.Settings.RollLockGrace.Hint",
-    scope: "world",
-    config: true,
-    type: Number,
-    default: 15
-  });
-  game.settings.register(MODULE_ID, "damagePrompts", {
-    name: "DS_TRIGGERS.Settings.DamagePrompts.Name",
-    hint: "DS_TRIGGERS.Settings.DamagePrompts.Hint",
+  game.settings.register(MODULE_ID, "resourcesUiSync", {
+    name: "DS_TRIGGERS.Settings.ResourcesUiSync.Name",
+    hint: "DS_TRIGGERS.Settings.ResourcesUiSync.Hint",
     scope: "world",
     config: true,
     type: Boolean,
-    default: true
-  });
-  game.settings.register(MODULE_ID, "conditionPrompts", {
-    name: "DS_TRIGGERS.Settings.ConditionPrompts.Name",
-    hint: "DS_TRIGGERS.Settings.ConditionPrompts.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
-  game.settings.register(MODULE_ID, "damageInterrupts", {
-    name: "DS_TRIGGERS.Settings.DamageInterrupts.Name",
-    hint: "DS_TRIGGERS.Settings.DamageInterrupts.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
-  game.settings.register(MODULE_ID, "resolutionHolds", {
-    name: "DS_TRIGGERS.Settings.ResolutionHolds.Name",
-    hint: "DS_TRIGGERS.Settings.ResolutionHolds.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
-  game.settings.register(MODULE_ID, "holdInertTriggers", {
-    name: "DS_TRIGGERS.Settings.HoldInertTriggers.Name",
-    hint: "DS_TRIGGERS.Settings.HoldInertTriggers.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
-  });
-  game.settings.register(MODULE_ID, "fmInterrupts", {
-    name: "DS_TRIGGERS.Settings.FmInterrupts.Name",
-    hint: "DS_TRIGGERS.Settings.FmInterrupts.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: true
-  });
-  game.settings.register(MODULE_ID, "stackDecisionTimer", {
-    name: "DS_TRIGGERS.Settings.StackDecisionTimer.Name",
-    hint: "DS_TRIGGERS.Settings.StackDecisionTimer.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false
+    default: true,
+    requiresModule: { id: "draw-steel-resources-ui", label: "Resources UI" },
   });
   game.settings.register(MODULE_ID, "debugMode", {
     name: "DS_TRIGGERS.Settings.DebugMode.Name",
@@ -202,7 +213,11 @@ Hooks.once("init", () => {
 
 const SETTING_HEADERS = {
   primaryGamemaster: "General",
-  rollLock: "StackHolds",
+  damagePrompts: "Stack",
+  rollLock: "Rolls",
+  damageInterrupts: "DamageMovement",
+  turnInterrupts: "Turns",
+  resourceGains: "Resources",
   debugMode: "Debug",
 };
 

@@ -411,6 +411,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static async #useEntry(entry) {
+    if (entry.gain) {
+      resolveQueueEntry(entry.id, "used");
+      return;
+    }
     const item = await fromUuid(entry.itemUuid).catch(() => null);
     resolveQueueEntry(entry.id, "used");
     if (item) {

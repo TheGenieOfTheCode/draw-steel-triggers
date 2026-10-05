@@ -4,6 +4,7 @@
       "Gained": "{name} gained {amount} {resource}",
       "Undo": "Undo",
       "UndoTooltip": "Take this gain back",
+      "StackCause": "Gain {amount} {resource}: {line}",
       "WidgetAuto": "Triggers gains this automatically. Click to open the trigger builder.",
       "WidgetOff": "Turned off. Click to open the trigger builder.",
       "WidgetManual": "Triggers reads this line but cannot detect it yet: {why}. Click to open the trigger builder.",
@@ -36,8 +37,11 @@
     "Settings": {
       "Headers": {
         "General": "General",
-        "StackHolds": "Stack, Locks, and Holds",
-        "DamagePills": "Damage Pills",
+        "Stack": "The Trigger Stack",
+        "Rolls": "Rolls and Strikes",
+        "DamageMovement": "Damage and Forced Movement",
+        "Turns": "Turns",
+        "Resources": "Heroic Resources",
         "Debug": "Debug"
       },
       "MultiplierOverride": {
@@ -54,7 +58,7 @@
       },
       "ResolutionHolds": {
         "Name": "Post-Roll Resolution Holds",
-        "Hint": "When a strike's roll posts and a creature has a post-roll trigger against it (such as retroactive banes), the resolution goes on the stack and the message's damage and effect rows are locked until the triggers are decided. Requires Draw Steel Target Damage for the row locks and tier updates."
+        "Hint": "When a creature has a trigger that answers a strike's roll, such as a retroactive bane, the strike's damage and effects wait on the stack until the trigger is decided."
       },
       "DebugMode": {
         "Name": "Debug Mode",
@@ -78,9 +82,14 @@
       },
       "ResourceGains": {
         "Name": "Heroic Resource Gains",
-        "Hint": "Gain heroic resources that come from events (a Fury taking damage, a creature force moved) automatically, as each hero's own features write them, once per round or encounter where the text says so. Each gain posts a card with an Undo button. With Draw Steel - Resources UI active, a gain is also marked used there.",
+        "Hint": "Heroic resource gains written in each hero's features, such as a Fury taking damage. Gain them automatically, or offer each one on the Trigger Stack for the player to use or decline.",
         "Auto": "Gain automatically",
+        "Stack": "Offer on the Trigger Stack",
         "Off": "Off"
+      },
+      "ResourcesUiSync": {
+        "Name": "Resources UI Sync",
+        "Hint": "Mark each gain as used in Draw Steel - Resources UI, and let its undo button take a gain back."
       },
       "RollLock": {
         "Name": "Roll Lock",
@@ -99,12 +108,12 @@
         "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
       },
       "HoldInertTriggers": {
-      "Name": "Hold for Triggers That Do Not Change the Strike",
-      "Hint": "Some post-roll triggers never touch the strike that set them off: Ram's Defiance answers a tier 1 and then shifts and makes a roll of its own. Off, the strike resolves normally and those triggers are offered on the stack without locking the message, which matches the usual reading that a trigger resolves once the event it answers has concluded. On, they hold the resolution the way a trigger that redirects or halves the strike does, so a creature can act before a killing blow lands. Triggers that do change the strike always hold either way."
-    },
-    "FmInterrupts": {
+        "Name": "Hold Every Post-Roll Trigger",
+        "Hint": "Also hold the strike for triggers that do not change it, such as Ram's Defiance, so a creature can act before a killing blow lands. Off, those are offered without holding the strike. Triggers that change the strike always hold."
+      },
+      "FmInterrupts": {
         "Name": "Forced Movement Interrupts",
-        "Hint": "Forced movement made through Combat Tools is held before it starts when a creature has a movement-modifying trigger against it (Lines of Force, Repel, Explosive Assistance). Used triggers reduce, boost, or redirect the movement; declines let it proceed unchanged. Requires Draw Steel Combat Tools."
+        "Hint": "Hold forced movement before it starts while a trigger that can reduce, boost or redirect it, such as Lines of Force or Repel, waits for a decision."
       },
       "StackDecisionTimer": {
         "Name": "Stack Decision Timer",
@@ -112,7 +121,7 @@
       },
       "RollLockGrace": {
         "Name": "Roll Lock Grace Period",
-        "Hint": "After Use is chosen for a triggered ability, the held roll resumes when that ability's message is posted, or after this many seconds if it never posts (for cancelled flows)."
+        "Hint": "After Use is chosen, the held roll resumes once the triggered ability posts, or after this many seconds if it never does."
       },
       "PrimaryGamemaster": {
         "Name": "Primary Gamemaster",
