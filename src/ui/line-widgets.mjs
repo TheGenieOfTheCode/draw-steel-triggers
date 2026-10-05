@@ -1,4 +1,4 @@
-import { itemGainLines, effectiveLine, resourceName, gainsActive } from "../triggers/resource-gains.mjs";
+import { itemGainLines, effectiveLine, resourceName, gainsActive, namedGainLines } from "../triggers/resource-gains.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
 
 const WIDGET_KINDS = new Set(["trigger", "upgrade"]);
@@ -62,9 +62,11 @@ function widgetFor(item, line) {
   if (token) button.style.backgroundImage = `url("${token}")`;
   else button.classList.add("dst-line-widget--emblem");
   button.dataset.lineKey = line.key;
-  button.dataset.tooltip = line.kind === "upgrade" && line.upgradeOf
-    ? `${tip}<br>${L("WidgetUpgrade", { base: line.upgradeOf })}` : tip;
-  button.setAttribute("aria-label", tip);
+  const name = namedGainLines(item.actor).find((e) => e.line.key === line.key)?.line.name ?? "";
+  const head = name ? `<strong>${foundry.utils.escapeHTML(name)}</strong><br>` : "";
+  button.dataset.tooltip = head + (line.kind === "upgrade" && line.upgradeOf
+    ? `${tip}<br>${L("WidgetUpgrade", { base: line.upgradeOf })}` : tip);
+  button.setAttribute("aria-label", name ? `${name}. ${tip}` : tip);
   if (!item.isOwner) button.disabled = true;
   button.addEventListener("click", (event) => {
     event.preventDefault();

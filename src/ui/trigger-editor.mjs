@@ -1,7 +1,7 @@
 import { MODULE_ID } from "../util.mjs";
 import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility, triggerEffectText } from "../triggers/registry.mjs";
 import { explainAbilityFilters, explainClauseFlags, annotateTrigger } from "../parser/trigger-parser.mjs";
-import { heroGainLines } from "../triggers/resource-gains.mjs";
+import { heroGainLines, namedGainLines } from "../triggers/resource-gains.mjs";
 
 const L = (k, data) => data
   ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
@@ -170,7 +170,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   }
 
   get title() {
-    if (this._line) return game.i18n.format("DS_TRIGGERS.Editor.Title", { name: `${this.item.name}: ${this._line.trigger || this._line.sentence}`.slice(0, 80) });
+    if (this._line) return game.i18n.format("DS_TRIGGERS.Editor.Title", { name: this._shownName() });
     return game.i18n.format("DS_TRIGGERS.Editor.Title", { name: this.item.name });
   }
 
@@ -526,6 +526,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const enabled = el.querySelector('input[data-gain-field="enabled"]');
       const amount = el.querySelector('input[data-gain-field="amount"]');
       const once = el.querySelector('select[data-gain-field="once"]');
+      const name = el.querySelector('input[data-gain-field="name"]');
+      if (name) this._line.customName = name.value.trim() || null;
       if (enabled) this._line.enabled = enabled.checked;
       if (amount?.value.trim()) this._line.amount = amount.value.trim().replace(/s+/g, "");
       if (once) this._line.once = once.value || null;
@@ -567,13 +569,23 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     this.render();
   }
 
+  _shownName() {
+    const line = this._line;
+    if (line.customName) return line.customName;
+    return namedGainLines(this.item.actor).find((e) => e.line.key === line.key)?.line.name ?? line.trigger ?? this.item.name;
+  }
+
   _gainContext() {
     const line = this._line;
+    const saved = this.item.getFlag(MODULE_ID, `gainLines.${line.key}`)?.name ?? "";
+    line.customName ??= saved || null;
     const folded = this.item.actor ? heroGainLines(this.item.actor).find((e) => e.line.key === line.key)?.line : null;
     const gates = (line.gates ?? []).map((id) => game.i18n.localize(`DS_TRIGGERS.Gain.Gate.${id}`));
     return {
       legend: game.i18n.localize("DS_TRIGGERS.Gain.Legend"),
       sentence: line.sentence,
+      name: line.customName ?? "",
+      namePlaceholder: line.customName ? "" : this._shownName(),
       enabled: !!line.enabled,
       amount: line.amount,
       manualWhy: line.manual?.length ? game.i18n.format("DS_TRIGGERS.Gain.ManualWhy", { why: line.manual.join(", ") }) : "",
@@ -583,6 +595,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         value, label: game.i18n.localize(`DS_TRIGGERS.Gain.${key}`), selected: (line.once ?? "") === value,
       })),
       labels: {
+        name: game.i18n.localize("DS_TRIGGERS.Gain.Name"),
         enabled: game.i18n.localize("DS_TRIGGERS.Gain.Enabled"),
         amount: game.i18n.localize("DS_TRIGGERS.Gain.Amount"),
         once: game.i18n.localize("DS_TRIGGERS.Gain.Once"),
@@ -596,6 +609,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const line = this._line;
       await this.item.update({ [`flags.${MODULE_ID}.gainLines.${line.key}`]: {
         clauses: this._exportClauses(), enabled: !!line.enabled, amount: line.amount, once: line.once ?? null,
+        name: line.customName ?? null,
       } });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this.item.name }));
       this.close();

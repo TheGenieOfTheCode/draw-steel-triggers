@@ -957,7 +957,8 @@
           "event": "TARGETED_BY_ABILITY",
           "scope": "ALLY",
           "qualifiers": [
-            "adjacent to"
+            "adjacent to",
+            "that doesn’t also target the rampart"
           ],
           "excludeSelfTarget": true,
           "redirect": "self",
@@ -3698,7 +3699,9 @@
         {
           "event": "MAKES_STRIKE",
           "scope": "SELF_OR_ALLY",
-          "qualifiers": []
+          "qualifiers": [
+            "that isn’t a critical hit"
+          ]
         }
       ]
     }

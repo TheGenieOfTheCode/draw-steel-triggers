@@ -36,7 +36,6 @@ const GATES = [
   ["dealerJudged", /judged by you(?: \([^)]*\))? deals damage to you/i],
   ["victimJudged", /damage to a creature judged by you/i],
   ["victimMarked", /damages? a (?:creature|target) marked by you/i],
-  ["typedDamage", /isn['’]t untyped or holy/i],
   ["surged", /incorporating (?:1|one) or more surges/i],
   ["maliceAbility", /costs? malice/i],
   ["lineOfEffect", /line of effect/i],
@@ -45,7 +44,6 @@ const GATES = [
   ["threeSurges", /\bwith 3 surges\b/i],
 ];
 
-/* Lines the parser reads, that nothing can detect yet. Each one stays a manual line with this reason. */
 const MANUAL = [
   [/null field/i, "the area of the Null Field"],
   [/\bcompanion\b/i, "a creature adjacent to your companion"],
@@ -66,7 +64,7 @@ const FIXUPS = [
   [/three or more heroes use an ability/i, { event: "USES_ABILITY", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
   [/(?:you or another hero|any hero) dies/i, { event: "STAMINA_BELOW", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
   [/any hero is made winded/i, { event: "WINDED_OR_DYING", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
-  [/^you or a creature within (\d+) squares takes damage that isn['’]t/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: null, qualifiers: [`within ${m[1]} squares`] })],
+  [/^you or a creature within (\d+) squares takes damage that isn['’]t/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]) })],
   [/^you or a creature within (\d+) squares takes ([a-z, ]+?) damage/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: m[2].split(/,\s*(?:or\s+)?|\s+or\s+/).filter(Boolean) })],
   [/^an enemy within (\d+) squares takes ([a-z, ]+?) damage/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ENEMY", range: Number(m[1]), damageTypes: m[2].split(/,\s*(?:or\s+)?|\s+or\s+/).filter(Boolean) })],
   [/^an enemy within (\d+) squares is force moved/i, (m) => ({ event: "FORCE_MOVED", scope: "ENEMY", range: Number(m[1]) })],
@@ -166,11 +164,9 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
   return lines;
 }
 
-/** Events the gain matcher can see today. A line on any other event stays manual. */
 export const GAIN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "WINDED_OR_DYING", "FORCE_MOVED", "USES_ABILITY",
   "NATURAL_19_20", "STAMINA_BELOW", "REGAINS_STAMINA"]);
 
-/** Whether a line can be automated: a trigger the parser read with confidence, on an event we detect. */
 export function lineAutomated(line) {
   if (line.kind !== "trigger" && line.kind !== "upgrade") return false;
   if (line.manual.length) return false;

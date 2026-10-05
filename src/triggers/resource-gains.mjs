@@ -98,6 +98,8 @@ export function effectiveLine(item, line) {
   if (Array.isArray(saved.clauses) && saved.clauses.length) out.parse = { clauses: saved.clauses, confidence: "high", source: "manual" };
   if (Array.isArray(saved.gates)) out.gates = saved.gates;
   if (saved.once !== undefined) out.once = saved.once;
+  const bookName = `DS_TRIGGERS.Gain.Names.${line.key}`;
+  out.name = saved.name || (game.i18n.has(bookName) ? game.i18n.localize(bookName) : line.kind === "upgrade" ? item.name : null);
   out.automated = lineAutomated({ ...out, manual: out.parse?.source === "manual" ? [] : out.manual });
   return out;
 }
@@ -111,21 +113,29 @@ const _size = (amount) => {
   return m ? Number(m[1]) * (Number(m[2]) + 1) / 2 + Number(m[3] ?? 0) : Number(amount) || 0;
 };
 
-export function heroGainLines(actor) {
+export function namedGainLines(actor) {
   const resource = resourceName(actor);
   if (!resource) return [];
-  const bases = [];
-  const upgrades = [];
+  const out = [];
   const seen = new Set();
+  let n = 0;
   for (const item of actor.items) {
     for (const line of itemGainLines(item, resource)) {
       if (line.kind !== "trigger" && line.kind !== "upgrade") continue;
       if (seen.has(line.key)) continue;
       seen.add(line.key);
-      const entry = { item, line: effectiveLine(item, line) };
-      (line.kind === "upgrade" ? upgrades : bases).push(entry);
+      const effective = effectiveLine(item, line);
+      effective.name ??= L("NameFallback", { resource, n: ++n });
+      out.push({ item, line: effective });
     }
   }
+  return out;
+}
+
+export function heroGainLines(actor) {
+  const bases = [];
+  const upgrades = [];
+  for (const entry of namedGainLines(actor)) (entry.line.kind === "upgrade" ? upgrades : bases).push(entry);
   for (const up of upgrades) {
     const base = bases.find((b) => b.line.kind === "trigger" && _sig(b.line) === _sig(up.line));
     if (!base) { bases.push(up); continue; }
@@ -209,7 +219,7 @@ function _spent(combat, actor, line, trackKey) {
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Gain.${key}`));
 
 function _cardHTML({ actor, resource, total, previous, current, line, item, rollHTML }) {
-  const source = line.upgradedBy ? `${item.name}, ${line.upgradedBy}` : item.name;
+  const source = line.upgradedBy ? `${line.name}, ${line.upgradedBy}` : line.name;
   return `<div class="dst-gain-card">
     <div class="dst-gain-head">${L("Gained", { name: actor.name, amount: `<strong>${total}</strong>`, resource })}</div>
     <div class="dst-gain-method"><em>${line.sentence}</em> <span class="dst-gain-source">(${source})</span></div>
@@ -297,6 +307,7 @@ function _offer(combat, actor, item, line, e) {
   const resource = resourceName(actor);
   enqueuePromptEntries([{
     actor, item,
+    _itemName: line.name,
     _causeLabel: L("StackCause", { amount: line.amount, resource, line: line.sentence }),
     _gain: { line: line.key, record },
   }], { event: e.event, causeLabel: e.causeLabel ?? "" });

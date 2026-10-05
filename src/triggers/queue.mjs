@@ -1361,7 +1361,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
   const entries = matches.map((m) => ({
     id: foundry.utils.randomID(),
     itemUuid: m.item.uuid,
-    itemName: m.item.name,
+    itemName: m._itemName ?? m.item.name,
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
     event,

@@ -321,7 +321,7 @@ const QUALIFIERS = [
   /while [^,]+/, /with an? (melee|ranged|area|triggered) (strike|ability|action)/,
   /(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(, \w+)*(,? or \w+)? damage/,
   /(melee|ranged) strike/, /(main action|maneuver)/, /after seeing the result/, /for the (first|second) time[^,]*/,
-  /non-minion|minion|leader|solo|size \d/, /that (isn't|is not|doesn't|has|targets|costs|uses|emits|gains)[^,]*/,
+  /non-minion|minion|leader|solo|size \d/, /that (isn['’]t|is not|doesn['’]t|has|targets|costs|uses|emits|gains)[^,]*/,
 ];
 
 /* What the ability being used has to look like. Without these a trigger on USES_ABILITY fires on
@@ -386,9 +386,12 @@ export function abilityFiltersFrom(text, effectText = "") {
   return out;
 }
 
+const DAMAGE_TYPES = ["acid", "cold", "corruption", "fire", "holy", "lightning", "poison", "psychic", "sonic"];
+const NOT_DAMAGE_TYPES = /\b(?:isn['’]t|is not|other than)\s+(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:,?\s+(?:or\s+|and\s+)?(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic))*\s+damage/i;
+
 const CLAUSE_FLAGS = [
   { id: "damageTypes",       from: "trigger", when: (c) => c.damageTypes?.length,
-    rx: /\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:[, ]+(?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic))*\b[\w ]*damage/i },
+    list: () => [NOT_DAMAGE_TYPES, /\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:[, ]+(?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic))*\b[\w ]*damage/i] },
   { id: "edgeRequired",      from: "trigger", when: (c) => c.edgeRequired,
     rx: /\b(?:gains? (?:an|a double) edge|has an edge|with an edge)\b/i },
   { id: "excludeSelfTarget", from: "trigger", when: (c) => c.excludeSelfTarget,
@@ -598,7 +601,12 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (tierMatch && /\boutcome\b/.test(lc)) { entry.tierFilter = [Number(tierMatch[1])]; entry.postRoll = true; }
     
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
-    if (dmgTypes && /damage/.test(lc)) entry.damageTypes = [...new Set(dmgTypes)];
+    const notTypes = lc.match(NOT_DAMAGE_TYPES);
+    if (notTypes) {
+      entry.damageTypes = DAMAGE_TYPES.filter((t) => !notTypes[0].includes(t));
+      entry.qualifiers = entry.qualifiers.filter((q) => !notTypes[0].includes(q));
+    }
+    else if (dmgTypes && /damage/.test(lc)) entry.damageTypes = [...new Set(dmgTypes)];
     const using = clause.match(/\busing (?:their |its |the )?([A-Z][\w' ]*?)(?=[.,]|$| (?:ability|maneuver|action))/);
     if (using) entry.abilityDsid = generateDSID(using[1]);
 
