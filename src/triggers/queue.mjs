@@ -10,6 +10,7 @@ import { footprintGap, abilityRangeSquares } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
 import { pickHarmonizeTarget } from "./bespoke.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
+import { deferDeath } from "../compat/death-tracker.mjs";
 
 let socket = null;
 
@@ -290,6 +291,14 @@ async function _onQueueResolve(id, outcome, userName) {
   entry.state = outcome;
   if (outcome === "used") entry.usedAt = Date.now();
   if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
+  if (outcome === "used" && entry.defersDeath) {
+    const run = fromUuid(entry.heldDamage?.deathActorUuid ?? entry.heldDamage?.actorUuid ?? "")
+      .then((dying) => deferDeath(dying, entry.itemName))
+      .catch((err) => console.warn(`${MODULE_ID} | Death Deferred was not applied`, err));
+    const hold = _damageHolds.get(entry.damageId);
+    if (hold) hold.deferring = run;
+    await run;
+  }
   if (outcome === "used" && entry.halvesOnUse && entry.resume?.itemUuid) {
     Hooks.callAll("dst.targetedHalfUsed", {
       abilityUuid: entry.resume.itemUuid,
@@ -388,7 +397,7 @@ async function _onQueueResolve(id, outcome, userName) {
 
   if (entry.damageId && _damageHolds.has(entry.damageId)) {
     const hold = _damageHolds.get(entry.damageId);
-    if (outcome === "used") {
+    if (outcome === "used" && !entry.defersDeath) {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
       (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false });
@@ -434,6 +443,9 @@ function _useFeatureLine(entry) {
     flags: { [MODULE_ID]: { reminder: { event: "FEATURE_USE" }, featureUse: { itemUuid: entry.itemUuid, key: entry.featureLine.key } } },
   });
 }
+
+export const deathOfferedFor = (actorUuid) =>
+  _queue.some((e) => e.kind === "damageHeld" && e.heldDamage?.deathOffered && e.heldDamage.actorUuid === actorUuid);
 
 function _removeDamageHeldEntry(damageId) {
   _queue = _queue.filter((e) => !(e.damageId === damageId && e.kind === "damageHeld"));
@@ -662,6 +674,7 @@ async function _finalizeDamageHold(damageId) {
     _broadcast();
   }
   try {
+    await hold.deferring;
     await _settleDamageHold(hold);
   } finally {
     _removeDamageHeldEntry(damageId);
@@ -1418,7 +1431,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     ..._lineFields(m),
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
-    event: "WOULD_TAKE_DAMAGE",
+    event: m.defersDeath ? "DIES" : "WOULD_TAKE_DAMAGE",
     causeLabel,
     lock: false,
     state: "pending",
@@ -1428,6 +1441,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     damageId,
     heldDamage,
     subjectTokenUuid: heldDamage.tokenUuid ?? null,
+    defersDeath: !!m.defersDeath,
     halfDamage: m.clause?.halfDamage ?? false,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));

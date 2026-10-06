@@ -1,4 +1,4 @@
-import { featureTriggerLines } from "../parser/feature-triggers.mjs";
+import { featureTriggerLines, defersDeath } from "../parser/feature-triggers.mjs";
 import { MODULE_ID, getSetting } from "../util.mjs";
 
 export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
@@ -114,7 +114,7 @@ function lineProxy(item, line) {
     },
     getFlag: (scope, key) => (scope === MODULE_ID && ["malice", "manual", "trigger"].includes(key) ? undefined : item.getFlag(scope, key)),
     feature: item,
-    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, action: line.action, once: line.once ?? null, itemName: item.name },
+    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect) },
   };
 }
 

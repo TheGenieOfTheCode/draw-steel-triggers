@@ -1,5 +1,6 @@
-import { dispatchTriggerEvent, collectTriggerMatches } from "../dispatch.mjs";
-import { enqueueDamageHold, consumeDamageBypass } from "../queue.mjs";
+import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor } from "../dispatch.mjs";
+import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor } from "../queue.mjs";
+import { deferDeathApi } from "../../compat/death-tracker.mjs";
 import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
 
 let _pendingDamageType = null;
@@ -75,6 +76,40 @@ function _holdMatches(actor, token, damageType) {
   return matches;
 }
 
+function _deathMatches(actor, token, damageType, lethal) {
+  if (!lethal || actor.type === "hero" || !deferDeathApi()) return [];
+  const group = game.combat?.combatants.find((c) => c.actor === actor)?.group;
+  if (isMinionActor(actor) && group?.type === "squad") return [];
+  return collectTriggerMatches("DIES", actor, token, null, { damageType })
+    .filter((m) => m.item.featureLine?.defersDeath)
+    .map((m) => ({ ...m, defersDeath: true }));
+}
+
+
+function _lastMinionDeath(group, hit, damageType) {
+  if (!deferDeathApi()) return null;
+  const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
+  const living = Array.from(group.members ?? []).filter((c) => c.token && isMinionActor(c.actor) && !c.isDefeated && !c.actor.statuses?.has(defeated));
+  const targeted = new Set([...game.user.targets].map((t) => t.document));
+  const rank = (c) => (c.token === hit ? 0 : targeted.has(c.token) ? 1 : 2);
+  for (const c of living.sort((a, b) => rank(a) - rank(b))) {
+    const matches = collectTriggerMatches("DIES", c.actor, c.token, null, { damageType })
+      .filter((m) => m.item.featureLine?.defersDeath)
+      .map((m) => ({ ...m, defersDeath: true }));
+    if (matches.length) return { token: c.token, matches };
+  }
+  return null;
+}
+
+function _lethal(actor, damage, options) {
+  const stamina = actor.system?.stamina;
+  if (!(stamina?.value > 0)) return false;
+  const { immunity = 0, weakness = 0 } = actor.system.calculateImmunityAndWeakness?.({
+    type: options?.type, ignoredImmunities: [...(options?.ignoredImmunities ?? [])],
+  }) ?? {};
+  return damage + weakness - immunity >= stamina.value + (stamina.temporary ?? 0);
+}
+
 function _tryHoldDamage(model, damage, options) {
   const actor = model.parent;
   if (!actor) return false;
@@ -84,7 +119,8 @@ function _tryHoldDamage(model, damage, options) {
   if (!(damage > 0)) return false;
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
-  const matches = _holdMatches(actor, token, options?.type ?? null);
+  const deaths = _deathMatches(actor, token, options?.type ?? null, _lethal(actor, damage, options));
+  const matches = [..._holdMatches(actor, token, options?.type ?? null), ...deaths];
   if (!matches.length) return false;
 
   const damageOptions = {};
@@ -108,6 +144,7 @@ function _tryHoldDamage(model, damage, options) {
       amount: damage,
       damageType: options?.type ?? null,
       damageOptions,
+      deathOffered: deaths.length > 0,
     },
   });
   batchedNotice("HeldDamageNotice", actor.name);
@@ -128,12 +165,14 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
   if (amount <= 0) return;
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
-  const matches = _holdMatches(actor, token, _pendingDamageType);
+  const lethal = cur.value > 0 && (updates["system.stamina.value"] ?? cur.value) <= 0;
+  const deaths = _deathMatches(actor, token, _pendingDamageType, lethal);
+  const matches = [..._holdMatches(actor, token, _pendingDamageType), ...deaths];
   if (!matches.length) return;
 
   enqueueDamageHold(matches, {
     causeLabel: game.i18n.format("DS_TRIGGERS.Queue.HeldDamageCause", { name: actor.name, amount }),
-    heldDamage: { actorUuid: actor.uuid, actorName: actor.name, tokenUuid: token?.uuid ?? null, amount },
+    heldDamage: { actorUuid: actor.uuid, actorName: actor.name, tokenUuid: token?.uuid ?? null, amount, deathOffered: deaths.length > 0 },
   });
   batchedNotice("HeldDamageNotice", actor.name);
   return false;
@@ -145,15 +184,16 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   const next = foundry.utils.getProperty(changes, "system.staminaValue");
   const prev = Number(group.system?.staminaValue);
   if (next === undefined || !Number.isFinite(prev) || !(prev - Number(next) > 0)) return;
-  const tokenId = options?.dstd?.primaryTargetId;
-  if (!tokenId) return;
   if (!getSetting("damageInterrupts")) return;
   if (!game.combat?.started) return;
-  const token = group.parent?.scene?.tokens?.get(tokenId) ?? canvas.scene?.tokens?.get(tokenId) ?? null;
+  const tokenId = options?.dstd?.primaryTargetId;
+  const hit = tokenId ? group.parent?.scene?.tokens?.get(tokenId) ?? canvas.scene?.tokens?.get(tokenId) ?? null : null;
+  const damageType = options?.ds?.damageType || null;
+  const death = Number(next) <= 0 ? _lastMinionDeath(group, hit, damageType) : null;
+  const token = hit ?? death?.token ?? null;
   const actor = token?.actor;
   if (!actor) return;
-  const damageType = options?.ds?.damageType || null;
-  const matches = _holdMatches(actor, token, damageType);
+  const matches = [...(hit ? _holdMatches(actor, token, damageType) : []), ...(death?.matches ?? [])];
   if (!matches.length) return;
 
   const amount = prev - Number(next);
@@ -165,6 +205,8 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
       tokenUuid: token.uuid,
       amount,
       damageType,
+      deathOffered: !!death?.matches.length,
+      deathActorUuid: death?.token.actor.uuid ?? null,
       squad: {
         groupUuid: group.uuid,
         ds: foundry.utils.deepClone(options.ds ?? {}),
@@ -316,6 +358,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.Dies", { name: actor.name }),
+      eventContext: { damageType, deathOffered: deathOfferedFor(actor.uuid) },
     });
   }
   if (prev.winded > 0 && prev.value > prev.winded && cur.value <= prev.winded) {

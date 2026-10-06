@@ -266,6 +266,8 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "STAMINA_BELOW":
       return Number.isFinite(clause.value) && ctx.prevValue >= clause.value && ctx.curValue < clause.value;
     case "DIES":
+      if (ctx.deathOffered && item?.featureLine?.defersDeath) return false;
+      if (clause.damageTypes?.length && ctx.damageType && !clause.damageTypes.includes(ctx.damageType)) return false;
       return !clause.lastMinion || lastMinionStanding(subjectActor, subjectToken);
     case "TURN_START":
     case "TURN_END": {

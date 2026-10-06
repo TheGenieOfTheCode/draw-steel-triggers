@@ -451,6 +451,8 @@
       "HeldDamageCause": "Triggered by {name} being dealt {amount} damage. The damage is held.",
       "HeldDamageNotice": "{name}'s damage is held while triggered abilities are decided. See the Trigger Stack.",
       "HeldDamageNoticeMany": "Damage to {names} is held while triggered abilities are decided. See the Trigger Stack.",
+      "DeathDeferred": "{name}'s death is deferred. Raising their Stamina above 0 lifts it; removing Death Deferred lets them die.",
+      "DeathDeferredMany": "{names} have their deaths deferred. Raising Stamina above 0 lifts it; removing Death Deferred lets them die.",
       "ResolutionCause": "Triggered by {roller} striking {owner} ({ability}).",
       "ResolutionRollCause": "Triggered by {roller}'s tier {tier} outcome ({ability}).",
       "ResolutionCardCause": "Triggered by {roller}'s roll ({ability}).",
