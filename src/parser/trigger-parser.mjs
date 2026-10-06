@@ -422,6 +422,7 @@ const CLAUSE_FLAGS = [
   { id: "ownerLacks",        from: "trigger", when: (c) => c.ownerLacks, rx: /\b(?:you are|the [\w'’-]+ is) not \w+/i },
   { id: "through",           from: "trigger", when: (c) => c.through,
     rx: /\bmoves? through (?:an?|any) [\w-]+(?:['’]s space)?/i },
+  { id: "entersSpace",       from: "trigger", when: (c) => c.entersSpace, rx: /\benters? this space\b/i },
   { id: "victimNotMentor",   from: "trigger", when: (c) => c.victimNotMentor, rx: /\bother than (?:their|its|your) mentor\b/i },
   { id: "organization",      from: "trigger", when: (c) => c.organization?.exclude?.length,
     rx: /\bnon-(?:minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (?:minion|leader|solo|elite)\b/i },
@@ -677,6 +678,7 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (/\b(?:the self has|you have) taunted\b|\btaunted by (?:the self|you)\b/.test(lc)) entry.tauntedByOwner = true;
     const lacks = lc.match(/\b(?:you are|the self is) not (taunted|grabbed|restrained|frightened|prone|slowed|weakened|dazed|bleeding)\b/);
     if (lacks) entry.ownerLacks = lacks[1];
+    if (entry.event === "MOVES" && /\benters? this space\b/.test(lc)) entry.entersSpace = true;
     if (entry.event === "MOVES" && /\bmoves? through\b/.test(lc)) {
       entry.through = true;
       const side = lc.match(/\bthrough (?:an?|any) (enemy|ally)\b/)?.[1];

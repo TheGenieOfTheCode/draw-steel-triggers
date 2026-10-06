@@ -27,6 +27,7 @@ const FLAG_FIELDS = {
   ownerLacks: ["ownerLacks"],
   through: ["through", "throughScope"],
   victimNotMentor: ["victimNotMentor"],
+  entersSpace: ["entersSpace"],
 };
 
 function describeFilter(id, fields) {
@@ -62,6 +63,7 @@ function describeFilter(id, fields) {
       ? L("QualEffectThroughSide", { side: String(fields.throughScope).toLowerCase() })
       : L("QualEffectThrough");
     case "victimNotMentor": return L("QualEffectNotMentor");
+    case "entersSpace": return L("QualEffectEntersSpace");
     default: return L("QualEffectNone");
   }
 }

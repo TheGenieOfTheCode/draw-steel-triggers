@@ -144,6 +144,7 @@ function asOwner(trigger, ownerName) {
 
 const DEFERS_DEATH = /\b(?:instead (?:have|has) \d+ stamina|remain alive|before dying|delay that effect|regains? (?:half )?(?:their|its|his|her) stamina)\b/i;
 export const defersDeath = (effect) => DEFERS_DEATH.test(String(effect ?? ""));
+export const marksSpace = (effect) => /\btheir space is difficult terrain\b/i.test(String(effect ?? ""));
 
 const CURATED = {
   "escort-the-prisoners": { kind: "augment" },

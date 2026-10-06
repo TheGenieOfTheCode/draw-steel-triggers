@@ -5,6 +5,7 @@ import { enqueuePromptEntries } from "./queue.mjs";
 import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
+import { lingeringEffect } from "./lingering.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
@@ -270,6 +271,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "STAMINA_BELOW":
       return Number.isFinite(clause.value) && ctx.prevValue >= clause.value && ctx.curValue < clause.value;
     case "MOVES": {
+      if (clause.entersSpace) return !!ctx.enteredActor && ctx.enteredActor === ownerActor;
       if (!clause.through || !ctx.throughActor) return false;
       if (clause.victimNotMentor) {
         const mentor = ownerActor.system?.retainer?.mentor;
@@ -321,13 +323,14 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   const featureSeen = new Set();
 
   for (const { actor, disposition, token } of candidates) {
-    if (actor.statuses?.has(defeated)) continue;
+    const fallen = actor.statuses?.has(defeated);
+    if (fallen && (event !== "MOVES" || !lingeringEffect(actor))) continue;
     if (isActorSnoozed(actor)) continue;
     const dazed = actor.statuses?.has("dazed") ?? false;
     const spent = isTriggeredActionSpent(actor);
     for (const entry of getTriggeredAbilities(actor)) {
       if (dazed && (entry.item.system.type === "triggered" || entry.item.system.type === "freeTriggered")) continue;
-      if (entry.item.system.restricted) continue;
+      if (entry.item.system.restricted || entry.item.featureLine?.marksSpace) continue;
       
       
       if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
@@ -342,7 +345,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
-        c.event === event && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
+        c.event === event && (!fallen || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
         && statusMatches(c, actor, subjectActor)
