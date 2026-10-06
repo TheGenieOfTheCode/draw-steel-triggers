@@ -146,6 +146,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "featureTriggers", {
+    name: "DS_TRIGGERS.Settings.FeatureTriggers.Name",
+    hint: "DS_TRIGGERS.Settings.FeatureTriggers.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "resourceGains", {
     name: "DS_TRIGGERS.Settings.ResourceGains.Name",
     hint: "DS_TRIGGERS.Settings.ResourceGains.Hint",
@@ -225,6 +233,7 @@ const SETTING_HEADERS = {
   rollLock: "Rolls",
   damageInterrupts: "DamageMovement",
   turnInterrupts: "Turns",
+  featureTriggers: "Features",
   resourceGains: "Resources",
   debugMode: "Debug",
 };

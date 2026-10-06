@@ -41,6 +41,10 @@ export function computeAutomationLevel(item) {
   if (parse.source === "malice-implicit") {
     return { level: "full", detail: [game.i18n.localize("DS_TRIGGERS.Badge.Detail.MaliceImplicit")] };
   }
+  return parseAutomationLevel(parse, { manual, malice: isMaliceAbility(item) });
+}
+
+export function parseAutomationLevel(parse, { manual = false, malice = false } = {}) {
   if (!manual && parse.confidence === "low") {
     return { level: "unknown", detail: [game.i18n.localize("DS_TRIGGERS.Badge.Detail.Unrecognized")] };
   }
@@ -52,7 +56,7 @@ export function computeAutomationLevel(item) {
       : clause.postRoll && (RESOLUTION_EVENTS.has(clause.event) || (clause.event === "POWER_ROLL_RESULT" && (clause.tierFilter?.length ?? 0) > 0))
         ? (changesTheStrike(clause) || getSetting("holdInertTriggers") ? "resolution" : "prompt")
         : EVENT_MODES[clause.event];
-    const scopeOk = BASE_SCOPES.has(clause.scope) || isMaliceAbility(item);
+    const scopeOk = BASE_SCOPES.has(clause.scope) || malice;
     const grabClause = clause.event === "GRAB_ENDS" || (clause.event === "CONDITION_GAIN" && clause.asSource && clause.condition === "grabbed");
     if (grabClause && !game.modules.get("draw-steel-combat-tools")?.active) {
       detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.EventNeedsDsct", { event: clause.event }));

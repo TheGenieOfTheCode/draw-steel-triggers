@@ -32,6 +32,41 @@
   </fieldset>
   {{/if}}
 
+  {{#if feature}}
+  <fieldset class="dst-editor-gain dst-editor-feature">
+    <legend>{{feature.legend}}</legend>
+    <p class="dst-hint dst-gain-sentence"><em>{{feature.sentence}}</em></p>
+    {{#if feature.covered}}<p class="dst-hint dst-gain-manual">{{feature.covered}}</p>{{/if}}
+    {{#if feature.manualWhy}}<p class="dst-hint dst-gain-manual">{{feature.manualWhy}}</p>{{/if}}
+    <div class="form-group">
+      <label>{{feature.labels.name}}</label>
+      <div class="form-fields"><input type="text" data-feature-field="name" value="{{feature.name}}" placeholder="{{feature.namePlaceholder}}"></div>
+    </div>
+    <div class="form-group">
+      <label>{{feature.labels.enabled}}</label>
+      <div class="form-fields"><input type="checkbox" data-feature-field="enabled" {{#if feature.enabled}}checked{{/if}}></div>
+    </div>
+    <div class="form-group">
+      <label>{{feature.labels.action}}</label>
+      <div class="form-fields">
+        <select data-feature-field="action">
+          {{#each feature.actionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+    </div>
+    <p class="dst-hint">{{feature.actionHint}}</p>
+    <div class="form-group">
+      <label>{{feature.labels.once}}</label>
+      <div class="form-fields">
+        <select data-feature-field="once">
+          {{#each feature.onceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+    </div>
+    {{#if feature.effect}}<p class="dst-hint"><strong>{{feature.labels.effect}}:</strong> {{feature.effect}}</p>{{/if}}
+  </fieldset>
+  {{/if}}
+
   <div class="dst-editor-clauses">
     {{#each clauses}}
     <fieldset class="dst-editor-clause" data-index="{{index}}">
@@ -179,7 +214,7 @@
 
   <button type="button" class="dst-editor-add" data-action="addClause"><i class="fa-solid fa-plus"></i> {{labels.addClause}}</button>
 
-  {{#unless gain}}
+  {{#unless isLine}}
   <div class="form-group dst-editor-malice">
     <label>{{labels.malice}}</label>
     <div class="form-fields">

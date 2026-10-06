@@ -86,6 +86,7 @@
         "Rolls": "Rolls and Strikes",
         "DamageMovement": "Damage and Forced Movement",
         "Turns": "Turns",
+        "Features": "Feature Triggers",
         "Resources": "Heroic Resources",
         "Debug": "Debug"
       },
@@ -124,6 +125,10 @@
       "OfferVillainActions": {
         "Name": "Offer Villain Actions",
         "Hint": "When a hero's turn ends, offer the Director the villain actions each standing villain has not used yet, and hold the turn until they choose. Each one is offered once per combat, and a villain that has used one waits for the next round."
+      },
+      "FeatureTriggers": {
+        "Name": "Feature Triggers",
+        "Hint": "Triggers written into hero features, ancestry traits, titles, perks, complications and treasures. A coin before each line opens it in the trigger builder."
       },
       "ResourceGains": {
         "Name": "Heroic Resource Gains",
@@ -566,10 +571,40 @@
       "HarmonizeAdded": "{name} was added as an additional target, taking sonic damage.",
       "HarmonizeManual": "{modName}: Combat Tools is not available, so choose and add the additional target by hand."
     },
+    "Feature": {
+      "Legend": "Feature Trigger",
+      "Name": "Name",
+      "Enabled": "Enabled",
+      "Action": "Uses",
+      "ActionTriggered": "Triggered action",
+      "ActionFree": "Free triggered action",
+      "ActionNone": "No action",
+      "ActionHint": "A line that uses no action fires on its own and never spends the hero's triggered action.",
+      "Once": "Limit",
+      "OnceRound": "Once per round",
+      "OnceTurn": "Once per turn",
+      "OnceEncounter": "Once per encounter",
+      "OnceNone": "No limit",
+      "Trigger": "Trigger",
+      "Effect": "Effect",
+      "UsedHeader": "Feature Used",
+      "Covered": "{name} is its own triggered ability and already handles this, so this line starts off.",
+      "ManualWhy": "Reminder only: Triggers cannot check {why}.",
+      "WidgetCovered": "Off: {name} already handles this trigger.",
+      "WidgetDisabled": "Off. Turn it on in the trigger builder.",
+      "WidgetOff": "Feature Triggers are off in the module settings.",
+      "WidgetManual": "Reminder only: Triggers cannot check {why}.",
+      "Manual": {
+        "SummonerRange": "the Summoner's Range",
+        "Unwilling": "whether a death was unwilling",
+        "Companion": "the companion's position"
+      }
+    },
     "Reminder": {
       "Speaker": "Draw Steel: Triggers",
       "Header": "Triggered Ability Reminder",
       "Free": "Free",
+      "NoAction": "No action",
       "Triggered": "Triggered",
       "Malice": "Malice",
       "ImplicitMaliceTrigger": "Available at the start of this creature's turn.",

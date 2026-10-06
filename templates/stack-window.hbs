@@ -89,6 +89,7 @@
         <span class="dst-stack-owner">{{ownerName}}</span>
         {{/if}}
         {{#if isFree}}<span class="dst-chip dst-chip--free">{{@root.labels.free}}</span>{{/if}}
+        {{#if noAction}}<span class="dst-chip dst-chip--free">{{@root.labels.noAction}}</span>{{/if}}
         {{#if costBadge}}
         <span class="dst-stack-cost{{#if costBadge.malice}} dst-stack-cost--malice{{/if}}">
           {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}

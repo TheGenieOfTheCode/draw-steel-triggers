@@ -1,6 +1,6 @@
 import { MODULE_ID } from "../util.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed } from "../triggers/queue.mjs";
-import { buildAbilityPreview } from "./ability-preview.mjs";
+import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from "./snooze.mjs";
 import { runBespokeUse } from "../triggers/bespoke.mjs";
@@ -191,7 +191,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const shown = mergeSquadHolds(ordered, getQueueMirror());
     const isGated = (e) => !e.playerSide && !isHeldKind(e) && groupKey(e)
       && getQueueMirror().some((q) => !isHeldKind(q) && groupKey(q) === groupKey(e) && q.playerSide && q.state === "pending");
-    const embeds = await Promise.all(shown.map((e) => e.itemUuid
+    const embeds = await Promise.all(shown.map((e) => e.featureLine ? Promise.resolve(featureLinePreview(e.featureLine))
+      : e.itemUuid
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
       : Promise.resolve("")));
     const roster = buildRoster();
@@ -213,6 +214,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         gatedTooltip: L("PlayerPriorityTooltip"),
         showAbility: L("ShowAbility"),
         free: game.i18n.localize("DS_TRIGGERS.Reminder.Free"),
+        noAction: game.i18n.localize("DS_TRIGGERS.Reminder.NoAction"),
         rosterTitle: L("RosterTitle"),
         rosterEmptyGM: L("RosterEmptyGM"),
         rosterEmptyPlayer: L("RosterEmptyPlayer"),
@@ -261,7 +263,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
           isDamageHeld,
           isResolutionHeld,
           costBadge,
-          isFree: sys?.type === "freeTriggered",
+          isFree: e.featureLine ? e.featureLine.action === "freeTriggered" : sys?.type === "freeTriggered",
           heldEyebrow: isHeld
             ? game.i18n.format("DS_TRIGGERS.Queue.HeldBy", { name: e.ownerName })
             : isDamageHeld
@@ -411,7 +413,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static async #useEntry(entry) {
-    if (entry.gain) {
+    if (entry.gain || entry.featureLine) {
       resolveQueueEntry(entry.id, "used");
       return;
     }

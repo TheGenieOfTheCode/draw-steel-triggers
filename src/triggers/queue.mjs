@@ -1,7 +1,9 @@
 import { setVillainUsed } from "./villain-actions.mjs";
 import { resolveStackGain } from "./resource-gains.mjs";
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } from "../util.mjs";
-import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
+import { buildTriggerCardRows, triggerCardHTML, featureLinePreview } from "../ui/ability-preview.mjs";
+import { noteFeatureLineUse } from "./feature-triggers.mjs";
+import { setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares } from "./dispatch.mjs";
@@ -25,6 +27,12 @@ const _pendingResolutionGraces = new Map();
 const _recentAbilityPosts = new Map();
 const _automatedUses = new Map();
 const _triggerDamageUses = new Map();
+
+const _lineFields = (m) => (m.item?.featureLine
+  ? { lineKey: m.item.featureLine.key, featureLine: { ...m.item.featureLine }, noAction: !!m.noAction }
+  : {});
+
+const _sameSource = (a, b) => a.itemUuid === b.itemUuid && (a.lineKey ?? null) === (b.lineKey ?? null);
 
 function _postedAfterUse(itemUuid, usedAt) {
   const t = _recentAbilityPosts.get(itemUuid);
@@ -239,13 +247,13 @@ function _onQueueAdd(entries) {
   let merged = false;
   for (const e of entries) {
     const family = _mergeFamily(e);
-    const into = family && _queue.find((q) => q.itemUuid === e.itemUuid && q.state === "pending" && _mergeFamily(q) === family);
+    const into = family && _queue.find((q) => _sameSource(q, e) && q.state === "pending" && _mergeFamily(q) === family);
     if (into) {
       _addChoice(into, e);
       merged = true;
       continue;
     }
-    if (!e.damageId && !e.resolutionId && _queue.some((q) => q.itemUuid === e.itemUuid && q.state === "pending")) continue;
+    if (!e.damageId && !e.resolutionId && _queue.some((q) => _sameSource(q, e) && q.state === "pending")) continue;
     fresh.push(e);
   }
   if (!fresh.length) {
@@ -281,6 +289,7 @@ async function _onQueueResolve(id, outcome, userName) {
   if (!entry || entry.state !== "pending") return;
   entry.state = outcome;
   if (outcome === "used") entry.usedAt = Date.now();
+  if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
   if (outcome === "used" && entry.halvesOnUse && entry.resume?.itemUuid) {
     Hooks.callAll("dst.targetedHalfUsed", {
       abilityUuid: entry.resume.itemUuid,
@@ -407,6 +416,23 @@ async function _onQueueResolve(id, outcome, userName) {
     }
   }
   _broadcast();
+}
+
+function _useFeatureLine(entry) {
+  _recentAbilityPosts.set(entry.itemUuid, Date.now());
+  const owner = fromUuidSync(entry.ownerActorUuid);
+  if (!owner) return;
+  noteFeatureLineUse(owner, entry.featureLine.key);
+  if (entry.featureLine.action === "triggered") setTriggeredActionSpent(owner, true).catch(() => {});
+  ChatMessage.create({
+    content: `<div class="dst-malice-card dst-trigger-card dst-feature-use">
+      <header class="dst-malice-card-hdr">${game.i18n.localize("DS_TRIGGERS.Feature.UsedHeader")}</header>
+      <div class="dst-malice-card-title">${foundry.utils.escapeHTML(entry.itemName)}</div>
+      ${featureLinePreview(entry.featureLine)}
+    </div>`,
+    speaker: ChatMessage.getSpeaker({ actor: owner }),
+    flags: { [MODULE_ID]: { reminder: { event: "FEATURE_USE" }, featureUse: { itemUuid: entry.itemUuid, key: entry.featureLine.key } } },
+  });
 }
 
 function _removeDamageHeldEntry(damageId) {
@@ -1307,6 +1333,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     id: foundry.utils.randomID(),
     itemUuid: m.item.uuid,
     itemName: m.item.name,
+    ..._lineFields(m),
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
     event: m._lockEvent ?? event,
@@ -1362,6 +1389,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     id: foundry.utils.randomID(),
     itemUuid: m.item.uuid,
     itemName: m._itemName ?? m.item.name,
+    ..._lineFields(m),
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
     event,
@@ -1387,6 +1415,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     id: foundry.utils.randomID(),
     itemUuid: m.item.uuid,
     itemName: m.item.name,
+    ..._lineFields(m),
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
     event: "WOULD_TAKE_DAMAGE",
@@ -1439,6 +1468,7 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     id: foundry.utils.randomID(),
     itemUuid: m.item.uuid,
     itemName: m.item.name,
+    ..._lineFields(m),
     ownerActorUuid: m.actor.uuid,
     ownerName: m.actor.name,
     event: m.clause?.event ?? "TARGETED_BY_STRIKE",

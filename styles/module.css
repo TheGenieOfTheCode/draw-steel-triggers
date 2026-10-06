@@ -1341,6 +1341,8 @@ button.dst-line-widget:disabled { cursor: default; }
 .dst-line-widget--off,
 .dst-line-widget--optional { filter: grayscale(1); opacity: 0.5; }
 
+.dst-coin-widget--none { opacity: 0.55; }
+
 button.dst-line-widget--emblem {
   border: 1px solid var(--dst-gold-text, #d9a63f);
   background: var(--dst-gold-text, #d9a63f);

@@ -34,6 +34,7 @@ function _row(actor, entry) {
     name: item.name,
     trigger: item.system?.trigger ?? "",
     free: !!entry.free,
+    noEmbed: !!entry.featureLine,
     snoozed: !!snooze,
     snoozeLabel: snooze?.label ?? "",
     actorUuid: actor.uuid,

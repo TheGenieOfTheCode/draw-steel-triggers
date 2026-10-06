@@ -33,7 +33,19 @@ function neutralizeStatusLinks(html) {
   return div.innerHTML;
 }
 
+export function featureLinePreview(line) {
+  if (!line) return "";
+  const esc = foundry.utils.escapeHTML;
+  const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "");
+  const L = (k) => game.i18n.localize(`DS_TRIGGERS.Feature.${k}`);
+  const action = line.action === "triggered" ? L("ActionTriggered") : line.action === "freeTriggered" ? L("ActionFree") : L("ActionNone");
+  return `<div class="dst-preview-kw"><span class="dst-preview-kw-badges"><span class="dst-preview-badge">${esc(line.itemName)}</span></span><span class="dst-preview-action">${action}</span></div>
+    <div class="dst-preview-effect"><strong>${L("Trigger")}:</strong> ${esc(line.trigger ?? line.sentence)}</div>
+    ${line.effect ? `<div class="dst-preview-effect"><strong>${L("Effect")}:</strong> ${esc(cap(line.effect))}</div>` : ""}`;
+}
+
 export async function buildAbilityPreview(item, { includeMeta = true, includeTrigger = false, includeTriggeredAction = false } = {}) {
+  if (item?.featureLine) return featureLinePreview({ ...item.featureLine, trigger: item.system.trigger });
   const sys = item?.system;
   if (!sys) return "";
   const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;

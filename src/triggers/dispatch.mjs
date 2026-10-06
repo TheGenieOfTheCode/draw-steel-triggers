@@ -315,7 +315,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         dbg(`${actor.name} cannot afford ${entry.item.name} (costs ${entry.item.system.resource}, has ${resourceOf(actor)}), skipped on ${event}`);
         continue;
       }
-      if (spent && !entry.free && !malice) {
+      if (spent && !entry.free && !entry.noAction && !malice) {
         dbg(`${actor.name} has spent their triggered action, ${entry.item.name} skipped on ${event}`);
         continue;
       }
@@ -326,7 +326,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       if (clause.anyHeroUnacted && game.combat?.started) {
         if (!game.combat.combatants.some(c => c.actor?.type === "hero" && c.initiative > 0)) continue;
       }
-      matches.push({ actor, item: entry.item, free: entry.free, malice, clause, parse: entry.parse });
+      matches.push({ actor, item: entry.item, free: entry.free, noAction: !!entry.noAction, malice, clause, parse: entry.parse });
     }
   }
   return matches;
@@ -388,7 +388,8 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
 
 async function _sendReminderCard(group, { event, causeLabel, subjectActor }) {
   const rows = await buildTriggerCardRows(group.matches.map(m => {
-    let freeTag = m.free ? ` <span class="dst-free">${game.i18n.localize("DS_TRIGGERS.Reminder.Free")}</span>` : "";
+    let freeTag = m.free ? ` <span class="dst-free">${game.i18n.localize("DS_TRIGGERS.Reminder.Free")}</span>`
+      : m.noAction ? ` <span class="dst-free">${game.i18n.localize("DS_TRIGGERS.Reminder.NoAction")}</span>` : "";
     if (m.malice) {
       const cost = Number.isFinite(m.item.system.resource) ? ` ${m.item.system.resource}` : "";
       freeTag += ` <span class="dst-malice">${game.i18n.localize("DS_TRIGGERS.Reminder.Malice")}${cost}</span>`;
@@ -505,6 +506,10 @@ document.addEventListener("click", async (event) => {
   const item = await fromUuid(link.dataset.itemUuid).catch(() => null);
   if (!item) {
     ui.notifications.warn("DS_TRIGGERS.Reminder.MissingAbility", { localize: true });
+    return;
+  }
+  if (item.type !== "ability" && !event.shiftKey) {
+    item.sheet?.render(true);
     return;
   }
   if (event.shiftKey) {

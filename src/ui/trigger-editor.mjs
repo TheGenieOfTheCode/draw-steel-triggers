@@ -151,11 +151,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   
   constructor(item, { line = null, ...options } = {}) {
-    super(line ? { ...options, id: "dst-trigger-editor-line" } : options);
+    super(line ? { ...options, id: "dst-trigger-editor-line", position: { width: 500, height: Math.min(800, window.innerHeight - 40) } } : options);
     this.item = item;
     this._line = line;
+    this._lineType = line ? (line.lineType ?? "gain") : null;
     this._triggerText = line ? (line.trigger ? `${line.trigger}.` : "") : (item.system.trigger ?? "");
-    this._effectText = line ? "" : triggerEffectText(item);
+    this._effectText = line ? (line.effect ?? "") : triggerEffectText(item);
     const parse = line ? line.parse : getParsedTrigger(item);
     this._clauses = (parse?.clauses ?? [{ event: "UNKNOWN", scope: "SELF", qualifiers: [] }])
       .map((c) => foundry.utils.deepClone(c));
@@ -182,7 +183,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       .sort((a, b) => a.label.localeCompare(b.label));
     const damageTypes = Object.entries(ds.CONFIG.damageTypes ?? {})
       .map(([value, cfg]) => ({ value, label: game.i18n.localize(cfg.label ?? value) }));
-    const annotated = annotateTrigger(this._triggerText, this._line ? {} : {
+    const annotated = annotateTrigger(this._triggerText, this._line ? { effectText: this._effectText } : {
       dsid: this.item.system?._dsid ?? this.item.dsid,
       ownerName: this.item.actor?.name ?? "",
       effectText: this._effectText,
@@ -203,12 +204,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     return {
       triggerText: this._triggerText,
       triggerPills,
-      gain: this._line ? this._gainContext() : null,
+      gain: this._lineType === "gain" ? this._gainContext() : null,
+      feature: this._lineType === "feature" ? this._featureContext() : null,
+      isLine: !!this._line,
       noTriggerText: L("NoTriggerText"),
       statusLine: game.i18n.format("DS_TRIGGERS.Editor.Status", {
         source: this._source, confidence: this._confidence || "n/a",
       }),
-      isManual: this._line ? !!this.item.getFlag(MODULE_ID, `gainLines.${this._line.key}`) : !!this.item.getFlag(MODULE_ID, "manual"),
+      isManual: this._line ? !!this.item.getFlag(MODULE_ID, `${this._lineFlag()}.${this._line.key}`) : !!this.item.getFlag(MODULE_ID, "manual"),
       removeTooltip: L("RemoveClause"),
       labels: {
         event: L("Event"), scope: L("Scope"), range: L("Range"),
@@ -523,7 +526,13 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (select.value) clause.groupName = select.value;
       else delete clause.groupName;
     }
-    if (this._line) {
+    if (this._lineType === "feature") {
+      const field = (name) => el.querySelector(`[data-feature-field="${name}"]`);
+      if (field("name")) this._line.customName = field("name").value.trim() || null;
+      if (field("enabled")) this._line.enabled = field("enabled").checked;
+      if (field("action")) this._line.action = field("action").value || null;
+      if (field("once")) this._line.once = field("once").value || null;
+    } else if (this._line) {
       const enabled = el.querySelector('input[data-gain-field="enabled"]');
       const amount = el.querySelector('input[data-gain-field="amount"]');
       const once = el.querySelector('select[data-gain-field="once"]');
@@ -570,9 +579,38 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     this.render();
   }
 
+  _lineFlag() {
+    return this._lineType === "feature" ? "featureLines" : "gainLines";
+  }
+
+  _featureContext() {
+    const line = this._line;
+    const F = (k, data) => (data ? game.i18n.format(`DS_TRIGGERS.Feature.${k}`, data) : game.i18n.localize(`DS_TRIGGERS.Feature.${k}`));
+    line.customName ??= this.item.getFlag(MODULE_ID, `featureLines.${line.key}`)?.name || null;
+    return {
+      legend: F("Legend"),
+      sentence: line.sentence,
+      effect: line.effect ? line.effect[0].toUpperCase() + line.effect.slice(1) : "",
+      covered: line.covered ? F("Covered", { name: line.covered }) : "",
+      manualWhy: line.manual?.length ? F("ManualWhy", { why: line.manual.map((m) => F(`Manual.${m}`)).join(", ") }) : "",
+      name: line.customName ?? "",
+      namePlaceholder: line.customName ? "" : line.name,
+      enabled: !!line.enabled,
+      actionOptions: [["triggered", "ActionTriggered"], ["freeTriggered", "ActionFree"], ["", "ActionNone"]].map(([value, key]) => ({
+        value, label: F(key), selected: (line.action ?? "") === value,
+      })),
+      actionHint: F("ActionHint"),
+      onceOptions: [["round", "OnceRound"], ["turn", "OnceTurn"], ["encounter", "OnceEncounter"], ["", "OnceNone"]].map(([value, key]) => ({
+        value, label: F(key), selected: (line.once ?? "") === value,
+      })),
+      labels: { name: F("Name"), enabled: F("Enabled"), action: F("Action"), once: F("Once"), effect: F("Effect") },
+    };
+  }
+
   _shownName() {
     const line = this._line;
     if (line.customName) return line.customName;
+    if (this._lineType === "feature") return line.name ?? this.item.name;
     return namedGainLines(this.item.actor).find((e) => e.line.key === line.key)?.line.name ?? line.trigger ?? this.item.name;
   }
 
@@ -606,6 +644,16 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   static async #onSaveOverride() {
     this._syncFromDOM();
+    if (this._lineType === "feature") {
+      const line = this._line;
+      await this.item.update({ [`flags.${MODULE_ID}.featureLines.${line.key}`]: {
+        clauses: this._exportClauses(), enabled: !!line.enabled, action: line.action ?? null, once: line.once ?? null,
+        name: line.customName ?? null,
+      } });
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this._shownName() }));
+      this.close();
+      return;
+    }
     if (this._line) {
       const line = this._line;
       await this.item.update({ [`flags.${MODULE_ID}.gainLines.${line.key}`]: {
@@ -631,7 +679,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   static async #onResetParser() {
     this._syncFromDOM();
     if (this._line) {
-      await this.item.update({ [`flags.${MODULE_ID}.gainLines.-=${this._line.key}`]: null });
+      await this.item.update({ [`flags.${MODULE_ID}.${this._lineFlag()}.-=${this._line.key}`]: null });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.ResetDone", { name: this.item.name }));
       this.close();
       return;

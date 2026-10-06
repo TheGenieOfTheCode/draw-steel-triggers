@@ -1,5 +1,9 @@
 import { itemGainLines, effectiveLine, resourceName, gainsActive, namedGainLines } from "../triggers/resource-gains.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
+import { FEATURE_ITEM_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive } from "../triggers/feature-triggers.mjs";
+import { parseAutomationLevel } from "./badge.mjs";
+import { emblemCoinURI } from "./emblem-coin.mjs";
+import { MODULE_ID } from "../util.mjs";
 
 const WIDGET_KINDS = new Set(["trigger", "upgrade"]);
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Gain.${key}`));
@@ -77,18 +81,56 @@ function widgetFor(item, line) {
   return button;
 }
 
+function coinWidgetFor(item, line) {
+  const button = document.createElement("button");
+  button.type = "button";
+  const info = lineAutomationLevel(line, parseAutomationLevel);
+  button.className = `dst-line-widget dst-coin-widget dst-coin-widget--${info.level}`;
+  button.style.backgroundImage = `url("${emblemCoinURI(info.level === "none" ? "iron" : info.level)}")`;
+  button.dataset.lineKey = line.key;
+  const F = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Feature.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Feature.${key}`));
+  const why = !featureTriggersActive() ? F("WidgetOff")
+    : line.covered ? F("WidgetCovered", { name: line.covered })
+      : !line.enabled ? F("WidgetDisabled")
+        : line.manual?.length ? F("WidgetManual", { why: line.manual.map((m) => F(`Manual.${m}`)).join(", ") })
+          : game.i18n.localize(`DS_TRIGGERS.Badge.Level.${info.level}`);
+  const action = line.action === "triggered" ? F("ActionTriggered") : line.action === "freeTriggered" ? F("ActionFree") : F("ActionNone");
+  button.dataset.tooltip = `<strong>${foundry.utils.escapeHTML(line.name)}</strong> (${action})<br>${why}`
+    + (info.detail?.length && line.enabled ? `<br>${info.detail.join("<br>")}` : "");
+  button.setAttribute("aria-label", `${line.name}. ${why}`);
+  if (!item.isOwner) button.disabled = true;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const fresh = itemEffectiveLines(item).find((l) => l.key === line.key);
+    if (fresh) new TriggerEditor(item, { line: { ...fresh, lineType: "feature" } }).render({ force: true });
+  });
+  return button;
+}
+
+function place(container, sentence, from, widget) {
+  const start = sentenceStart(container, sentence, from);
+  if (!start) return from;
+  const anchor = start.offset > 0 ? start.node.splitText(start.offset) : start.node;
+  anchor.parentNode.insertBefore(widget, anchor);
+  return start.at + 1;
+}
+
 export function decorate(container, item) {
-  if (!container || !item?.actor || !resourceName(item.actor)) return;
+  if (!container || !item?.actor) return;
   if (container.closest("[contenteditable='true']") || container.querySelector("[contenteditable='true']")) return;
-  const lines = itemGainLines(item).filter((l) => WIDGET_KINDS.has(l.kind));
+  if (resourceName(item.actor)) {
+    let from = 0;
+    for (const line of itemGainLines(item).filter((l) => WIDGET_KINDS.has(l.kind))) {
+      if (container.querySelector(`.dst-line-widget[data-line-key="${line.key}"]`)) continue;
+      from = place(container, line.sentence, from, widgetFor(item, effectiveLine(item, line)));
+    }
+  }
+  if (item.actor.type !== "hero") return;
   let from = 0;
-  for (const line of lines) {
+  for (const line of itemEffectiveLines(item)) {
     if (container.querySelector(`.dst-line-widget[data-line-key="${line.key}"]`)) continue;
-    const start = sentenceStart(container, line.sentence, from);
-    if (!start) continue;
-    from = start.at + 1;
-    const anchor = start.offset > 0 ? start.node.splitText(start.offset) : start.node;
-    anchor.parentNode.insertBefore(widgetFor(item, effectiveLine(item, line)), anchor);
+    from = place(container, line.sentence, from, coinWidgetFor(item, line));
   }
 }
 
@@ -99,14 +141,31 @@ function decorateRows(root) {
     if (!row.textContent.trim()) continue;
     const uuid = row.closest("li[data-document-uuid]").dataset.documentUuid;
     const item = fromUuidSync(uuid);
-    if (item?.type === "feature" || item?.type === "subclass") decorate(row, item);
+    if (FEATURE_ITEM_TYPES.has(item?.type)) decorate(row, item);
   }
 }
+
+export function redecorate(item) {
+  for (const app of foundry.applications.instances.values()) {
+    const doc = app.document;
+    if (doc !== item && doc !== item?.actor) continue;
+    for (const w of app.element?.querySelectorAll(`.dst-line-widget[data-line-key]`) ?? []) {
+      if (!doc.items || w.closest(`li[data-document-uuid="${item.uuid}"]`)) w.remove();
+    }
+    if (doc === item) decorate(descriptionOf(app.element), item);
+    else decorateRows(app.element);
+  }
+}
+
+Hooks.on("updateItem", (item, changes) => {
+  if (!FEATURE_ITEM_TYPES.has(item.type) || !foundry.utils.hasProperty(changes, `flags.${MODULE_ID}`)) return;
+  redecorate(item);
+});
 
 Hooks.on("renderApplicationV2", (app, element) => {
   const doc = app.document;
   if (!doc || !element) return;
-  if (doc.documentName === "Item" && (doc.type === "feature" || doc.type === "subclass")) {
+  if (doc.documentName === "Item" && FEATURE_ITEM_TYPES.has(doc.type)) {
     decorate(descriptionOf(element), doc);
     return;
   }
