@@ -327,6 +327,9 @@
           "scope": "ENEMY",
           "qualifiers": [
             "within distance"
+          ],
+          "abilityKeywords": [
+            "melee"
           ]
         }
       ]
@@ -709,7 +712,12 @@
           "qualifiers": [
             "within distance",
             "non-minion"
-          ]
+          ],
+          "organization": {
+            "exclude": [
+              "minion"
+            ]
+          }
         }
       ]
     }
@@ -748,6 +756,7 @@
           "qualifiers": [
             "maneuver"
           ],
+          "abilityDsid": "dig",
           "abilityType": "maneuver"
         }
       ]
@@ -2753,7 +2762,12 @@
           "scope": "SELF",
           "qualifiers": [
             "non-minion"
-          ]
+          ],
+          "organization": {
+            "exclude": [
+              "minion"
+            ]
+          }
         }
       ]
     }

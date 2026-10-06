@@ -154,6 +154,10 @@ export function usedAbilityMatches(clause, used, owner, context = {}) {
     if (sys.type !== "triggered" && sys.type !== "freeTriggered") return false;
   } else if (clause.abilityType && sys.type !== clause.abilityType) return false;
   if (clause.abilityKeywords?.length && !clause.abilityKeywords.some((k) => sys.keywords?.has?.(k) ?? sys.keywords?.includes?.(k))) return false;
+  if (clause.targetsOwner) {
+    const targets = context.usedTargets ?? [];
+    if (targets.length && !targets.some((t) => (t?.actor ?? t) === owner)) return false;
+  }
 
   if (clause.abilityCategory === "signature") {
     if (sys.category !== "signature") return false;
@@ -227,6 +231,7 @@ function grabsHeldBy(ownerActor, status) {
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
   switch (event) {
     case "DEALS_DAMAGE":
+      if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (!clause.victimScope || !ctx.victimActor) return true;
       return scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null);
     
@@ -240,6 +245,10 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "CONDITION_GAIN": {
       if (clause.condition && ctx.condition !== clause.condition) return false;
+      if (clause.sourceScope) {
+        const sources = (ctx.sourceActorUuids ?? []).map((u) => fromUuidSync(u)).map((d) => d?.actor ?? d).filter(Boolean);
+        if (sources.length && !sources.some((a) => scopeMatches({ scope: clause.sourceScope }, ownerActor, ownerDisposition, a, null))) return false;
+      }
       if (clause.durationFilter === "save-or-eot" && !SAVE_OR_EOT.has(ctx.expiry)) return false;
       if (clause.asSource) {
         if (!(ctx.sourceActorUuids ?? []).includes(ownerActor.uuid)) return false;
@@ -275,6 +284,13 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
   }
 }
 
+function organizationMatches(clause, subjectActor) {
+  const excluded = clause.organization?.exclude;
+  if (!excluded?.length || !subjectActor) return true;
+  const org = subjectActor.system?.monster?.organization ?? (isMinionActor(subjectActor) ? "minion" : null);
+  return !excluded.includes(org);
+}
+
 export function collectTriggerMatches(event, subjectActor = null, subjectToken = null, usedAbility = null, usedContext = {}) {
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   const subjectDisposition = subjectToken?.disposition ?? null;
@@ -307,6 +323,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       const clause = entry.parse?.clauses?.find(c =>
         c.event === event && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
+        && organizationMatches(c, subjectActor)
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;

@@ -2,7 +2,7 @@ import { parseTrigger, generateDSID } from "./trigger-parser.mjs";
 import { featureGainLines } from "./feature-lines.mjs";
 
 const decode = (s) => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-  .replace(/&#39;|&rsquo;/g, "’").replace(/&quot;/g, "\"");
+  .replace(/&#39;|&rsquo;/g, "’").replace(/&quot;/g, "\"").replace(/[ʼ‘]/g, "’");
 
 function enricherText(inner, label) {
   if (label) return label;
@@ -44,9 +44,9 @@ const AUGMENT = /^(?:you|your companion|you or your companion) (?:use|uses|make|
 function cleanCondition(c) {
   let t = c.replace(/^additionally,?\s*/i, "").replace(/\s*\([^)]*\)/g, "");
   t = t.replace(/^once per (?:combat )?(?:round|turn|encounter)\s*,?\s*/i, "");
-  t = t.replace(/^(?:the )?first time (?:each|in a|in an|during a|during an|during each|on a|per)? ?(?:combat )?(?:round|encounter|turn)?\s*(?:that\s+)?/i, "");
+  t = t.replace(/^(?:the )?first time (?:each|in an|in a|during an|during a|during each|on a|per)? ?(?:combat )?(?:round|encounter|turn)?\s*(?:that\s+)?/i, "");
   t = t.replace(/^(?:whenever|when|each time|every time|if)\s+/i, "");
-  t = t.replace(/\b(?:each|every|in a|in an|per|during the|during an|this) (?:combat )?(?:round|encounter)\b/gi, "");
+  t = t.replace(/\b(?:each|every|in an|in a|per|during the|during an|this) (?:combat )?(?:round|encounter)\b/gi, "");
   t = t.replace(/^\s*that\s+/i, "").replace(/,\s*$/, "").replace(/\s+/g, " ").trim();
   return t ? t[0].toUpperCase() + t.slice(1) : "";
 }
@@ -84,7 +84,7 @@ function eventCondition(body) {
   const at = stripped.search(WHEN);
   if (at < 0) return null;
   const rest = stripped.slice(at);
-  const cut = rest.search(/,\s*(?=(?:you|they|that|the|it|each|an?|your|this|its|both|until|instead)\b)/i);
+  const cut = rest.search(/,\s*(?=(?:you|they|their|them|he|she|his|her|that|the|it|each|an?|your|this|its|both|until|instead)\b)/i);
   return cut > 0 ? { condition: rest.slice(0, cut), effect: rest.slice(cut + 1).trim() } : null;
 }
 
@@ -96,27 +96,26 @@ function eventCondition(body) {
  * @param {string} [options.dsid]      the item's dsid
  * @param {string} [options.name]      the item's name, keys lines when the dsid is shared (several treasures are "treasure")
  * @param {string} [options.resource]  the class resource, so heroic resource gain lines are left to resource-gains
+ * @param {string} [options.ownerName] the actor's name, so "the chimera" or "Locratix" reads as the owner
  * @returns {object[]} lines: { key, sentence, action, kind, once, trigger, effect, parse, tier, family }
  *   action: "triggered" | "freeTriggered" | null; kind: "trigger" | "augment" | "outOfCombat"
  *   tier: { min, level, resource } for a row of a Growing Ferocity style table, else null
  */
-export function featureTriggerLines(html, { dsid = "", name = "", resource = null } = {}) {
+export function featureTriggerLines(html, { dsid = "", name = "", resource = null, ownerName = "" } = {}) {
   if (!html || PARKED.some((rx) => rx.test(dsid))) return [];
   const gains = resource ? new Set(featureGainLines(html, { resource }).map((l) => l.sentence)) : new Set();
   const base = dsid && dsid === generateDSID(name) ? dsid : `${dsid} ${name}`.trim();
   const lines = [];
   const keys = new Set();
   const { rest, rows } = tierRows(html);
-  collectLines(rest, null, { gains, base, lines, keys });
-  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys });
+  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid });
+  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid });
   return lines;
 }
 
 const TIER_CELL = /^(\d+)\s*(?:\(\s*(\d+)(?:st|nd|rd|th)\s+level\s*\))?$/i;
 const cellText = (h) => decode(String(h ?? "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 
-/* "Benefits are cumulative except where an improved benefit replaces a lesser benefit": each row of the table is
-   earned at a resource total, some rows only from a level on. */
 function tierRows(html) {
   const rows = [];
   const rest = String(html).replace(/<table[\s\S]*?<\/table>/gi, (table) => {
@@ -134,7 +133,23 @@ function tierRows(html) {
   return { rest, rows };
 }
 
-function collectLines(html, tier, { gains, base, lines, keys }) {
+const OWNER_STOP = new Set(["the", "and", "of", "war", "dog", "size"]);
+
+function asOwner(trigger, ownerName) {
+  let out = trigger.replace(/^(?:they|he|she)\b/i, "The self").replace(/\bagainst them\b/i, "against the self");
+  const words = ownerName.toLowerCase().replace(/[’']/g, "").split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !OWNER_STOP.has(w));
+  for (const w of words) out = out.replace(new RegExp(`\\bthe (?:[a-z-]+ )?${w}\\b`, "gi"), "the self");
+  return out;
+}
+
+const CURATED = {
+  "escort-the-prisoners": { kind: "augment" },
+  "leading": { kind: "augment" },
+  "gloaming-wyrmscale-aura": { kind: "augment" },
+  "empowered-will": { once: "round" },
+};
+
+function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid }) {
   for (const block of blocksOf(html)) {
     const sentences = sentencesOf(block);
     const found = [];
@@ -162,12 +177,15 @@ function collectLines(html, tier, { gains, base, lines, keys }) {
     found.forEach((f, i) => {
       const next = found[i + 1]?.index ?? sentences.length;
       const effect = [f.effect, ...sentences.slice(f.index + 1, next)].join(" ").replace(/\s+/g, " ").trim();
-      const kind = OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger";
+      const curated = CURATED[dsid || generateDSID(base)] ?? {};
+      const kind = curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger");
+      const once = curated.once ?? onceOf(f.sentence) ?? (/\buntil the end of the round\b/i.test(effect) ? "round" : null);
+      const parseText = ownerName ? asOwner(f.trigger, ownerName) : f.trigger;
       let key = generateDSID(`${base} ${f.trigger}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
       for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
-      lines.push({ key, sentence: f.sentence, action: f.action, kind, once: onceOf(f.sentence), trigger: f.trigger, effect,
-        parse: parseTrigger(`${f.trigger}.`, { effectText: effect }), tier, family: tier ? generateDSID(f.trigger) : null });
+      lines.push({ key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect,
+        parse: parseTrigger(`${parseText}.`, { effectText: effect, ownerName }), tier, family: tier ? generateDSID(f.trigger) : null });
     });
   }
 }
