@@ -2,7 +2,7 @@ const DIST_ICONS = { melee: "fa-sword", ranged: "fa-bow-arrow", meleeRanged: "fa
 
 export async function buildTriggerCardRows(rows) {
   return (await Promise.all(rows.map(async (r) => {
-    const preview = r.item ? await buildAbilityPreview(r.item, { includeMeta: true }) : "";
+    const preview = r.item ? await buildAbilityPreview(r.item, { includeMeta: true, inRow: true }) : "";
     return `<div class="dst-malice-feature">
       <div class="dst-malice-feature-head">
         <a class="dst-malice-expand"><i class="fa-solid fa-chevron-right dst-malice-chevron"></i></a>
@@ -33,19 +33,23 @@ function neutralizeStatusLinks(html) {
   return div.innerHTML;
 }
 
-export function featureLinePreview(line) {
+export function featureLinePreview(line, { inRow = false } = {}) {
   if (!line) return "";
   const esc = foundry.utils.escapeHTML;
   const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "");
   const L = (k) => game.i18n.localize(`DS_TRIGGERS.Feature.${k}`);
   const action = line.action === "triggered" ? L("ActionTriggered") : line.action === "freeTriggered" ? L("ActionFree") : L("ActionNone");
-  return `<div class="dst-preview-kw"><span class="dst-preview-kw-badges"><span class="dst-preview-badge">${esc(line.itemName)}</span></span><span class="dst-preview-action">${action}</span></div>
-    <div class="dst-preview-effect"><strong>${L("Trigger")}:</strong> ${esc(line.trigger ?? line.sentence)}</div>
+  const badge = line.itemName && line.itemName !== line.name ? `<span class="dst-preview-badge">${esc(line.itemName)}</span>` : "";
+  const kw = inRow
+    ? (badge ? `<div class="dst-preview-kw"><span class="dst-preview-kw-badges">${badge}</span></div>` : "")
+    : `<div class="dst-preview-kw"><span class="dst-preview-kw-badges">${badge}</span><span class="dst-preview-action">${action}</span></div>`;
+  return `${kw}
+    ${inRow ? "" : `<div class="dst-preview-effect"><strong>${L("Trigger")}:</strong> ${esc(line.trigger ?? line.sentence)}</div>`}
     ${line.effect ? `<div class="dst-preview-effect"><strong>${L("Effect")}:</strong> ${esc(cap(line.effect))}</div>` : ""}`;
 }
 
-export async function buildAbilityPreview(item, { includeMeta = true, includeTrigger = false, includeTriggeredAction = false } = {}) {
-  if (item?.featureLine) return featureLinePreview({ ...item.featureLine, trigger: item.system.trigger });
+export async function buildAbilityPreview(item, { includeMeta = true, includeTrigger = false, includeTriggeredAction = false, inRow = false } = {}) {
+  if (item?.featureLine) return featureLinePreview({ ...item.featureLine, trigger: item.system?.trigger ?? item.featureLine.trigger }, { inRow });
   const sys = item?.system;
   if (!sys) return "";
   const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
