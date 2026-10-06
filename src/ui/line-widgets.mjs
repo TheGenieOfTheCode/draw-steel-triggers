@@ -1,6 +1,6 @@
 import { itemGainLines, effectiveLine, resourceName, gainsActive, namedGainLines } from "../triggers/resource-gains.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
-import { FEATURE_ITEM_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive, tierText } from "../triggers/feature-triggers.mjs";
+import { FEATURE_ITEM_TYPES, FEATURE_ACTOR_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive, tierText } from "../triggers/feature-triggers.mjs";
 import { parseAutomationLevel } from "./badge.mjs";
 import { emblemCoinURI } from "./emblem-coin.mjs";
 import { MODULE_ID } from "../util.mjs";
@@ -127,7 +127,7 @@ export function decorate(container, item) {
       from = place(container, line.sentence, from, widgetFor(item, effectiveLine(item, line)));
     }
   }
-  if (item.actor.type !== "hero") return;
+  if (!FEATURE_ACTOR_TYPES.has(item.actor.type) || (item.actor.type !== "hero" && !game.user.isGM)) return;
   let from = 0;
   for (const line of itemEffectiveLines(item)) {
     if (container.querySelector(`.dst-line-widget[data-line-key="${line.key}"]`)) continue;
@@ -170,7 +170,7 @@ Hooks.on("renderApplicationV2", (app, element) => {
     decorate(descriptionOf(element), doc);
     return;
   }
-  if (doc.documentName !== "Actor" || doc.type !== "hero") return;
+  if (doc.documentName !== "Actor" || !FEATURE_ACTOR_TYPES.has(doc.type)) return;
   decorateRows(element);
   if (element._dstLineObserver) return;
   

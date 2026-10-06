@@ -298,6 +298,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
 
   const candidates = candidateEntries().sort((a, b) => (b.actor === subjectActor) - (a.actor === subjectActor));
   const maliceSeen = new Set();
+  const featureSeen = new Set();
 
   for (const { actor, disposition, token } of candidates) {
     if (actor.statuses?.has(defeated)) continue;
@@ -342,6 +343,12 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       }
       if (clause.anyHeroUnacted && game.combat?.started) {
         if (!game.combat.combatants.some(c => c.actor?.type === "hero" && c.initiative > 0)) continue;
+      }
+      if (entry.featureLine && actor.type !== "hero") {
+        const group = game.combat?.combatants.find((c) => c.actor === actor)?.group?.id ?? actor.uuid;
+        const squadKey = `${group}|${entry.item.featureLine.key}`;
+        if (featureSeen.has(squadKey)) continue;
+        featureSeen.add(squadKey);
       }
       matches.push({ actor, item: entry.item, free: entry.free, noAction: !!entry.noAction, malice, clause, parse: entry.parse });
     }

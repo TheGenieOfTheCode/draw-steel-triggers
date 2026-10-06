@@ -1,7 +1,8 @@
 import { featureTriggerLines } from "../parser/feature-triggers.mjs";
 import { MODULE_ID, getSetting } from "../util.mjs";
 
-export const FEATURE_ITEM_TYPES = new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
+export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
+export const FEATURE_ITEM_TYPES =new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
 const LINES_FLAG = "featureLines";
 const TRIGGERED = new Set(["triggered", "freeTriggered"]);
 
@@ -43,12 +44,13 @@ export function itemFeatureLines(item) {
   if (ignoredFeatures().has(String(item.system?._dsid ?? "").toLowerCase())) return [];
   const html = item.system?.description?.value ?? "";
   const resource = resourceOf(item.actor);
+  const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
   const cached = _lineCache.get(item.uuid);
-  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name) return cached.lines;
-  const lines = featureTriggerLines(html, { dsid: item.system?._dsid ?? "", name: item.name, resource })
+  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name && cached.ownerName === ownerName) return cached.lines;
+  const lines = featureTriggerLines(html, { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName })
     .filter((l) => l.kind === "trigger")
     .map((l) => ({ ...l, manual: MANUAL.filter(([rx]) => rx.test(l.sentence)).map(([, why]) => why) }));
-  _lineCache.set(item.uuid, { html, resource, name: item.name, lines });
+  _lineCache.set(item.uuid, { html, resource, name: item.name, ownerName, lines });
   return lines;
 }
 
@@ -198,7 +200,7 @@ export function featureLineSpent(actor, key, once) {
  * `noAction` set for lines that spend nothing ("whenever ..."): those never consult the triggered action.
  */
 export function featureTriggerEntries(actor) {
-  if (!actor || actor.type !== "hero" || !featureTriggersActive()) return [];
+  if (!actor || !FEATURE_ACTOR_TYPES.has(actor.type) || !featureTriggersActive()) return [];
   const entries = [];
   const seen = new Set();
   for (const item of actor.items) {
