@@ -13,8 +13,8 @@ function _hasDamage(ability) {
   return effects.some((e) => e.type === "damage" || e.type === "dsct.flatDamage");
 }
 
-function _lockMatches(event, subjectActor, subjectToken, rollerActor) {
-  const dealer = { dealerActor: rollerActor, dealerToken: rollerActor?.getActiveTokens?.(false, true)?.[0] ?? null };
+function _lockMatches(event, subjectActor, subjectToken, rollerActor, ability = null) {
+  const dealer = { dealerActor: rollerActor, dealerToken: rollerActor?.getActiveTokens?.(false, true)?.[0] ?? null, ability };
   return collectTriggerMatches(event, subjectActor, subjectToken, null, dealer).filter((m) =>
     !m.malice
     && m.actor !== rollerActor
@@ -79,13 +79,13 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
     const subjectActor = tokenDoc?.actor;
     if (!subjectActor) continue;
     if (strike) {
-      const list = _lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor)
+      const list = _lockMatches("TARGETED_BY_STRIKE", subjectActor, tokenDoc, rollerActor, ability)
         .filter((m) => m.clause?.postRoll !== true)
         .filter(notAlsoTargeted);
       for (const m of list) m._subjectTokenUuid = tokenDoc.uuid;
       add(list, "TARGETED_BY_STRIKE");
     }
-    const abilityList = _lockMatches("TARGETED_BY_ABILITY", subjectActor, tokenDoc, rollerActor)
+    const abilityList = _lockMatches("TARGETED_BY_ABILITY", subjectActor, tokenDoc, rollerActor, ability)
       .filter((m) => m.clause?.postRoll !== true)
       .filter(notAlsoTargeted);
     for (const m of abilityList) m._subjectTokenUuid = tokenDoc.uuid;

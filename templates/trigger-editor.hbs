@@ -143,6 +143,19 @@
         <p class="dst-hint">{{@root.hints.damageTypes}}</p>
       </div>
 
+      <div class="dst-condition-wrap" {{#unless showCondition}}hidden{{/unless}}>
+        <div class="form-group">
+          <label>{{@root.labels.condition}}</label>
+          <div class="form-fields">
+            <select data-field="condition" data-index="{{index}}">
+              <option value="">{{@root.labels.conditionAny}}</option>
+              {{#each conditionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+            </select>
+          </div>
+        </div>
+        <p class="dst-hint">{{@root.hints.condition}}</p>
+      </div>
+
       <div class="dst-group-wrap" {{#unless showGroup}}hidden{{/unless}}>
         <div class="form-group">
           <label>{{@root.labels.groupName}}</label>

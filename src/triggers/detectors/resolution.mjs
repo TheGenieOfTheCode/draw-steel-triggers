@@ -167,7 +167,7 @@ async function _tryDispatch(message) {
   if (!ability || ability.type !== "ability") return;
   const strike = ability.system.keywords?.has?.("strike") ?? false;
   const rollerActor = ability.actor;
-  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor) };
+  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor), ability };
 
   _handled.add(message.id);
   _handledAt.set(message.id, Date.now());
@@ -232,7 +232,7 @@ async function _tryTierRecheck(message) {
   const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
   if (!ability || ability.type !== "ability") return;
   const rollerActor = ability.actor;
-  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor) };
+  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor), ability };
   const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
 
   const queued = new Set((getQueueMirror() ?? [])
@@ -279,7 +279,7 @@ async function _tryPostHocDispatch(message, addedTargets) {
   if (!ability || ability.type !== "ability") return;
   const strike = ability.system.keywords?.has?.("strike") ?? false;
   const rollerActor = ability.actor;
-  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor) };
+  const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor), ability };
 
   const allTargets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
   const targetActors = new Set();

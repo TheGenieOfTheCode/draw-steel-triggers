@@ -190,6 +190,9 @@ export function usedAbilityMatches(clause, used, owner, context = {}) {
   return true;
 }
 
+export const dealsRolledDamage = (ability) => !!ability?.system?.power?.roll?.enabled
+  && (ability.system.power?.effects?.contents ?? []).some((e) => e.type === "damage");
+
 export function isMinionActor(actor) {
   return actor?.system?.isMinion ?? actor?.system?.monster?.organization === "minion";
 }
@@ -241,6 +244,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "TARGETED_BY_ABILITY":
     case "TARGETED_BY_STRIKE":
+      if (clause.rolledDamage && ctx.ability && !dealsRolledDamage(ctx.ability)) return false;
       if (!clause.dealerScope || !ctx.dealerActor) return true;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "CONDITION_GAIN": {

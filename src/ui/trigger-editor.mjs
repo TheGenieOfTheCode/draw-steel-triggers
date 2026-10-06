@@ -18,6 +18,11 @@ const FLAG_FIELDS = {
   half: ["halfDamage", "halfOnUse"],
   rollMod: ["rollMod"],
   redirect: ["redirect"],
+  targetsOwner: ["targetsOwner"],
+  victimNotSelf: ["victimNotSelf"],
+  sourceScope: ["sourceScope"],
+  rolledDamage: ["rolledDamage"],
+  organization: ["organization"],
 };
 
 function describeFilter(id, fields) {
@@ -42,12 +47,19 @@ function describeFilter(id, fields) {
     case "half": return L("QualEffectHalf");
     case "rollMod": return L("QualEffectRollMod");
     case "redirect": return L("QualEffectRedirect");
+    case "targetsOwner": return L("QualEffectTargetsOwner");
+    case "victimNotSelf": return L("QualEffectVictimNotSelf");
+    case "sourceScope": return L("QualEffectSourceScope", { side: String(fields.sourceScope ?? "").toLowerCase() });
+    case "rolledDamage": return L("QualEffectRolledDamage");
+    case "organization": return L("QualEffectOrganization", { org: (fields.organization?.exclude ?? []).join(", ") });
     default: return L("QualEffectNone");
   }
 }
 
-function qualifierPills(clause, triggerText, effectText) {
+function qualifierPills(clause, triggerText, effectText, pristine = null) {
   const off = new Set(clause.filtersOff ?? []);
+  const flagView = { ...clause };
+  for (const id of off) for (const field of FLAG_FIELDS[id] ?? []) if (pristine?.[field] !== undefined) flagView[field] = pristine[field];
   const pills = [];
   const consumed = [];
 
@@ -62,7 +74,7 @@ function qualifierPills(clause, triggerText, effectText) {
     if (distance) consumed.push(distance);
   }
 
-  for (const f of explainAbilityFilters(triggerText, effectText)) {
+  for (const f of clause.event === "USES_ABILITY" ? explainAbilityFilters(triggerText, effectText) : []) {
     pills.push({
       id: f.id, text: f.fragment,
       tooltip: describeFilter(f.id, f.fields) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
@@ -72,10 +84,10 @@ function qualifierPills(clause, triggerText, effectText) {
   }
 
   
-  for (const f of explainClauseFlags(clause, triggerText, effectText)) {
+  for (const f of explainClauseFlags(flagView, triggerText, effectText)) {
     pills.push({
       id: f.id, text: f.fragment,
-      tooltip: describeFilter(f.id, clause) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
+      tooltip: describeFilter(f.id, flagView) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
       enforced: true, disabled: off.has(f.id), fromEffect: f.from === "effect",
     });
     consumed.push(f.fragment);
@@ -111,6 +123,12 @@ const SCOPES = [
 ];
 
 const DAMAGE_EVENTS = new Set(["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE"]);
+
+const CONDITIONS = ["bleeding", "dazed", "frightened", "grabbed", "prone", "restrained", "slowed", "taunted", "weakened"];
+const conditionLabel = (id) => {
+  const status = Array.isArray(CONFIG.statusEffects) ? CONFIG.statusEffects.find((s) => s.id === id) : CONFIG.statusEffects?.[id];
+  return status?.name ? game.i18n.localize(status.name) : label(id);
+};
 
 const TARGETING_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 
@@ -218,7 +236,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       labels: {
         event: L("Event"), scope: L("Scope"), range: L("Range"),
         qualifiers: L("Qualifiers"), qualifiersNone: L("QualifiersNone"),
-        damageTypes: L("DamageTypes"),
+        damageTypes: L("DamageTypes"), condition: L("Condition"), conditionAny: L("ConditionAny"),
         abilityDsid: L("AbilityDsid"), groupName: L("GroupName"), groupNone: L("GroupNone"),
         customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
         edgeRequired: L("EdgeRequired"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"), turnLock: L("TurnLock"),
@@ -230,7 +248,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       },
       hints: {
         scope: L("ScopeHint"), range: L("RangeHint"), qualifiers: L("QualifiersHint"),
-        damageTypes: L("DamageTypesHint"), abilityDsid: L("AbilityDsidHint"),
+        damageTypes: L("DamageTypesHint"), condition: L("ConditionHint"), abilityDsid: L("AbilityDsidHint"),
         groupName: L("GroupNameHint"), checks: L("ChecksHint"), malice: L("MaliceHint"),
         holdDamage: L("HoldDamageHint"), targetedHalf: L("TargetedHalfHint"), excludeSelfTarget: L("ExcludeSelfTargetHint"),
         postRoll: L("PostRollHint"), halfOnUse: L("HalfOnUseHint"), rollMod: L("RollModHint"), redirect: L("RedirectHint"),
@@ -256,8 +274,11 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         })),
         rangeCustom: Number.isFinite(c.range),
         rangeValue: Number.isFinite(c.range) ? c.range : 1,
-        qualifiers: qualifierPills(c, this._triggerText, this._effectText),
+        qualifiers: qualifierPills(c, this._triggerText, this._effectText, this._pristine?.[index]),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
+        showCondition: c.event === "CONDITION_GAIN",
+        conditionOptions: [...new Set([...CONDITIONS, ...(c.condition ? [c.condition] : [])])]
+          .map((value) => ({ value, label: conditionLabel(value), selected: c.condition === value })),
         showHold: c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
         holdChecked: c.event === "WOULD_TAKE_DAMAGE",
         showTargetedHalf: TARGETING_EVENTS.has(c.event),
@@ -362,6 +383,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         const clauseEl = eventSel.closest(".dst-editor-clause");
         const wrap = clauseEl?.querySelector(".dst-damage-wrap");
         if (wrap) wrap.hidden = !DAMAGE_EVENTS.has(eventSel.value);
+        const conditionWrap = clauseEl?.querySelector(".dst-condition-wrap");
+        if (conditionWrap) conditionWrap.hidden = eventSel.value !== "CONDITION_GAIN";
         const desc = clauseEl?.querySelector(".dst-event-desc");
         if (desc) desc.textContent = game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${eventSel.value}`);
         const holdWrap = clauseEl?.querySelector(".dst-hold-wrap");
@@ -443,7 +466,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     for (const k of ["abilityDsid", "abilityType", "abilityKeywords", "abilityCostMax", "abilityCategory",
       "abilityCostScales", "abilityTargetCount", "abilityTargetSide"]) delete clause[k];
 
-    for (const f of explainAbilityFilters(this._triggerText, this._effectText)) {
+    for (const f of clause.event === "USES_ABILITY" ? explainAbilityFilters(this._triggerText, this._effectText) : []) {
       if (!off.has(f.id)) Object.assign(clause, f.fields);
     }
 
