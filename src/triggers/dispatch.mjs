@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg, emblemHTML, isPrimaryGM } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
@@ -481,7 +481,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
   if (!message.getFlag(MODULE_ID, "reminder")) return;
   const avatar = html.querySelector(".message-header img, img.avatar");
   if (avatar) {
-    avatar.src = `modules/${MODULE_ID}/icons/emblem.svg`;
+    avatar.src = `modules/${MODULE_ID}/icons/emblem-coin.png`;
     avatar.classList.add("dst-avatar-emblem");
   }
 });

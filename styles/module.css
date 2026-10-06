@@ -34,9 +34,9 @@
 }
 
 .dst-window-emblem {
-  width: 17px;
-  height: 17px;
-  flex: 0 0 17px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   border: none;
   background: none;
 }
@@ -530,17 +530,11 @@ button.dst-dstd-held-btn > i {
   width: 26px;
   height: 26px;
   font-size: 26px;
-  border: 1px solid rgba(0, 0, 0, 0.6);
   border-radius: 50%;
   cursor: help;
-  background: var(--dst-badge-color, #666);
 }
 
-.dst-auto-badge--full    { --dst-badge-color: #3d7a3d; }
-.dst-auto-badge--partial { --dst-badge-color: #a87f16; }
-.dst-auto-badge--none    { --dst-badge-color: #9c3535; }
-.dst-auto-badge--manual  { --dst-badge-color: #3f6db0; }
-.dst-auto-badge--unknown { --dst-badge-color: #8a4fa8; }
+.dst-coin--none { opacity: 0.55; }
 
 .dst-reminder ul {
   margin: 4px 0 0;

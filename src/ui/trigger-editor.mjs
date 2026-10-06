@@ -316,7 +316,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   _onRender(_context, _options) {
     const titleEl = this.element.querySelector(".window-header .window-title");
-    if (titleEl) titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem.svg" alt="">${this.title}`;
+    if (titleEl) titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem-coin.png" alt="">${this.title}`;
     this._listenerAbort?.abort();
     this._listenerAbort = new AbortController();
     const { signal } = this._listenerAbort;

@@ -1,4 +1,5 @@
-import { MODULE_ID, emblemHTML, getSetting } from "../util.mjs";
+import { MODULE_ID, getSetting } from "../util.mjs";
+import { emblemCoinHTML } from "./emblem-coin.mjs";
 import { isTriggeredAbility, isMaliceAbility, getParsedTrigger } from "../triggers/registry.mjs";
 import { changesTheStrike } from "../parser/trigger-parser.mjs";
 
@@ -102,7 +103,7 @@ function buildBadge(item) {
   if (!info) return null;
   const badge = document.createElement("span");
   badge.className = `dst-auto-badge dst-auto-badge--${info.level}`;
-  badge.innerHTML = emblemHTML();
+  badge.innerHTML = emblemCoinHTML(info.level, { className: "dst-emblem-img" });
   const title = game.i18n.localize(`DS_TRIGGERS.Badge.Level.${info.level}`);
   badge.dataset.tooltip = `<strong>${title}</strong><br>${info.detail.join("<br>")}`;
   badge.dataset.tooltipDirection = "UP";

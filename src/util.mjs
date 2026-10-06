@@ -35,10 +35,6 @@ export function batchedNotice(key, name, { level = "info" } = {}) {
   }, wait);
 }
 
-export function emblemHTML() {
-  return `<img class="dst-emblem-img" src="modules/${MODULE_ID}/icons/emblem.svg" alt="">`;
-}
-
 export function primaryGM() {
   const id = getSetting("primaryGamemaster");
   const chosen = id ? game.users.get(id) : null;

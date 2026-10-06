@@ -338,7 +338,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       const text = count
         ? `${this.title} · ${game.i18n.format("DS_TRIGGERS.Queue.InStack", { count })}`
         : this.title;
-      titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem.svg" alt="">${text}`;
+      titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem-coin.png" alt="">${text}`;
     }
 
     
