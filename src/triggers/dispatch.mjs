@@ -269,6 +269,15 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return !clause.effectName || (ctx.effectName ?? "").includes(clause.effectName);
     case "STAMINA_BELOW":
       return Number.isFinite(clause.value) && ctx.prevValue >= clause.value && ctx.curValue < clause.value;
+    case "MOVES": {
+      if (!clause.through || !ctx.throughActor) return false;
+      if (clause.victimNotMentor) {
+        const mentor = ownerActor.system?.retainer?.mentor;
+        if (mentor && (ctx.throughActor === mentor || ctx.throughActor.id === mentor.id)) return false;
+      }
+      if (!clause.throughScope) return true;
+      return scopeMatches({ scope: clause.throughScope }, ownerActor, ownerDisposition, ctx.throughActor, ctx.throughToken?.disposition ?? null);
+    }
     case "DIES":
       if (ctx.deathOffered && item?.featureLine?.defersDeath) return false;
       if (clause.damageTypes?.length && ctx.damageType && !clause.damageTypes.includes(ctx.damageType)) return false;
@@ -288,6 +297,11 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     default:
       return true;
   }
+}
+
+function statusMatches(clause, ownerActor, subjectActor) {
+  if (clause.tauntedByOwner && !subjectActor?.system?.statuses?.taunted?.sources?.has?.(ownerActor.uuid)) return false;
+  return !(clause.ownerLacks && ownerActor.statuses?.has(clause.ownerLacks));
 }
 
 function organizationMatches(clause, subjectActor) {
@@ -331,6 +345,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         c.event === event && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
+        && statusMatches(c, actor, subjectActor)
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;

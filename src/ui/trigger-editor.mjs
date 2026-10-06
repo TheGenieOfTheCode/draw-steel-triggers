@@ -23,6 +23,10 @@ const FLAG_FIELDS = {
   sourceScope: ["sourceScope"],
   rolledDamage: ["rolledDamage"],
   organization: ["organization"],
+  tauntedByOwner: ["tauntedByOwner"],
+  ownerLacks: ["ownerLacks"],
+  through: ["through", "throughScope"],
+  victimNotMentor: ["victimNotMentor"],
 };
 
 function describeFilter(id, fields) {
@@ -52,6 +56,12 @@ function describeFilter(id, fields) {
     case "sourceScope": return L("QualEffectSourceScope", { side: String(fields.sourceScope ?? "").toLowerCase() });
     case "rolledDamage": return L("QualEffectRolledDamage");
     case "organization": return L("QualEffectOrganization", { org: (fields.organization?.exclude ?? []).join(", ") });
+    case "tauntedByOwner": return L("QualEffectTauntedByOwner");
+    case "ownerLacks": return L("QualEffectOwnerLacks", { condition: conditionLabel(fields.ownerLacks).toLowerCase() });
+    case "through": return fields.throughScope
+      ? L("QualEffectThroughSide", { side: String(fields.throughScope).toLowerCase() })
+      : L("QualEffectThrough");
+    case "victimNotMentor": return L("QualEffectNotMentor");
     default: return L("QualEffectNone");
   }
 }

@@ -417,6 +417,12 @@ const CLAUSE_FLAGS = [
   { id: "sourceScope",       from: "trigger", when: (c) => c.sourceScope,
     rx: /\b(?:an?|any|one) (?:[\w-]+ )*?(?:enemy|ally) grabs\b/i },
   { id: "rolledDamage",      from: "trigger", when: (c) => c.rolledDamage, rx: /\bdeals? rolled damage\b/i },
+  { id: "tauntedByOwner",    from: "trigger", when: (c) => c.tauntedByOwner,
+    rx: /\b(?:the [\w'’-]+ has|you have) taunted\b|\btaunted by (?:the [\w'’-]+|you)\b/i },
+  { id: "ownerLacks",        from: "trigger", when: (c) => c.ownerLacks, rx: /\b(?:you are|the [\w'’-]+ is) not \w+/i },
+  { id: "through",           from: "trigger", when: (c) => c.through,
+    rx: /\bmoves? through (?:an?|any) [\w-]+(?:['’]s space)?/i },
+  { id: "victimNotMentor",   from: "trigger", when: (c) => c.victimNotMentor, rx: /\bother than (?:their|its|your) mentor\b/i },
   { id: "organization",      from: "trigger", when: (c) => c.organization?.exclude?.length,
     rx: /\bnon-(?:minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (?:minion|leader|solo|elite)\b/i },
   { id: "half",              from: "effect",  when: (c) => c.halfDamage || c.halfOnUse, list: () => HALF_TEXT },
@@ -668,6 +674,15 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
       if (side === "enemy" || side === "ally") entry.sourceScope = side.toUpperCase();
     }
     if (entry.event === "DEALS_DAMAGE" && /\bother than the self\b/.test(lc)) entry.victimNotSelf = true;
+    if (/\b(?:the self has|you have) taunted\b|\btaunted by (?:the self|you)\b/.test(lc)) entry.tauntedByOwner = true;
+    const lacks = lc.match(/\b(?:you are|the self is) not (taunted|grabbed|restrained|frightened|prone|slowed|weakened|dazed|bleeding)\b/);
+    if (lacks) entry.ownerLacks = lacks[1];
+    if (entry.event === "MOVES" && /\bmoves? through\b/.test(lc)) {
+      entry.through = true;
+      const side = lc.match(/\bthrough (?:an?|any) (enemy|ally)\b/)?.[1];
+      if (side) entry.throughScope = side.toUpperCase();
+      if (/\bother than (?:their|its|your|the self['’]s) mentor\b/.test(lc)) entry.victimNotMentor = true;
+    }
     if (TARGETING_EVENTS.has(entry.event) && /\bdeals? rolled damage\b/.test(lc)) entry.rolledDamage = true;
     const nonOrg = lc.match(/\bnon-(minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (minion|leader|solo|elite)\b/);
     if (nonOrg) entry.organization = { exclude: [nonOrg[1] ?? nonOrg[2]] };

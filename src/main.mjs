@@ -30,6 +30,7 @@ import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
+import "./triggers/detectors/movement.mjs";
 import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
