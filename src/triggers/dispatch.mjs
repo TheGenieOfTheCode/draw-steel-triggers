@@ -145,14 +145,19 @@ const opposed = (docA, docB) => {
 };
 
 export function usedAbilityMatches(clause, used, owner, context = {}) {
-  if (!used) return !clause.abilityDsid && !clause.abilityType
+  if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length
     && clause.abilityCostMax == null && clause.abilityCategory == null && clause.abilityTargetCount == null;
 
   const sys = used.system ?? {};
   if (clause.abilityDsid && (sys._dsid ?? used.dsid) !== clause.abilityDsid) return false;
-  if (clause.abilityType && sys.type !== clause.abilityType) return false;
-  
-  if (clause.abilityCategory) {
+  if (clause.abilityType === "triggered") {
+    if (sys.type !== "triggered" && sys.type !== "freeTriggered") return false;
+  } else if (clause.abilityType && sys.type !== clause.abilityType) return false;
+  if (clause.abilityKeywords?.length && !clause.abilityKeywords.some((k) => sys.keywords?.has?.(k) ?? sys.keywords?.includes?.(k))) return false;
+
+  if (clause.abilityCategory === "signature") {
+    if (sys.category !== "signature") return false;
+  } else if (clause.abilityCategory) {
     const wantHeroic = clause.abilityCategory === "heroic";
     if ((sys.category === "heroic") !== wantHeroic && !clause.abilityCostScales) return false;
   }

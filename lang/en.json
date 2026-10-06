@@ -249,6 +249,8 @@
       "QualEffectNone": "Descriptive only. Shown in reminders, not enforced.",
       "QualEffectHeroic": "Enforced: only a heroic ability.",
       "QualEffectNonHeroic": "Enforced: only a non-heroic ability.",
+      "QualEffectSignature": "Enforced: only a signature ability.",
+      "QualEffectKeywords": "Enforced: only an ability with the {keywords} keyword.",
       "QualEffectScales": "Enforced: a spend reaches more expensive abilities, so what decides is whether the owner can pay for the one that triggered it.",
       "QualFromEffect": "Read from this ability's effect rather than its trigger.",
       "QualRangeImplied": "within {n} squares",

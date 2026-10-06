@@ -24,7 +24,8 @@ function describeFilter(id, fields) {
     case "range": return L("QualEffectRange", { n: fields.range });
     case "abilityType": return L("QualEffectType", { type: fields.abilityType });
     case "abilityCostMax": return L("QualEffectCost", { n: fields.abilityCostMax });
-    case "abilityCategory": return L(fields.abilityCategory === "heroic" ? "QualEffectHeroic" : "QualEffectNonHeroic");
+    case "abilityCategory": return L({ heroic: "QualEffectHeroic", signature: "QualEffectSignature" }[fields.abilityCategory] ?? "QualEffectNonHeroic");
+    case "abilityKeywords": return L("QualEffectKeywords", { keywords: fields.abilityKeywords.join(" or ") });
     case "abilityCostScales": return L("QualEffectScales");
     case "abilityTargetCount": return L("QualEffectTargets", {
       n: fields.abilityTargetCount,
@@ -434,7 +435,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   
   _applyFilters(clause) {
     const off = new Set(clause.filtersOff ?? []);
-    for (const k of ["abilityDsid", "abilityType", "abilityCostMax", "abilityCategory",
+    for (const k of ["abilityDsid", "abilityType", "abilityKeywords", "abilityCostMax", "abilityCategory",
       "abilityCostScales", "abilityTargetCount", "abilityTargetSide"]) delete clause[k];
 
     for (const f of explainAbilityFilters(this._triggerText, this._effectText)) {

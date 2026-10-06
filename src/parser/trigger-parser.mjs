@@ -302,7 +302,7 @@ const SHADOW = {
   TAKES_DAMAGE: ["WOULD_TAKE_DAMAGE", "DIES", "WINDED_OR_DYING"],
   DEALS_DAMAGE: ["TAKES_DAMAGE", "DIES", "WOULD_TAKE_DAMAGE"],
   USES_ABILITY: ["TARGETED_BY_STRIKE", "POWER_ROLL", "DEALS_DAMAGE", "TAKES_DAMAGE"],
-  TARGETED_BY_STRIKE: ["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "POWER_ROLL", "MAKES_STRIKE", "POWER_ROLL_RESULT"],
+  TARGETED_BY_STRIKE: ["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "POWER_ROLL", "MAKES_STRIKE", "POWER_ROLL_RESULT", "DEALS_DAMAGE"],
   DIES: ["POWER_ROLL_RESULT"],
   MAKES_STRIKE: ["POWER_ROLL", "POWER_ROLL_RESULT"],
   TARGETED_BY_STRIKE_BY_MAKES: [],
@@ -340,8 +340,8 @@ export const ABILITY_FILTERS = [
   {
     id: "abilityType",
     from: "trigger",
-    rx: /\b(main action|maneuver)\b/i,
-    fields: (m) => ({ abilityType: m[1].toLowerCase() === "maneuver" ? "maneuver" : "main" }),
+    rx: /\b(main action|maneuver)\b|\buses? an? (?:free )?(triggered) action\b(?! to)/i,
+    fields: (m) => ({ abilityType: m[2] ? "triggered" : m[1].toLowerCase() === "maneuver" ? "maneuver" : "main" }),
   },
   {
     id: "abilityCostMax",
@@ -354,8 +354,14 @@ export const ABILITY_FILTERS = [
   {
     id: "abilityCategory",
     from: "trigger",
-    rx: /\b(non-heroic|heroic) ability\b/i,
-    fields: (m) => ({ abilityCategory: m[1].toLowerCase() }),
+    rx: /\b(non-heroic|heroic) ability\b|(?<!\bor (?:use )?an? )\b(signature) ability\b/i,
+    fields: (m) => ({ abilityCategory: (m[1] ?? m[2]).toLowerCase() }),
+  },
+  {
+    id: "abilityKeywords",
+    from: "trigger",
+    rx: /\b((?:magic|psionic|weapon)(?:(?:,? or |, | and )(?:magic|psionic|weapon))*) (?:keywords?|abilit(?:y|ies))\b/i,
+    fields: (m) => ({ abilityKeywords: m[1].toLowerCase().split(/,? or |, | and /) }),
   },
   {
     id: "abilityTargetCount",
@@ -470,7 +476,8 @@ function scopeOf(lc, event, owner) {
   const mentionsOwner = words.some(w => new RegExp(`\\b${w}\\b`).test(lc));
   const subj = lc.match(SUBJECT_RX);
   const s = subj ? subj[1] : "";
-  
+  if (/^you or (?:a|an|any|another) (?:[\w-]+ )?creature\b/.test(lc)) return "ANY";
+
   const objectEvents = new Set(["TAKES_DAMAGE", "TARGETED_BY_STRIKE", "WINDED_OR_DYING", "DIES"]);
   const objectSide = /\b(deals? [\w, ]*damage to|damages?|targets?|strike against|strikes?|causes?|reduces?) (you|the target|an ally|any ally|an enemy|a creature|the [\w' ]+|[a-z]+)\b/;
   let affected = s;

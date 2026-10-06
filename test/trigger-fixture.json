@@ -685,6 +685,9 @@
           "scope": "ANY",
           "qualifiers": [
             "within distance"
+          ],
+          "abilityKeywords": [
+            "magic"
           ]
         }
       ]
@@ -2691,7 +2694,8 @@
           "scope": "ANY",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "abilityType": "triggered"
         }
       ]
     }
@@ -3241,6 +3245,9 @@
           "scope": "ANY",
           "qualifiers": [
             "within distance"
+          ],
+          "abilityKeywords": [
+            "magic"
           ]
         }
       ]
@@ -4996,7 +5003,7 @@
       "clauses": [
         {
           "event": "POWER_ROLL",
-          "scope": "SELF",
+          "scope": "ANY",
           "qualifiers": [
             "adjacent creature"
           ],
