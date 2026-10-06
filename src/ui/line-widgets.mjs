@@ -1,6 +1,6 @@
 import { itemGainLines, effectiveLine, resourceName, gainsActive, namedGainLines } from "../triggers/resource-gains.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
-import { FEATURE_ITEM_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive } from "../triggers/feature-triggers.mjs";
+import { FEATURE_ITEM_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive, tierText } from "../triggers/feature-triggers.mjs";
 import { parseAutomationLevel } from "./badge.mjs";
 import { emblemCoinURI } from "./emblem-coin.mjs";
 import { MODULE_ID } from "../util.mjs";
@@ -95,7 +95,8 @@ function coinWidgetFor(item, line) {
         : line.manual?.length ? F("WidgetManual", { why: line.manual.map((m) => F(`Manual.${m}`)).join(", ") })
           : game.i18n.localize(`DS_TRIGGERS.Badge.Level.${info.level}`);
   const action = line.action === "triggered" ? F("ActionTriggered") : line.action === "freeTriggered" ? F("ActionFree") : F("ActionNone");
-  button.dataset.tooltip = `<strong>${foundry.utils.escapeHTML(line.name)}</strong> (${action})<br>${why}`
+  const tier = tierText(line.tier);
+  button.dataset.tooltip = `<strong>${foundry.utils.escapeHTML(line.name)}</strong> (${action})<br>${why}${tier ? `<br>${tier}` : ""}`
     + (info.detail?.length && line.enabled ? `<br>${info.detail.join("<br>")}` : "");
   button.setAttribute("aria-label", `${line.name}. ${why}`);
   if (!item.isOwner) button.disabled = true;

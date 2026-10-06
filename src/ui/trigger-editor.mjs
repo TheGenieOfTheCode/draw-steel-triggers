@@ -2,6 +2,7 @@ import { MODULE_ID } from "../util.mjs";
 import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility, triggerEffectText } from "../triggers/registry.mjs";
 import { explainAbilityFilters, explainClauseFlags, annotateTrigger } from "../parser/trigger-parser.mjs";
 import { heroGainLines, namedGainLines } from "../triggers/resource-gains.mjs";
+import { tierText, ignoreFeature } from "../triggers/feature-triggers.mjs";
 
 const L = (k, data) => data
   ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
@@ -142,6 +143,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       removeClause: TriggerEditor.#onRemoveClause,
       saveOverride: TriggerEditor.#onSaveOverride,
       resetParser: TriggerEditor.#onResetParser,
+      ignoreFeature: TriggerEditor.#onIgnoreFeature,
     },
   };
 
@@ -592,6 +594,9 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       sentence: line.sentence,
       effect: line.effect ? line.effect[0].toUpperCase() + line.effect.slice(1) : "",
       covered: line.covered ? F("Covered", { name: line.covered }) : "",
+      tier: tierText(line.tier),
+      canIgnore: game.user.isGM && !!this.item.system?._dsid,
+      ignoreHint: F("IgnoreHint"),
       manualWhy: line.manual?.length ? F("ManualWhy", { why: line.manual.map((m) => F(`Manual.${m}`)).join(", ") }) : "",
       name: line.customName ?? "",
       namePlaceholder: line.customName ? "" : line.name,
@@ -603,7 +608,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       onceOptions: [["round", "OnceRound"], ["turn", "OnceTurn"], ["encounter", "OnceEncounter"], ["", "OnceNone"]].map(([value, key]) => ({
         value, label: F(key), selected: (line.once ?? "") === value,
       })),
-      labels: { name: F("Name"), enabled: F("Enabled"), action: F("Action"), once: F("Once"), effect: F("Effect") },
+      labels: { name: F("Name"), enabled: F("Enabled"), action: F("Action"), once: F("Once"), effect: F("Effect"), ignore: F("Ignore") },
     };
   }
 
@@ -673,6 +678,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     await this.item.update(update);
     clearParseCache(this.item.uuid);
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this.item.name }));
+    this.close();
+  }
+
+  static async #onIgnoreFeature() {
+    const dsid = String(this.item.system?._dsid ?? "").toLowerCase();
+    if (!dsid || !game.user.isGM) return;
+    await ignoreFeature({ dsid, name: this.item.name });
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Feature.Ignored", { name: this.item.name, dsid }));
     this.close();
   }
 

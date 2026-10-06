@@ -130,6 +130,17 @@
         "Name": "Feature Triggers",
         "Hint": "Triggers written into hero features, ancestry traits, titles, perks, complications and treasures. A coin before each line opens it in the trigger builder."
       },
+      "FeatureIgnore": {
+        "Name": "Ignored Features",
+        "Hint": "Features that never get feature triggers. Click a feature to stop ignoring it. The Ignore button in a feature's trigger builder adds to this list too.",
+        "Show": "Show list ({n})",
+        "Hide": "Hide list",
+        "Empty": "No features are ignored.",
+        "PillTooltip": "{dsid}. Click to stop ignoring it.",
+        "PillAria": "Stop ignoring {name}",
+        "AddTooltip": "Ignore another feature",
+        "AddPlaceholder": "Start typing a feature name"
+      },
       "ResourceGains": {
         "Name": "Heroic Resource Gains",
         "Hint": "Heroic resource gains written in each hero's features, such as a Fury taking damage. Gain them automatically, or offer each one on the Trigger Stack for the player to use or decline.",
@@ -588,6 +599,11 @@
       "Trigger": "Trigger",
       "Effect": "Effect",
       "UsedHeader": "Feature Used",
+      "Ignore": "Ignore this feature",
+      "IgnoreHint": "Removes every trigger line from this feature, for every hero, by adding it to the Ignored Features setting.",
+      "Ignored": "{name} is now ignored. Remove {dsid} from the Ignored Features setting to bring it back.",
+      "Tier": "Needs {n} {resource} at some point this turn. A higher row with the same trigger replaces this one.",
+      "TierLevel": "Needs {n} {resource} at some point this turn, from level {level}. A higher row with the same trigger replaces this one.",
       "Covered": "{name} is its own triggered ability and already handles this, so this line starts off.",
       "ManualWhy": "Reminder only: Triggers cannot check {why}.",
       "WidgetCovered": "Off: {name} already handles this trigger.",

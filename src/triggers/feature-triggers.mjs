@@ -19,8 +19,28 @@ export const featureSnoozeId = (key) => `feature:${key}`;
 
 const resourceOf = (actor) => actor?.items?.find((i) => i.type === "class")?.system?.primary ?? null;
 
+export function ignoredList() {
+  const raw = String(getSetting("featureIgnore") ?? "");
+  try {
+    const list = JSON.parse(raw);
+    if (Array.isArray(list)) return list.filter((e) => e?.dsid).map((e) => ({ dsid: String(e.dsid).toLowerCase(), name: e.name || e.dsid }));
+  } catch {}
+  return raw.split(/[\s,]+/).filter(Boolean).map((dsid) => ({ dsid: dsid.toLowerCase(), name: dsid }));
+}
+
+export async function setIgnoredList(list) {
+  const seen = new Set();
+  const clean = list.filter((e) => e?.dsid && !seen.has(e.dsid) && seen.add(e.dsid));
+  await game.settings.set(MODULE_ID, "featureIgnore", JSON.stringify(clean));
+}
+
+export const ignoreFeature = ({ dsid, name }) => setIgnoredList([...ignoredList(), { dsid: String(dsid).toLowerCase(), name: name || dsid }]);
+export const unignoreFeature = (dsid) => setIgnoredList(ignoredList().filter((e) => e.dsid !== dsid));
+export const ignoredFeatures = () => new Set(ignoredList().map((e) => e.dsid));
+
 export function itemFeatureLines(item) {
   if (!item || !FEATURE_ITEM_TYPES.has(item.type)) return [];
+  if (ignoredFeatures().has(String(item.system?._dsid ?? "").toLowerCase())) return [];
   const html = item.system?.description?.value ?? "";
   const resource = resourceOf(item.actor);
   const cached = _lineCache.get(item.uuid);
@@ -96,6 +116,62 @@ function lineProxy(item, line) {
   };
 }
 
+const _peaks = new Map();
+
+const _resourceValue = (actor) => Number(actor?.system?.hero?.primary?.value ?? 0) || 0;
+const _inCombat = (combat, actor) => !!combat?.started && combat.combatants.some((c) => c.actor === actor);
+const _combatOf = (actor) => (_inCombat(game.combat, actor) ? game.combat : game.combats.find((c) => _inCombat(c, actor)) ?? null);
+const _turnStamp = (combat) => (combat?.started ? `${combat.id}|${combat.round}|${combat.turn}` : null);
+
+/* Growing Ferocity and the Null masteries count the most resource the hero held at any point this turn, so spending
+   it mid turn keeps the benefit. */
+export function turnPeakResource(actor) {
+  const now = _resourceValue(actor);
+  const stamp = _turnStamp(_combatOf(actor));
+  if (!stamp) return now;
+  const peak = _peaks.get(actor.uuid);
+  if (!peak || peak.stamp !== stamp) {
+    _peaks.set(actor.uuid, { stamp, value: now });
+    return now;
+  }
+  peak.value = Math.max(peak.value, now);
+  return peak.value;
+}
+
+export function tierText(tier) {
+  if (!tier) return "";
+  const resource = tier.resource ? tier.resource[0].toUpperCase() + tier.resource.slice(1) : "";
+  return game.i18n.format(`DS_TRIGGERS.Feature.${tier.level ? "TierLevel" : "Tier"}`, { n: tier.min, resource, level: tier.level });
+}
+
+export function tierQualifies(actor, tier) {
+  if (!tier) return true;
+  if (tier.level && (Number(actor.system?.level) || 0) < tier.level) return false;
+  if (tier.resource !== String(resourceOf(actor) ?? "").toLowerCase()) return true;
+  return turnPeakResource(actor) >= tier.min;
+}
+
+/* Rows of one table that share a trigger replace each other: the highest row the hero qualifies for wins. */
+function _bestTiers(actor, lines) {
+  const best = new Map();
+  for (const line of lines) {
+    if (!line.tier || !tierQualifies(actor, line.tier)) continue;
+    const held = best.get(line.family);
+    if (!held || held.tier.min < line.tier.min) best.set(line.family, line);
+  }
+  return lines.filter((l) => !l.tier || best.get(l.family) === l);
+}
+
+Hooks.on("updateActor", (actor, changes) => {
+  if (actor.type !== "hero" || !foundry.utils.hasProperty(changes, "system.hero.primary.value")) return;
+  if (_combatOf(actor)) turnPeakResource(actor);
+});
+
+Hooks.on("updateCombat", (combat, changes) => {
+  if (!("turn" in changes || "round" in changes)) return;
+  for (const c of combat.combatants) if (c.actor?.type === "hero") turnPeakResource(c.actor);
+});
+
 const _useKey = (actor, key) => `${actor?.uuid}|${key}`;
 
 function _stamp(combat = game.combat) {
@@ -127,10 +203,10 @@ export function featureTriggerEntries(actor) {
   const seen = new Set();
   for (const item of actor.items) {
     if (!FEATURE_ITEM_TYPES.has(item.type)) continue;
-    for (const line of itemEffectiveLines(item)) {
+    for (const line of _bestTiers(actor, itemEffectiveLines(item))) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);
-      if (!line.enabled || !line.parse?.clauses?.length) continue;
+      if (!line.enabled || !line.parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN")) continue;
       if (featureLineSpent(actor, line.key, line.once)) continue;
       entries.push({
         item: lineProxy(item, line),

@@ -25,6 +25,7 @@ import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
 import { ownsResourceGain, canUndoResourceGain, undoResourceGain } from "./triggers/resource-gains.mjs";
 import "./ui/line-widgets.mjs";
+import "./ui/ignore-pills.mjs";
 import { registerDamagePillBridge } from "./triggers/bespoke.mjs";
 import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
@@ -153,6 +154,20 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true
+  });
+  game.settings.register(MODULE_ID, "featureIgnore", {
+    name: "DS_TRIGGERS.Settings.FeatureIgnore.Name",
+    hint: "DS_TRIGGERS.Settings.FeatureIgnore.Hint",
+    scope: "world",
+    config: true,
+    type: String,
+    default: JSON.stringify([{ dsid: "perseverance", name: "Perseverance" }]),
+    onChange: () => {
+      for (const app of foundry.applications.instances.values()) {
+        if (app.document?.documentName === "Item" || app.document?.type === "hero") app.render();
+      }
+      Hooks.callAll("dst.ignoredFeaturesChanged");
+    },
   });
   game.settings.register(MODULE_ID, "resourceGains", {
     name: "DS_TRIGGERS.Settings.ResourceGains.Name",

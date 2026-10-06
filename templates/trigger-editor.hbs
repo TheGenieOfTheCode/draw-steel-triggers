@@ -37,6 +37,7 @@
     <legend>{{feature.legend}}</legend>
     <p class="dst-hint dst-gain-sentence"><em>{{feature.sentence}}</em></p>
     {{#if feature.covered}}<p class="dst-hint dst-gain-manual">{{feature.covered}}</p>{{/if}}
+    {{#if feature.tier}}<p class="dst-hint">{{feature.tier}}</p>{{/if}}
     {{#if feature.manualWhy}}<p class="dst-hint dst-gain-manual">{{feature.manualWhy}}</p>{{/if}}
     <div class="form-group">
       <label>{{feature.labels.name}}</label>
@@ -64,6 +65,9 @@
       </div>
     </div>
     {{#if feature.effect}}<p class="dst-hint"><strong>{{feature.labels.effect}}:</strong> {{feature.effect}}</p>{{/if}}
+    {{#if feature.canIgnore}}
+    <button type="button" class="dst-editor-ignore" data-action="ignoreFeature" data-tooltip="{{feature.ignoreHint}}"><i class="fa-solid fa-ban"></i> {{feature.labels.ignore}}</button>
+    {{/if}}
   </fieldset>
   {{/if}}
 

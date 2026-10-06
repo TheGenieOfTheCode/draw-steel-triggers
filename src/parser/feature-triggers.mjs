@@ -96,8 +96,9 @@ function eventCondition(body) {
  * @param {string} [options.dsid]      the item's dsid
  * @param {string} [options.name]      the item's name, keys lines when the dsid is shared (several treasures are "treasure")
  * @param {string} [options.resource]  the class resource, so heroic resource gain lines are left to resource-gains
- * @returns {object[]} lines: { key, sentence, action, kind, once, trigger, effect, parse }
+ * @returns {object[]} lines: { key, sentence, action, kind, once, trigger, effect, parse, tier, family }
  *   action: "triggered" | "freeTriggered" | null; kind: "trigger" | "augment" | "outOfCombat"
+ *   tier: { min, level, resource } for a row of a Growing Ferocity style table, else null
  */
 export function featureTriggerLines(html, { dsid = "", name = "", resource = null } = {}) {
   if (!html || PARKED.some((rx) => rx.test(dsid))) return [];
@@ -105,6 +106,35 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   const base = dsid && dsid === generateDSID(name) ? dsid : `${dsid} ${name}`.trim();
   const lines = [];
   const keys = new Set();
+  const { rest, rows } = tierRows(html);
+  collectLines(rest, null, { gains, base, lines, keys });
+  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys });
+  return lines;
+}
+
+const TIER_CELL = /^(\d+)\s*(?:\(\s*(\d+)(?:st|nd|rd|th)\s+level\s*\))?$/i;
+const cellText = (h) => decode(String(h ?? "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+
+/* "Benefits are cumulative except where an improved benefit replaces a lesser benefit": each row of the table is
+   earned at a resource total, some rows only from a level on. */
+function tierRows(html) {
+  const rows = [];
+  const rest = String(html).replace(/<table[\s\S]*?<\/table>/gi, (table) => {
+    const cells = (tr) => [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => m[1]);
+    const trs = table.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
+    const header = cellText(cells(trs[0] ?? "")[0]);
+    const tiered = trs.slice(1).map(cells).filter((c) => c.length >= 2 && TIER_CELL.test(cellText(c[0])));
+    if (!header || /^\d/.test(header) || !tiered.length) return table;
+    for (const c of tiered) {
+      const m = cellText(c[0]).match(TIER_CELL);
+      rows.push({ html: `<p>${c.slice(1).join(" ")}</p>`, tier: { min: Number(m[1]), level: m[2] ? Number(m[2]) : null, resource: header.toLowerCase() } });
+    }
+    return "";
+  });
+  return { rest, rows };
+}
+
+function collectLines(html, tier, { gains, base, lines, keys }) {
   for (const block of blocksOf(html)) {
     const sentences = sentencesOf(block);
     const found = [];
@@ -133,12 +163,11 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
       const next = found[i + 1]?.index ?? sentences.length;
       const effect = [f.effect, ...sentences.slice(f.index + 1, next)].join(" ").replace(/\s+/g, " ").trim();
       const kind = OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger";
-      let key = generateDSID(`${base} ${f.trigger}`).slice(0, 80);
-      for (let n = 2; keys.has(key); n++) key = `${key.replace(/-\d+$/, "")}-${n}`;
+      let key = generateDSID(`${base} ${f.trigger}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
+      for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
       lines.push({ key, sentence: f.sentence, action: f.action, kind, once: onceOf(f.sentence), trigger: f.trigger, effect,
-        parse: parseTrigger(`${f.trigger}.`, { effectText: effect }) });
+        parse: parseTrigger(`${f.trigger}.`, { effectText: effect }), tier, family: tier ? generateDSID(f.trigger) : null });
     });
   }
-  return lines;
 }
