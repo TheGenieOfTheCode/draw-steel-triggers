@@ -1,6 +1,7 @@
 import { parseTrigger, generateDSID, SPECIAL_CASES } from "../parser/trigger-parser.mjs";
 import { MODULE_ID } from "../util.mjs";
 import { featureTriggerEntries } from "./feature-triggers.mjs";
+import { isDerived, derivedParse } from "./derived.mjs";
 
 const TRIGGERED_TYPES = new Set(["triggered", "freeTriggered"]);
 
@@ -35,6 +36,7 @@ function implicitMaliceParse() {
 }
 
 export function getParsedTrigger(item) {
+  if (isDerived(item)) return derivedParse(item);
   if (!isTriggeredAbility(item)) {
     if (isImplicitMaliceTrigger(item)) return implicitMaliceParse();
     return null;
@@ -79,6 +81,7 @@ export function getTriggeredAbilities(actor) {
   if (!actor) return [];
   const entries = [];
   for (const item of actor.items) {
+    if (isDerived(item)) continue;
     const triggered = isTriggeredAbility(item);
     if (!triggered && !isImplicitMaliceTrigger(item)) continue;
     entries.push({ item, free: triggered && item.system.type === "freeTriggered", parse: getParsedTrigger(item) });

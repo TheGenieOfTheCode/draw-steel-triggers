@@ -2,6 +2,7 @@ import { MODULE_ID, getSetting } from "../util.mjs";
 import { emblemCoinHTML, emblemCoinURI } from "./emblem-coin.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
 import { isTriggeredAbility, isMaliceAbility, getParsedTrigger } from "../triggers/registry.mjs";
+import { isDerived } from "../triggers/derived.mjs";
 import { changesTheStrike } from "../parser/trigger-parser.mjs";
 
 const EVENT_MODES = {
@@ -33,7 +34,7 @@ const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_A
 const RESOLUTION_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 
 export function computeAutomationLevel(item) {
-  if (!isTriggeredAbility(item) && !isMaliceAbility(item)) return null;
+  if (!isTriggeredAbility(item) && !isMaliceAbility(item) && !isDerived(item)) return null;
 
   const manual = !!item.getFlag(MODULE_ID, "manual");
   const parse = getParsedTrigger(item);

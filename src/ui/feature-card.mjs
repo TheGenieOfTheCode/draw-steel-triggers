@@ -152,7 +152,7 @@ function ordinal(n) {
   return L(`Ordinal.${rule}`, { n });
 }
 
-function prerequisites(item, tier) {
+export function prerequisites(item, tier) {
   if (!tier) return [];
   const out = [];
   if (tier.level) {

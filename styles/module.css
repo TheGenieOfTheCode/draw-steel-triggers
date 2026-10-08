@@ -1515,3 +1515,14 @@ body.draw-steel-target-damage-hide-system section[data-message-part="dstFreeStri
 .dst-feature-card .dst-card-buttons button:disabled { opacity: var(--dst-dim-5, 0.5); cursor: default; }
 
 .dst-feature-card .dst-prereq { display: inline-block; }
+
+.dst-derived-tag { font-style: italic; }
+
+.dst-derived-note {
+  margin: 0.25em 0;
+  font-size: var(--font-size-12, 12px);
+  opacity: 0.8;
+}
+
+.dst-derived-note a { text-decoration: underline; }
+.dst-derived-edited { color: var(--dst-gold-text, #d9a63f); }

@@ -1,5 +1,6 @@
 import { featureTriggerLines, defersDeath, marksSpace } from "../parser/feature-triggers.mjs";
 import { MODULE_ID, getSetting } from "../util.mjs";
+import { derivedFor, derivedParse, derivedOnce, derivedActive } from "./derived.mjs";
 
 export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
 export const FEATURE_ITEM_TYPES =new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
@@ -24,34 +25,42 @@ export function ignoredList() {
   const raw = String(getSetting("featureIgnore") ?? "");
   try {
     const list = JSON.parse(raw);
-    if (Array.isArray(list)) return list.filter((e) => e?.dsid).map((e) => ({ dsid: String(e.dsid).toLowerCase(), name: e.name || e.dsid }));
+    if (Array.isArray(list)) return list.filter((e) => e?.dsid).map((e) => ({ dsid: String(e.dsid).toLowerCase(), name: e.name || e.dsid, line: e.line ? String(e.line) : null }));
   } catch {}
-  return raw.split(/[\s,]+/).filter(Boolean).map((dsid) => ({ dsid: dsid.toLowerCase(), name: dsid }));
+  return raw.split(/[\s,]+/).filter(Boolean).map((dsid) => ({ dsid: dsid.toLowerCase(), name: dsid, line: null }));
 }
+
+export const ignoreEntryId = (e) => (e.line ? `${e.dsid}#${e.line}` : e.dsid);
 
 export async function setIgnoredList(list) {
   const seen = new Set();
-  const clean = list.filter((e) => e?.dsid && !seen.has(e.dsid) && seen.add(e.dsid));
+  const clean = list.filter((e) => e?.dsid && !seen.has(ignoreEntryId(e)) && seen.add(ignoreEntryId(e)))
+    .map((e) => (e.line ? { dsid: e.dsid, name: e.name, line: e.line } : { dsid: e.dsid, name: e.name }));
   await game.settings.set(MODULE_ID, "featureIgnore", JSON.stringify(clean));
 }
 
 export const ignoreFeature = ({ dsid, name }) => setIgnoredList([...ignoredList(), { dsid: String(dsid).toLowerCase(), name: name || dsid }]);
-export const unignoreFeature = (dsid) => setIgnoredList(ignoredList().filter((e) => e.dsid !== dsid));
-export const ignoredFeatures = () => new Set(ignoredList().map((e) => e.dsid));
+export const ignoreLine = ({ dsid, line, name }) => setIgnoredList([...ignoredList(), { dsid: String(dsid).toLowerCase(), line, name: name || dsid }]);
+export const unignoreFeature = (id) => setIgnoredList(ignoredList().filter((e) => ignoreEntryId(e) !== id));
+export const ignoredFeatures = () => new Set(ignoredList().filter((e) => !e.line).map((e) => e.dsid));
+export const ignoredLines = () => new Set(ignoredList().filter((e) => e.line).map((e) => e.line));
 
-export function itemFeatureLines(item) {
+export function itemFeatureLines(item, { withIgnored = false } = {}) {
   if (!item || !FEATURE_ITEM_TYPES.has(item.type)) return [];
   if (ignoredFeatures().has(String(item.system?._dsid ?? "").toLowerCase())) return [];
   const html = item.system?.description?.value ?? "";
   const resource = resourceOf(item.actor);
   const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
+  const ignored = withIgnored ? new Set() : ignoredLines();
   const cached = _lineCache.get(item.uuid);
-  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name && cached.ownerName === ownerName) return cached.lines;
+  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name && cached.ownerName === ownerName) {
+    return ignored.size ? cached.lines.filter((l) => !ignored.has(l.key)) : cached.lines;
+  }
   const lines = featureTriggerLines(html, { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName })
     .filter((l) => l.kind === "trigger")
     .map((l) => ({ ...l, manual: MANUAL.filter(([rx]) => rx.test(l.sentence)).map(([, why]) => why) }));
   _lineCache.set(item.uuid, { html, resource, name: item.name, ownerName, lines });
-  return lines;
+  return ignored.size ? lines.filter((l) => !ignored.has(l.key)) : lines;
 }
 
 /* A feature whose trigger already ships as its own triggered ability (Resist the Unnatural in 1.2) would fire twice. */
@@ -79,8 +88,9 @@ export function effectiveFeatureLine(item, line, index = 0, count = 1) {
 }
 
 export function itemEffectiveLines(item) {
-  const lines = itemFeatureLines(item);
-  return lines.map((l, i) => effectiveFeatureLine(item, l, i, lines.length));
+  const lines = itemFeatureLines(item, { withIgnored: true });
+  const ignored = ignoredLines();
+  return lines.map((l, i) => effectiveFeatureLine(item, l, i, lines.length)).filter((l) => !ignored.has(l.key));
 }
 
 export function lineAutomationLevel(line, levelFromParse) {
@@ -208,6 +218,16 @@ export function featureTriggerEntries(actor) {
     for (const line of _bestTiers(actor, itemEffectiveLines(item))) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);
+      const derived = derivedActive() ? derivedFor(actor, item.id, line.key) : null;
+      if (derived) {
+        const once = derivedOnce(derived);
+        const parse = derivedParse(derived);
+        if (!parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN") || featureLineSpent(actor, line.key, once)) continue;
+        const action = ["triggered", "freeTriggered"].includes(derived.system.type) ? derived.system.type : null;
+        derived.featureLine = { ...lineProxy(item, line).featureLine, name: derived.name, trigger: derived.system.trigger, action, once, derived: true };
+        entries.push({ item: derived, free: action === "freeTriggered", noAction: !action, parse, featureLine: true });
+        continue;
+      }
       if (!line.enabled || !line.parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN")) continue;
       if (featureLineSpent(actor, line.key, line.once)) continue;
       entries.push({

@@ -32,6 +32,7 @@ import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
 import "./ui/feature-card.mjs";
+import { onDerivedSetting } from "./triggers/derived.mjs";
 import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
@@ -156,6 +157,15 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true
+  });
+  game.settings.register(MODULE_ID, "derivedTriggers", {
+    name: "DS_TRIGGERS.Settings.DerivedTriggers.Name",
+    hint: "DS_TRIGGERS.Settings.DerivedTriggers.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+    onChange: (on) => onDerivedSetting(on),
   });
   game.settings.register(MODULE_ID, "featureShareCards", {
     name: "DS_TRIGGERS.Settings.FeatureShareCards.Name",

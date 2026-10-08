@@ -414,7 +414,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static async #useEntry(entry) {
-    if (entry.gain || entry.featureLine) {
+    if (entry.gain || (entry.featureLine && !entry.derived)) {
       resolveQueueEntry(entry.id, "used");
       return;
     }

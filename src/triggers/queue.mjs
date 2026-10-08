@@ -32,7 +32,7 @@ const _automatedUses = new Map();
 const _triggerDamageUses = new Map();
 
 const _lineFields = (m) => (m.item?.featureLine
-  ? { lineKey: m.item.featureLine.key, featureLine: { ...m.item.featureLine }, noAction: !!m.noAction }
+  ? { lineKey: m.item.featureLine.key, featureLine: { ...m.item.featureLine }, noAction: !!m.noAction, derived: !!m.item.featureLine.derived }
   : {});
 
 const _sameSource = (a, b) => a.itemUuid === b.itemUuid && (a.lineKey ?? null) === (b.lineKey ?? null);
@@ -435,6 +435,11 @@ async function _onQueueResolve(id, outcome, userName) {
 }
 
 function _useFeatureLine(entry) {
+  if (entry.derived) {
+    const owner = fromUuidSync(entry.ownerActorUuid);
+    if (owner) noteFeatureLineUse(owner, entry.featureLine.key);
+    return;
+  }
   _recentAbilityPosts.set(entry.itemUuid, Date.now());
   const owner = fromUuidSync(entry.ownerActorUuid);
   if (!owner) return;

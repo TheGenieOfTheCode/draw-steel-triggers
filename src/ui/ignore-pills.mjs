@@ -1,6 +1,6 @@
 import { MODULE_ID } from "../util.mjs";
 import { generateDSID } from "../parser/trigger-parser.mjs";
-import { FEATURE_ITEM_TYPES, ignoredList, ignoreFeature, unignoreFeature } from "../triggers/feature-triggers.mjs";
+import { FEATURE_ITEM_TYPES, ignoredList, ignoreFeature, unignoreFeature, ignoreEntryId, ignoredFeatures } from "../triggers/feature-triggers.mjs";
 
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Settings.FeatureIgnore.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Settings.FeatureIgnore.${key}`));
 const esc = (s) => foundry.utils.escapeHTML(String(s ?? ""));
@@ -35,7 +35,7 @@ async function featureIndex() {
 function suggestionsFor(query, index) {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const ignored = new Set(ignoredList().map((e) => e.dsid));
+  const ignored = ignoredFeatures();
   const open = index.filter((e) => !ignored.has(e.dsid) && e.lower.includes(q));
   open.sort((a, b) => (b.lower.startsWith(q) - a.lower.startsWith(q)) || a.name.localeCompare(b.name));
   return open.slice(0, MAX_SUGGESTIONS);
@@ -43,7 +43,7 @@ function suggestionsFor(query, index) {
 
 function renderPills(host) {
   const list = ignoredList().sort((a, b) => a.name.localeCompare(b.name));
-  host.innerHTML = `${list.map((e) => `<button type="button" class="dst-ignore-pill" data-dsid="${esc(e.dsid)}" data-tooltip="${esc(L("PillTooltip", { dsid: e.dsid }))}" aria-label="${esc(L("PillAria", { name: e.name }))}"><span>${esc(e.name)}</span><i class="fa-solid fa-xmark"></i></button>`).join("")}
+  host.innerHTML = `${list.map((e) => `<button type="button" class="dst-ignore-pill" data-dsid="${esc(ignoreEntryId(e))}" data-tooltip="${esc(L("PillTooltip", { dsid: e.dsid }))}" aria-label="${esc(L("PillAria", { name: e.name }))}"><span>${esc(e.name)}</span><i class="fa-solid fa-xmark"></i></button>`).join("")}
     <button type="button" class="dst-ignore-pill dst-ignore-add" data-tooltip="${esc(L("AddTooltip"))}" aria-label="${esc(L("AddTooltip"))}"><i class="fa-solid fa-plus"></i></button>
     ${list.length ? "" : `<span class="dst-ignore-empty">${esc(L("Empty"))}</span>`}`;
 }

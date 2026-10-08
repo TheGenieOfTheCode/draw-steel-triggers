@@ -4,6 +4,7 @@ import { FEATURE_ITEM_TYPES, FEATURE_ACTOR_TYPES, itemEffectiveLines, lineAutoma
 import { parseAutomationLevel } from "./badge.mjs";
 import { emblemCoinURI } from "./emblem-coin.mjs";
 import { MODULE_ID } from "../util.mjs";
+import { derivedFor, derivedActive } from "../triggers/derived.mjs";
 
 const WIDGET_KINDS = new Set(["trigger", "upgrade"]);
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Gain.${key}`));
@@ -103,6 +104,8 @@ function coinWidgetFor(item, line) {
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    const derived = derivedActive() ? derivedFor(item.actor, item.id, line.key) : null;
+    if (derived) return derived.sheet.render({ force: true });
     const fresh = itemEffectiveLines(item).find((l) => l.key === line.key);
     if (fresh) new TriggerEditor(item, { line: { ...fresh, lineType: "feature" } }).render({ force: true });
   });

@@ -135,7 +135,7 @@ function tierRows(html) {
 
 const OWNER_STOP = new Set(["the", "and", "of", "war", "dog", "size"]);
 
-function asOwner(trigger, ownerName) {
+export function asOwner(trigger, ownerName) {
   let out = trigger.replace(/^(?:they|he|she)\b/i, "The self").replace(/\bagainst them\b/i, "against the self");
   const words = ownerName.toLowerCase().replace(/[’']/g, "").split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !OWNER_STOP.has(w));
   for (const w of words) out = out.replace(new RegExp(`\\bthe (?:[a-z-]+ )?${w}\\b`, "gi"), "the self");
