@@ -33,6 +33,7 @@ import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
 import "./ui/feature-card.mjs";
 import "./ui/derived-chat-links.mjs";
+import "./triggers/derived-names.mjs";
 import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
 import { registerDerivedNames, itemEffectiveLines } from "./triggers/feature-triggers.mjs";
 import "./compat/dstd-sync.mjs";
