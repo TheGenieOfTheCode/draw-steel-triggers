@@ -497,7 +497,10 @@ function splitClauses(text) {
   const qi = t.search(/\b(that|which) \b/);
   if (qi > 0) { const inner = splitClauses(t.slice(0, qi).trim()); inner[inner.length - 1] += " " + t.slice(qi); return inner; }
   const DT = "(?!(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic|untyped)\\b)";
-  const parts = t.split(new RegExp(`,\\s*or\\s+${DT}|,\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would)\\b)|\\s+or\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would|reduced|falls|damages|obtains|the [\\w]+ obtains)\\b)`, "i"));
+  const split = t.split(new RegExp(`,\\s*or\\s+${DT}|,\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would)\\b)|\\s+or\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would|reduced|falls|damages|obtains|the [\\w]+ obtains)\\b)`, "i"));
+  /* "deals damage to or takes damage from the shieldwall": the first half shares the last half's object. */
+  const shared = split.at(-1).match(/\b(?:to|from|against) ((?:you|the [\w'’ -]+|an? [\w'’ -]+|any [\w'’ -]+))$/i)?.[1];
+  const parts = shared ? split.map((p, i) => i < split.length - 1 && /\b(?:to|from|against)$/i.test(p.trim()) ? `${p.trim()} ${shared}` : p) : split;
   if (parts.length <= 1 || !parts.every(p => EVENT_VERB.test(p.toLowerCase())) || parts.slice(1).some(p => /^(that|which|has|had)\b/i.test(p))) return [t];
   const subjectMatch = t.match(/^((?:the target|you|your companion|(?:a|an|any|one|another) [\w'’ -]+?|the [\w'’ ]+?)(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|causes?|obtains?)\b))/i);
   const subject = subjectMatch ? subjectMatch[1] : "";
@@ -667,6 +670,12 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     if (victim) entry.victimScope = victim[1] === "ally" ? "ALLY" : "ENEMY";
     const dealerSide = entry.event === "TAKES_DAMAGE" && lc.match(/\btakes? [\w, ]*damage from an? (ally|enemy)\b/);
     if (dealerSide) entry.dealerScope = dealerSide[1] === "ally" ? "ALLY" : "ENEMY";
+    const from = entry.event === "TAKES_DAMAGE" && lc.match(/\btakes? [\w, ]*damage from (you|the [\w'’ -]+?)(?=[.,]|$| while| with| using)/);
+    if (from && (/^(?:you|the self)$/.test(from[1]) || ownerWords(ownerName).some((w) => new RegExp(`\\b${w}\\b`).test(from[1])))) {
+      Object.assign(entry, { event: "DEALS_DAMAGE", events: ["DEALS_DAMAGE"], scope: "SELF" });
+      const side = lc.match(/^(?:an?|any|one) (?:[\w-]+ )*?(enemy|ally)\b/)?.[1];
+      if (side) entry.victimScope = side.toUpperCase();
+    }
     const eff = lc.match(/ends? the ([\w -]+?) effect/); if (eff) entry.effectName = eff[1];
     const zone = lc.match(/\b(?:enters?|starts? their turn (?:in|within|adjacent to)) (?:the|a) ([\w -]+?)(?: or|,|$)/); if (zone) entry.zone = zone[1];
     const excl = lc.match(/(?:doesn['’]t|does not) also targets? (?:the )?([\w'’ -]+?)(?=[.,]|$| with| using)/);
