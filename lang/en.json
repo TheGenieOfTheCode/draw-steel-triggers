@@ -611,8 +611,19 @@
       "OnceEncounter": "1/encounter",
       "Apply": "Apply {status}",
       "Roll": "Roll {formula}",
-      "MenuTriggerEffect": "Chat Card: Trigger and Effect",
-      "MenuFullDescription": "Chat Card: Full Description"
+      "MenuTrigger": "Chat Card: Trigger",
+      "MenuFullDescription": "Chat Card: Full Description",
+      "Prerequisite": "Prerequisite",
+      "Prerequisites": "Prerequisites",
+      "PrereqLevel": "{ordinal} Level {cls}",
+      "PrereqResource": "had {n} {resource} this turn",
+      "And": "and",
+      "Ordinal": {
+        "one": "{n}st",
+        "two": "{n}nd",
+        "few": "{n}rd",
+        "other": "{n}th"
+      }
     },
     "Feature": {
       "Legend": "Feature Trigger",

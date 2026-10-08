@@ -1,6 +1,6 @@
 import { MODULE_ID, getSetting } from "../util.mjs";
 import { enricherText } from "../parser/feature-triggers.mjs";
-import { itemEffectiveLines, tierText } from "../triggers/feature-triggers.mjs";
+import { itemEffectiveLines } from "../triggers/feature-triggers.mjs";
 
 export const SHARE_TYPES = new Set(["feature", "perk", "ancestryTrait", "complication"]);
 const STYLE_FLAG = "cardStyle";
@@ -124,7 +124,15 @@ function lineEmbed(item, line, reads) {
   const action = game.i18n.localize(ds.CONFIG.abilities.types[line.action ?? "none"]?.label ?? "");
   const once = { round: "OnceRound", turn: "OnceTurn", encounter: "OnceEncounter" }[line.once];
   const type = once ? L("TypeOnce", { action, once: L(once) }) : action;
-  const tier = line.tier ? ` <em>(${esc(tierText(line.tier))})</em>` : "";
+  const prereqs = prerequisites(item, line.tier);
+  const row = (label, html) => `<dl><dt class="effect">${label}</dt><dd class="effect"><p>${html}</p></dd></dl>`;
+  const triggerLabel = game.i18n.localize("DS_TRIGGERS.Feature.Trigger");
+  const effectRow = row(game.i18n.localize("DS_TRIGGERS.Feature.Effect"), esc(effect));
+  const rows = prereqs.length
+    ? row(L(prereqs.length > 1 ? "Prerequisites" : "Prerequisite"), prereqs.map((c, i) =>
+      `<span class="dst-prereq">${esc(i ? `${L("And")} ${c}` : cap(c))}${i < prereqs.length - 1 ? "," : ""}</span>`).join(" "))
+      + row(triggerLabel, esc(line.trigger)) + effectRow
+    : effectRow;
   return `<document-embed class="draw-steel ability dst-feature-card">
 <h5>${esc(line.name ?? item.name)}</h5>
 <section class="metadata">
@@ -132,11 +140,27 @@ function lineEmbed(item, line, reads) {
   <dl>
     <dt class="keywords">${L("Keywords")}</dt><dd class="keywords">${typePill(item)}</dd>
     <dt class="type">${L("Type")}</dt><dd class="type">${esc(type)}</dd>
-    <dt class="trigger">${game.i18n.localize("DS_TRIGGERS.Feature.Trigger")}</dt><dd class="trigger">${esc(line.trigger)}${tier}</dd>
+    ${prereqs.length ? "" : `<dt class="trigger">${triggerLabel}</dt><dd class="trigger">${esc(line.trigger)}</dd>`}
   </dl>
 </section>
-<section class="effect after"><dl><dt class="effect">${game.i18n.localize("DS_TRIGGERS.Feature.Effect")}</dt><dd class="effect"><p>${esc(effect)}</p></dd></dl></section>
+<section class="effect after">${rows}</section>
 ${footer(buttons)}</document-embed>`;
+}
+
+function ordinal(n) {
+  const rule = new Intl.PluralRules(game.i18n.lang, { type: "ordinal" }).select(n);
+  return L(`Ordinal.${rule}`, { n });
+}
+
+function prerequisites(item, tier) {
+  if (!tier) return [];
+  const out = [];
+  if (tier.level) {
+    const cls = item.actor?.items?.find((i) => i.type === "class")?.name ?? "";
+    out.push(L("PrereqLevel", { ordinal: ordinal(tier.level), cls }).trim());
+  }
+  out.push(L("PrereqResource", { n: tier.min, resource: cap(tier.resource ?? "") }));
+  return out;
 }
 
 export async function featureCardContent(item, { lineKey = null } = {}) {
@@ -229,6 +253,16 @@ Hooks.on("preCreateChatMessage", (message) => {
   message.updateSource({ [`system.parts.${FREE_STRIKE_PART}`]: { _id: FREE_STRIKE_PART, type: "roll", rolls: [roll.toJSON()] } });
 });
 
+function openTriggerPicker(event, target, item, lines) {
+  const Menu = foundry.applications.ux.ContextMenu.implementation;
+  const entries = lines.map((line) => ({ label: line.name, icon: "fa-solid fa-bolt", onClick: () => postFeatureCard(item, { lineKey: line.key }) }));
+  const picker = new Menu(document.createElement("div"), "*", entries, { jQuery: false, fixed: true });
+  setTimeout(() => {
+    ui.context = picker;
+    picker.render(target, { event });
+  }, 0);
+}
+
 Hooks.on("getDocumentListContextOptions", (app, items) => {
   const docOf = (target) => app._getEmbeddedDocument?.(target) ?? null;
   const isFeature = (doc) => doc?.documentName === "Item" && SHARE_TYPES.has(doc.type);
@@ -237,8 +271,10 @@ Hooks.on("getDocumentListContextOptions", (app, items) => {
     const systemShare = share.onClick;
     share.onClick = async (event, target) => {
       const doc = docOf(target);
-      if (shareCardsOn() && isFeature(doc)) return postFeatureCard(doc);
-      return systemShare(event, target);
+      if (!shareCardsOn() || !isFeature(doc)) return systemShare(event, target);
+      const lines = showsTriggerEffect(doc) ? itemEffectiveLines(doc) : [];
+      if (lines.length < 2) return postFeatureCard(doc);
+      openTriggerPicker(event, target, doc, lines);
     };
   }
   const canToggle = (target, on) => {
@@ -247,7 +283,7 @@ Hooks.on("getDocumentListContextOptions", (app, items) => {
   };
   const at = share ? items.indexOf(share) + 1 : items.length;
   items.splice(at, 0, {
-    label: "DS_TRIGGERS.Card.MenuTriggerEffect",
+    label: "DS_TRIGGERS.Card.MenuTrigger",
     icon: "fa-solid fa-list-ul",
     visible: (target) => canToggle(target, true),
     onClick: (event, target) => setTriggerEffect(docOf(target), true),
