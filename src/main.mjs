@@ -31,7 +31,6 @@ import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
-import "./triggers/effect-lifetimes.mjs";
 import "./ui/feature-card.mjs";
 import { onDerivedSetting } from "./triggers/derived.mjs";
 import "./compat/dstd-sync.mjs";
