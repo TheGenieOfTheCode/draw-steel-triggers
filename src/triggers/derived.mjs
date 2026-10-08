@@ -1,6 +1,6 @@
 import { MODULE_ID, dbg, isPrimaryGM, getSetting } from "../util.mjs";
 import { FEATURE_ACTOR_TYPES, itemEffectiveLines, featureTriggersActive, ignoreLine, isLineSource, lineCost } from "./feature-triggers.mjs";
-import { enricherText, asOwner } from "../parser/feature-triggers.mjs";
+import { enricherText, asOwner, abilityEffectHTML } from "../parser/feature-triggers.mjs";
 import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
 
@@ -34,7 +34,8 @@ export const sourceOf = (item) => {
 
 function effectHTML(source, line) {
   let effect = esc(cap(line.effect ?? "").replace(/\bdamage damage\b/g, "damage"));
-  for (const m of String(source.system?.description?.value ?? "").matchAll(ENRICHER)) {
+  const html = source.type === "ability" ? abilityEffectHTML(source) : source.system?.description?.value;
+  for (const m of String(html ?? "").matchAll(ENRICHER)) {
     const text = esc(enricherText(m[1], m[2]));
     const at = text ? effect.toLowerCase().indexOf(text.toLowerCase()) : -1;
     if (at >= 0) effect = effect.slice(0, at) + m[0] + effect.slice(at + text.length);

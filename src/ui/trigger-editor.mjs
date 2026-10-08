@@ -122,6 +122,7 @@ function qualifierPills(clause, triggerText, effectText, pristine = null) {
   let rest = (clause.qualifiers ?? []).filter((q) => !consumed.includes(q)).join(", ");
   for (const c of consumed) rest = rest.replace(new RegExp(c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), "");
   rest = rest.replace(/\s*(?:^|,)\s*(?:that|and|or|the)\b\s*/gi, " ").replace(/[\s,]+/g, " ").trim();
+  if (/^(?:(?:with|using|by|from|to|of|against|a|an|the|that|and|or)\b\s*)+$/i.test(rest)) rest = "";
   if (rest) pills.push({ id: "", text: rest, tooltip: L("QualEffectNone"), enforced: false, disabled: false });
 
   return pills;

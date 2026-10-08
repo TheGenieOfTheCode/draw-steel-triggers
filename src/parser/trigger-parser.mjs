@@ -630,7 +630,11 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType 
       spans.push({ start: s, end: e, clause: index, kind, field });
     };
     const clause = parse.clauses[index];
-    const subject = lc.match(SUBJECT_RX);
+    const ownerMatch = clause?.ownerEffect ? lc.match(CLAUSE_FLAGS.find((f) => f.id === "ownerEffect").rx) : null;
+    let subject = lc.match(SUBJECT_RX);
+    if (subject && ownerMatch && ownerMatch.index > subject.index && ownerMatch.index < subject.index + subject[0].length) {
+      subject = { index: subject.index, 0: subject[0].slice(0, ownerMatch.index - subject.index).trimEnd() };
+    }
     if (subject && localOffset > 0 && subject.index < localOffset) {
       
       const shared = spans.filter((s) => s.kind === "subject").at(-1);
@@ -642,6 +646,7 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType 
       add("event", lc.match(rx), "event");
     }
     for (const rx of QUALIFIERS) add("qualifier", lc.match(rx), "qualifiers");
+    add("qualifier", ownerMatch, "qualifiers");
   });
   spans.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
   const segments = [];
