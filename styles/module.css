@@ -959,6 +959,14 @@ button.dst-dstd-res-locked {
   letter-spacing: 0.04em;
 }
 
+.form-group.dst-sub-setting {
+  margin-left: 1.5em;
+}
+
+.form-group.dst-sub-setting > .hint {
+  padding-right: 1.5em;
+}
+
 button.dst-ignore-toggle {
   flex: 0 0 auto;
   width: 2.2em;

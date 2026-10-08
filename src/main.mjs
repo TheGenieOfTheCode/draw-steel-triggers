@@ -46,6 +46,22 @@ Hooks.once("init", () => {
     default: "",
     choices: {},
   });
+  game.settings.register(MODULE_ID, "combatOnly", {
+    name: "DS_TRIGGERS.Settings.CombatOnly.Name",
+    hint: "DS_TRIGGERS.Settings.CombatOnly.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "allSceneTokens", {
+    name: "DS_TRIGGERS.Settings.AllSceneTokens.Name",
+    hint: "DS_TRIGGERS.Settings.AllSceneTokens.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
   game.settings.register(MODULE_ID, "spentTracking", {
     name: "DS_TRIGGERS.Settings.SpentTracking.Name",
     hint: "DS_TRIGGERS.Settings.SpentTracking.Hint",
@@ -275,6 +291,7 @@ const SETTING_HEADERS = {
 };
 
 const HEADER_FALLBACK = { Resources: ["rosterGains"] };
+const SUB_SETTINGS = ["allSceneTokens"];
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
@@ -289,6 +306,7 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
     h.textContent = game.i18n.localize(`DS_TRIGGERS.Settings.Headers.${header}`);
     el.insertAdjacentElement("beforebegin", h);
   }
+  for (const key of SUB_SETTINGS) groupOf(key)?.classList.add("dst-sub-setting");
 });
 
 registerSnoozeHooks();

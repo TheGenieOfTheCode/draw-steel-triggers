@@ -1,5 +1,5 @@
 import { getSetting, dbg } from "../../util.mjs";
-import { collectTriggerMatches } from "../dispatch.mjs";
+import { collectTriggerMatches, triggersLive } from "../dispatch.mjs";
 import { enqueueLockEntries, consumeRollBypass, hasHeldEntry } from "../queue.mjs";
 
 const STRIKE_EVENTS = new Set(["TARGETED_BY_STRIKE", "MAKES_STRIKE"]);
@@ -29,7 +29,7 @@ Hooks.once("setup", () => Hooks.on("ds.canRenderAbilityConfigurationDialog", (ap
   if (consumeRollBypass(ability.uuid)) return;
   const rollerActor = ability.actor;
   if (!rollerActor) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
   
   if (hasHeldEntry(ability.uuid)) {
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollHeld", { name: ability.name }));

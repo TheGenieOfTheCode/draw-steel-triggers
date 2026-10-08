@@ -1,5 +1,5 @@
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
-import { collectTriggerMatches } from "../dispatch.mjs";
+import { collectTriggerMatches, triggersLive } from "../dispatch.mjs";
 import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
 import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 
@@ -152,7 +152,7 @@ function _dispatchResolution(message, matches, ability, rollerActor) {
 async function _tryDispatch(message) {
   if (!isPrimaryGM()) return;
   if (!getSetting("resolutionHolds")) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
   if (_handled.has(message.id)) return;
   if (Date.now() - (message.timestamp ?? 0) > 30000) return;
 
@@ -225,7 +225,7 @@ async function _tryTierRecheck(message) {
   if (!getSetting("resolutionHolds")) return;
   if (!_tierWatch.has(message.id)) return;
   if (_anyApplied(message)) { _tierWatch.delete(message.id); return; }
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
 
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;
@@ -270,7 +270,7 @@ async function _tryTierRecheck(message) {
 async function _tryPostHocDispatch(message, addedTargets) {
   if (!isPrimaryGM()) return;
   if (!getSetting("resolutionHolds")) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
 
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;

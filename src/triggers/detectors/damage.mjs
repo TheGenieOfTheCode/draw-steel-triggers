@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor } from "../dispatch.mjs";
+import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor, triggersLive } from "../dispatch.mjs";
 import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor } from "../queue.mjs";
 import { deferDeathApi } from "../../compat/death-tracker.mjs";
 import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
@@ -117,7 +117,7 @@ function _tryHoldDamage(model, damage, options) {
   if (!actor) return false;
   if (options?.dstBypass) return false;
   if (!getSetting("damageInterrupts")) return false;
-  if (!game.combat?.started) return false;
+  if (!triggersLive()) return false;
   if (!(damage > 0)) return false;
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
@@ -158,7 +158,7 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
   if (_pendingStaminaLoss) return;
   if (consumeDamageBypass(actor.uuid)) return;
   if (!getSetting("damageInterrupts")) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
   const cur = actor.system.stamina;
   if (!cur) return;
   const curTotal = cur.value + (cur.temporary ?? 0);
@@ -187,7 +187,7 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   const prev = Number(group.system?.staminaValue);
   if (next === undefined || !Number.isFinite(prev) || !(prev - Number(next) > 0)) return;
   if (!getSetting("damageInterrupts")) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
   const tokenId = options?.dstd?.primaryTargetId;
   const hit = tokenId ? group.parent?.scene?.tokens?.get(tokenId) ?? canvas.scene?.tokens?.get(tokenId) ?? null : null;
   const damageType = options?.ds?.damageType || null;

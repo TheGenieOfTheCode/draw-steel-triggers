@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent } from "../dispatch.mjs";
+import { dispatchTriggerEvent, triggersLive } from "../dispatch.mjs";
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { gainsActive } from "../resource-gains.mjs";
 
@@ -28,7 +28,7 @@ function _targetsOf(message) {
 Hooks.on("createChatMessage", (message) => {
   if (!isPrimaryGM()) return;
   if (!getSetting("chatReminders") && !getSetting("damagePrompts") && !gainsActive()) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
 
   const used = _usedFromMessage(message);
   if (!used) return;

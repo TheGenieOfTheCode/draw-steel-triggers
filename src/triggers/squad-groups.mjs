@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
-import { dispatchTriggerEvent } from "./dispatch.mjs";
+import { dispatchTriggerEvent, triggersLive } from "./dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 
@@ -52,7 +52,7 @@ async function countExtras(message, extras) {
     if (!actor || !item) continue;
     const token = actor.getActiveTokens(true, true)[0] ?? null;
     if (item.system.type === "triggered" && !isMaliceAbility(item)) await setTriggeredActionSpent(actor, true);
-    if (game.combat?.started) {
+    if (triggersLive()) {
       dispatchTriggerEvent({
         event: "USES_ABILITY",
         subjectActor: actor,

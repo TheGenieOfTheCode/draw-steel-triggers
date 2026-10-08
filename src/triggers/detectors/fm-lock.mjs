@@ -1,5 +1,5 @@
 import { getSetting, dbg, isPrimaryGM, batchedNotice } from "../../util.mjs";
-import { collectTriggerMatches, footprintGap } from "../dispatch.mjs";
+import { collectTriggerMatches, footprintGap, triggersLive } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { generateDSID } from "../../parser/trigger-parser.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
@@ -32,7 +32,7 @@ function _fmMatches(event, subjectActor, subjectToken) {
 
 Hooks.on("dsct.preForcedMovement", (ctx) => {
   if (!getSetting("fmInterrupts")) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
   const target = ctx.target;
   const source = ctx.source;
   const targetActor = target?.actor;

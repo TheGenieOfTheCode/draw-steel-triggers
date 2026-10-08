@@ -44,6 +44,13 @@ export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor,
   }
 }
 
+export const activeCombat = () => {
+  const active = game.scenes.active;
+  return game.combats.find((c) => c.started && (!c.scene || c.scene.id === active?.id)) ?? null;
+};
+
+export const triggersLive = () => !!activeCombat() || getSetting("combatOnly") === false;
+
 function candidateEntries() {
   const seen = new Set();
   const entries = [];
@@ -53,11 +60,12 @@ function candidateEntries() {
     seen.add(actor.uuid);
     entries.push({ actor, disposition, token });
   };
-  if (game.combat?.started) {
-    for (const combatant of game.combat.combatants) {
-      addActor(combatant.actor, combatant.token?.disposition ?? null, combatant.token ?? null);
-    }
-  } else {
+  if (!triggersLive()) return entries;
+  const combat = activeCombat();
+  for (const combatant of combat?.combatants ?? []) {
+    addActor(combatant.actor, combatant.token?.disposition ?? null, combatant.token ?? null);
+  }
+  if (!combat || getSetting("allSceneTokens")) {
     for (const token of canvas.tokens?.placeables ?? []) {
       addActor(token.actor, token.document.disposition, token.document);
     }

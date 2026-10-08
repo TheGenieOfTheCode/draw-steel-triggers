@@ -114,6 +114,14 @@
         "Name": "Chat Reminders",
         "Hint": "Whisper a reminder to an ability's owner when its trigger condition may have occurred."
       },
+      "CombatOnly": {
+        "Name": "Only Trigger During Active Combat",
+        "Hint": "Triggers are only checked if there is an active combat on the activated scene."
+      },
+      "AllSceneTokens": {
+        "Name": "All Scene Tokens Can Trigger",
+        "Hint": "Every token on the scene can trigger its triggers regardless of if it's in combat or not."
+      },
       "SpentTracking": {
         "Name": "Track Triggered Actions",
         "Hint": "Track when a combatant spends their triggered action and stop reminding them about non-free triggers until the next round."

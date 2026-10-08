@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent } from "../dispatch.mjs";
+import { dispatchTriggerEvent, triggersLive } from "../dispatch.mjs";
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 
 const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
@@ -39,7 +39,7 @@ function _statusLabel(status) {
 function _live() {
   if (!isPrimaryGM()) return false;
   if (!getSetting("chatReminders") && !getSetting("conditionPrompts")) return false;
-  return !!game.combat?.started;
+  return !!triggersLive();
 }
 
 const DSCT = "draw-steel-combat-tools";

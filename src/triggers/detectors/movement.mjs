@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent, collectTriggerMatches } from "../dispatch.mjs";
+import { dispatchTriggerEvent, collectTriggerMatches, triggersLive } from "../dispatch.mjs";
 import { getTriggeredAbilities } from "../registry.mjs";
 import { lingeringTokens, endLingering } from "../lingering.mjs";
 import { dbg, isPrimaryGM } from "../../util.mjs";
@@ -58,7 +58,7 @@ async function enteredSpaces(doc, movement) {
 
 Hooks.on("updateToken", (doc, _changes, options) => {
   if (!isPrimaryGM()) return;
-  if (!game.combat?.started) return;
+  if (!triggersLive()) return;
   if (options?.isUndo || options?.isPaste || window._dsctTeleportActive) return;
   const movement = options?._movement?.[doc.id];
   if (!movement || !doc.actor) return;
