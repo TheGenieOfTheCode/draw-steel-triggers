@@ -333,6 +333,44 @@ const QUALIFIERS = [
    Exported because the trigger builder runs it over a hand written qualifier too, so typing
    "main action" there does the same thing the book's own phrasing would have done. */
 
+/* The keyword list is the system's (and whatever other modules add to it), read when first needed. A keyword
+   inside a capitalised name ("their Feral Strike ability") is a name, not a keyword. */
+let _keywordRx = null;
+let _keywordKey = "";
+const KEYWORD_SPLIT = /,? or |,? and |, /;
+function keywordRx() {
+  const words = Object.keys(globalThis.ds?.CONFIG?.abilities?.keywords ?? {}).filter((k) => /^[a-z-]+$/i.test(k));
+  const key = words.join("|");
+  if (key !== _keywordKey || !_keywordRx) {
+    _keywordKey = key;
+    const k = words.length ? words.map((w) => `[${w[0].toUpperCase()}${w[0].toLowerCase()}]${w.slice(1)}`).join("|") : "(?!)";
+    const notName = String.raw`(?<!\b(?!(?:The|A|An|Any|Your|Their|Its|Each|You|Use)\b)[A-Z][\w'’]* )`;
+    _keywordRx = new RegExp(String.raw`${notName}\b((?:${k})(?:(?:,? or |,? and |, )(?:${k}))*) (?:keywords?|abilit(?:y|ies))\b`);
+  }
+  return _keywordRx;
+}
+const keywordHits = (text) => [...String(text ?? "").matchAll(new RegExp(keywordRx().source, "g"))];
+
+/* Each keyword phrase must hold; inside one, "or" takes any of its words and "and" takes all of them. */
+function keywordFields(text) {
+  const groups = keywordHits(text).map((m) => {
+    const words = m[1].toLowerCase().split(KEYWORD_SPLIT);
+    return /\band\b/i.test(m[1]) && !/\bor\b/i.test(m[1]) ? words.map((w) => [w]) : [words];
+  });
+  if (!groups.length) return {};
+  if (groups.length === 1) {
+    const [g] = groups;
+    return g.length > 1 ? { abilityKeywords: g.flat(), abilityKeywordsAll: true } : { abilityKeywords: g[0] };
+  }
+  const all = groups.flat();
+  return { abilityKeywords: [...new Set(all.flat())], abilityKeywordGroups: all };
+}
+
+function keywordFragment(text) {
+  const hits = keywordHits(text);
+  return hits.length ? String(text).slice(hits[0].index, hits.at(-1).index + hits.at(-1)[0].length) : "";
+}
+
 export const ABILITY_FILTERS = [
   {
     id: "abilityDsid",
@@ -363,8 +401,9 @@ export const ABILITY_FILTERS = [
   {
     id: "abilityKeywords",
     from: "trigger",
-    rx: /\b((?:magic|psionic|weapon|melee|ranged)(?:(?:,? or |, | and )(?:magic|psionic|weapon|melee|ranged))*) (?:keywords?|abilit(?:y|ies))\b/i,
-    fields: (m) => ({ abilityKeywords: m[1].toLowerCase().split(/,? or |, | and /) }),
+    get rx() { return keywordRx(); },
+    fields: (m) => keywordFields(m.input),
+    fragment: (m) => keywordFragment(m.input),
   },
   {
     id: "abilityPotency",
@@ -478,7 +517,7 @@ export function explainAbilityFilters(text, effectText = "") {
     if (!m) continue;
     const fields = f.fields(m);
     Object.assign(out, fields);
-    found.push({ id: f.id, from: f.from, fragment: m[0].trim(), fields });
+    found.push({ id: f.id, from: f.from, fragment: (f.fragment?.(m) || m[0]).trim(), fields });
   }
   return found;
 }
@@ -697,7 +736,11 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
       }
     }
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
-    if (entry.event !== "USES_ABILITY") delete entry.abilityKeywords;
+    if (entry.event !== "USES_ABILITY" && entry.event !== "DEALS_DAMAGE" && entry.event !== "TAKES_DAMAGE") {
+      delete entry.abilityKeywords;
+      delete entry.abilityKeywordsAll;
+      delete entry.abilityKeywordGroups;
+    }
     if (entry.event === "USES_ABILITY" && /\bagainst (?:you|the self)\b/.test(lc)) entry.targetsOwner = true;
     if (entry.event === "CONDITION_GAIN" && /\bgrabs the self\b/.test(lc)) {
       const side = lc.match(/^(?:an?|any|one) (?:[\w-]+ )*?(enemy|ally|creature)\b/)?.[1];

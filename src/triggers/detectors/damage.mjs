@@ -17,7 +17,9 @@ function _dealerFromMessage(message) {
   const speaker = message.speaker ?? {};
   const token = speaker.token ? canvas.tokens?.get(speaker.token)?.document ?? null : null;
   const actor = token?.actor ?? (speaker.actor ? game.actors.get(speaker.actor) : null);
-  return actor ? { actor, token } : null;
+  const use = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
+  const ability = use?.abilityUuid ? fromUuidSync(use.abilityUuid) : null;
+  return actor ? { actor, token, ability } : null;
 }
 
 Hooks.once("ready", () => {
@@ -272,7 +274,7 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null },
+        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, ability: dealer.ability },
       });
       dispatchTriggerEvent({
         event: "TAKES_DAMAGE",
@@ -282,7 +284,7 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null },
+        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability },
       });
     }
   }
@@ -326,7 +328,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
-      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType },
+      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null },
     });
 
     
@@ -339,7 +341,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
           name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
-        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null },
+        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null, ability: _dealer.ability ?? null },
       });
     }
   }

@@ -121,6 +121,16 @@
         </div>
       </div>
       <p class="dst-hint">{{@root.hints.qualifiers}}</p>
+      {{#if showKeywordMode}}
+      <div class="form-group">
+        <label>{{@root.labels.keywordMode}}</label>
+        <div class="form-fields dst-keyword-mode">
+          <label class="checkbox"><input type="radio" name="dst-kw-{{index}}" value="any" data-kw-mode data-index="{{index}}" {{#unless keywordAll}}checked{{/unless}}> {{@root.labels.keywordAny}}</label>
+          <label class="checkbox"><input type="radio" name="dst-kw-{{index}}" value="all" data-kw-mode data-index="{{index}}" {{#if keywordAll}}checked{{/if}}> {{@root.labels.keywordAll}}</label>
+        </div>
+      </div>
+      <p class="dst-hint">{{keywordHint}}</p>
+      {{/if}}
 
       <div class="dst-exclself-wrap" {{#unless showTargetedHalf}}hidden{{/unless}}>
         <label class="checkbox"><input type="checkbox" data-field="excludeSelfTarget" data-index="{{index}}" {{#if excludeSelfTarget}}checked{{/if}}> {{@root.labels.excludeSelfTarget}}</label>

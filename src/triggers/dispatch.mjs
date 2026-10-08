@@ -146,6 +146,16 @@ const opposed = (docA, docB) => {
   return (docA.actor?.hasPlayerOwner ?? false) !== (docB.actor?.hasPlayerOwner ?? false);
 };
 
+function keywordsMatch(clause, ability) {
+  if (!clause.abilityKeywords?.length) return true;
+  const kw = ability?.system?.keywords;
+  const has = (k) => kw?.has?.(k) ?? kw?.includes?.(k) ?? false;
+  if (clause.abilityKeywordGroups?.length) return clause.abilityKeywordGroups.every((g) => g.some(has));
+  return clause.abilityKeywordsAll ? clause.abilityKeywords.every(has) : clause.abilityKeywords.some(has);
+}
+
+const damageKeywordsMatch = (clause, ctx) => keywordsMatch(clause, ctx.ability);
+
 export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length
     && clause.abilityCostMax == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
@@ -155,7 +165,7 @@ export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (clause.abilityType === "triggered") {
     if (sys.type !== "triggered" && sys.type !== "freeTriggered") return false;
   } else if (clause.abilityType && sys.type !== clause.abilityType) return false;
-  if (clause.abilityKeywords?.length && !clause.abilityKeywords.some((k) => sys.keywords?.has?.(k) ?? sys.keywords?.includes?.(k))) return false;
+  if (!keywordsMatch(clause, used)) return false;
   if (clause.targetsOwner) {
     const targets = context.usedTargets ?? [];
     if (targets.length && !targets.some((t) => (t?.actor ?? t) === owner)) return false;
@@ -240,11 +250,13 @@ function grabsHeldBy(ownerActor, status) {
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
   switch (event) {
     case "DEALS_DAMAGE":
+      if (!damageKeywordsMatch(clause, ctx)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (!clause.victimScope || !ctx.victimActor) return true;
       return scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null);
     
     case "TAKES_DAMAGE":
+      if (!damageKeywordsMatch(clause, ctx)) return false;
       if (!clause.dealerScope) return !ctx.dealerOnly;
       if (!ctx.dealerActor) return false;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);

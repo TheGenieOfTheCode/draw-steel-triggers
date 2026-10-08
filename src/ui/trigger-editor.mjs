@@ -31,13 +31,20 @@ const FLAG_FIELDS = {
   entersSpace: ["entersSpace"],
 };
 
+const keywordLabel = (k) => {
+  const label = ds.CONFIG?.abilities?.keywords?.[k]?.label;
+  return label ? game.i18n.localize(label) : k;
+};
+
 function describeFilter(id, fields) {
   switch (id) {
     case "range": return L("QualEffectRange", { n: fields.range });
     case "abilityType": return L("QualEffectType", { type: fields.abilityType });
     case "abilityCostMax": return L("QualEffectCost", { n: fields.abilityCostMax });
     case "abilityCategory": return L({ heroic: "QualEffectHeroic", signature: "QualEffectSignature" }[fields.abilityCategory] ?? "QualEffectNonHeroic");
-    case "abilityKeywords": return L("QualEffectKeywords", { keywords: fields.abilityKeywords.join(" or ") });
+    case "abilityKeywords": return L("QualEffectKeywords", { keywords: fields.abilityKeywordGroups?.length
+      ? fields.abilityKeywordGroups.map((g) => g.map(keywordLabel).join(" or ")).join(", and ")
+      : fields.abilityKeywords.map(keywordLabel).join(fields.abilityKeywordsAll ? " and " : " or ") });
     case "abilityCostScales": return L("QualEffectScales");
     case "abilityPotency": return L("QualEffectPotency");
     case "abilityTargetCount": return L("QualEffectTargets", {
@@ -71,6 +78,9 @@ function describeFilter(id, fields) {
   }
 }
 
+const abilityFilterList = (event, triggerText, effectText) => event === "USES_ABILITY" ? explainAbilityFilters(triggerText, effectText)
+  : event === "DEALS_DAMAGE" || event === "TAKES_DAMAGE" ? explainAbilityFilters(triggerText, effectText).filter((f) => f.id === "abilityKeywords") : [];
+
 function qualifierPills(clause, triggerText, effectText, pristine = null) {
   const off = new Set(clause.filtersOff ?? []);
   const flagView = { ...clause };
@@ -89,16 +99,16 @@ function qualifierPills(clause, triggerText, effectText, pristine = null) {
     if (distance) consumed.push(distance);
   }
 
-  for (const f of clause.event === "USES_ABILITY" ? explainAbilityFilters(triggerText, effectText) : []) {
+  for (const f of abilityFilterList(clause.event, triggerText, effectText)) {
     pills.push({
       id: f.id, text: f.fragment,
-      tooltip: describeFilter(f.id, f.fields) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
+      tooltip: describeFilter(f.id, f.id === "abilityKeywords" && typeof clause.abilityKeywordsAll === "boolean" ? { ...f.fields, abilityKeywordsAll: clause.abilityKeywordsAll } : f.fields)
+        + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
       enforced: true, disabled: off.has(f.id), fromEffect: f.from === "effect",
     });
     consumed.push(f.fragment);
   }
 
-  
   for (const f of explainClauseFlags(flagView, triggerText, effectText)) {
     pills.push({
       id: f.id, text: f.fragment,
@@ -251,6 +261,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       labels: {
         event: L("Event"), scope: L("Scope"), range: L("Range"),
         qualifiers: L("Qualifiers"), qualifiersNone: L("QualifiersNone"),
+        keywordMode: L("KeywordMode"), keywordAny: L("KeywordAny"), keywordAll: L("KeywordAll"),
         damageTypes: L("DamageTypes"), condition: L("Condition"), conditionAny: L("ConditionAny"),
         abilityDsid: L("AbilityDsid"), groupName: L("GroupName"), groupNone: L("GroupNone"),
         customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
@@ -290,6 +301,9 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         rangeCustom: Number.isFinite(c.range),
         rangeValue: Number.isFinite(c.range) ? c.range : 1,
         qualifiers: qualifierPills(c, this._triggerText, this._effectText, this._pristine?.[index]),
+        showKeywordMode: (c.abilityKeywords?.length ?? 0) > 1 && !c.abilityKeywordGroups?.length,
+        keywordAll: !!c.abilityKeywordsAll,
+        keywordHint: L("KeywordModeHint", { keywords: (c.abilityKeywords ?? []).map(keywordLabel).join(", ") }),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
         showCondition: c.event === "CONDITION_GAIN",
         conditionOptions: [...new Set([...CONDITIONS, ...(c.condition ? [c.condition] : [])])]
@@ -479,11 +493,13 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   _applyFilters(clause) {
     const off = new Set(clause.filtersOff ?? []);
     for (const k of ["abilityDsid", "abilityType", "abilityKeywords", "abilityCostMax", "abilityCategory",
-      "abilityCostScales", "abilityTargetCount", "abilityTargetSide", "abilityPotency"]) delete clause[k];
+      "abilityCostScales", "abilityTargetCount", "abilityTargetSide", "abilityPotency", "abilityKeywordGroups"]) delete clause[k];
 
-    for (const f of clause.event === "USES_ABILITY" ? explainAbilityFilters(this._triggerText, this._effectText) : []) {
+    const keywordAll = clause.abilityKeywordsAll;
+    for (const f of abilityFilterList(clause.event, this._triggerText, this._effectText)) {
       if (!off.has(f.id)) Object.assign(clause, f.fields);
     }
+    if (typeof keywordAll === "boolean") clause.abilityKeywordsAll = keywordAll;
 
     const index = this._clauses.indexOf(clause);
     const pristine = this._pristine?.[index] ?? {};
@@ -524,6 +540,10 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     }
     
     
+    for (const radio of el.querySelectorAll("input[data-kw-mode]:checked")) {
+      const clause = this._clauses[Number(radio.dataset.index)];
+      if (clause) clause.abilityKeywordsAll = radio.value === "all";
+    }
     for (const box of el.querySelectorAll("input[data-hold-toggle]")) {
       const clause = this._clauses[Number(box.dataset.index)];
       if (!clause) continue;
