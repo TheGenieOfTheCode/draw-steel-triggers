@@ -32,15 +32,18 @@ export const sourceOf = (item) => {
   return d ? item.actor?.items?.get(d.sourceId) ?? null : null;
 };
 
-function effectHTML(source, line) {
+function effectHTML(source, line, useMacro = null) {
   let effect = esc(cap(line.effect ?? "").replace(/\bdamage damage\b/g, "damage"));
   const html = source.type === "ability" ? abilityEffectHTML(source) : source.system?.description?.value;
+  const placed = [];
+  const hold = (markup) => `\u0000${placed.push(markup) - 1}\u0000`;
   for (const m of String(html ?? "").matchAll(ENRICHER)) {
     const text = esc(enricherText(m[1], m[2]));
     const at = text ? effect.toLowerCase().indexOf(text.toLowerCase()) : -1;
-    if (at >= 0) effect = effect.slice(0, at) + m[0] + effect.slice(at + text.length);
+    if (at >= 0) effect = effect.slice(0, at) + hold(m[0]) + effect.slice(at + text.length);
   }
-  return `<p>${effect}</p>`;
+  if (useMacro) effect = effect.replace(THIS_ABILITY, (words) => hold(`@UUID[${useMacro.uuid}]{${words}}`));
+  return `<p>${effect.replace(/\u0000(\d+)\u0000/g, (_m, i) => placed[Number(i)])}</p>`;
 }
 
 const SCOPE_TARGETS = { SELF: { type: "self" }, ALLY: { type: "ally", value: 1 }, ENEMY: { type: "enemy", value: 1 },
@@ -56,10 +59,57 @@ function reachOf(parse) {
   return { distance, target };
 }
 
-function specFor(source, line) {
+const THIS_ABILITY = /(?<=\buses? )this ability\b/i;
+const useCommand = (source) => `ds.helpers.macros.rollItemMacro("${source.uuid}");`;
+
+async function ensureUseMacro(source) {
+  const LIMITED = CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED;
+  const owners = game.users.filter((u) => !u.isGM && source.actor?.testUserPermission(u, "OWNER")).map((u) => u.id);
+  let macro = game.macros.find((m) => m.command === useCommand(source)) ?? null;
+  if (!macro) {
+    if (!game.user.can("MACRO_SCRIPT")) return null;
+    macro = await Macro.implementation.create({
+      name: source.name, type: "script", img: source.img, command: useCommand(source),
+      ...(game.user.isGM ? { ownership: { default: 0, ...Object.fromEntries(owners.map((id) => [id, LIMITED])) } } : {}),
+      flags: { "draw-steel": { itemMacro: true }, [MODULE_ID]: { useMacro: true } },
+    });
+    if (!macro) return null;
+  }
+  const missing = owners.filter((id) => (macro.ownership[id] ?? macro.ownership.default ?? 0) < LIMITED);
+  if (missing.length) {
+    const ownership = Object.fromEntries(missing.map((id) => [id, LIMITED]));
+    if (game.user.isGM) await macro.update({ ownership });
+    else executeAsDirector(_socket, "useMacroOwnership", macro.uuid, ownership);
+  }
+  return macro;
+}
+
+async function grantUseMacro(uuid, ownership) {
+  const macro = await fromUuid(uuid);
+  if (macro?.documentName !== "Macro" || !macro.getFlag(MODULE_ID, "useMacro")) return;
+  const LIMITED = CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED;
+  await macro.update({ ownership: Object.fromEntries(Object.keys(ownership ?? {}).filter((id) => game.users.get(id)).map((id) => [id, LIMITED])) });
+}
+
+function effectsUpdate(item, effects) {
+  const DEL = foundry.data?.operators?.ForcedDeletion;
+  const out = foundry.utils.deepClone(effects);
+  for (const key of Object.keys(item._source.system?.effects ?? {})) {
+    if (!(key in out)) out[key] = DEL ? new DEL() : null;
+  }
+  return out;
+}
+
+const effectsMatch = (item, effects) => {
+  const have = item._source.system?.effects ?? {};
+  return Object.keys(have).length === Object.keys(effects).length
+    && Object.entries(effects).every(([key, e]) => have[key]?.description === e.description && have[key]?.name === e.name);
+};
+
+function specFor(source, line, useMacro = null) {
   const prereqs = prerequisites(source, line.tier);
   const effects = {
-    after00000000000: { _id: "after00000000000", type: "base", name: "", img: null, sort: 1, before: false, description: effectHTML(source, line) },
+    after00000000000: { _id: "after00000000000", type: "base", name: "", img: null, sort: 1, before: false, description: effectHTML(source, line, useMacro) },
   };
   if (prereqs.length) {
     const label = game.i18n.localize(`DS_TRIGGERS.Card.${prereqs.length > 1 ? "Prerequisites" : "Prerequisite"}`);
@@ -139,7 +189,8 @@ export async function syncActor(actor) {
       if (!isLineSource(item)) continue;
       for (const line of itemEffectiveLines(item)) {
         if (!line.enabled || line.watch === "parked") continue;
-        want.set(`${item.id}|${line.key}`, specFor(item, line));
+        const useMacro = item.type === "ability" && THIS_ABILITY.test(line.effect ?? "") ? await ensureUseMacro(item) : null;
+        want.set(`${item.id}|${line.key}`, specFor(item, line, useMacro));
       }
     }
     const have = new Map();
@@ -148,7 +199,6 @@ export async function syncActor(actor) {
       if (d) have.set(`${d.sourceId}|${d.lineKey}`, item);
     }
     const creates = [...want].filter(([k]) => !have.has(k)).map(([, spec]) => spec);
-    const FR = foundry.data?.operators?.ForcedReplacement;
     const updates = [];
     const deletes = [];
     for (const [k, item] of have) {
@@ -158,8 +208,8 @@ export async function syncActor(actor) {
         if (!d.edited) deletes.push(item.id);
         continue;
       }
-      if (d.edited || d.hash === spec.flags[MODULE_ID][FLAG].hash) continue;
-      updates.push({ _id: item.id, name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: FR ? new FR(spec.system.effects) : spec.system.effects },
+      if (d.edited || (d.hash === spec.flags[MODULE_ID][FLAG].hash && effectsMatch(item, spec.system.effects))) continue;
+      updates.push({ _id: item.id, name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: effectsUpdate(item, spec.system.effects) },
         [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG] });
     }
     if (creates.length) await actor.createEmbeddedDocuments("Item", creates, SYNC);
@@ -207,11 +257,11 @@ export async function resyncDerived(item) {
   const d = derivedInfo(item);
   const line = source ? itemEffectiveLines(source).find((l) => l.key === d.lineKey) : null;
   if (!line) return false;
-  const spec = specFor(source, line);
-  const FR = foundry.data?.operators?.ForcedReplacement;
+  const useMacro = source.type === "ability" && THIS_ABILITY.test(line.effect ?? "") ? await ensureUseMacro(source) : null;
+  const spec = specFor(source, line, useMacro);
   const DEL = foundry.data?.operators?.ForcedDeletion;
   await item.update({
-    name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: FR ? new FR(spec.system.effects) : spec.system.effects },
+    name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: effectsUpdate(item, spec.system.effects) },
     [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG],
     ...Object.fromEntries(["manual", "trigger", ONCE_FLAG].map((k) => (DEL ? [`flags.${MODULE_ID}.${k}`, new DEL()] : [`flags.${MODULE_ID}.-=${k}`, null]))),
   }, SYNC);
@@ -287,6 +337,7 @@ let _socket = null;
 Hooks.once("socketlib.ready", () => {
   _socket = socketlib.registerModule(MODULE_ID);
   _socket?.register("derivedDeleted", (payload) => ignoreDeleted(payload));
+  _socket?.register("useMacroOwnership", (uuid, ownership) => grantUseMacro(uuid, ownership));
 });
 
 async function ignoreDeleted({ dsid, line, name, ability, actorName, userName }) {
