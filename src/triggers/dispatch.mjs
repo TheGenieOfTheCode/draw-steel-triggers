@@ -6,7 +6,7 @@ import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../u
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
-import { carriesEffect } from "./feature-triggers.mjs";
+import { carriesEffect, carriesMark } from "./feature-triggers.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
@@ -362,7 +362,10 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
-      if (entry.watch === "subject" && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
+      if (entry.watch === "subject") {
+        const holds = entry.watchMark ? (a) => carriesMark(a, actor, entry.watchMark) : (a) => carriesEffect(a, entry.originUuid);
+        if (!watchedCreatures(subjectActor, usedContext).some(holds)) continue;
+      }
       
       if (!canAffordCost(actor, entry.item)) {
         dbg(`${actor.name} cannot afford ${entry.item.name} (costs ${entry.item.system.resource}, has ${resourceOf(actor)}), skipped on ${event}`);

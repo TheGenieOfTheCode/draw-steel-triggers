@@ -117,31 +117,22 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
 
 const SELF_DESCRIPTION = /\b(?:this|the) (?:ability|movement|shift|maneuver|charge|move action|main action|feature)\b|\btakes? the [\w-]+ (?:move|main) action\b|^you do\b|^they use (?:this|that)\b|\bwhile using this\b/i;
 const NEEDS_SUBJECT = /\b(?:judged|marked) by you\b|\byou['’]ve marked\b|\bthe target\b|\ba target\b|\bunder this effect\b/i;
+const MARKED = /\b(?:judged|marked) by you\b|\byou['’]ve marked\b/i;
 const AREA = /\b(?:the area|in the area|zone|stockade|aura|wall)\b/i;
 
-/** The effect text of an ability, before-effects first, as the sheet shows it. */
 export function abilityEffectHTML(ability) {
   const effects = [...(ability?.system?.effects?.contents ?? Object.values(ability?.system?.effects ?? {}))];
   return effects.sort((a, b) => (b.before === true) - (a.before === true) || (a.sort ?? 0) - (b.sort ?? 0))
     .map((e) => e.description ?? "").join("");
 }
 
-/**
- * Trigger sentences inside an ability's effect text (Judgement's "whenever a creature judged by you ..."), with what
- * each one waits for. An ability line is only live while an effect that ability applied is active.
- * @param {string} html  the ability's effect text
- * @param {object} options
- * @param {boolean} [options.appliesEffects]  the ability carries effects it puts on creatures
- * @returns {object[]} featureTriggerLines output plus `watch`: "subject" (the subject must carry the ability's effect),
- *   "active" (the effect only needs to be active somewhere), "parked" (an area, or nothing to watch), "self" (the
- *   sentence describes the ability itself, not a trigger)
- */
 export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false } = {}) {
   return featureTriggerLines(html, { dsid, name, ownerName }).map((l) => {
     const watch = SELF_DESCRIPTION.test(l.trigger) ? "self"
       : AREA.test(l.trigger) || !appliesEffects ? "parked"
         : NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active";
-    return { ...l, watch };
+    const mark = l.trigger.match(MARKED);
+    return { ...l, watch, ...(mark ? { watchMark: /judg/i.test(mark[0]) ? "judged" : "marked" } : {}) };
   });
 }
 
@@ -188,12 +179,20 @@ const CURATED = {
 const LIST_LEAD = /\b(?:spend (\d+) ([\w’'-]+(?: resource)?) to )?(?:take|use) one of the following (free )?triggered actions?\b/i;
 const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
 
+const EFFECT_COST = /^(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
+
 function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid }) {
   let lead = null;
   let leads = 0;
+  let benefitsOf = null;
   for (const raw of blocksOf(html)) {
     const li = raw.startsWith(LI);
     const block = li ? raw.slice(1).trim() : raw;
+    if (li && benefitsOf) {
+      benefitsOf.effect = `${benefitsOf.effect} • ${block}`;
+      continue;
+    }
+    benefitsOf = null;
     if (!li) {
       const m = block.match(LIST_LEAD);
       lead = m ? { action: m[3] ? "freeTriggered" : "triggered", cost: m[1] ? { amount: Number(m[1]), resource: m[2].toLowerCase() } : null,
@@ -235,9 +234,13 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
       for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
       const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
-      lines.push({ key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
-        ...(f.cost ? { cost: f.cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
-        parse: parseTrigger(`${parseText}.`, { effectText: effect, ownerName }), tier, family: tier ? generateDSID(f.trigger) : null });
+      const paid = effect.match(EFFECT_COST);
+      const cost = f.cost ?? (paid ? { amount: Number(paid[1]), resource: paid[2].toLowerCase() } : null);
+      const line = { key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
+        ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
+        parse: parseTrigger(`${parseText}.`, { effectText: effect, ownerName }), tier, family: tier ? generateDSID(f.trigger) : null };
+      lines.push(line);
+      if (i === found.length - 1 && /:$/.test(effect)) benefitsOf = line;
     });
   }
 }

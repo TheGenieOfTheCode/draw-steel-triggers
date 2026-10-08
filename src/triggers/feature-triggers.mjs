@@ -53,11 +53,34 @@ const appliesEffects = (item) => !!(item.effects?.some((e) => !e.transfer) || it
 export const carriesEffect = (actor, origin) => !!origin && !!actor?.effects?.some((e) => e.origin === origin && e.active);
 
 /* An ability's lines only count while something it applied is still on a creature. */
-export function abilityEffectLive(item) {
-  const actors = new Set([item.actor]);
+function nearbyActors(owner) {
+  const actors = new Set([owner]);
   for (const c of game.combat?.combatants ?? []) if (c.actor) actors.add(c.actor);
   for (const t of canvas?.tokens?.placeables ?? []) if (t.actor) actors.add(t.actor);
-  return [...actors].some((a) => carriesEffect(a, item.uuid));
+  return [...actors].filter(Boolean);
+}
+
+export function abilityEffectLive(item) {
+  return nearbyActors(item.actor).some((a) => carriesEffect(a, item.uuid));
+}
+
+const MARK_NAMES = { judged: /judg/i, marked: /\bmark/i };
+
+export function carriesMark(actor, owner, kind) {
+  const rx = MARK_NAMES[kind];
+  if (!rx || !owner) return false;
+  const ctKey = kind === "judged" ? "judgement" : "mark";
+  return !!actor?.effects?.some((e) => {
+    if (!e.active) return false;
+    if (e.getFlag?.("draw-steel-combat-tools", ctKey)?.actorId === owner.id) return true;
+    const source = e.origin ? fromUuidSync(e.origin) : null;
+    return source?.documentName === "Item" && source.actor?.id === owner.id && rx.test(source.name);
+  });
+}
+
+export function abilityLineLive(item, line) {
+  if (line.watchMark && MARK_NAMES[line.watchMark].test(item.name)) return nearbyActors(item.actor).some((a) => carriesMark(a, item.actor, line.watchMark));
+  return abilityEffectLive(item);
 }
 
 export function itemFeatureLines(item, { withIgnored = false } = {}) {
@@ -233,13 +256,12 @@ export function featureTriggerEntries(actor) {
   const seen = new Set();
   for (const item of actor.items) {
     if (!isLineSource(item)) continue;
-    let live = null;
     for (const line of _bestTiers(actor, itemEffectiveLines(item))) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);
       if (line.watch === "parked") continue;
-      if (line.watch && !(live ??= abilityEffectLive(item))) continue;
-      const watch = line.watch ? { watch: line.watch, originUuid: item.uuid } : {};
+      if (line.watch && !abilityLineLive(item, line)) continue;
+      const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null } : {};
       const derived = derivedActive() ? derivedFor(actor, item.id, line.key) : null;
       if (derived) {
         const once = derivedOnce(derived);
