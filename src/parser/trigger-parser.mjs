@@ -247,6 +247,17 @@ function rangeLayer(result) {
   return stamped ? { ...result, clauses } : result;
 }
 
+const LINE_OF_EFFECT = /\b(?:with)?in your line of effect\b|\b(?:you have|the [\w'’-]+ has) line of effect to\b/i;
+const LOE_ON_VICTIM = /\b(?:targets?|deals? damage to|damages?|against)\b/i;
+
+function lineOfEffectLayer(result, text) {
+  const clean = String(text ?? "").replace(/<[^>]+>/g, "");
+  const m = clean.match(LINE_OF_EFFECT);
+  if (!m) return result;
+  const on = LOE_ON_VICTIM.test(clean.slice(0, m.index)) ? "victim" : "subject";
+  return { ...result, clauses: result.clauses.map((c) => ({ ...c, lineOfEffect: on })) };
+}
+
 function redirectLayer(result, id, effectText) {
   let mode = REDIRECT_ABILITIES[id] ?? null;
   if (!mode && effectText) {
@@ -485,6 +496,7 @@ const CLAUSE_FLAGS = [
   { id: "through",           from: "trigger", when: (c) => c.through,
     rx: /\bmoves? through (?:an?|any) [\w-]+(?:['’]s space)?/i },
   { id: "entersSpace",       from: "trigger", when: (c) => c.entersSpace, rx: /\benters? this space\b/i },
+  { id: "lineOfEffect",      from: "trigger", when: (c) => c.lineOfEffect, rx: LINE_OF_EFFECT },
   { id: "victimNotMentor",   from: "trigger", when: (c) => c.victimNotMentor, rx: /\bother than (?:their|its|your) mentor\b/i },
   { id: "organization",      from: "trigger", when: (c) => c.organization?.exclude?.length,
     rx: /\bnon-(?:minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (?:minion|leader|solo|elite)\b/i },
@@ -661,7 +673,11 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType 
   return { sentence, segments, clauseCount: parse.clauses.length };
 }
 
-export function parseTrigger(text, { dsid, ownerName, effectText, targetType } = {}) {
+export function parseTrigger(text, options = {}) {
+  return lineOfEffectLayer(parseTriggerClauses(text, options), text);
+}
+
+function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType } = {}) {
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];

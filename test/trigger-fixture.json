@@ -2615,7 +2615,8 @@
           "event": "DEALS_DAMAGE",
           "scope": "ANY",
           "qualifiers": [],
-          "victimScope": "ALLY"
+          "victimScope": "ALLY",
+          "lineOfEffect": "victim"
         }
       ]
     }

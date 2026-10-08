@@ -29,6 +29,7 @@ const FLAG_FIELDS = {
   through: ["through", "throughScope"],
   victimNotMentor: ["victimNotMentor"],
   entersSpace: ["entersSpace"],
+  lineOfEffect: ["lineOfEffect"],
 };
 
 const keywordLabel = (k) => {
@@ -74,6 +75,7 @@ function describeFilter(id, fields) {
       : L("QualEffectThrough");
     case "victimNotMentor": return L("QualEffectNotMentor");
     case "entersSpace": return L("QualEffectEntersSpace");
+    case "lineOfEffect": return L("QualEffectLineOfEffect");
     default: return L("QualEffectNone");
   }
 }

@@ -99,11 +99,37 @@ export function footprintGap(docA, docB) {
 
 function rangeMatches(clause, item, ownerActor, ownerToken, subjectActor, subjectToken) {
   if (!subjectActor || ownerActor === subjectActor) return true;
-  const range = clauseRangeSquares(clause, item);
-  if (range == null) return true;
   if (!ownerToken || !subjectToken) return true;
   if (ownerToken.parent !== canvas.scene || subjectToken.parent !== canvas.scene) return true;
-  return footprintGap(ownerToken, subjectToken) < range * canvas.grid.distance;
+  const range = clauseRangeSquares(clause, item);
+  if (range == null) return true;
+  if (footprintGap(ownerToken, subjectToken) >= range * canvas.grid.distance) return false;
+  return !getSetting("requireLineOfEffect") || hasLineOfEffect(ownerToken, subjectToken);
+}
+
+const tokenDoc = (t) => {
+  if (!t) return null;
+  if (typeof t === "string") return fromUuidSync(t);
+  if (t.document) return t.document;
+  return t.documentName === "Token" ? t : t.uuid ? fromUuidSync(t.uuid) : null;
+};
+
+function lineOfEffectMatches(clause, ownerActor, ownerToken, subjectActor, subjectToken, ctx = {}) {
+  if (!clause.lineOfEffect || !ownerToken || ownerToken.parent !== canvas.scene) return true;
+  const others = clause.lineOfEffect === "victim"
+    ? (ctx.victimToken ? [ctx.victimToken] : ctx.usedTargets ?? []).map(tokenDoc)
+    : [subjectActor === ownerActor ? null : tokenDoc(subjectToken)];
+  if (others.some((t) => t?.actor === ownerActor)) return true;
+  const reachable = others.filter((t) => t && t.parent === canvas.scene);
+  if (!reachable.length) return true;
+  return reachable.some((t) => hasLineOfEffect(ownerToken, t));
+}
+
+function hasLineOfEffect(ownerToken, subjectToken) {
+  const from = ownerToken.object, to = subjectToken.object;
+  const check = game.modules.get("draw-steel-ctlib")?.api?.hasSightToToken;
+  if (!from || !to || !check) return true;
+  return !!check(from, to);
 }
 
 function inSameCombatGroup(actorA, actorB) {
@@ -389,6 +415,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && organizationMatches(c, subjectActor)
         && statusMatches(c, actor, subjectActor)
         && ownerEffectMatches(c, actor, subjectActor, usedContext)
+        && lineOfEffectMatches(c, actor, token, subjectActor, subjectToken, usedContext)
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;

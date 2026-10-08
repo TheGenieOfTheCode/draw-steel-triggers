@@ -122,6 +122,10 @@
         "Name": "All Scene Tokens Can Trigger",
         "Hint": "Every token on the scene can trigger its triggers regardless of if it's in combat or not."
       },
+      "RequireLineOfEffect": {
+        "Name": "Require Line of Effect",
+        "Hint": "A trigger that reaches another creature also needs line of effect to it, as targeting does. Turn off to check distance only."
+      },
       "SpentTracking": {
         "Name": "Track Triggered Actions",
         "Hint": "Track when a combatant spends their triggered action and stop reminding them about non-free triggers until the next round."
@@ -314,6 +318,7 @@
       "QualEffectThroughSide": "Enforced: fires for each {side} whose space this creature's movement passes through.",
       "QualEffectNotMentor": "Enforced: skipped for this retainer's mentor.",
       "QualEffectEntersSpace": "Enforced: fires once, when the first matching creature enters the space this creature died in.",
+      "QualEffectLineOfEffect": "Enforced: only fires when this creature has line of effect to the creature the trigger names, even with Require Line of Effect off.",
       "QualSideCreature": "creature",
       "DamageTypes": "Damage Types",
       "Condition": "Condition",

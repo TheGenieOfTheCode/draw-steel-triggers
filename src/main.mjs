@@ -55,6 +55,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: false
   });
+  game.settings.register(MODULE_ID, "requireLineOfEffect", {
+    name: "DS_TRIGGERS.Settings.RequireLineOfEffect.Name",
+    hint: "DS_TRIGGERS.Settings.RequireLineOfEffect.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "spentTracking", {
     name: "DS_TRIGGERS.Settings.SpentTracking.Name",
     hint: "DS_TRIGGERS.Settings.SpentTracking.Hint",
