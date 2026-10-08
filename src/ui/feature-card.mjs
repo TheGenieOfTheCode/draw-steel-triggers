@@ -168,7 +168,7 @@ export async function featureCardContent(item, { lineKey = null } = {}) {
   const html = item.system?.description?.value ?? "";
   const ctx = { item, actor, rollData: actor?.getRollData?.() ?? item.getRollData?.() ?? {} };
   const reads = await readAll(html, ctx);
-  const lines = showsTriggerEffect(item) ? itemEffectiveLines(item).filter((l) => !lineKey || l.key === lineKey) : [];
+  const lines = item.type === "ability" || showsTriggerEffect(item) ? itemEffectiveLines(item).filter((l) => !lineKey || l.key === lineKey) : [];
   if (!lines.length) return descriptionEmbed(item, html, reads);
   return lines.map((l) => lineEmbed(item, l, reads)).join("");
 }

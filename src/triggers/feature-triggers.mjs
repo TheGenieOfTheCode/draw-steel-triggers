@@ -1,6 +1,7 @@
-import { featureTriggerLines, defersDeath, marksSpace } from "../parser/feature-triggers.mjs";
+import { featureTriggerLines, abilityTriggerLines, abilityEffectHTML, defersDeath, marksSpace } from "../parser/feature-triggers.mjs";
 import { MODULE_ID, getSetting } from "../util.mjs";
-import { derivedFor, derivedParse, derivedOnce, derivedActive } from "./derived.mjs";
+import { derivedFor, derivedParse, derivedOnce, derivedActive, isDerived } from "./derived.mjs";
+import { isMaliceAbility } from "./registry.mjs";
 
 export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
 export const FEATURE_ITEM_TYPES =new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
@@ -45,25 +46,42 @@ export const unignoreFeature = (id) => setIgnoredList(ignoredList().filter((e) =
 export const ignoredFeatures = () => new Set(ignoredList().filter((e) => !e.line).map((e) => e.dsid));
 export const ignoredLines = () => new Set(ignoredList().filter((e) => e.line).map((e) => e.line));
 
+export const isAbilitySource = (item) => item?.type === "ability" && !TRIGGERED.has(item.system?.type) && !isDerived(item) && !isMaliceAbility(item);
+export const isLineSource = (item) => FEATURE_ITEM_TYPES.has(item?.type) || isAbilitySource(item);
+const appliesEffects = (item) => !!(item.effects?.some((e) => !e.transfer) || item.system?.power?.effects?.contents?.some((e) => e.type === "applied"));
+
+export const carriesEffect = (actor, origin) => !!origin && !!actor?.effects?.some((e) => e.origin === origin && e.active);
+
+/* An ability's lines only count while something it applied is still on a creature. */
+export function abilityEffectLive(item) {
+  const actors = new Set([item.actor]);
+  for (const c of game.combat?.combatants ?? []) if (c.actor) actors.add(c.actor);
+  for (const t of canvas?.tokens?.placeables ?? []) if (t.actor) actors.add(t.actor);
+  return [...actors].some((a) => carriesEffect(a, item.uuid));
+}
+
 export function itemFeatureLines(item, { withIgnored = false } = {}) {
-  if (!item || !FEATURE_ITEM_TYPES.has(item.type)) return [];
+  if (!item || !isLineSource(item)) return [];
   if (ignoredFeatures().has(String(item.system?._dsid ?? "").toLowerCase())) return [];
-  const html = item.system?.description?.value ?? "";
-  const resource = resourceOf(item.actor);
+  const ability = item.type === "ability";
+  const html = ability ? abilityEffectHTML(item) : item.system?.description?.value ?? "";
+  const resource = ability ? null : resourceOf(item.actor);
   const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
+  const applies = ability && appliesEffects(item);
   const ignored = withIgnored ? new Set() : ignoredLines();
   const cached = _lineCache.get(item.uuid);
-  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name && cached.ownerName === ownerName) {
+  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name && cached.ownerName === ownerName && cached.applies === applies) {
     return ignored.size ? cached.lines.filter((l) => !ignored.has(l.key)) : cached.lines;
   }
-  const lines = featureTriggerLines(html, { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName })
-    .filter((l) => l.kind === "trigger")
+  const opts = { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName };
+  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies }).filter((l) => l.watch !== "self")
+    : featureTriggerLines(html, opts);
+  const lines = found.filter((l) => l.kind === "trigger")
     .map((l) => ({ ...l, manual: MANUAL.filter(([rx]) => rx.test(l.sentence)).map(([, why]) => why) }));
-  _lineCache.set(item.uuid, { html, resource, name: item.name, ownerName, lines });
+  _lineCache.set(item.uuid, { html, resource, name: item.name, ownerName, applies, lines });
   return ignored.size ? lines.filter((l) => !ignored.has(l.key)) : lines;
 }
 
-/* A feature whose trigger already ships as its own triggered ability (Resist the Unnatural in 1.2) would fire twice. */
 export function coveredBy(item) {
   const actor = item?.actor;
   if (!actor) return null;
@@ -100,6 +118,13 @@ export function lineAutomationLevel(line, levelFromParse) {
   return levelFromParse(line.parse) ?? { level: "none", detail: [] };
 }
 
+export function lineCost(actor, line) {
+  const cost = line?.cost;
+  if (!cost?.amount) return null;
+  const own = String(resourceOf(actor) ?? "").toLowerCase();
+  return cost.resource === own || cost.resource === "heroic resource" ? cost.amount : null;
+}
+
 function lineProxy(item, line) {
   const snooze = featureSnoozeId(line.key);
   return {
@@ -115,7 +140,7 @@ function lineProxy(item, line) {
     system: {
       type: line.action ?? "none",
       trigger: line.trigger,
-      resource: null,
+      resource: lineCost(item.actor, line),
       _dsid: snooze,
       restricted: false,
       keywords: new Set(),
@@ -124,7 +149,7 @@ function lineProxy(item, line) {
     },
     getFlag: (scope, key) => (scope === MODULE_ID && ["malice", "manual", "trigger"].includes(key) ? undefined : item.getFlag(scope, key)),
     feature: item,
-    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect) },
+    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), exclusive: line.exclusive ?? null },
   };
 }
 
@@ -135,8 +160,6 @@ const _inCombat = (combat, actor) => !!combat?.started && combat.combatants.some
 const _combatOf = (actor) => (_inCombat(game.combat, actor) ? game.combat : game.combats.find((c) => _inCombat(c, actor)) ?? null);
 const _turnStamp = (combat) => (combat?.started ? `${combat.id}|${combat.round}|${combat.turn}` : null);
 
-/* Growing Ferocity and the Null masteries count the most resource the hero held at any point this turn, so spending
-   it mid turn keeps the benefit. */
 export function turnPeakResource(actor) {
   const now = _resourceValue(actor);
   const stamp = _turnStamp(_combatOf(actor));
@@ -163,7 +186,6 @@ export function tierQualifies(actor, tier) {
   return turnPeakResource(actor) >= tier.min;
 }
 
-/* Rows of one table that share a trigger replace each other: the highest row the hero qualifies for wins. */
 function _bestTiers(actor, lines) {
   const best = new Map();
   for (const line of lines) {
@@ -205,19 +227,19 @@ export function featureLineSpent(actor, key, once) {
   return false;
 }
 
-/**
- * Feature lines on an actor as pipeline entries, shaped like getTriggeredAbilities' { item, free, parse } with
- * `noAction` set for lines that spend nothing ("whenever ..."): those never consult the triggered action.
- */
 export function featureTriggerEntries(actor) {
   if (!actor || !FEATURE_ACTOR_TYPES.has(actor.type) || !featureTriggersActive()) return [];
   const entries = [];
   const seen = new Set();
   for (const item of actor.items) {
-    if (!FEATURE_ITEM_TYPES.has(item.type)) continue;
+    if (!isLineSource(item)) continue;
+    let live = null;
     for (const line of _bestTiers(actor, itemEffectiveLines(item))) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);
+      if (line.watch === "parked") continue;
+      if (line.watch && !(live ??= abilityEffectLive(item))) continue;
+      const watch = line.watch ? { watch: line.watch, originUuid: item.uuid } : {};
       const derived = derivedActive() ? derivedFor(actor, item.id, line.key) : null;
       if (derived) {
         const once = derivedOnce(derived);
@@ -225,7 +247,7 @@ export function featureTriggerEntries(actor) {
         if (!parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN") || featureLineSpent(actor, line.key, once)) continue;
         const action = ["triggered", "freeTriggered"].includes(derived.system.type) ? derived.system.type : null;
         derived.featureLine = { ...lineProxy(item, line).featureLine, name: derived.name, trigger: derived.system.trigger, action, once, derived: true };
-        entries.push({ item: derived, free: action === "freeTriggered", noAction: !action, parse, featureLine: true });
+        entries.push({ item: derived, free: action === "freeTriggered", noAction: !action, parse, featureLine: true, ...watch });
         continue;
       }
       if (!line.enabled || !line.parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN")) continue;
@@ -236,6 +258,7 @@ export function featureTriggerEntries(actor) {
         noAction: !line.action,
         parse: line.parse,
         featureLine: true,
+        ...watch,
       });
     }
   }

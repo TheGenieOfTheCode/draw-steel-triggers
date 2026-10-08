@@ -17,10 +17,12 @@ export function enricherText(inner, label) {
   return args.join(" ") || cmd;
 }
 
+const LI = "\u0001";
+
 function blocksOf(html) {
   let text = String(html ?? "").replace(/\[\[([^\]]*)\]\](?:\{([^}]*)\})?/g, (m, inner, label) => enricherText(inner, label))
     .replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (m, label) => label ?? "");
-  text = text.replace(/<\/(p|li|h\d|tr|div)>|<br\s*\/?>/gi, "\n").replace(/<li[^>]*>/gi, "\n").replace(/<[^>]+>/g, "");
+  text = text.replace(/<\/(p|li|h\d|tr|div)>|<br\s*\/?>/gi, "\n").replace(/<li[^>]*>/gi, `\n${LI}`).replace(/<[^>]+>/g, "");
   return decode(text).split(/\n+/).map((b) => b.replace(/\bdamage damage\b/g, "damage").replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 
@@ -113,6 +115,36 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   return lines;
 }
 
+const SELF_DESCRIPTION = /\b(?:this|the) (?:ability|movement|shift|maneuver|charge|move action|main action|feature)\b|\btakes? the [\w-]+ (?:move|main) action\b|^you do\b|^they use (?:this|that)\b|\bwhile using this\b/i;
+const NEEDS_SUBJECT = /\b(?:judged|marked) by you\b|\byou['’]ve marked\b|\bthe target\b|\ba target\b|\bunder this effect\b/i;
+const AREA = /\b(?:the area|in the area|zone|stockade|aura|wall)\b/i;
+
+/** The effect text of an ability, before-effects first, as the sheet shows it. */
+export function abilityEffectHTML(ability) {
+  const effects = [...(ability?.system?.effects?.contents ?? Object.values(ability?.system?.effects ?? {}))];
+  return effects.sort((a, b) => (b.before === true) - (a.before === true) || (a.sort ?? 0) - (b.sort ?? 0))
+    .map((e) => e.description ?? "").join("");
+}
+
+/**
+ * Trigger sentences inside an ability's effect text (Judgement's "whenever a creature judged by you ..."), with what
+ * each one waits for. An ability line is only live while an effect that ability applied is active.
+ * @param {string} html  the ability's effect text
+ * @param {object} options
+ * @param {boolean} [options.appliesEffects]  the ability carries effects it puts on creatures
+ * @returns {object[]} featureTriggerLines output plus `watch`: "subject" (the subject must carry the ability's effect),
+ *   "active" (the effect only needs to be active somewhere), "parked" (an area, or nothing to watch), "self" (the
+ *   sentence describes the ability itself, not a trigger)
+ */
+export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false } = {}) {
+  return featureTriggerLines(html, { dsid, name, ownerName }).map((l) => {
+    const watch = SELF_DESCRIPTION.test(l.trigger) ? "self"
+      : AREA.test(l.trigger) || !appliesEffects ? "parked"
+        : NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active";
+    return { ...l, watch };
+  });
+}
+
 const TIER_CELL = /^(\d+)\s*(?:\(\s*(\d+)(?:st|nd|rd|th)\s+level\s*\))?$/i;
 const cellText = (h) => decode(String(h ?? "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 
@@ -153,11 +185,25 @@ const CURATED = {
   "empowered-will": { once: "round" },
 };
 
+const LIST_LEAD = /\b(?:spend (\d+) ([\w’'-]+(?: resource)?) to )?(?:take|use) one of the following (free )?triggered actions?\b/i;
+const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
+
 function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid }) {
-  for (const block of blocksOf(html)) {
+  let lead = null;
+  let leads = 0;
+  for (const raw of blocksOf(html)) {
+    const li = raw.startsWith(LI);
+    const block = li ? raw.slice(1).trim() : raw;
+    if (!li) {
+      const m = block.match(LIST_LEAD);
+      lead = m ? { action: m[3] ? "freeTriggered" : "triggered", cost: m[1] ? { amount: Number(m[1]), resource: m[2].toLowerCase() } : null,
+        group: `${generateDSID(base)}-list-${++leads}` } : null;
+    }
     const sentences = sentencesOf(block);
     const found = [];
-    sentences.forEach((sentence, index) => {
+    const item = li && lead ? sentences[0].match(LIST_ITEM) : null;
+    if (item) found.push({ index: 0, sentence: sentences[0], trigger: cleanCondition(item[1]), effect: item[2], action: lead.action, cost: lead.cost, exclusive: lead.group });
+    else sentences.forEach((sentence, index) => {
       const free = /\bfree triggered action\b/i.test(sentence);
       const spends = free || /\btriggered action\b/i.test(sentence);
       if (!spends && !WHEN.test(sentence)) return;
@@ -190,6 +236,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
       keys.add(key);
       const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
       lines.push({ key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
+        ...(f.cost ? { cost: f.cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         parse: parseTrigger(`${parseText}.`, { effectText: effect, ownerName }), tier, family: tier ? generateDSID(f.trigger) : null });
     });
   }

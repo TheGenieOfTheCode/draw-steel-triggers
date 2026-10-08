@@ -38,6 +38,7 @@ function describeFilter(id, fields) {
     case "abilityCategory": return L({ heroic: "QualEffectHeroic", signature: "QualEffectSignature" }[fields.abilityCategory] ?? "QualEffectNonHeroic");
     case "abilityKeywords": return L("QualEffectKeywords", { keywords: fields.abilityKeywords.join(" or ") });
     case "abilityCostScales": return L("QualEffectScales");
+    case "abilityPotency": return L("QualEffectPotency");
     case "abilityTargetCount": return L("QualEffectTargets", {
       n: fields.abilityTargetCount,
       side: fields.abilityTargetSide ?? L("QualSideCreature"),
@@ -476,7 +477,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   _applyFilters(clause) {
     const off = new Set(clause.filtersOff ?? []);
     for (const k of ["abilityDsid", "abilityType", "abilityKeywords", "abilityCostMax", "abilityCategory",
-      "abilityCostScales", "abilityTargetCount", "abilityTargetSide"]) delete clause[k];
+      "abilityCostScales", "abilityTargetCount", "abilityTargetSide", "abilityPotency"]) delete clause[k];
 
     for (const f of clause.event === "USES_ABILITY" ? explainAbilityFilters(this._triggerText, this._effectText) : []) {
       if (!off.has(f.id)) Object.assign(clause, f.fields);

@@ -170,13 +170,13 @@ const ROLL_MOD_SUBJECT = "(?:triggering )?(?:strike|power roll|ability roll)|it"
 
 export const ROLL_MOD_TEXT = [
   [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a bane\\b`, "i"), { banes: 1 }],
-  [/\btakes? a bane on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { banes: 1 }],
+  [/\btakes? a bane on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll|roll)\b/i, { banes: 1 }],
   [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) an edge\\b`, "i"), { edges: 1 }],
-  [/\b(?:takes?|has|gains?) an edge on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { edges: 1 }],
+  [/\b(?:takes?|has|gains?) an edge on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll|roll)\b/i, { edges: 1 }],
   [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a double bane\\b`, "i"), { banes: 2 }],
-  [/\btakes? a double bane on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { banes: 2 }],
+  [/\btakes? a double bane on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll|roll)\b/i, { banes: 2 }],
   [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a double edge\\b`, "i"), { edges: 2 }],
-  [/\b(?:takes?|has|gains?) a double edge on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll)\b/i, { edges: 2 }],
+  [/\b(?:takes?|has|gains?) a double edge on (?:the |their |that )?(?:triggering )?(?:strike|power roll|ability roll|roll)\b/i, { edges: 2 }],
 ];
 
 const PREROLL_MOD_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "MAKES_STRIKE", "POWER_ROLL"]);
@@ -365,6 +365,12 @@ export const ABILITY_FILTERS = [
     from: "trigger",
     rx: /\b((?:magic|psionic|weapon|melee|ranged)(?:(?:,? or |, | and )(?:magic|psionic|weapon|melee|ranged))*) (?:keywords?|abilit(?:y|ies))\b/i,
     fields: (m) => ({ abilityKeywords: m[1].toLowerCase().split(/,? or |, | and /) }),
+  },
+  {
+    id: "abilityPotency",
+    from: "trigger",
+    rx: /\b(?:with|that has) a potency(?: effect)?\b/i,
+    fields: () => ({ abilityPotency: true }),
   },
   {
     id: "abilityTargetCount",

@@ -296,6 +296,10 @@ async function _onQueueResolve(id, outcome, userName) {
   if (!entry || entry.state !== "pending") return;
   entry.state = outcome;
   if (outcome === "used") noteSquadUse(entry);
+  if (outcome === "used" && entry.featureLine?.exclusive) {
+    for (const other of _queue.filter((q) => q !== entry && q.state === "pending" && q.ownerActorUuid === entry.ownerActorUuid
+      && q.featureLine?.exclusive === entry.featureLine.exclusive)) _onQueueResolve(other.id, "dismissed");
+  }
   if (outcome === "used") entry.usedAt = Date.now();
   if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
   if (outcome === "used" && entry.defersDeath) {
@@ -444,6 +448,9 @@ function _useFeatureLine(entry) {
   const owner = fromUuidSync(entry.ownerActorUuid);
   if (!owner) return;
   noteFeatureLineUse(owner, entry.featureLine.key);
+  const cost = Number(entry.featureLine.resourceCost) || 0;
+  const held = Number(owner.system?.hero?.primary?.value);
+  if (cost && Number.isFinite(held)) owner.update({ "system.hero.primary.value": Math.max(0, held - cost) }).catch(() => {});
   if (entry.featureLine.action === "triggered") setTriggeredActionSpent(owner, true).catch(() => {});
   const item = fromUuidSync(entry.itemUuid);
   if (!item) return;

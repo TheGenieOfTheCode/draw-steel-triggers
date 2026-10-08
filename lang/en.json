@@ -269,6 +269,7 @@
       "QualEffectType": "Enforced: only a {type} action.",
       "QualEffectCost": "Enforced: only an ability costing {n} or less.",
       "QualEffectTargets": "Enforced: only an ability targeting exactly {n} {side}.",
+      "QualEffectPotency": "Enforced: only an ability with a potency on one of its power roll tiers.",
       "QualEffectDsid": "Enforced: only the ability {dsid}.",
       "QualEffectNone": "Descriptive only. Shown in reminders, not enforced.",
       "QualEffectHeroic": "Enforced: only a heroic ability.",

@@ -1,6 +1,6 @@
 import { itemGainLines, effectiveLine, resourceName, gainsActive, namedGainLines } from "../triggers/resource-gains.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
-import { FEATURE_ITEM_TYPES, FEATURE_ACTOR_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive, tierText } from "../triggers/feature-triggers.mjs";
+import { FEATURE_ACTOR_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive, tierText, isLineSource } from "../triggers/feature-triggers.mjs";
 import { parseAutomationLevel } from "./badge.mjs";
 import { emblemCoinURI } from "./emblem-coin.mjs";
 import { MODULE_ID } from "../util.mjs";
@@ -145,7 +145,7 @@ function decorateRows(root) {
     if (!row.textContent.trim()) continue;
     const uuid = row.closest("li[data-document-uuid]").dataset.documentUuid;
     const item = fromUuidSync(uuid);
-    if (FEATURE_ITEM_TYPES.has(item?.type)) decorate(row, item);
+    if (isLineSource(item)) decorate(row, item);
   }
 }
 
@@ -162,14 +162,14 @@ export function redecorate(item) {
 }
 
 Hooks.on("updateItem", (item, changes) => {
-  if (!FEATURE_ITEM_TYPES.has(item.type) || !foundry.utils.hasProperty(changes, `flags.${MODULE_ID}`)) return;
+  if (!isLineSource(item) || !foundry.utils.hasProperty(changes, `flags.${MODULE_ID}`)) return;
   redecorate(item);
 });
 
 Hooks.on("renderApplicationV2", (app, element) => {
   const doc = app.document;
   if (!doc || !element) return;
-  if (doc.documentName === "Item" && FEATURE_ITEM_TYPES.has(doc.type)) {
+  if (doc.documentName === "Item" && isLineSource(doc)) {
     decorate(descriptionOf(element), doc);
     return;
   }

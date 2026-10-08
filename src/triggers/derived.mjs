@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, isPrimaryGM, getSetting } from "../util.mjs";
-import { FEATURE_ITEM_TYPES, FEATURE_ACTOR_TYPES, itemEffectiveLines, featureTriggersActive, ignoreLine } from "./feature-triggers.mjs";
+import { FEATURE_ACTOR_TYPES, itemEffectiveLines, featureTriggersActive, ignoreLine, isLineSource, lineCost } from "./feature-triggers.mjs";
 import { enricherText, asOwner } from "../parser/feature-triggers.mjs";
 import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
@@ -67,6 +67,7 @@ function specFor(source, line) {
   }
   const system = {
     type: line.action ?? "none",
+    resource: lineCost(source.actor, line),
     trigger: line.trigger,
     story: line.flavor ?? "",
     keywords: [],
@@ -77,7 +78,7 @@ function specFor(source, line) {
   const content = { name: line.name, img: source.img, system, once: line.once ?? null, tier: line.tier ?? null };
   const flag = {
     sourceId: source.id, sourceName: source.name, sourceDsid: String(source.system?._dsid ?? "").toLowerCase(),
-    lineKey: line.key, once: line.once ?? null, tier: line.tier ?? null, family: line.family ?? null,
+    lineKey: line.key, exclusive: line.exclusive ?? null, once: line.once ?? null, tier: line.tier ?? null, family: line.family ?? null,
     hash: JSON.stringify(content), edited: false,
   };
   const out = { name: line.name, type: "ability", img: source.img, system, flags: { [MODULE_ID]: { [FLAG]: flag } } };
@@ -134,9 +135,9 @@ export async function syncActor(actor) {
   try {
     const want = new Map();
     for (const item of actor.items) {
-      if (!FEATURE_ITEM_TYPES.has(item.type)) continue;
+      if (!isLineSource(item)) continue;
       for (const line of itemEffectiveLines(item)) {
-        if (!line.enabled) continue;
+        if (!line.enabled || line.watch === "parked") continue;
         want.set(`${item.id}|${line.key}`, specFor(item, line));
       }
     }
@@ -233,7 +234,7 @@ Hooks.once("setup", () => {
   }
 });
 
-const isSource = (item) => FEATURE_ITEM_TYPES.has(item?.type) && item.parent?.documentName === "Actor";
+const isSource = (item) => isLineSource(item) && item.parent?.documentName === "Actor";
 
 Hooks.once("ready", () => {
   for (const actor of game.actors) if (actor.type === "hero") queueSync(actor);
@@ -242,7 +243,7 @@ Hooks.on("createCombatant", (combatant) => queueSync(combatant.actor));
 Hooks.on("createItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("deleteItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("updateItem", (item, changes) => {
-  if (isSource(item) && (foundry.utils.hasProperty(changes, "system.description") || "name" in changes
+  if (isSource(item) && (foundry.utils.hasProperty(changes, "system.description") || foundry.utils.hasProperty(changes, "system.effects") || "name" in changes
     || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.featureLines`))) queueSync(item.parent);
 });
 Hooks.on("renderApplicationV2", (app) => {

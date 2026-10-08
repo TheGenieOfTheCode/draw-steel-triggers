@@ -6,6 +6,7 @@ import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../u
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
+import { carriesEffect } from "./feature-triggers.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
@@ -147,7 +148,7 @@ const opposed = (docA, docB) => {
 
 export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length
-    && clause.abilityCostMax == null && clause.abilityCategory == null && clause.abilityTargetCount == null;
+    && clause.abilityCostMax == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
 
   const sys = used.system ?? {};
   if (clause.abilityDsid && (sys._dsid ?? used.dsid) !== clause.abilityDsid) return false;
@@ -180,6 +181,7 @@ export function usedAbilityMatches(clause, used, owner, context = {}) {
     } else if (usedCost > clause.abilityCostMax) return false;
   }
   
+  if (clause.abilityPotency && !hasPotency(used)) return false;
   if (clause.abilityTargetCount != null) {
     const targets = context.usedTargets ?? [];
     if (targets.length) {
@@ -190,6 +192,9 @@ export function usedAbilityMatches(clause, used, owner, context = {}) {
   }
   return true;
 }
+
+export const hasPotency = (ability) => (ability?.system?.power?.effects?.contents ?? []).some((e) =>
+  [1, 2, 3].some((t) => String(e[e.type]?.[`tier${t}`]?.display ?? "").includes("{{potency}}")));
 
 export const dealsRolledDamage = (ability) => !!ability?.system?.power?.roll?.enabled
   && (ability.system.power?.effects?.contents ?? []).some((e) => e.type === "damage");
@@ -313,6 +318,11 @@ function organizationMatches(clause, subjectActor) {
   return !excluded.includes(org);
 }
 
+function watchedCreatures(subjectActor, ctx = {}) {
+  const targets = (ctx.usedTargets ?? []).map((t) => t?.actor ?? fromUuidSync(t?.uuid ?? t)?.actor ?? null);
+  return [subjectActor, ctx.victimActor, ...targets].filter(Boolean);
+}
+
 export function collectTriggerMatches(event, subjectActor = null, subjectToken = null, usedAbility = null, usedContext = {}) {
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   const subjectDisposition = subjectToken?.disposition ?? null;
@@ -352,6 +362,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
+      if (entry.watch === "subject" && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
       
       if (!canAffordCost(actor, entry.item)) {
         dbg(`${actor.name} cannot afford ${entry.item.name} (costs ${entry.item.system.resource}, has ${resourceOf(actor)}), skipped on ${event}`);
