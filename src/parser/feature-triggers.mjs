@@ -40,7 +40,13 @@ const REFERS_BACK = /\b(?:this|that|the [\w'’-]+['’]s?) (?:free )?triggered 
 const NOT_EVENT = /^(while|as long as|if you (?:have|are|aren['’]t))\b/i;
 const ANAPHORIC = /^(?:additionally,\s*)?(?:when|whenever|each time) you do\b/i;
 const ITEM_USE = /^(?:when|whenever|each time) you (?:drink|eat|consume|wear|don|activate|read|open|throw|apply|attune|touch)\b|\bthis (?:tonic|potion|elixir|oil|scroll)\b/i;
-const OUT_OF_COMBAT = /\b(respite|downtime|montage|negotiation|project|travel(?:ing)?|tests?\b|rest\b|between encounters|outside of combat|each day|a day|victor(?:y|ies)|hours?|minutes?|uninterrupted|craft(?:ing)?|deity)\b/i;
+
+const BACKSTORY = /^(?:you|they|someone|your(?: [\w'’]+){1,2}) (?:were|was|once|first|used to|grew up|woke|left|went|arrived|last saw|died|(?:have|['’]ve) \w+ed)\b|^(?:first )?(?:handled|held|wielded|worn|donned)$/i;
+const ACTIVATION = /^(?:activated|opened)\b|^you (?!use\b|uses\b)[\w'’ -]+ as an? (?:maneuver|main action|move action)$/i;
+const MECHANICS = /\b(?:damage|stamina|surges?|edges?|banes?|rolls?|tests?|squares?|shifts?|slides?|push(?:es)?|pulls?|teleports?|grab(?:s|bed)?|prone|weakened|slowed|dazed|frightened|taunted|bleeding|restrained|recover(?:y|ies)|resources?|speed|stability|potency|tier|actions?|maneuvers?|abilit(?:y|ies)|strikes?|immun\w*|weakness|temporary|turns?|rounds?|saving throw|save ends|bonus|penalty|gains?|loses?|targets?|creatures?|all(?:y|ies)|enem(?:y|ies)|renown|wealth|initiative|d10|doomed|forms?|moves?|movement|hidden|hide|sneak|invisible|conditions?|can|can['’]t|cannot|must|immediately|automatically|ends?|die|dies|death|dead|space|terrain|size|projects?|victor(?:y|ies)|malice|spends?|spent|swap|replace|choose|as if|effects?|destroyed|reappears?|retreat|revert|soul|restored|hero token|fate points?|questions?|director|inactive|appl(?:y|ies)|\d+)\b/i;
+const plainWords = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+const OUT_OF_COMBAT =/\b(respite|downtime|montage|negotiation|project|travel(?:ing)?|tests?\b|rest\b|between encounters|outside of combat|each day|a day|victor(?:y|ies)|hours?|minutes?|uninterrupted|craft(?:ing)?|deity)\b/i;
 const AUGMENT = /^(?:you|your companion|you or your companion) (?:use|uses|make|makes|take|takes|activate)s? (?:the |a |an |your |any )?(?:[\w'’ -]+ )?(?:ability|abilities|maneuver|main action|move action|action|strike|free strike|Judgment|Disengage|Charge|Knockback|Advance|Aid Attack|Hide|Search|Grab)\b(?! against you)/i;
 
 function cleanCondition(c) {
@@ -185,6 +191,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
   let lead = null;
   let leads = 0;
   let benefitsOf = null;
+  let earlier = null;
   for (const raw of blocksOf(html)) {
     const li = raw.startsWith(LI);
     const block = li ? raw.slice(1).trim() : raw;
@@ -221,11 +228,25 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
       }
       const trigger = cleanCondition(parts.condition);
       if (!trigger) return;
+      if (!spends && (BACKSTORY.test(trigger) || ACTIVATION.test(trigger))) return;
       found.push({ index, sentence, trigger, effect: parts.effect, action: free ? "freeTriggered" : spends ? "triggered" : null });
     });
+    let previous = null;
+    const fromEarlier = earlier;
     found.forEach((f, i) => {
       const next = found[i + 1]?.index ?? sentences.length;
       const effect = [f.effect, ...sentences.slice(f.index + 1, next)].join(" ").replace(/\s+/g, " ").trim();
+      if (!f.action && !MECHANICS.test(effect)) return;
+      /* "...the artifact appears on your person. When the artifact appears, you lose a Recovery": a trigger that only
+         restates a thing the line before it produced is that line continuing. One about you ("you capture a moment",
+         a treasure's 5th level rider) is a trigger of its own. */
+      const restated = plainWords(f.trigger).replace(/^you /, "");
+      const byYou = /^you\b/.test(plainWords(f.trigger).replace(/^(?:additionally|also|then) /, ""));
+      const host = byYou ? null : previous ?? fromEarlier;
+      if (host && !f.action && restated.split(" ").length >= 2 && plainWords(host.effect).includes(restated)) {
+        host.effect = `${host.effect} ${f.sentence}`.trim();
+        return;
+      }
       const curated = CURATED[dsid || generateDSID(base)] ?? {};
       const kind = curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger");
       const once = curated.once ?? onceOf(f.sentence) ?? (/\buntil the end of the round\b/i.test(effect) ? "round" : null);
@@ -240,6 +261,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         parse: parseTrigger(`${parseText}.`, { effectText: effect, ownerName }), tier, family: tier ? generateDSID(f.trigger) : null };
       lines.push(line);
+      previous = line;
+      earlier = line;
       if (i === found.length - 1 && /:$/.test(effect)) benefitsOf = line;
     });
   }
