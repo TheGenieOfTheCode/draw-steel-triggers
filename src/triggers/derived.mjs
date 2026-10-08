@@ -1,4 +1,4 @@
-import { MODULE_ID, dbg, isPrimaryGM, getSetting } from "../util.mjs";
+import { MODULE_ID, dbg, isPrimaryGM, getSetting, executeAsDirector } from "../util.mjs";
 import { FEATURE_ACTOR_TYPES, itemEffectiveLines, featureTriggersActive, ignoreLine, isLineSource, lineCost } from "./feature-triggers.mjs";
 import { enricherText, asOwner, abilityEffectHTML } from "../parser/feature-triggers.mjs";
 import { parseTrigger } from "../parser/trigger-parser.mjs";
@@ -311,5 +311,5 @@ Hooks.on("deleteItem", (item, options, userId) => {
   const payload = { dsid: d.sourceDsid || d.sourceName, line: d.lineKey, name: ignoreName(d.sourceName, item.name),
     ability: item.name, actorName: item.parent?.name ?? "", userName: game.user.name };
   if (game.user.isGM) ignoreDeleted(payload);
-  else _socket?.executeAsGM("derivedDeleted", payload);
+  else executeAsDirector(_socket, "derivedDeleted", payload);
 });

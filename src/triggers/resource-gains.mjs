@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM, executeAsDirector } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
@@ -375,7 +375,7 @@ function _wrapUndo(ResourceApp) {
       const trackKey = target?.dataset?.trackKey;
       await original.call(this, event, target);
       if (game.user.isGM) await _afterRuiUndo(trackKey);
-      else await _socket?.executeAsGM("resourceGainUndo", trackKey);
+      else await executeAsDirector(_socket, "resourceGainUndo", trackKey);
     };
     wrapped._dstWrapped = true;
     actions.undoUsage = wrapped;
@@ -417,7 +417,7 @@ export async function undoResourceGain(message) {
   if (!canUndoResourceGain(message)) return false;
   const { record } = message.flags[MODULE_ID].resourceGain;
   if (isPrimaryGM()) return undoGain(record);
-  return _socket?.executeAsGM("resourceGainUndoRecord", record);
+  return executeAsDirector(_socket, "resourceGainUndoRecord", record);
 }
 
 Hooks.on("renderChatMessageHTML", (message, html) => {

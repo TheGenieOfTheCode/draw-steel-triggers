@@ -35,32 +35,12 @@ export function batchedNotice(key, name, { level = "info" } = {}) {
   }, wait);
 }
 
-export function primaryGM() {
-  const id = getSetting("primaryGamemaster");
-  const chosen = id ? game.users.get(id) : null;
-  
-  if (chosen?.isGM && chosen.active) return chosen;
-  return game.users.activeGM ?? null;
-}
+const ctlib = () => game.modules.get("draw-steel-ctlib")?.api;
+
+export const primaryGM = () => ctlib()?.primaryGM?.() ?? game.users.activeGM ?? null;
 
 export const isPrimaryGM = () => !!primaryGM()?.isSelf;
 
-export async function claimPrimaryGM() {
-  if (!game.user.isGM) return;
-  
-  if (!game.users.activeGM?.isSelf) return;
-
-  const id = getSetting("primaryGamemaster");
-  const held = id ? game.users.get(id) : null;
-  
-  if (held?.isGM) return;
-
-  await game.settings.set(MODULE_ID, "primaryGamemaster", game.user.id);
-  dbg("claimed the primary gamemaster seat");
-}
-
-export function gmChoices() {
-  const out = {};
-  for (const user of game.users.filter((u) => u.isGM)) out[user.id] = user.name;
-  return out;
-}
+export const executeAsDirector = (socket, handler, ...args) => ctlib()?.executeAsDirector
+  ? ctlib().executeAsDirector(socket, handler, ...args)
+  : (socket ? socket.executeAsGM(handler, ...args) : Promise.resolve(undefined));

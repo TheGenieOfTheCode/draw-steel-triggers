@@ -1,5 +1,5 @@
 import { parseTrigger, generateDSID, SPECIAL_CASES } from "./parser/trigger-parser.mjs";
-import { MODULE_ID, getSetting, dbg, claimPrimaryGM, gmChoices } from "./util.mjs";
+import { MODULE_ID, getSetting, dbg } from "./util.mjs";
 import {
   isTriggeredAbility,
   isMaliceAbility,
@@ -37,15 +37,6 @@ import { onDerivedSetting } from "./triggers/derived.mjs";
 import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
-  game.settings.register(MODULE_ID, "primaryGamemaster", {
-    name: "DS_TRIGGERS.Settings.PrimaryGamemaster.Name",
-    hint: "DS_TRIGGERS.Settings.PrimaryGamemaster.Hint",
-    scope: "world",
-    config: true,
-    type: String,
-    default: "",
-    choices: {},
-  });
   game.settings.register(MODULE_ID, "combatOnly", {
     name: "DS_TRIGGERS.Settings.CombatOnly.Name",
     hint: "DS_TRIGGERS.Settings.CombatOnly.Hint",
@@ -280,7 +271,7 @@ Hooks.once("init", () => {
 });
 
 const SETTING_HEADERS = {
-  primaryGamemaster: "General",
+  combatOnly: "General",
   damagePrompts: "Stack",
   rollLock: "Rolls",
   damageInterrupts: "DamageMovement",
@@ -314,12 +305,6 @@ registerSnoozeHooks();
 Hooks.once("ready", () => {
   registerDamagePillBridge();
   console.log(`${MODULE_ID} | ready (v${game.modules.get(MODULE_ID).version})`);
-
-  
-  
-  const cfg = game.settings.settings.get(`${MODULE_ID}.primaryGamemaster`);
-  if (cfg) cfg.choices = gmChoices();
-  claimPrimaryGM().catch((err) => console.warn(`${MODULE_ID} | could not claim the primary seat`, err));
 
   if (getSetting("debugMode")) scanWorld();
 });
