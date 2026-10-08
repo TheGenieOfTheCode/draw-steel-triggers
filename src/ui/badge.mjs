@@ -174,5 +174,6 @@ Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   const badge = buildBadge(item);
   if (!badge) return;
   fields.classList.add("dst-badge-host");
-  fields.insertBefore(badge, anchor);
+  const ref = anchor.closest(".dst-input-wrap") ?? anchor;
+  ref.parentElement.insertBefore(badge, ref);
 });
