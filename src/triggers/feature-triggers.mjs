@@ -64,22 +64,27 @@ export function abilityEffectLive(item) {
   return nearbyActors(item.actor).some((a) => carriesEffect(a, item.uuid));
 }
 
-const MARK_NAMES = { judged: /judg/i, marked: /\bmark/i };
+const APPLY_LABEL = /\[\[\/apply\s[^\]]*\]\]\{([^}]+)\}/g;
+const CT_KEYS = { judged: "judgement", marked: "mark" };
 
-export function carriesMark(actor, owner, kind) {
-  const rx = MARK_NAMES[kind];
-  if (!rx || !owner) return false;
-  const ctKey = kind === "judged" ? "judgement" : "mark";
-  return !!actor?.effects?.some((e) => {
-    if (!e.active) return false;
-    if (e.getFlag?.("draw-steel-combat-tools", ctKey)?.actorId === owner.id) return true;
-    const source = e.origin ? fromUuidSync(e.origin) : null;
-    return source?.documentName === "Item" && source.actor?.id === owner.id && rx.test(source.name);
-  });
+export function labelSources(owner, label) {
+  const want = String(label ?? "").toLowerCase();
+  return (owner?.items ?? []).filter((i) => i.type === "ability"
+    && [...abilityEffectHTML(i).matchAll(APPLY_LABEL)].some((m) => m[1].trim().toLowerCase() === want));
+}
+
+export const labelKnown = (owner, label) => !!CT_KEYS[String(label ?? "").toLowerCase()] || labelSources(owner, label).length > 0;
+
+export function carriesMark(actor, owner, label) {
+  if (!actor || !owner || !label) return false;
+  const origins = new Set(labelSources(owner, label).map((i) => i.uuid));
+  const ctKey = CT_KEYS[String(label).toLowerCase()];
+  return !!actor.effects?.some((e) => e.active
+    && (origins.has(e.origin) || (!!ctKey && e.getFlag?.("draw-steel-combat-tools", ctKey)?.actorId === owner.id)));
 }
 
 export function abilityLineLive(item, line) {
-  if (line.watchMark && MARK_NAMES[line.watchMark].test(item.name)) return nearbyActors(item.actor).some((a) => carriesMark(a, item.actor, line.watchMark));
+  if (line.watchMark && labelSources(item.actor, line.watchMark).some((i) => i.id === item.id)) return nearbyActors(item.actor).some((a) => carriesMark(a, item.actor, line.watchMark));
   return abilityEffectLive(item);
 }
 

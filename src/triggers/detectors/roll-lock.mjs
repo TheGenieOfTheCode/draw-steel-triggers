@@ -13,15 +13,15 @@ function _hasDamage(ability) {
   return effects.some((e) => e.type === "damage" || e.type === "dsct.flatDamage");
 }
 
-function _lockMatches(event, subjectActor, subjectToken, rollerActor, ability = null) {
-  const dealer = { dealerActor: rollerActor, dealerToken: rollerActor?.getActiveTokens?.(false, true)?.[0] ?? null, ability };
+function _lockMatches(event, subjectActor, subjectToken, rollerActor, ability = null, usedTargets = []) {
+  const dealer = { dealerActor: rollerActor, dealerToken: rollerActor?.getActiveTokens?.(false, true)?.[0] ?? null, ability, usedTargets };
   return collectTriggerMatches(event, subjectActor, subjectToken, null, dealer).filter((m) =>
     !m.malice
     && m.actor !== rollerActor
     && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
 }
 
-Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
+Hooks.once("setup", () => Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   if (!getSetting("rollLock")) return;
   if (app.rendered) return;
   const ability = app.options?.ability;
@@ -67,12 +67,13 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
     }
   };
 
-  const rollerToken = rollerActor.getActiveTokens(true, true)[0] ?? null;
-  if (hasRoll) add(_lockMatches("POWER_ROLL", rollerActor, rollerToken, rollerActor), "POWER_ROLL");
-  if (strike) add(_lockMatches("MAKES_STRIKE", rollerActor, rollerToken, rollerActor), "MAKES_STRIKE");
-
   const targets = Object.values(app.options?.context?.targets ?? {});
   const targetPairs = targets.map((t) => ({ tokenDoc: t.tokenUuid ? fromUuidSync(t.tokenUuid) : null }));
+  const targetDocs = targetPairs.map((p) => p.tokenDoc).filter(Boolean);
+
+  const rollerToken = rollerActor.getActiveTokens(true, true)[0] ?? null;
+  if (hasRoll) add(_lockMatches("POWER_ROLL", rollerActor, rollerToken, rollerActor, null, targetDocs), "POWER_ROLL");
+  if (strike) add(_lockMatches("MAKES_STRIKE", rollerActor, rollerToken, rollerActor, null, targetDocs), "MAKES_STRIKE");
   const targetActors = new Set(targetPairs.map((p) => p.tokenDoc?.actor).filter(Boolean));
   const notAlsoTargeted = (m) => !(m.clause?.excludeSelfTarget && targetActors.has(m.actor));
   for (const { tokenDoc } of targetPairs) {
@@ -115,4 +116,4 @@ Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   });
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollHeld", { name: ability.name }));
   return false;
-});
+}));

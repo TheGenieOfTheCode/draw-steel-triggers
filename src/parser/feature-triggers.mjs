@@ -116,8 +116,8 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
 }
 
 const SELF_DESCRIPTION = /\b(?:this|the) (?:ability|movement|shift|maneuver|charge|move action|main action|feature)\b|\btakes? the [\w-]+ (?:move|main) action\b|^you do\b|^they use (?:this|that)\b|\bwhile using this\b/i;
-const NEEDS_SUBJECT = /\b(?:judged|marked) by you\b|\byou['’]ve marked\b|\bthe target\b|\ba target\b|\bunder this effect\b/i;
-const MARKED = /\b(?:judged|marked) by you\b|\byou['’]ve marked\b/i;
+const NEEDS_SUBJECT = /\b(?!(?:taunted|grabbed|restrained|frightened|slowed|weakened|dazed|bleeding)\b)\w+ed by you\b|\byou['’]ve marked\b|\bthe target\b|\ba target\b|\bunder this effect\b/i;
+const MARKED = /\b(?!(?:taunted|grabbed|restrained|frightened|slowed|weakened|dazed|bleeding)\b)(\w+ed) by you\b|\byou['’]ve (marked)\b/i;
 const AREA = /\b(?:the area|in the area|zone|stockade|aura|wall)\b/i;
 
 export function abilityEffectHTML(ability) {
@@ -132,7 +132,7 @@ export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = ""
       : AREA.test(l.trigger) || !appliesEffects ? "parked"
         : NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active";
     const mark = l.trigger.match(MARKED);
-    return { ...l, watch, ...(mark ? { watchMark: /judg/i.test(mark[0]) ? "judged" : "marked" } : {}) };
+    return { ...l, watch, ...(mark ? { watchMark: (mark[1] ?? mark[2]).toLowerCase() } : {}) };
   });
 }
 

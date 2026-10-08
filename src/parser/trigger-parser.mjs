@@ -404,6 +404,21 @@ export function abilityFiltersFrom(text, effectText = "") {
 const DAMAGE_TYPES = ["acid", "cold", "corruption", "fire", "holy", "lightning", "poison", "psychic", "sonic"];
 const NOT_DAMAGE_TYPES = /\b(?:isn['’ʼ]t|is not|other than)\s+(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:\s+damage)?(?:,?\s+(?:or\s+|and\s+)?(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:\s+damage)?)*(?<=damage)/i;
 
+const OWNER_EFFECT = /\b(\w+ed) by (?:you|the self)\b|\b(?:creatures?|targets?|enem(?:y|ies)|all(?:y|ies)) ((?:you|the self)(?:['’]ve| have) (?!(?:taunted|grabbed|restrained|frightened|slowed|weakened|dazed|bleeding)\b)(\w+ed))\b/;
+const OWNER_EFFECT_NOUN = String.raw`\s+(?:(?:an?|the|any|one)\s+|one or more\s+)(?:[\w-]+\s+)?(?:creatures?|targets?|enem(?:y|ies)|all(?:y|ies))\s*$`;
+const HIT_BEFORE = new RegExp(String.raw`\b(?:damages?|to|against|attack|targets?)` + OWNER_EFFECT_NOUN);
+const FROM_BEFORE = new RegExp(String.raw`\bfrom` + OWNER_EFFECT_NOUN);
+
+/* Which creature must carry the owner's effect: the one hit, the attacker, or the one acting. On a
+   targeted event the acting creature is the attacker, unless the text was turned into "is struck by". */
+function ownerEffectRole(lc, at, event) {
+  const before = lc.slice(0, at);
+  if (HIT_BEFORE.test(before)) return "victim";
+  if (FROM_BEFORE.test(before)) return "dealer";
+  if (/^TARGETED_BY_/.test(event) && !/\bis (?:struck|targeted)\b/.test(lc)) return "dealer";
+  return "subject";
+}
+
 const CLAUSE_FLAGS = [
   { id: "damageTypes",       from: "trigger", when: (c) => c.damageTypes?.length,
     list: () => [NOT_DAMAGE_TYPES, /\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:[, ]+(?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic))*\b[\w ]*damage/i] },
@@ -426,6 +441,8 @@ const CLAUSE_FLAGS = [
   { id: "tauntedByOwner",    from: "trigger", when: (c) => c.tauntedByOwner,
     rx: /\b(?:the [\w'’-]+ has|you have) taunted\b|\btaunted by (?:the [\w'’-]+|you)\b/i },
   { id: "ownerLacks",        from: "trigger", when: (c) => c.ownerLacks, rx: /\b(?:you are|the [\w'’-]+ is) not \w+/i },
+  { id: "ownerEffect",       from: "trigger", when: (c) => c.ownerEffect?.label,
+    rx: /\b(?!(?:taunted|grabbed|restrained|frightened|slowed|weakened|dazed|bleeding)\b)\w+ed by (?:you|the [\w'’-]+)\b|\byou(?:['’]ve| have) (?!(?:taunted|grabbed|restrained|frightened|slowed|weakened|dazed|bleeding)\b)\w+ed\b/i },
   { id: "through",           from: "trigger", when: (c) => c.through,
     rx: /\bmoves? through (?:an?|any) [\w-]+(?:['’]s space)?/i },
   { id: "entersSpace",       from: "trigger", when: (c) => c.entersSpace, rx: /\benters? this space\b/i },
@@ -682,6 +699,9 @@ export function parseTrigger(text, { dsid, ownerName, effectText, targetType } =
     }
     if (entry.event === "DEALS_DAMAGE" && /\bother than the self\b/.test(lc)) entry.victimNotSelf = true;
     if (/\b(?:the self has|you have) taunted\b|\btaunted by (?:the self|you)\b/.test(lc)) entry.tauntedByOwner = true;
+    const by = lc.match(OWNER_EFFECT);
+    const byLabel = by?.[1] ?? by?.[3];
+    if (by && !/^(?:taunted|grabbed|restrained|frightened|slowed|weakened|dazed|bleeding)$/.test(byLabel)) entry.ownerEffect = { label: byLabel, on: ownerEffectRole(lc, by[2] ? by.index + by[0].indexOf(by[2]) : by.index, entry.event) };
     const lacks = lc.match(/\b(?:you are|the self is) not (taunted|grabbed|restrained|frightened|prone|slowed|weakened|dazed|bleeding)\b/);
     if (lacks) entry.ownerLacks = lacks[1];
     if (entry.event === "MOVES" && /\benters? this space\b/.test(lc)) entry.entersSpace = true;

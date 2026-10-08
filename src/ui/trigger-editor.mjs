@@ -25,6 +25,7 @@ const FLAG_FIELDS = {
   organization: ["organization"],
   tauntedByOwner: ["tauntedByOwner"],
   ownerLacks: ["ownerLacks"],
+  ownerEffect: ["ownerEffect"],
   through: ["through", "throughScope"],
   victimNotMentor: ["victimNotMentor"],
   entersSpace: ["entersSpace"],
@@ -60,6 +61,7 @@ function describeFilter(id, fields) {
     case "organization": return L("QualEffectOrganization", { org: (fields.organization?.exclude ?? []).join(", ") });
     case "tauntedByOwner": return L("QualEffectTauntedByOwner");
     case "ownerLacks": return L("QualEffectOwnerLacks", { condition: conditionLabel(fields.ownerLacks).toLowerCase() });
+    case "ownerEffect": return L({ victim: "QualEffectOwnerEffectHit", dealer: "QualEffectOwnerEffectDealer" }[fields.ownerEffect?.on] ?? "QualEffectOwnerEffect", { label: fields.ownerEffect?.label ?? "" });
     case "through": return fields.throughScope
       ? L("QualEffectThroughSide", { side: String(fields.throughScope).toLowerCase() })
       : L("QualEffectThrough");

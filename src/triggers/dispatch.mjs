@@ -6,7 +6,7 @@ import { buildAbilityPreview, buildTriggerCardRows, triggerCardHTML } from "../u
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
-import { carriesEffect, carriesMark } from "./feature-triggers.mjs";
+import { carriesEffect, carriesMark, labelKnown } from "./feature-triggers.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
@@ -318,9 +318,18 @@ function organizationMatches(clause, subjectActor) {
   return !excluded.includes(org);
 }
 
+const targetActors = (ctx) => (ctx.usedTargets ?? []).map((t) => t?.actor ?? fromUuidSync(t?.uuid ?? t)?.actor ?? null).filter(Boolean);
+
 function watchedCreatures(subjectActor, ctx = {}) {
-  const targets = (ctx.usedTargets ?? []).map((t) => t?.actor ?? fromUuidSync(t?.uuid ?? t)?.actor ?? null);
-  return [subjectActor, ctx.victimActor, ...targets].filter(Boolean);
+  return [subjectActor, ctx.victimActor, ...targetActors(ctx)].filter(Boolean);
+}
+
+function ownerEffectMatches(clause, ownerActor, subjectActor, ctx = {}) {
+  const want = clause.ownerEffect;
+  if (!want?.label || !labelKnown(ownerActor, want.label)) return true;
+  const holders = want.on === "victim" ? (ctx.victimActor ? [ctx.victimActor] : targetActors(ctx))
+    : want.on === "dealer" ? [ctx.dealerActor] : [subjectActor];
+  return holders.some((a) => carriesMark(a, ownerActor, want.label));
 }
 
 export function collectTriggerMatches(event, subjectActor = null, subjectToken = null, usedAbility = null, usedContext = {}) {
@@ -359,13 +368,11 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
         && statusMatches(c, actor, subjectActor)
+        && ownerEffectMatches(c, actor, subjectActor, usedContext)
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
       if (!clause) continue;
-      if (entry.watch === "subject") {
-        const holds = entry.watchMark ? (a) => carriesMark(a, actor, entry.watchMark) : (a) => carriesEffect(a, entry.originUuid);
-        if (!watchedCreatures(subjectActor, usedContext).some(holds)) continue;
-      }
+      if (entry.watch === "subject" && !entry.watchMark && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
       
       if (!canAffordCost(actor, entry.item)) {
         dbg(`${actor.name} cannot afford ${entry.item.name} (costs ${entry.item.system.resource}, has ${resourceOf(actor)}), skipped on ${event}`);
