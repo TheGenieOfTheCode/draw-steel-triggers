@@ -32,6 +32,7 @@ import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
 import "./ui/feature-card.mjs";
+import "./ui/derived-chat-links.mjs";
 import { onDerivedSetting } from "./triggers/derived.mjs";
 import "./compat/dstd-sync.mjs";
 
@@ -174,6 +175,14 @@ Hooks.once("init", () => {
     default: true,
     onChange: (on) => onDerivedSetting(on),
   });
+  game.settings.register(MODULE_ID, "derivedChatLinks", {
+    name: "DS_TRIGGERS.Settings.DerivedChatLinks.Name",
+    hint: "DS_TRIGGERS.Settings.DerivedChatLinks.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
   game.settings.register(MODULE_ID, "featureShareCards", {
     name: "DS_TRIGGERS.Settings.FeatureShareCards.Name",
     hint: "DS_TRIGGERS.Settings.FeatureShareCards.Hint",
@@ -281,7 +290,7 @@ const SETTING_HEADERS = {
 };
 
 const HEADER_FALLBACK = { Resources: ["rosterGains"] };
-const SUB_SETTINGS = ["allSceneTokens"];
+const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks"];
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
