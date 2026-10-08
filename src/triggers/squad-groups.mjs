@@ -76,9 +76,11 @@ Hooks.on("createChatMessage", async (message) => {
   if (Date.now() - rec.at > 120000) return;
   const primary = fromUuidSync(use.abilityUuid)?.actor ?? null;
   const extras = rec.extras.map((m) => ({ actorUuid: m.ownerActorUuid, itemUuid: m.itemUuid, tokenId: m.tokenId, name: m.ownerName }));
-  await message.setFlag(MODULE_ID, FLAG, { primary: { actorUuid: primary?.uuid ?? null, tokenId: tokenIdOf(primary), name: primary?.name ?? "" }, extras });
+  await message.setFlag(MODULE_ID, FLAG, { primary: { actorUuid: primary?.uuid ?? null, itemUuid: use.abilityUuid, tokenId: tokenIdOf(primary), name: primary?.name ?? "" }, extras });
   await countExtras(message, extras);
 });
+
+const members = (squad) => [squad.primary, ...squad.extras].filter((m) => m?.actorUuid && m.itemUuid);
 
 export function squadPills(message) {
   const squad = message.getFlag(MODULE_ID, FLAG);
@@ -86,8 +88,7 @@ export function squadPills(message) {
   const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
   const label = message.title || fromUuidSync(squad.extras[0].itemUuid)?.name || "";
   const pills = [
-    { kind: "note", value: null, label: game.i18n.localize("DS_TRIGGERS.Squad.Primary"), src: squad.primary?.name ?? "", srcTokenId: squad.primary?.tokenId ?? null, source: "trigger", lineStyle: "primary" },
-    ...squad.extras.map((m) => ({ kind: "delta", repeat: true, value: null, label, src: m.name, srcTokenId: m.tokenId, source: "trigger" })),
+    ...members(squad).map((m) => ({ kind: "delta", repeat: true, splitBase: true, value: null, label, src: m.name, srcTokenId: m.tokenId, source: "trigger" })),
   ];
   return targets.filter((t) => t.tokenUuid).flatMap((t) => pills.map((pill) => ({ targetUuid: t.tokenUuid, pill })));
 }
@@ -98,7 +99,7 @@ Hooks.on("updateChatMessage", (message, changes) => {
   if (!squad?.extras?.length || !foundry.utils.hasProperty(changes, `flags.${DSTD_ID}.state`)) return;
   const overrides = message.getFlag(DSTD_ID, "state")?.damageOverrides ?? {};
   const pills = Object.values(overrides).flatMap((o) => o?.dstPills ?? []);
-  for (const m of squad.extras) {
+  for (const m of members(squad)) {
     const mine = pills.filter((p) => p.kind !== "note" && p.srcTokenId === m.tokenId);
     if (!mine.length) continue;
     const on = mine.some((p) => p.enabled !== false);

@@ -617,8 +617,7 @@
       "DeletedWhisper": "{user} deleted <strong>{ability}</strong> from {actor}, so <strong>{name}</strong> is now ignored for everyone. Remove it from Ignored Features in the module settings to bring it back."
     },
     "Squad": {
-      "OwnerCount": "{name} ×{n}",
-      "Primary": "Primary Attacker"
+      "OwnerCount": "{name} ×{n}"
     },
     "Card": {
       "Keywords": "Keywords",
