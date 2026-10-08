@@ -17,7 +17,7 @@ export function isMaliceAbility(item) {
   const flag = item?.getFlag(MODULE_ID, "malice");
   if (flag !== undefined) return !!flag;
   if (item?.system?.category === "maliceAncestry") return true;
-  return item?.img === MALICE_ICON;
+  return item?.type === "ability" && item.img === MALICE_ICON;
 }
 
 export function isImplicitMaliceTrigger(item) {
