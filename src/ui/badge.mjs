@@ -1,5 +1,6 @@
 import { MODULE_ID, getSetting } from "../util.mjs";
-import { emblemCoinHTML } from "./emblem-coin.mjs";
+import { emblemCoinHTML, emblemCoinURI } from "./emblem-coin.mjs";
+import { TriggerEditor } from "./trigger-editor.mjs";
 import { isTriggeredAbility, isMaliceAbility, getParsedTrigger } from "../triggers/registry.mjs";
 import { changesTheStrike } from "../parser/trigger-parser.mjs";
 
@@ -132,10 +133,38 @@ function ensureTriggerRow(app, element, item) {
   after.insertAdjacentElement("afterend", row);
 }
 
+function buildCoin(item) {
+  const info = computeAutomationLevel(item);
+  if (!info) return null;
+  const coin = document.createElement("button");
+  coin.type = "button";
+  coin.className = `dst-line-widget dst-coin-widget dst-coin-widget--${info.level}`;
+  coin.style.backgroundImage = `url("${emblemCoinURI(info.level === "none" ? "iron" : info.level)}")`;
+  const title = game.i18n.localize(`DS_TRIGGERS.Badge.Level.${info.level}`);
+  coin.dataset.tooltip = `<strong>${title}</strong><br>${info.detail.join("<br>")}`;
+  coin.setAttribute("aria-label", title);
+  if (!item.isOwner) coin.disabled = true;
+  coin.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    new TriggerEditor(item).render({ force: true });
+  });
+  return coin;
+}
+
+
+function decoratePlayTrigger(element, item) {
+  const text = element.querySelector("dd.trigger");
+  if (!text || text.querySelector(".dst-coin-widget")) return;
+  const coin = buildCoin(item);
+  if (coin) text.prepend(coin);
+}
+
 Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   const item = app.document;
   if (item?.type !== "ability") return;
   ensureTriggerRow(app, element, item);
+  decoratePlayTrigger(element, item);
   
   const anchor = element.querySelector('input[name="system.trigger"]')
     ?? element.querySelector('select[name="system.type"]');
