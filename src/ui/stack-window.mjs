@@ -290,7 +290,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
           reaperGroups: e.kind === "reaper" ? reaperGroups(e) : null,
           ownerFaces: isDamageHeld
             ? faceChain((e.subjectUuids ?? [e.heldDamage?.tokenUuid]).map((u) => (u ? fromUuidSync(u) : null)))
-            : e.itemUuid ? faceChain([tokenOfActor(e.ownerActorUuid)]) : "",
+            : e.itemUuid ? faceChain([e.ownerActorUuid, ...(e.squad ?? []).map((m) => m.ownerActorUuid)].map(tokenOfActor)) : "",
+          ownerName: e.squad?.length ? game.i18n.format("DS_TRIGGERS.Squad.OwnerCount", { name: e.ownerName, n: e.squad.length + 1 }) : e.ownerName,
           damageIdsJoined: (e.damageIds ?? [e.damageId]).filter(Boolean).join(","),
           itemName: isDamageHeld && (e.damageIds?.length ?? 1) > 1
             ? game.i18n.format("DS_TRIGGERS.Queue.HeldDamageEach", { entry: e.itemName })

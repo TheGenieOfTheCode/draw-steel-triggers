@@ -1,6 +1,7 @@
 import { MODULE_ID, dbg, primaryGM } from "../util.mjs";
 import { queueSocket } from "./queue.mjs";
 import { registerBespokeUse, getBespokeUse } from "./bespoke-registry.mjs";
+import { squadPills } from "./squad-groups.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
@@ -23,8 +24,8 @@ export function registerDamagePillBridge() {
   if (!api?.damagePills?.registerProvider) return;
   api.damagePills.registerProvider((message) => {
     const entries = message.getFlag(MODULE_ID, PILL_FLAG);
-    if (!Array.isArray(entries)) return [];
-    return entries.map((e) => ({ targetUuid: e.targetUuid, pill: e.pill }));
+    const bespoke = Array.isArray(entries) ? entries.map((e) => ({ targetUuid: e.targetUuid, pill: e.pill })) : [];
+    return [...bespoke, ...squadPills(message)];
   });
   dbg("damage pill bridge registered with Combat Tools");
 }

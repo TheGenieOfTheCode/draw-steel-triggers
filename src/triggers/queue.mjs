@@ -12,6 +12,7 @@ import { triggerEffectText } from "./registry.mjs";
 import { pickHarmonizeTarget } from "./bespoke.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
+import { joinSquad, noteSquadUse } from "./squad-groups.mjs";
 
 let socket = null;
 
@@ -248,6 +249,10 @@ function _onQueueAdd(entries) {
   const fresh = [];
   let merged = false;
   for (const e of entries) {
+    if (joinSquad(e, [..._queue, ...fresh])) {
+      merged = true;
+      continue;
+    }
     const family = _mergeFamily(e);
     const into = family && _queue.find((q) => _sameSource(q, e) && q.state === "pending" && _mergeFamily(q) === family);
     if (into) {
@@ -290,6 +295,7 @@ async function _onQueueResolve(id, outcome, userName) {
   const entry = _queue.find((e) => e.id === id);
   if (!entry || entry.state !== "pending") return;
   entry.state = outcome;
+  if (outcome === "used") noteSquadUse(entry);
   if (outcome === "used") entry.usedAt = Date.now();
   if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
   if (outcome === "used" && entry.defersDeath) {

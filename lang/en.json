@@ -602,6 +602,10 @@
       "HarmonizeAdded": "{name} was added as an additional target, taking sonic damage.",
       "HarmonizeManual": "{modName}: Combat Tools is not available, so choose and add the additional target by hand."
     },
+    "Squad": {
+      "OwnerCount": "{name} ×{n}",
+      "Primary": "Primary Attacker"
+    },
     "Card": {
       "Keywords": "Keywords",
       "Type": "Type",
