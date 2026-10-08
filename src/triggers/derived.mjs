@@ -126,17 +126,31 @@ function specFor(source, line, useMacro = null) {
     _dsid: line.key,
     effects,
   };
-  const content = { name: line.name, img: source.img, system, once: line.once ?? null, tier: line.tier ?? null };
   const flag = {
     sourceId: source.id, sourceName: source.name, sourceDsid: String(source.system?._dsid ?? "").toLowerCase(),
     lineKey: line.key, exclusive: line.exclusive ?? null, once: line.once ?? null, tier: line.tier ?? null, family: line.family ?? null,
-    hash: JSON.stringify(content), edited: false,
+    hash: "", edited: false,
   };
   const out = { name: line.name, type: "ability", img: source.img, system, flags: { [MODULE_ID]: { [FLAG]: flag } } };
   if (line.overridden && line.parse?.source === "manual") {
     Object.assign(out.flags[MODULE_ID], { manual: true, trigger: { clauses: line.parse.clauses } });
   }
+  
+  Hooks.callAll("draw-steel-triggers.derivedSpec", out, { source, line });
+  const others = Object.fromEntries(Object.entries(out.flags).filter(([scope]) => scope !== MODULE_ID));
+  flag.hash = JSON.stringify({ name: out.name, img: out.img, system: out.system, once: line.once ?? null, tier: line.tier ?? null, others });
+  flag.contributed = Object.keys(others);
   return out;
+}
+
+function otherFlags(spec, item = null) {
+  const DEL = foundry.data?.operators?.ForcedDeletion;
+  const now = Object.fromEntries(Object.entries(spec.flags ?? {})
+    .filter(([scope]) => scope !== MODULE_ID).map(([scope, data]) => [`flags.${scope}`, data]));
+  for (const scope of item?.getFlag(MODULE_ID, FLAG)?.contributed ?? []) {
+    if (!(`flags.${scope}` in now)) now[`flags.${scope}`] = DEL ? new DEL() : null;
+  }
+  return now;
 }
 
 const _parseCache = new Map();
@@ -210,7 +224,7 @@ export async function syncActor(actor) {
       }
       if (d.edited || (d.hash === spec.flags[MODULE_ID][FLAG].hash && effectsMatch(item, spec.system.effects))) continue;
       updates.push({ _id: item.id, name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: effectsUpdate(item, spec.system.effects) },
-        [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG] });
+        [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG], ...otherFlags(spec, item) });
     }
     if (creates.length) await actor.createEmbeddedDocuments("Item", creates, SYNC);
     if (updates.length) await actor.updateEmbeddedDocuments("Item", updates, SYNC);
@@ -262,7 +276,7 @@ export async function resyncDerived(item) {
   const DEL = foundry.data?.operators?.ForcedDeletion;
   await item.update({
     name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: effectsUpdate(item, spec.system.effects) },
-    [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG],
+    [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG], ...otherFlags(spec, item),
     ...Object.fromEntries(["manual", "trigger", ONCE_FLAG].map((k) => (DEL ? [`flags.${MODULE_ID}.${k}`, new DEL()] : [`flags.${MODULE_ID}.-=${k}`, null]))),
   }, SYNC);
   _parseCache.delete(item.uuid);
@@ -304,6 +318,11 @@ Hooks.on("renderApplicationV2", (app) => {
 Hooks.on("dst.ignoredFeaturesChanged", () => {
   for (const actor of game.actors) if (actor.items.some(isDerived)) queueSync(actor);
 });
+
+export function refreshDerived() {
+  for (const actor of game.actors) if (actor.type === "hero" || actor.items.some(isDerived)) queueSync(actor);
+}
+Hooks.on("draw-steel-triggers.derivedNamesChanged", refreshDerived);
 
 Hooks.on("preUpdateItem", (item, changes, options, userId) => {
   if (!isDerived(item) || options.dstDerivedSync || userId !== game.user.id) return;

@@ -120,6 +120,30 @@ export function coveredBy(item) {
     && ((dsid && i.system?._dsid === dsid) || grants.has(i._stats?.compendiumSource))) ?? null;
 }
 
+const _lineNames = [];
+
+export function registerDerivedNames(source) {
+  if (!source || !["object", "function"].includes(typeof source)) throw new Error("registerDerivedNames takes a map or a function");
+  _lineNames.unshift(source);
+  if (game.ready) Hooks.callAll("draw-steel-triggers.derivedNamesChanged");
+  return () => {
+    const at = _lineNames.indexOf(source);
+    if (at < 0) return;
+    _lineNames.splice(at, 1);
+    if (game.ready) Hooks.callAll("draw-steel-triggers.derivedNamesChanged");
+  };
+}
+
+function registeredName(item, line, index) {
+  const sourceDsid = String(item.system?._dsid ?? "");
+  const ctx = { item, line, key: line.key, index: index + 1, sourceDsid };
+  for (const s of _lineNames) {
+    const name = typeof s === "function" ? s(ctx) : s[line.key] ?? s[`${sourceDsid}#${index + 1}`];
+    if (name) return String(name);
+  }
+  return null;
+}
+
 export function effectiveFeatureLine(item, line, index = 0, count = 1) {
   const saved = item.getFlag(MODULE_ID, LINES_FLAG)?.[line.key] ?? {};
   const covered = coveredBy(item);
@@ -129,7 +153,7 @@ export function effectiveFeatureLine(item, line, index = 0, count = 1) {
   else if (line.manual.length) out.parse = { ...line.parse, confidence: "low" };
   if (saved.once !== undefined) out.once = saved.once;
   if (saved.action !== undefined) out.action = saved.action;
-  out.name = saved.name || (count > 1 ? `${item.name} ${index + 1}` : item.name);
+  out.name = saved.name || registeredName(item, line, index) || (count > 1 ? `${item.name} ${index + 1}` : item.name);
   return out;
 }
 

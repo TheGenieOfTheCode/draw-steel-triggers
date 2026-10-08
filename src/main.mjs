@@ -33,7 +33,8 @@ import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
 import "./ui/feature-card.mjs";
 import "./ui/derived-chat-links.mjs";
-import { onDerivedSetting } from "./triggers/derived.mjs";
+import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
+import { registerDerivedNames, itemEffectiveLines } from "./triggers/feature-triggers.mjs";
 import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
@@ -275,6 +276,9 @@ Hooks.once("init", () => {
     ownsResourceGain,
     canUndoResourceGain,
     undoResourceGain,
+    registerDerivedNames,
+    refreshDerived,
+    derivedLines: (item) => itemEffectiveLines(item).map((l) => ({ key: l.key, name: l.name, trigger: l.trigger, effect: l.effect })),
   };
 });
 
