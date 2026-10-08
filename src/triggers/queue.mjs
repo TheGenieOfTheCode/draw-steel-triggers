@@ -1,7 +1,8 @@
 import { setVillainUsed } from "./villain-actions.mjs";
 import { resolveStackGain } from "./resource-gains.mjs";
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } from "../util.mjs";
-import { buildTriggerCardRows, triggerCardHTML, featureLinePreview } from "../ui/ability-preview.mjs";
+import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
+import { postFeatureCard } from "../ui/feature-card.mjs";
 import { noteFeatureLineUse } from "./feature-triggers.mjs";
 import { setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
@@ -433,22 +434,11 @@ function _useFeatureLine(entry) {
   if (!owner) return;
   noteFeatureLineUse(owner, entry.featureLine.key);
   if (entry.featureLine.action === "triggered") setTriggeredActionSpent(owner, true).catch(() => {});
-  const line = entry.featureLine;
-  const esc = foundry.utils.escapeHTML;
-  const R = (k) => game.i18n.localize(`DS_TRIGGERS.Reminder.${k}`);
-  const tag = line.action === "triggered" ? R("Triggered") : line.action === "freeTriggered" ? R("Free") : R("NoAction");
-  const row = `<div class="dst-malice-feature">
-      <div class="dst-malice-feature-head">
-        <a class="dst-malice-expand"><i class="fa-solid fa-chevron-right dst-malice-chevron"></i></a>
-        <a class="dst-ability-link" data-item-uuid="${entry.itemUuid}" data-tooltip="${R("LinkTooltip")}"><strong>${esc(entry.itemName)}</strong></a>
-        <span class="dst-free">${tag}</span>
-      </div>
-      <div class="dst-reminder-row-sub"><em>${esc(line.trigger ?? line.sentence ?? "")}</em></div>
-      <div class="dst-malice-feature-embed dst-collapsed">${featureLinePreview(line, { inRow: true })}</div>
-    </div>`;
-  ChatMessage.create({
-    content: triggerCardHTML({ header: game.i18n.localize("DS_TRIGGERS.Feature.UsedHeader"), rows: row }),
-    speaker: ChatMessage.getSpeaker({ actor: owner }),
+  const item = fromUuidSync(entry.itemUuid);
+  if (!item) return;
+  postFeatureCard(item, {
+    lineKey: entry.featureLine.key,
+    speaker: ds.documents.DrawSteelChatMessage.getSpeaker({ actor: owner }),
     flags: { [MODULE_ID]: { reminder: { event: "FEATURE_USE" }, featureUse: { itemUuid: entry.itemUuid, key: entry.featureLine.key } } },
   });
 }

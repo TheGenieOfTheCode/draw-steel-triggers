@@ -31,6 +31,7 @@ import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
+import "./ui/feature-card.mjs";
 import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
@@ -151,6 +152,14 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "featureTriggers", {
     name: "DS_TRIGGERS.Settings.FeatureTriggers.Name",
     hint: "DS_TRIGGERS.Settings.FeatureTriggers.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
+  game.settings.register(MODULE_ID, "featureShareCards", {
+    name: "DS_TRIGGERS.Settings.FeatureShareCards.Name",
+    hint: "DS_TRIGGERS.Settings.FeatureShareCards.Hint",
     scope: "world",
     config: true,
     type: Boolean,

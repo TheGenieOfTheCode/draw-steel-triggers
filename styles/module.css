@@ -1503,3 +1503,13 @@ button.dst-line-widget--emblem {
   -webkit-mask: url("../icons/emblem.svg") center / 80% no-repeat;
   mask: url("../icons/emblem.svg") center / 80% no-repeat;
 }
+
+.chat-message section[data-message-part]:has(+ section[data-message-part="dstFreeStrike000"]) {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+body.dsbl-collapse .chat-message.dsbl-hide-panels section[data-message-part="dstFreeStrike000"],
+body.draw-steel-target-damage-hide-system section[data-message-part="dstFreeStrike000"] { display: none; }
+
+.dst-feature-card .dst-card-buttons button:disabled { opacity: var(--dst-dim-5, 0.5); cursor: default; }

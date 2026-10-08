@@ -4,7 +4,7 @@ import { featureGainLines } from "./feature-lines.mjs";
 const decode = (s) => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
   .replace(/&#39;|&rsquo;/g, "’").replace(/&quot;/g, "\"").replace(/[ʼ‘]/g, "’");
 
-function enricherText(inner, label) {
+export function enricherText(inner, label) {
   if (label) return label;
   const [cmd, ...words] = inner.replace(/^[/]/, "").trim().split(/\s+/);
   const args = words.filter((w) => !w.includes("="));
@@ -97,7 +97,7 @@ function eventCondition(body) {
  * @param {string} [options.name]      the item's name, keys lines when the dsid is shared (several treasures are "treasure")
  * @param {string} [options.resource]  the class resource, so heroic resource gain lines are left to resource-gains
  * @param {string} [options.ownerName] the actor's name, so "the chimera" or "Locratix" reads as the owner
- * @returns {object[]} lines: { key, sentence, action, kind, once, trigger, effect, parse, tier, family }
+ * @returns {object[]} lines: { key, sentence, action, kind, once, trigger, effect, flavor, parse, tier, family }
  *   action: "triggered" | "freeTriggered" | null; kind: "trigger" | "augment" | "outOfCombat"
  *   tier: { min, level, resource } for a row of a Growing Ferocity style table, else null
  */
@@ -188,7 +188,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
       let key = generateDSID(`${base} ${f.trigger}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
       for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
-      lines.push({ key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect,
+      const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
+      lines.push({ key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
         parse: parseTrigger(`${parseText}.`, { effectText: effect, ownerName }), tier, family: tier ? generateDSID(f.trigger) : null });
     });
   }
