@@ -7,6 +7,7 @@ import { prerequisites } from "../ui/feature-card.mjs";
 const FLAG = "derived";
 const ONCE_FLAG = "derivedOnce";
 const NAME_FLAG = "derivedName";
+const IMG_FLAG = "derivedImg";
 const SYNC = { dstDerivedSync: true };
 const ENRICHER = /\[\[([^\]]*)\]\](?:\{([^}]*)\})?/g;
 const esc = (s) => foundry.utils.escapeHTML(String(s ?? ""));
@@ -156,7 +157,7 @@ export async function syncActor(actor) {
         continue;
       }
       if (d.edited || d.hash === spec.flags[MODULE_ID][FLAG].hash) continue;
-      updates.push({ _id: item.id, name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: spec.img, system: { ...spec.system, effects: FR ? new FR(spec.system.effects) : spec.system.effects },
+      updates.push({ _id: item.id, name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: FR ? new FR(spec.system.effects) : spec.system.effects },
         [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG] });
     }
     if (creates.length) await actor.createEmbeddedDocuments("Item", creates, SYNC);
@@ -206,10 +207,11 @@ export async function resyncDerived(item) {
   if (!line) return false;
   const spec = specFor(source, line);
   const FR = foundry.data?.operators?.ForcedReplacement;
+  const DEL = foundry.data?.operators?.ForcedDeletion;
   await item.update({
-    name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: spec.img, system: { ...spec.system, effects: FR ? new FR(spec.system.effects) : spec.system.effects },
+    name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: FR ? new FR(spec.system.effects) : spec.system.effects },
     [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG],
-    [`flags.${MODULE_ID}.-=manual`]: null, [`flags.${MODULE_ID}.-=trigger`]: null, [`flags.${MODULE_ID}.-=${ONCE_FLAG}`]: null,
+    ...Object.fromEntries(["manual", "trigger", ONCE_FLAG].map((k) => (DEL ? [`flags.${MODULE_ID}.${k}`, new DEL()] : [`flags.${MODULE_ID}.-=${k}`, null]))),
   }, SYNC);
   _parseCache.delete(item.uuid);
   return true;
@@ -254,7 +256,8 @@ Hooks.on("dst.ignoredFeaturesChanged", () => {
 Hooks.on("preUpdateItem", (item, changes, options, userId) => {
   if (!isDerived(item) || options.dstDerivedSync || userId !== game.user.id) return;
   if ("name" in changes) foundry.utils.setProperty(changes, `flags.${MODULE_ID}.${NAME_FLAG}`, changes.name);
-  if (!("system" in changes) && !("img" in changes)) return;
+  if ("img" in changes) foundry.utils.setProperty(changes, `flags.${MODULE_ID}.${IMG_FLAG}`, changes.img);
+  if (!("system" in changes)) return;
   foundry.utils.setProperty(changes, `flags.${MODULE_ID}.${FLAG}.edited`, true);
 });
 
