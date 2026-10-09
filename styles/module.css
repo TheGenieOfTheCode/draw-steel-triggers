@@ -170,7 +170,7 @@
 .dst-editor .dst-hint {
   margin: 1px 0 8px;
   font-size: 0.8em;
-  opacity: var(--dst-dim-65, 0.65);
+  opacity: var(--dst-dim-75, 0.75);
   line-height: 1.25;
 }
 
@@ -303,7 +303,6 @@ button.dst-dstd-held-btn > i {
   align-items: center;
   gap: 6px;
   font-size: 0.8em;
-  opacity: var(--dst-dim-85, 0.85);
   margin-bottom: 7px;
   padding-bottom: 6px;
   border-bottom: 1px solid rgba(122, 121, 113, 0.3);
@@ -340,7 +339,7 @@ button.dst-dstd-held-btn > i {
   margin-left: auto;
   white-space: nowrap;
   font-size: 0.95em;
-  opacity: var(--dst-dim-6, 0.6);
+  opacity: var(--dst-dim-75, 0.75);
 }
 
 .dst-stack .dst-stack-age--now {
@@ -480,7 +479,7 @@ button.dst-dstd-held-btn > i {
   flex: 2;
   background: #c8942a;
   border-color: #8a6d1f;
-  color: #14100a;
+  color: #000;
   font-weight: bold;
 }
 
@@ -1228,7 +1227,7 @@ button.dst-qual-pill.dst-qual-off {
   font-weight: normal;
 }
 
-.dst-qual-empty { font-size: var(--font-size-11); opacity: var(--dst-dim-6, 0.6); font-style: italic; }
+.dst-qual-empty { font-size: var(--font-size-11); opacity: var(--dst-dim-75, 0.75); font-style: italic; }
 
 button.dst-qual-pill.dst-qual-effect.dst-qual-live {
   border-color: var(--dst-blue-text);
