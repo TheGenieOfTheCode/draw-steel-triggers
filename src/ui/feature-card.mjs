@@ -111,7 +111,7 @@ function descriptionEmbed(item, html, reads) {
 ${footer(buttons)}</document-embed>`;
 }
 
-function lineEmbed(item, line, reads) {
+function lineEmbed(item, line, reads, { buttons: withButtons = true } = {}) {
   let effect = cap(line.effect ?? "");
   const buttons = [];
   for (const r of reads) {
@@ -125,13 +125,13 @@ function lineEmbed(item, line, reads) {
   const once = { round: "OnceRound", turn: "OnceTurn", encounter: "OnceEncounter" }[line.once];
   const type = once ? L("TypeOnce", { action, once: L(once) }) : action;
   const prereqs = prerequisites(item, line.tier);
-  const row = (label, html) => `<dl><dt class="effect">${label}</dt><dd class="effect"><p>${html}</p></dd></dl>`;
+  const row = (label, html, cls = "") => `<dl${cls ? ` class="${cls}"` : ""}><dt class="effect">${label}</dt><dd class="effect"><p>${html}</p></dd></dl>`;
   const triggerLabel = game.i18n.localize("DS_TRIGGERS.Feature.Trigger");
   const effectRow = row(game.i18n.localize("DS_TRIGGERS.Feature.Effect"), esc(effect));
   const rows = prereqs.length
     ? row(L(prereqs.length > 1 ? "Prerequisites" : "Prerequisite"), prereqs.map((c, i) =>
       `<span class="dst-prereq">${esc(i ? `${L("And")} ${c}` : cap(c))}${i < prereqs.length - 1 ? "," : ""}</span>`).join(" "))
-      + row(triggerLabel, esc(line.trigger)) + effectRow
+      + row(triggerLabel, esc(line.trigger), "dst-trigger-row") + effectRow
     : effectRow;
   return `<document-embed class="draw-steel ability dst-feature-card">
 <h5>${esc(line.name ?? item.name)}</h5>
@@ -144,7 +144,15 @@ function lineEmbed(item, line, reads) {
   </dl>
 </section>
 <section class="effect after">${rows}</section>
-${footer(buttons)}</document-embed>`;
+${withButtons ? footer(buttons) : ""}</document-embed>`;
+}
+
+export async function featureLineEmbed(item, lineKey) {
+  const actor = item.actor;
+  const ctx = { item, actor, rollData: actor?.getRollData?.() ?? item.getRollData?.() ?? {} };
+  const line = itemEffectiveLines(item).find((l) => l.key === lineKey);
+  if (!line) return "";
+  return lineEmbed(item, line, await readAll(item.system?.description?.value ?? "", ctx), { buttons: false });
 }
 
 function ordinal(n) {

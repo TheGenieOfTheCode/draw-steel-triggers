@@ -201,6 +201,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "basicMalice", {
+    name: "DS_TRIGGERS.Settings.BasicMalice.Name",
+    hint: "DS_TRIGGERS.Settings.BasicMalice.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "featureIgnore", {
     name: "DS_TRIGGERS.Settings.FeatureIgnore.Name",
     hint: "DS_TRIGGERS.Settings.FeatureIgnore.Hint",

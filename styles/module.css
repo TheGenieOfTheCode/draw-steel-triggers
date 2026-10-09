@@ -1534,3 +1534,185 @@ body.draw-steel-target-damage-hide-system section[data-message-part="dstFreeStri
 
 .dst-derived-note a { text-decoration: underline; }
 .dst-derived-edited { color: var(--dst-gold-text, #d9a63f); }
+
+.dst-system-card .dst-card-intro { margin: 0 0 0.4em; }
+.dst-system-card p { margin: 0.2em 0; }
+.dst-system-card .dst-card-buttons { margin-top: 0.4em; }
+
+.dst-card-list {
+  list-style: none;
+  margin: 0.25em 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.dst-card-row { margin: 0; }
+
+.dst-card-row > document-embed > h5 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.dst-card-row h5 .dst-card-caret { margin-right: 0.35em; }
+
+.dst-card-row > document-embed.dst-compact { cursor: pointer; }
+
+.dst-card-row h5 .dst-ability-link { flex: 0 1 auto; min-width: 0; }
+
+.dst-card-row h5 .dst-card-tail {
+  display: contents;
+  font-family: var(--font-body, inherit);
+  font-size: var(--font-size-14, 14px);
+}
+
+.dst-card-row h5 .dst-card-tail > * { flex: 0 0 auto; margin-left: 0.3em; }
+.dst-card-row h5 .dst-card-tail > :first-child { margin-left: auto; padding-left: 0.4em; }
+.dst-card-row h5 .dst-card-tail > :first-child.dst-card-pill { padding-left: 0.45em; }
+
+.dst-card-row h5 .dst-face-name { white-space: nowrap; font-weight: bold; }
+
+.dst-card-row > document-embed:not(.dst-compact) h5 .dst-card-action { display: none; }
+.dst-card-row > document-embed:not(.dst-compact) h5 .dst-card-tail > .dst-card-action + * { margin-left: auto; }
+
+.dst-card-event .dst-face-name { margin-left: 0.2em; font-weight: bold; }
+.dst-name-short,
+.dst-names-short .dst-name-full,
+.dst-names-none .dst-face-name { display: none; }
+.dst-names-short .dst-name-short { display: inline; }
+
+.dst-card-row h5:has(.dsbl-caret) .dst-card-caret { display: none; }
+.dst-card-row h5 :is(.dst-card-caret, .dsbl-caret) { transition: transform 120ms ease; }
+.dst-card-row > document-embed.dst-compact > h5 :is(.dst-card-caret, .dsbl-caret) { transform: rotate(-90deg); }
+
+.dst-card-row > document-embed.dst-compact > :not(h5, section.metadata, section.effect:has(> dl.dst-trigger-row)),
+.dst-card-row > document-embed.dst-compact section.effect > :not(dl.dst-trigger-row),
+.dst-card-row > document-embed.dst-compact section.metadata:not(:has(dd.trigger)),
+.dst-card-row > document-embed.dst-compact section.metadata :is(p.flavor, p.resource, dt.keywords, dd.keywords, dt.type, dd.type, .dsbl-kw-row, dt.distance, dd.distance, dt.target, dd.target) {
+  display: none !important;
+}
+
+.dst-card-row > document-embed.dst-compact section.metadata > dl {
+  row-gap: 0 !important;
+  grid-template-rows: none !important;
+}
+
+.dst-card-row > document-embed .dst-default,
+.dst-card-row > document-embed .dsbl-kw-row:not(:has(> :not(.dst-default))) { display: none !important; }
+
+.dst-card-row > document-embed section.metadata > dl:has(.dst-default) { grid-template-rows: none !important; }
+
+.dst-system-card .ctlib-faces { vertical-align: middle; }
+.dst-face-pair { white-space: nowrap; }
+.dst-card-row h5 .dst-card-tail > .dst-face-pair { display: inline-flex; align-items: center; gap: 0.3em; }
+
+.dst-card-event.dst-small-faces .ctlib-face { width: 1.25em; height: 1.25em; }
+.dst-card-event.dst-small-faces .ctlib-faces { vertical-align: -0.25em; }
+
+.dst-system-card hr.dst-card-sep { margin: 0.35em 0; }
+
+.dst-card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0 0.45em;
+  border: 1px solid color-mix(in srgb, currentColor 50%, transparent);
+  border-radius: 3px;
+  font-size: 0.8em;
+  font-weight: bold;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.dst-card-pill--malice {
+  color: var(--dst-malice-text, #7a1818);
+  border-color: color-mix(in srgb, var(--dst-malice-text, #7a1818) 60%, transparent);
+}
+
+body.dsbl-dark-chat .theme-dark .chat-message {
+  --dst-gold-text: #d9a63f;
+  --dst-red-text: #ff8a8a;
+  --dst-malice-text: #ff9494;
+  --dst-green-text: #6fcf6f;
+  --dst-blue-text: #8cb8ec;
+  --dst-amber-text: #e6bd52;
+  --dst-purple-text: #c480d9;
+  --dst-steel-text: #8fb3cc;
+}
+
+.dst-card-pill-chip { width: 1.15em; height: 1.15em; border: none; }
+
+.dst-system-card h5.dst-gain-title {
+  margin: 0;
+  border: none;
+  font-family: "Amiri", var(--font-serif, serif);
+  font-size: 1.43em;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.dst-system-card .dst-gain-change { white-space: nowrap; }
+.dst-system-card .dst-gain-upgraded { font-style: italic; }
+
+.dst-malice-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.25em;
+}
+
+.dst-malice-title {
+  font-family: "Amiri", var(--font-serif, serif);
+  font-size: 1.3em;
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+button.dst-malice-avail {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 0 0.55em;
+  border: 1px solid color-mix(in srgb, var(--dst-malice-text, #7a1818) 60%, transparent);
+  border-radius: 3px;
+  background: none;
+  color: var(--dst-malice-text, #7a1818);
+  font-size: 0.85em;
+  font-weight: bold;
+  line-height: 1.7;
+  cursor: pointer;
+}
+
+.dst-malice-show-all button.dst-malice-avail {
+  background: color-mix(in srgb, var(--dst-malice-text, #7a1818) 14%, transparent);
+}
+
+.dst-system-card:not(.dst-malice-show-all) li.dst-malice-hidden { display: none; }
+li.dst-malice-hidden .dst-card-pill--malice { border-style: dashed; }
+
+.dst-malice-note { font-style: italic; font-size: 0.9em; white-space: nowrap; }
+
+.dst-malice-empty { display: none; font-style: italic; }
+.dst-system-card.dst-malice-none:not(.dst-malice-show-all) .dst-malice-empty { display: block; }
+
+.dst-malice-band h4 {
+  margin: 0.45em 0 0.2em;
+  padding-bottom: 0.1em;
+  font-size: 1em;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+}
+
+.dst-malice-band ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2em; }
+
+.dst-malice-pick { display: flex; align-items: center; gap: 0.35em; cursor: pointer; }
+.dst-malice-pick input { margin: 0; flex: 0 0 auto; }
+.dst-malice-pick-name { font-weight: bold; }
+.dst-malice-pick-source { font-size: 0.9em; font-style: italic; }
+.dst-malice-pick .dst-card-pill { margin-left: auto; }

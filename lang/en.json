@@ -154,6 +154,10 @@
         "Name": "Feature Cards on Share",
         "Hint": "Share on a feature, perk, ancestry trait or complication posts a card shaped like an ability, with buttons for its gains, damage, conditions and rolls."
       },
+      "BasicMalice": {
+        "Name": "Add Basic Malice Features",
+        "Hint": "Monsters that join a combat get Brutal Effectiveness and Malicious Strike on their sheet, the two Malice features every monster can use."
+      },
       "FeatureIgnore": {
         "Name": "Ignored Features",
         "Hint": "Features that never get feature triggers. Click a feature to stop ignoring it. The Ignore button in a feature's trigger builder adds to this list too.",
@@ -598,6 +602,8 @@
       "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
       "RollReleased": "The triggers are decided. {name} continues.",
       "DeclineRecord": "{owner} declined to use {ability}.",
+      "DeclineTitle": "Trigger Declined",
+      "SquadTurnRefusedTitle": "Squad Turn Not Taken",
       "FmRedirectSameTarget": "{modName}: {name} stays the target, taking the extra distance.",
       "FmRedirectStopped": "{modName} had nothing left to redirect. The movement was already reduced to 0 squares.",
       "FmTrailTooltip": "{modName}, used by {owner}",
@@ -619,7 +625,17 @@
       "Header": "Malice Features",
       "Title": "{name}'s Malice",
       "TitleTypal": "{name} Malice",
-      "Intro": "At the start of {name}'s turn, you can spend Malice to activate one of the following features."
+      "Intro": "At the start of {name}'s turn, you can spend Malice to activate one of the following features:",
+      "Available": "{n} Malice Available",
+      "AvailableTip": "Click to show or hide the features you can't use right now.",
+      "UsedLastRound": "Used last round",
+      "NoneAffordable": "Nothing is usable right now. Click the Malice pill to see every feature.",
+      "SelectTitle": "Select Malice Features",
+      "SelectHint": "You often need only three: one costing 2 to 3 Malice, one costing 5 and one costing 7 to 10, or four with several monster types. Unticked features stay out of this encounter's Malice menus.",
+      "Band23": "2 to 3 Malice",
+      "Band5": "5 Malice",
+      "Band710": "7 to 10 Malice",
+      "BandOther": "Other Costs"
     },
     "Bespoke": {
       "HarmonizeNoMessage": "The ability that triggered Harmonize is no longer in chat, so the extra target must be added by hand.",
@@ -635,7 +651,8 @@
       "Resynced": "{name} follows its source again.",
       "Line": "line {n}",
       "Speaker": "Draw Steel: Triggers",
-      "DeletedWhisper": "{user} deleted <strong>{ability}</strong> from {actor}, so <strong>{name}</strong> is now ignored for everyone. Remove it from Ignored Features in the module settings to bring it back."
+      "DeletedTitle": "Derived Ability Deleted",
+      "DeletedWhisper":"{user} deleted <strong>{ability}</strong> from {actor}, so <strong>{name}</strong> is now ignored for everyone. Remove it from Ignored Features in the module settings to bring it back."
     },
     "Squad": {
       "OwnerCount": "{name} ×{n}"
@@ -643,6 +660,17 @@
     "Card": {
       "Keywords": "Keywords",
       "Type": "Type",
+      "Event": "Event",
+      "SpeakerKind": "Draw Steel: Triggers ({kind})",
+      "Kind": {
+        "Reminder": "Reminder",
+        "Malice": "Malice",
+        "Gain": "Gain",
+        "Redirect": "Redirect",
+        "Declined": "Declined",
+        "SquadTurn": "Squad Turn",
+        "Derived": "Derived Ability"
+      },
       "TypeOnce": "{action} ({once})",
       "OnceRound": "1/round",
       "OnceTurn": "1/turn",

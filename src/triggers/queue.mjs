@@ -1,7 +1,7 @@
 import { setVillainUsed } from "./villain-actions.mjs";
 import { resolveStackGain } from "./resource-gains.mjs";
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } from "../util.mjs";
-import { buildTriggerCardRows, triggerCardHTML } from "../ui/ability-preview.mjs";
+import { cardContent, facesIn, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { postFeatureCard } from "../ui/feature-card.mjs";
 import { noteFeatureLineUse } from "./feature-triggers.mjs";
 import { setTriggeredActionSpent } from "./spent-tracking.mjs";
@@ -137,13 +137,18 @@ function _onUseCancelled(itemUuid) {
   if (touched) _broadcast();
 }
 
-async function _postDeclineRecord(ownerActorUuid, ownerName, itemName) {
+export async function _postDeclineRecord(ownerActorUuid, ownerName, itemName) {
   const owner = await fromUuid(ownerActorUuid).catch(() => null);
   const recipients = game.users.filter((u) => u.isGM || (owner && owner.testUserPermission(u, "OWNER"))).map((u) => u.id);
-  ChatMessage.create({
-    content: `<div class="dst-reminder"><em>${game.i18n.format("DS_TRIGGERS.Queue.DeclineRecord", { owner: ownerName, ability: itemName })}</em></div>`,
+  const esc = foundry.utils.escapeHTML;
+  const sentence = game.i18n.format("DS_TRIGGERS.Queue.DeclineRecord", { owner: esc(ownerName), ability: `<strong>${esc(itemName)}</strong>` });
+  postSystemCard({
+    title: game.i18n.localize("DS_TRIGGERS.Queue.DeclineTitle"),
+    flavor: null,
+    kind: "Declined",
+    content: cardContent({ intro: facesIn(sentence, [owner]) }),
     whisper: recipients,
-    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
+    flags: { [MODULE_ID]: { notice: "decline" } },
   });
 }
 
@@ -1029,29 +1034,26 @@ async function _postRedirectReminders(usedEntries, resume) {
     if (!after && u.postHoc !== true) continue;
     const recipients = new Set(game.users.filter((x) => x.isGM).map((x) => x.id));
     if (resume?.userId) recipients.add(resume.userId);
-    const item = u.itemUuid ? await fromUuid(u.itemUuid).catch(() => null) : null;
-    const link = u.itemUuid
-      ? `<a class="dst-ability-link" data-item-uuid="${u.itemUuid}" data-tooltip="${game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip")}"><strong>${u.itemName}</strong></a>`
-      : `<strong>${u.itemName}</strong>`;
-    const rows = await buildTriggerCardRows([{
-      item,
-      head: link,
-      subtitle: item?.system?.trigger ? `<em>${item.system.trigger}</em>` : "",
-    }]);
-    const pickBtn = after && game.modules.get("draw-steel-target-damage")?.active
-      ? `<div class="dst-after-pick-wrap"><button type="button" class="dst-after-pick-btn" data-owner-actor-uuid="${u.ownerActorUuid ?? ""}" data-mod-name="${foundry.utils.escapeHTML(u.itemName)}"><i class="fa-solid fa-bullseye"></i> ${game.i18n.localize("DS_TRIGGERS.Queue.AfterPickButton")}</button></div>`
-      : "";
-    ChatMessage.create({
-      content: triggerCardHTML({
-        header: game.i18n.localize("DS_TRIGGERS.Queue.RedirectAfterHeader"),
-        intro: game.i18n.format(after ? "DS_TRIGGERS.Queue.RedirectAfterBody" : "DS_TRIGGERS.Queue.RedirectPostHocBody", { owner: u.ownerName, ability: `<strong>${u.itemName}</strong>` }),
-        rows,
-      }) + pickBtn,
-      whisper: [...recipients],
-      speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
-      flags: { [MODULE_ID]: { reminder: { event: "REDIRECT_AFTER" } } },
-    });
+    await postRedirectCard(u, { after, recipients: [...recipients] });
   }
+}
+
+export async function postRedirectCard(u, { after = true, recipients = [] } = {}) {
+  const esc = foundry.utils.escapeHTML;
+  const owner = u.ownerActorUuid ? await fromUuid(u.ownerActorUuid).catch(() => null) : null;
+  const sentence = game.i18n.format(after ? "DS_TRIGGERS.Queue.RedirectAfterBody" : "DS_TRIGGERS.Queue.RedirectPostHocBody", { owner: u.ownerName, ability: u.itemName });
+  const intro = withFaces(sentence, [owner]).replace(esc(u.itemName), `<strong>${esc(u.itemName)}</strong>`);
+  const pickBtn = after && game.modules.get("draw-steel-target-damage")?.active
+    ? `<button type="button" class="dst-after-pick-btn" data-owner-actor-uuid="${u.ownerActorUuid ?? ""}" data-mod-name="${esc(u.itemName)}"><i class="fa-solid fa-bullseye" inert></i> ${game.i18n.localize("DS_TRIGGERS.Queue.AfterPickButton")}</button>`
+    : "";
+  return postSystemCard({
+    title: game.i18n.localize("DS_TRIGGERS.Queue.RedirectAfterHeader"),
+    flavor: null,
+    kind: "Redirect",
+    content: cardContent({ intro, buttons: pickBtn }),
+    whisper: recipients,
+    flags: { [MODULE_ID]: { reminder: { event: "REDIRECT_AFTER" } } },
+  });
 }
 
 function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {

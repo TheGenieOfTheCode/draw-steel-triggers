@@ -3,6 +3,7 @@ import { FEATURE_ACTOR_TYPES, itemEffectiveLines, featureTriggersActive, ignoreL
 import { enricherText, asOwner, abilityEffectHTML } from "../parser/feature-triggers.mjs";
 import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
+import { cardContent, facesIn, postSystemCard } from "../ui/system-card.mjs";
 
 const FLAG = "derived";
 const ONCE_FLAG = "derivedOnce";
@@ -359,12 +360,16 @@ Hooks.once("socketlib.ready", () => {
   _socket?.register("useMacroOwnership", (uuid, ownership) => grantUseMacro(uuid, ownership));
 });
 
-async function ignoreDeleted({ dsid, line, name, ability, actorName, userName }) {
+async function ignoreDeleted({ dsid, line, name, ability, actorName, actorUuid = null, userName }) {
   await ignoreLine({ dsid, line, name });
-  await ChatMessage.create({
-    content: `<p>${game.i18n.format("DS_TRIGGERS.Derived.DeletedWhisper", { user: esc(userName), ability: esc(ability), actor: esc(actorName), name: esc(name) })}</p>`,
+  const sentence = game.i18n.format("DS_TRIGGERS.Derived.DeletedWhisper", { user: esc(userName), ability: esc(ability), actor: esc(actorName), name: esc(name) });
+  await postSystemCard({
+    title: game.i18n.localize("DS_TRIGGERS.Derived.DeletedTitle"),
+    flavor: null,
+    kind: "Derived",
+    content: cardContent({ intro: facesIn(sentence, [actorUuid ? fromUuidSync(actorUuid) : null].filter(Boolean)) }),
     whisper: game.users.filter((u) => u.isGM).map((u) => u.id),
-    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Derived.Speaker") },
+    flags: { [MODULE_ID]: { notice: "derivedDeleted" } },
   });
 }
 
@@ -379,7 +384,7 @@ Hooks.on("deleteItem", (item, options, userId) => {
   if (!d || options.dstDerivedSync || userId !== game.user.id) return;
   if (!item.parent?.items?.get(d.sourceId)) return;
   const payload = { dsid: d.sourceDsid || d.sourceName, line: d.lineKey, name: ignoreName(d.sourceName, item.name),
-    ability: item.name, actorName: item.parent?.name ?? "", userName: game.user.name };
+    ability: item.name, actorName: item.parent?.name ?? "", actorUuid: item.parent?.uuid ?? null, userName: game.user.name };
   if (game.user.isGM) ignoreDeleted(payload);
   else executeAsDirector(_socket, "derivedDeleted", payload);
 });

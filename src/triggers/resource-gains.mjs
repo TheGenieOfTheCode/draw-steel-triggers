@@ -4,6 +4,7 @@ import { footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
 import { isTriggerSnoozed } from "../ui/snooze.mjs";
+import { cardContent, postSystemCard, speakerFor, withFaces } from "../ui/system-card.mjs";
 
 const RUI = "draw-steel-resources-ui";
 const CT = "draw-steel-combat-tools";
@@ -226,18 +227,19 @@ function _spent(combat, actor, line, trackKey) {
 
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Gain.${key}`));
 
-function _cardHTML({ actor, resource, total, previous, current, line, item, rollHTML }) {
-  const source = line.upgradedBy ? `${line.name}, ${line.upgradedBy}` : line.name;
-  return `<div class="dst-gain-card">
-    <div class="dst-gain-head">${L("Gained", { name: actor.name, amount: `<strong>${total}</strong>`, resource })}</div>
-    <div class="dst-gain-method"><em>${lineText(line)}</em> <span class="dst-gain-source">(${source})</span></div>
-    ${rollHTML ?? ""}
-    <div class="dst-gain-foot">
-      <span class="dst-gain-summary">${resource}: ${previous} → ${current}</span>
-      <button type="button" class="dst-gain-undo" data-tooltip="${L("UndoTooltip")}"><i class="fa-solid fa-rotate-left"></i> ${L("Undo")}</button>
-    </div>
-  </div>`;
+function _cardContent({ actor, resource, total, previous, current, line }) {
+  const esc = foundry.utils.escapeHTML;
+  const gained = `${withFaces(L("Gained", { name: actor.name, amount: total, resource }), [actor])} <span class="dst-gain-change">(${previous} → ${current})</span>`;
+  const upgraded = line.upgradedBy ? `<p class="dst-gain-upgraded">${esc(L("Upgraded", { amount: total, name: line.upgradedBy }))}</p>` : "";
+  return cardContent({
+    intro: gained,
+    body: `<h5 class="dst-gain-title">${esc(line.name)}</h5>
+      <p class="dst-gain-rule">${esc(cap(lineText(line)))}</p>${upgraded}`,
+    buttons: `<button type="button" class="dst-gain-undo" data-tooltip="${esc(L("UndoTooltip"))}"><i class="fa-solid fa-rotate-left" inert></i> ${L("Undo")}</button>`,
+  });
 }
+
+const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "");
 
 async function _gain(combat, actor, item, line) {
   const once = !!line.once;
@@ -246,7 +248,7 @@ async function _gain(combat, actor, item, line) {
   if (_busy.has(key) || _spent(combat, actor, line, trackKey)) return;
   _busy.add(key);
   try {
-    const roll = await new Roll(String(line.amount), actor.getRollData()).evaluate();
+    const roll = await new ds.rolls.DSRoll(String(line.amount), actor.getRollData()).evaluate();
     const total = Number(roll.total) || 0;
     const previous = Number(actor.system?.hero?.primary?.value ?? 0);
     const current = previous + total;
@@ -261,13 +263,16 @@ async function _gain(combat, actor, item, line) {
         actorId: actor.id, line: line.key, itemId: item.id, trackKey, amount: total, round: combat.round, cardIds: [cardId],
       },
     });
-    await ChatMessage.create({
-      _id: cardId,
-      speaker: ChatMessage.getSpeaker({ actor }),
-      content: _cardHTML({ actor, resource, total, previous, current, line, item, rollHTML: dice ? await roll.render() : null }),
+    const title = game.i18n.format("DRAW_STEEL.EDITOR.Enrichers.Gain.MessageTitle.Default", { type: resource, targets: "" }).trim();
+    await postSystemCard({
+      id: cardId,
+      title,
+      speaker: { ...ChatMessage.getSpeaker({ actor }), ...speakerFor("Gain") },
+      content: _cardContent({ actor, resource, total, previous, current, line }),
+      parts: [{ type: "roll", flavor: title, rolls: [roll] }, { type: "content" }],
       ...(dice ? { rolls: [roll] } : {}),
       flags: { [MODULE_ID]: { resourceGain: { actorId: actor.id, record: key, amount: total, previous, current, method: lineText(line) } } },
-    }, { keepId: true });
+    });
     dbg(`resource gain: ${actor.name} ${line.key} +${total}`);
   } catch (err) {
     console.warn(`${MODULE_ID} | resource gain ${line.key} for ${actor.name} failed`, err);
@@ -424,7 +429,12 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
   if (!message.getFlag(MODULE_ID, "resourceGain")) return;
   const button = html.querySelector(".dst-gain-undo");
   if (!button) return;
-  if (!canUndoResourceGain(message)) { button.remove(); return; }
+  if (!canUndoResourceGain(message)) {
+    const footer = button.closest(".dst-card-buttons");
+    button.remove();
+    if (footer && !footer.children.length) footer.remove();
+    return;
+  }
   button.addEventListener("click", async (event) => {
     event.preventDefault();
     button.disabled = true;

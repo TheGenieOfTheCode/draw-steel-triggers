@@ -3,6 +3,7 @@ import { activationsLeft, collectTriggerMatches, isMinionActor, noteOncePerRound
 import { enqueueLockEntries, queueSocket } from "../queue.mjs";
 import { getParsedTrigger } from "../registry.mjs";
 import { villainMatches } from "../villain-actions.mjs";
+import { cardContent, facesIn, postSystemCard } from "../../ui/system-card.mjs";
 
 const _skipStartOnce = new Set();
 let _startedViaHesitation = null;
@@ -222,12 +223,18 @@ async function _turnTaker(combat, used) {
   return null;
 }
 
-function _squadRefusal(taker, u, others) {
+export function _squadRefusal(taker, u, others) {
   const names = game.i18n.getListFormatter().format(others.map((c) => c.name));
-  ChatMessage.create({
-    content: `<p>${game.i18n.format("DS_TRIGGERS.Queue.SquadTurnRefused", { owner: u.ownerName, ability: u.itemName, names })}</p>`,
+  const esc = foundry.utils.escapeHTML;
+  const sentence = game.i18n.format("DS_TRIGGERS.Queue.SquadTurnRefused", { owner: esc(u.ownerName), ability: `<strong>${esc(u.itemName)}</strong>`, names: esc(names) });
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  postSystemCard({
+    title: game.i18n.localize("DS_TRIGGERS.Queue.SquadTurnRefusedTitle"),
+    flavor: null,
+    kind: "SquadTurn",
+    content: cardContent({ intro: facesIn(sentence, [owner, ...others.map((c) => c.token ?? c.actor)]) }),
     whisper: game.users.filter((user) => user.isGM).map((user) => user.id),
-    speaker: { alias: game.i18n.localize("DS_TRIGGERS.Reminder.Speaker") },
+    flags: { [MODULE_ID]: { notice: "squadTurnRefused" } },
   }).catch(() => {});
 }
 
