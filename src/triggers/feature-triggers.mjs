@@ -2,6 +2,7 @@ import { featureTriggerLines, abilityTriggerLines, abilityEffectHTML, defersDeat
 import { MODULE_ID, getSetting } from "../util.mjs";
 import { derivedFor, derivedParse, derivedOnce, derivedActive, isDerived } from "./derived.mjs";
 import { isMaliceAbility } from "./registry.mjs";
+import { ignoredByRule } from "./ignore-rules.mjs";
 
 export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
 export const FEATURE_ITEM_TYPES =new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
@@ -90,7 +91,7 @@ export function abilityLineLive(item, line) {
 
 export function itemFeatureLines(item, { withIgnored = false } = {}) {
   if (!item || !isLineSource(item)) return [];
-  if (ignoredFeatures().has(String(item.system?._dsid ?? "").toLowerCase())) return [];
+  if (ignoredFeatures().has(String(item.system?._dsid ?? "").toLowerCase()) || ignoredByRule(item)) return [];
   const ability = item.type === "ability";
   const html = ability ? abilityEffectHTML(item) : item.system?.description?.value ?? "";
   const resource = ability ? null : resourceOf(item.actor);

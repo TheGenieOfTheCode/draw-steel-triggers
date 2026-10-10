@@ -1,5 +1,6 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, executeAsDirector } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
+import { ignoredByRule } from "./ignore-rules.mjs";
 import { footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
@@ -91,7 +92,7 @@ const classItem = (actor) => actor?.items?.find((i) => i.type === "class") ?? nu
 export const resourceName = (actor) => classItem(actor)?.system?.primary ?? null;
 
 export function itemGainLines(item, resource = resourceName(item?.actor)) {
-  if (!item || !resource || !["feature", "subclass"].includes(item.type)) return [];
+  if (!item || !resource || !["feature", "subclass"].includes(item.type) || ignoredByRule(item)) return [];
   const html = item.system?.description?.value ?? "";
   const cached = _lineCache.get(item.uuid);
   if (cached && cached.html === html && cached.resource === resource) return cached.lines;

@@ -1,5 +1,6 @@
 import { MODULE_ID, getSetting, isPrimaryGM } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
+import { ignoredByRule } from "./ignore-rules.mjs";
 import { abilityRowsHTML, cardContent, cardPill, postSystemCard, withFaces } from "../ui/system-card.mjs";
 
 export const BASIC_MALICE = {
@@ -81,7 +82,7 @@ function monsterFeatures(combat) {
     if (!isMonster(actor, c.token)) continue;
     for (const item of actor.items) {
       const key = maliceKey(item);
-      if (!isMaliceAbility(item) || key in BASIC_MALICE || /malice features$/i.test(item.name) || features.has(key)) continue;
+      if (!isMaliceAbility(item) || key in BASIC_MALICE || /malice features$/i.test(item.name) || features.has(key) || ignoredByRule(item)) continue;
       features.set(key, { key, item, source: maliceTypeName(actor) ?? actor.name });
     }
   }
