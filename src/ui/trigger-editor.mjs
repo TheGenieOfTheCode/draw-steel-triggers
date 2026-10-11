@@ -49,6 +49,13 @@ const FLAG_FIELDS = {
   damageBonus: ["damageBonus"],
   fmMod: ["fmMod"],
   fallSafe: ["fallSafe"],
+  flankedByDealer: ["flankedByDealer"],
+  rangeOn: ["rangeOn"],
+  rangeAbility: ["range"],
+  ownerInAbilityRange: ["ownerInAbilityRange"],
+  throughMark: ["throughMark"],
+  wouldLeave: ["wouldLeave"],
+  damageRedirect: ["damageRedirect"],
 };
 
 const keywordLabel = (k) => {
@@ -123,6 +130,13 @@ function describeFilter(id, fields) {
     case "fallSafe": return L("QualEffectFallSafe");
     case "damageBonus": return L("QualEffectDamageBonus", { n: fields.damageBonus });
     case "fmMod": return fmModText(fields.fmMod);
+    case "flankedByDealer": return L("QualEffectFlanked");
+    case "rangeOn": return L("QualEffectDealerRange", { n: fields.range?.char ? charLabel(fields.range.char) : fields.range });
+    case "rangeAbility": return L("QualEffectAbilityRange", { ability: rangeLineLabel(fields.range) });
+    case "ownerInAbilityRange": return L("QualEffectOwnerInRange");
+    case "throughMark": return L("QualEffectThroughMark");
+    case "wouldLeave": return L("QualEffectWouldDying");
+    case "damageRedirect": return L("QualEffectDamageRedirect");
     default: return L("QualEffectNone");
   }
 }
@@ -215,8 +229,29 @@ const ROLL_MOD_VALUES = {
 
 const ROLL_MOD_EVENTS = new Set([...TARGETING_EVENTS, "MAKES_STRIKE", "POWER_ROLL"]);
 
+const CHARACTERISTIC_LABEL = (key) => game.i18n.localize(ds.CONFIG?.characteristics?.[key]?.label ?? key);
+
+function rangeLineLabel(range) {
+  if (range.char) return L("RangeChar", { char: CHARACTERISTIC_LABEL(range.char) });
+  if (range.ability) return L("RangeAbility", { ability: range.ability.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) });
+  return L("RangeAuto");
+}
+
+export function rollModText(mod) {
+  if (!mod) return "";
+  const parts = [];
+  if (mod.banes === 2) parts.push(L("RollModDoubleBane"));
+  else if (mod.banes === 1) parts.push(L("RollModBane"));
+  if (mod.edges === 2) parts.push(L("RollModDoubleEdge"));
+  else if (mod.edges === 1) parts.push(L("RollModEdge"));
+  if (mod.bonus) parts.push(L("RollModBonus", { n: `${mod.bonus > 0 ? "+" : ""}${mod.bonus}` }));
+  if (mod.tierShift) parts.push(L(mod.tierShift > 0 ? "RollModTierUp" : "RollModTierDown"));
+  return parts.join(" + ");
+}
+
 function _rollModValue(mod) {
   if (!mod) return "";
+  if (mod.bonus || mod.tierShift) return "line";
   if (mod.banes === 2) return "banes2";
   if (mod.banes === 1) return "banes1";
   if (mod.edges === 2) return "edges2";
@@ -346,10 +381,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         eventHint: game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${c.event === "WOULD_TAKE_DAMAGE" ? "TAKES_DAMAGE" : c.event}`),
         scopeOptions: SCOPES.map((s) => ({ value: s, label: label(s), selected: s === c.scope })),
         rangeOptions: [
+          ...(c.range && typeof c.range === "object" ? [["line", rangeLineLabel(c.range)]] : []),
           ["auto", L("RangeAuto")], ["none", L("RangeNone")], ["custom", L("RangeCustom")],
         ].map(([value, optLabel]) => ({
           value, label: optLabel,
-          selected: (c.range === "none" ? "none" : Number.isFinite(c.range) ? "custom" : "auto") === value,
+          selected: (c.range === "none" ? "none" : Number.isFinite(c.range) ? "custom"
+            : c.range && typeof c.range === "object" ? "line" : "auto") === value,
         })),
         rangeCustom: Number.isFinite(c.range),
         rangeValue: Number.isFinite(c.range) ? c.range : 1,
@@ -359,8 +396,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         keywordHint: L("KeywordModeHint", { keywords: (c.abilityKeywords ?? []).map(keywordLabel).join(", ") }),
         showDamageTypes: DAMAGE_EVENTS.has(c.event),
         showCondition: c.event === "CONDITION_GAIN",
-        conditionOptions: [...new Set([...CONDITIONS, ...(c.condition ? [c.condition] : [])])]
-          .map((value) => ({ value, label: conditionLabel(value), selected: c.condition === value })),
+        conditionOptions: [...new Set([...CONDITIONS, ...[].concat(c.condition ?? [])])]
+          .map((value) => ({ value, label: conditionLabel(value), selected: [].concat(c.condition ?? []).includes(value) })),
         showHold: c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE",
         holdChecked: c.event === "WOULD_TAKE_DAMAGE",
         showTargetedHalf: TARGETING_EVENTS.has(c.event),
@@ -374,12 +411,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         postRoll: !!c.postRoll,
         halfOnUse: !!c.halfOnUse,
         rollModOptions: [
+          ...(c.rollMod?.bonus || c.rollMod?.tierShift ? [["line", rollModText(c.rollMod)]] : []),
           ["", L("RollModNone")], ["banes1", L("RollModBane")], ["banes2", L("RollModDoubleBane")],
           ["edges1", L("RollModEdge")], ["edges2", L("RollModDoubleEdge")],
         ].map(([value, optLabel]) => ({ value, label: optLabel, selected: _rollModValue(c.rollMod) === value })),
         redirectOptions: [
           ["", L("RedirectNone")], ["self", L("RedirectSelf")], ["reflect", L("RedirectReflect")],
           ["chooser", L("RedirectChooser")], ["swap", L("RedirectSwap")], ["after", L("RedirectAfter")],
+          ["flanker", L("RedirectFlanker")],
         ].map(([value, optLabel]) => ({ value, label: optLabel, selected: (c.redirect ?? "") === value })),
         showGroup: c.scope === "GROUP",
         damageTypeOptions: damageTypes.map((d) => ({ ...d, active: (c.damageTypes ?? []).includes(d.value) })),
@@ -603,6 +642,13 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (clause.event === "TAKES_DAMAGE" && box.checked) clause.event = "WOULD_TAKE_DAMAGE";
       else if (clause.event === "WOULD_TAKE_DAMAGE" && !box.checked) clause.event = "TAKES_DAMAGE";
     }
+    for (const ms of el.querySelectorAll('multi-select[data-field="condition"]')) {
+      const clause = this._clauses[Number(ms.dataset.index)];
+      if (!clause) continue;
+      const value = Array.from(ms.value ?? []);
+      if (value.length) clause.condition = value.length > 1 ? value : value[0];
+      else delete clause.condition;
+    }
     for (const ms of el.querySelectorAll('multi-select[data-field="damageTypes"]')) {
       const clause = this._clauses[Number(ms.dataset.index)];
       if (!clause) continue;
@@ -612,7 +658,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     }
     for (const select of el.querySelectorAll('select[data-field="rollModSelect"]')) {
       const clause = this._clauses[Number(select.dataset.index)];
-      if (!clause) continue;
+      if (!clause || select.value === "line") continue;
       const mod = ROLL_MOD_VALUES[select.value] ?? null;
       if (mod) clause.rollMod = { ...mod };
       else delete clause.rollMod;
@@ -620,6 +666,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     for (const select of el.querySelectorAll('select[data-field="rangeSelect"]')) {
       const clause = this._clauses[Number(select.dataset.index)];
       if (!clause) continue;
+      if (select.value === "line") continue;
       if (select.value === "none") clause.range = "none";
       else if (select.value === "custom") {
         const input = select.closest(".form-fields")?.querySelector('input[data-field="rangeValue"]');

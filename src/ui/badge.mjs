@@ -91,6 +91,8 @@ export function parseAutomationLevel(parse, { manual = false, malice = false } =
     else if (rollMod.banes === 1) effparts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModBane"));
     if (rollMod.edges === 2) effparts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModDoubleEdge"));
     else if (rollMod.edges === 1) effparts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModEdge"));
+    if (rollMod.bonus) effparts.push(game.i18n.format("DS_TRIGGERS.Editor.RollModBonus", { n: `${rollMod.bonus > 0 ? "+" : ""}${rollMod.bonus}` }));
+    if (rollMod.tierShift) effparts.push(game.i18n.localize(rollMod.tierShift > 0 ? "DS_TRIGGERS.Editor.RollModTierUp" : "DS_TRIGGERS.Editor.RollModTierDown"));
     detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.RollModifying", { effect: effparts.join(" + ") }));
   }
   const redirectMode = parse.redirect ?? parse.clauses.find((c) => c.redirect)?.redirect;

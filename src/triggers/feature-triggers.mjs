@@ -181,11 +181,19 @@ export function lineAutomationLevel(line, levelFromParse) {
   return levelFromParse(line.parse) ?? { level: "none", detail: [] };
 }
 
-export function lineCost(actor, line) {
+const epicOf = (actor) => actor?.items?.find((i) => i.type === "class")?.system?.epic ?? null;
+
+export function linePool(actor, line) {
   const cost = line?.cost;
   if (!cost?.amount) return null;
   const own = String(resourceOf(actor) ?? "").toLowerCase();
-  return cost.resource === own || cost.resource === "heroic resource" ? cost.amount : null;
+  if (cost.resource === own || cost.resource === "heroic resource") return "system.hero.primary.value";
+  const epic = String(epicOf(actor) ?? "").toLowerCase();
+  return epic && cost.resource === epic ? "system.hero.epic.value" : null;
+}
+
+export function lineCost(actor, line) {
+  return linePool(actor, line) ? line.cost.amount : null;
 }
 
 function lineProxy(item, line) {
@@ -204,6 +212,7 @@ function lineProxy(item, line) {
       type: line.action ?? "none",
       trigger: line.trigger,
       resource: lineCost(item.actor, line),
+      resourcePath: linePool(item.actor, line),
       _dsid: snooze,
       restricted: false,
       keywords: new Set(),
@@ -212,7 +221,7 @@ function lineProxy(item, line) {
     },
     getFlag: (scope, key) => (scope === MODULE_ID && ["malice", "manual", "trigger"].includes(key) ? undefined : item.getFlag(scope, key)),
     feature: item,
-    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), exclusive: line.exclusive ?? null },
+    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), resourcePath: linePool(item.actor, line), spendsRecovery: /^spend a recovery\.?$/i.test(String(line.effect ?? "").trim()), exclusive: line.exclusive ?? null },
   };
 }
 

@@ -8,6 +8,7 @@ import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown } from "./feature-triggers.mjs";
+import { markVictim } from "./line-effects.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 
@@ -81,9 +82,18 @@ function candidateEntries() {
 
 const RANGED_DISTANCE_TYPES = new Set(["melee", "ranged", "meleeRanged", "aura", "burst"]);
 
-function clauseRangeSquares(clause, item) {
+const FREE_STRIKE_BASE = { "melee-free-strike": 1, "ranged-free-strike": 5 };
+
+export function ownAbilityRange(actor, dsid) {
+  const own = actor?.items?.find?.((i) => i.type === "ability" && (i.system?._dsid ?? "") === dsid);
+  return abilityRangeSquares(own) ?? FREE_STRIKE_BASE[dsid] ?? null;
+}
+
+function clauseRangeSquares(clause, item, owner = item?.actor) {
   if (clause.range === "none") return null;
   if (Number.isFinite(clause.range)) return clause.range > 0 ? clause.range : null;
+  if (clause.range?.char) return Math.max(0, Number(owner?.system?.characteristics?.[clause.range.char]?.value) || 0) || null;
+  if (clause.range?.ability) return ownAbilityRange(owner, clause.range.ability);
   return abilityRangeSquares(item);
 }
 
@@ -103,11 +113,15 @@ export function footprintGap(docA, docB) {
   );
 }
 
-function rangeMatches(clause, item, ownerActor, ownerToken, subjectActor, subjectToken) {
+function rangeMatches(clause, item, ownerActor, ownerToken, subjectActor, subjectToken, ctx = {}) {
+  if (clause.rangeOn === "dealer") {
+    subjectActor = ctx.dealerActor ?? null;
+    subjectToken = tokenDoc(ctx.dealerToken);
+  }
   if (!subjectActor || ownerActor === subjectActor) return true;
   if (!ownerToken || !subjectToken) return true;
   if (ownerToken.parent !== canvas.scene || subjectToken.parent !== canvas.scene) return true;
-  const range = clauseRangeSquares(clause, item);
+  const range = clauseRangeSquares(clause, item, ownerActor);
   if (range == null) return true;
   if (footprintGap(ownerToken, subjectToken) >= range * canvas.grid.distance) return false;
   return !getSetting("requireLineOfEffect") || hasLineOfEffect(ownerToken, subjectToken);
@@ -174,9 +188,11 @@ function resourceOf(actor) {
 }
 
 function canAffordCost(actor, item) {
+  const epic = Number(item.getFlag?.(MODULE_ID, "derived")?.epicCost) || 0;
+  if (epic) return Number(actor.system?.hero?.epic?.value ?? 0) >= epic;
   const cost = item.system.resource;
   if (!Number.isFinite(cost) || cost <= 0) return true;
-  const current = resourceOf(actor);
+  const current = item.system.resourcePath ? foundry.utils.getProperty(actor, item.system.resourcePath) : resourceOf(actor);
   return current == null || current >= cost;
 }
 
@@ -327,6 +343,30 @@ const CONDITION_STATUS = { hidden: "dsctHidden" };
 const CONCEALED = ["invisible", "dsctConcMagic", "dsctConcMundane"];
 const isConcealed = (actor) => CONCEALED.some((id) => actor?.statuses?.has(id));
 
+export function flankingAllyOf(dealerToken, targetToken) {
+  const a = tokenDoc(dealerToken)?.object, t = tokenDoc(targetToken)?.object;
+  if (!a || !t) return null;
+  const lookup = game.modules.get("draw-steel-combat-tools")?.api?.flankingAlly;
+  if (lookup) return lookup(a, t);
+  if (typeof a.isFlanking !== "function" || !a.isFlanking(t)) return null;
+  return a.getAdjacentAllies?.(t)?.find((x) => x !== t && x.canFlank) ?? null;
+}
+
+const flankedBy = (dealerToken, targetToken) => !tokenDoc(dealerToken) || !tokenDoc(targetToken) || !!flankingAllyOf(dealerToken, targetToken);
+
+function ownerInRangeOf(ability, ownerActor, userToken) {
+  const range = abilityRangeSquares(ability);
+  const user = tokenDoc(userToken);
+  const own = ownerActor?.getActiveTokens?.(false, true)?.[0] ?? null;
+  if (range == null || !user || !own || user.parent !== own.parent) return true;
+  return footprintGap(user, own) < range * canvas.grid.distance;
+}
+
+export const carriesVictimMark = (actor, owner, label) => !!actor?.effects?.some((e) => {
+  const mark = e.getFlag?.(MODULE_ID, "victimMark");
+  return mark?.label === label && mark.ownerUuid === owner?.uuid && !e.disabled;
+});
+
 export function fmMatches(clause, ctx) {
   if (clause.fmType && ctx.fmType && ![].concat(clause.fmType).includes(ctx.fmType)) return false;
   if (!clause.abilityKeywords?.length) return true;
@@ -347,6 +387,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (!clause.victimScope || !ctx.victimActor) return true;
       return scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null);
     case "WOULD_TAKE_DAMAGE":
+      if (clause.wouldLeave === "dying" && ctx.wouldDying === false) return false;
       return (!clause.fromFalling || !!ctx.fromFalling) && (!clause.fromForcedMovement || !!ctx.fromForcedMovement);
     case "TAKES_DAMAGE":
       if (!damageKeywordsMatch(clause, ctx)) return false;
@@ -360,10 +401,12 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "TARGETED_BY_ABILITY":
     case "TARGETED_BY_STRIKE":
       if (clause.rolledDamage && ctx.ability && !dealsRolledDamage(ctx.ability)) return false;
+      if (ctx.ability && !keywordsMatch(clause, ctx.ability)) return false;
+      if (clause.flankedByDealer && !flankedBy(ctx.dealerToken, subjectToken)) return false;
       if (!clause.dealerScope || !ctx.dealerActor) return true;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "CONDITION_GAIN": {
-      if (clause.condition && ctx.condition !== (CONDITION_STATUS[clause.condition] ?? clause.condition)) return false;
+      if (clause.condition && ![].concat(clause.condition).some((c) => ctx.condition === (CONDITION_STATUS[c] ?? c))) return false;
       if (clause.sourceScope) {
         const sources = (ctx.sourceActorUuids ?? []).map((u) => fromUuidSync(u)).map((d) => d?.actor ?? d).filter(Boolean);
         if (sources.length && !sources.some((a) => scopeMatches({ scope: clause.sourceScope }, ownerActor, ownerDisposition, a, null))) return false;
@@ -388,6 +431,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.arrives) return !!ctx.arrived && !ctx.adjacentBefore?.has(ownerActor.uuid);
       if (clause.entersSpace) return !!ctx.enteredActor && ctx.enteredActor === ownerActor;
       if (!clause.through || !ctx.throughActor) return false;
+      if (clause.throughMark && !carriesVictimMark(ctx.throughActor, ownerActor, clause.throughMark)) return false;
       if (clause.victimNotMentor) {
         const mentor = ownerActor.system?.retainer?.mentor;
         if (mentor && (ctx.throughActor === mentor || ctx.throughActor.id === mentor.id)) return false;
@@ -416,7 +460,10 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "RESISTS_POTENCY":
       return keywordsMatch(clause, ctx.ability);
     case "USES_ABILITY":
+      if (clause.ownerInAbilityRange && !ownerInRangeOf(ctx.ability, ownerActor, subjectToken)) return false;
       return !clause.ownerGrabbing || holdsSmallerGrab(ownerActor);
+    case "POWER_ROLL":
+      return !ctx.ability || keywordsMatch(clause, ctx.ability);
     case "TURN_START":
       if (clause.firstTurn && !ctx.firstTurn) return false;
     
@@ -488,6 +535,11 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
       const malice = isMaliceAbility(entry.item);
       
+      if (event === "USES_ABILITY" && usedAbility && actor === subjectActor) {
+        if (entry.item === usedAbility || entry.item.uuid === usedAbility.uuid || entry.item.name === usedAbility.name) continue;
+        if (usedAbility.system?.type === "triggered" && !entry.free && !entry.noAction && !malice) continue;
+      }
+      
       
       
       const takesTurn = malice && entry.parse?.clauses?.some((c) => c.turnLock);
@@ -504,7 +556,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && ownerEffectMatches(c, actor, subjectActor, usedContext)
         && lineOfEffectMatches(c, actor, token, subjectActor, subjectToken, usedContext)
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
-          && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken))));
+          && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken, usedContext))));
       if (!clause) continue;
       if (entry.watch === "subject" && !entry.watchMark && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
       
@@ -542,6 +594,14 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, ...eventContext });
   if (filter) matches = matches.filter(filter);
+  const marking = matches.filter((m) => m.clause?.markVictim);
+  if (marking.length) {
+    for (const m of marking) {
+      markVictim(m.actor, eventContext.victimActor ?? null, m.clause.markVictim, m.item.featureLine?.itemName ?? m.item.name)
+        .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.victimActor?.name}`, err));
+    }
+    matches = matches.filter((m) => !m.clause?.markVictim);
+  }
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
   }

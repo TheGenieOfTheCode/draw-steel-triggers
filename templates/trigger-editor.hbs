@@ -157,10 +157,9 @@
         <div class="form-group">
           <label>{{@root.labels.condition}}</label>
           <div class="form-fields">
-            <select data-field="condition" data-index="{{index}}">
-              <option value="">{{@root.labels.conditionAny}}</option>
+            <multi-select data-field="condition" data-index="{{index}}">
               {{#each conditionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-            </select>
+            </multi-select>
           </div>
         </div>
         <p class="dst-hint">{{@root.hints.condition}}</p>

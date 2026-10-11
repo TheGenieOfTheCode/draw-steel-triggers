@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, isPrimaryGM, getSetting, executeAsDirector } from "../util.mjs";
-import { FEATURE_ACTOR_TYPES, itemEffectiveLines, itemFeatureLines, featureTriggersActive, ignoreLine, isLineSource, lineCost } from "./feature-triggers.mjs";
+import { FEATURE_ACTOR_TYPES, itemEffectiveLines, itemFeatureLines, featureTriggersActive, ignoreLine, isLineSource, lineCost, linePool } from "./feature-triggers.mjs";
 import { enricherText, asOwner, abilityEffectHTML } from "../parser/feature-triggers.mjs";
 import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
@@ -132,7 +132,7 @@ function specFor(source, line, useMacro = null) {
   }
   const system = {
     type: line.action ?? "none",
-    resource: lineCost(source.actor, line),
+    resource: linePool(source.actor, line) === "system.hero.primary.value" ? lineCost(source.actor, line) : null,
     trigger: line.trigger,
     story: line.flavor ?? "",
     keywords: [],
@@ -143,6 +143,8 @@ function specFor(source, line, useMacro = null) {
   const flag = {
     sourceId: source.id, sourceName: source.name, sourceDsid: String(source.system?._dsid ?? "").toLowerCase(),
     lineKey: line.key, exclusive: line.exclusive ?? null, once: line.once ?? null, tier: line.tier ?? null, family: line.family ?? null,
+    epicCost: linePool(source.actor, line) === "system.hero.epic.value" ? lineCost(source.actor, line) : null,
+    spendsRecovery: /^spend a recovery\.?$/i.test(String(line.effect ?? "").trim()) || null,
     hash: "", edited: false,
   };
   const out = { name: line.name, type: "ability", img: source.img, system, flags: { [MODULE_ID]: { [FLAG]: flag } } };
@@ -152,7 +154,7 @@ function specFor(source, line, useMacro = null) {
   
   Hooks.callAll("draw-steel-triggers.derivedSpec", out, { source, line });
   const others = Object.fromEntries(Object.entries(out.flags).filter(([scope]) => scope !== MODULE_ID));
-  flag.hash = JSON.stringify({ name: out.name, img: out.img, system: out.system, once: line.once ?? null, tier: line.tier ?? null, others });
+  flag.hash = JSON.stringify({ name: out.name, img: out.img, system: out.system, once: line.once ?? null, tier: line.tier ?? null, epic: flag.epicCost, recovery: flag.spendsRecovery, others });
   flag.contributed = Object.keys(others);
   return out;
 }
@@ -324,6 +326,23 @@ Hooks.once("ready", () => {
   for (const actor of game.actors) if (actor.type === "hero") queueSync(actor);
 });
 Hooks.on("createCombatant", (combatant) => queueSync(combatant.actor));
+Hooks.on("createChatMessage", (message) => {
+  if (!isPrimaryGM()) return;
+  const use = Array.from(message.system?.parts?.contents ?? []).find((p) => p.type === "abilityUse");
+  const ability = use?.abilityUuid ? fromUuidSync(use.abilityUuid) : null;
+  const info = derivedInfo(ability);
+  const actor = ability?.actor;
+  if (!info || !actor) return;
+  const cost = Number(info.epicCost) || 0;
+  if (cost) {
+    const held = Number(actor.system?.hero?.epic?.value ?? 0);
+    actor.update({ "system.hero.epic.value": Math.max(0, held - cost) }).catch(() => {});
+    dbg(`${actor.name} spent ${cost} ${actor.system?.hero?.epic?.label ?? "epic"} on ${ability.name}`);
+  }
+  if (info.spendsRecovery && typeof actor.system?.spendRecovery === "function") {
+    actor.system.spendRecovery().catch((err) => console.warn(`${MODULE_ID} | ${ability.name} could not spend a Recovery`, err));
+  }
+});
 Hooks.on("createItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("deleteItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("updateItem", (item, changes) => {

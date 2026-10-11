@@ -7,12 +7,13 @@ import { noteFeatureLineUse } from "./feature-triggers.mjs";
 import { setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
-import { footprintGap, abilityRangeSquares } from "./dispatch.mjs";
+import { footprintGap, abilityRangeSquares, flankingAllyOf } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
 import { pickHarmonizeTarget } from "./bespoke.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
 import { joinSquad, noteSquadUse } from "./squad-groups.mjs";
+import { pickStabilityShare, shareStability } from "./line-effects.mjs";
 
 let socket = null;
 
@@ -323,11 +324,16 @@ async function _onQueueResolve(id, outcome, userName) {
       modName: entry.itemName,
     });
   }
+  if (outcome === "used" && entry.reflectHalf && entry.resume?.itemUuid) {
+    const striker = fromUuidSync(entry.resume.itemUuid)?.actor ?? null;
+    if (striker) Hooks.callAll("dst.targetedHalfUsed", { abilityUuid: entry.resume.itemUuid, targetActorUuid: striker.uuid, modName: entry.itemName });
+  }
+  if (outcome === "used" && entry.fmMode === "stability") await _shareStabilityOnUse(entry);
   dbg(`queue resolve ${id} -> ${outcome}`);
 
   
   if (outcome === "used" && entry.itemUuid
-    && (entry.fmMode || entry.rollMod || entry.redirect || entry.halvesOnUse
+    && (entry.fmMode || entry.rollMod || entry.redirect || entry.halvesOnUse || entry.reflectHalf
       || hasBespokeUse(fromUuidSync(entry.itemUuid)?.system?._dsid))) {
     _automatedUses.set(entry.itemUuid, Date.now());
   }
@@ -417,7 +423,8 @@ async function _onQueueResolve(id, outcome, userName) {
     if (outcome === "used" && !entry.defersDeath) {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
-      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null });
+      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null,
+        damageRedirect: entry.damageRedirect ?? null, redirectRange: entry.redirectRange ?? null, unreducible: !!entry.unreducible });
     }
   }
   for (const damageId of new Set(_choiceIds(entry, "damageId"))) {
@@ -455,8 +462,12 @@ function _useFeatureLine(entry) {
   if (!owner) return;
   noteFeatureLineUse(owner, entry.featureLine.key);
   const cost = Number(entry.featureLine.resourceCost) || 0;
-  const held = Number(owner.system?.hero?.primary?.value);
-  if (cost && Number.isFinite(held)) owner.update({ "system.hero.primary.value": Math.max(0, held - cost) }).catch(() => {});
+  const pool = entry.featureLine.resourcePath ?? "system.hero.primary.value";
+  const held = Number(foundry.utils.getProperty(owner, pool));
+  if (cost && Number.isFinite(held)) owner.update({ [pool]: Math.max(0, held - cost) }).catch(() => {});
+  if (entry.featureLine.spendsRecovery && typeof owner.system?.spendRecovery === "function") {
+    owner.system.spendRecovery().catch((err) => console.warn(`${MODULE_ID} | ${entry.itemName} could not spend a Recovery`, err));
+  }
   if (entry.featureLine.action === "triggered") setTriggeredActionSpent(owner, true).catch(() => {});
   const item = fromUuidSync(entry.itemUuid);
   if (!item) return;
@@ -670,6 +681,9 @@ async function _applyRollModOverride(hold, u) {
     const shift = net - Math.sign(net);
     tier = Math.min(3, Math.max(1, tier + shift));
   }
+  const applyTier = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.applyTierMods;
+  if (applyTier && roll.options?.dsctTier) tier = applyTier(tier, roll.options.dsctTier);
+  if (u.rollMod.tierShift) tier = Math.min(3, Math.max(1, tier + u.rollMod.tierShift));
 
   state.tierOverrides = state.tierOverrides ?? {};
   state.tierOverrides[u.subjectTargetKey] = {
@@ -736,12 +750,84 @@ export function reductionAmount(cut, actor) {
   return 0;
 }
 
+function _damageRedirectCandidates(hold, u) {
+  const victim = hold.tokenUuid ? fromUuidSync(hold.tokenUuid) : null;
+  const tokens = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.document.uuid !== victim?.uuid && t.actor.uuid !== hold.actorUuid);
+  if (u.damageRedirect !== "pool") return tokens;
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  const ownerToken = owner?.getActiveTokens?.(false, true)?.[0] ?? null;
+  if (!ownerToken) return tokens.filter((t) => t.actor === owner);
+  const reach = (Number(u.redirectRange) || 0) * (canvas.grid.distance || 1);
+  return tokens.filter((t) => t.actor === owner || (t.document.disposition === ownerToken.disposition
+    && (!reach || footprintGap(ownerToken, t.document) < reach)));
+}
+
+async function _onPickDamageRedirect({ modName, tokenUuids = [], allowNone = false } = {}) {
+  const tokens = tokenUuids.map((u) => fromUuidSync(u)?.object).filter(Boolean);
+  if (allowNone) {
+    const choice = await foundry.applications.api.DialogV2.wait({
+      window: { title: modName },
+      content: `<p>${foundry.utils.escapeHTML(game.i18n.format("DS_TRIGGERS.Queue.DamageRedirectAsk", { modName }))}</p>`,
+      buttons: [
+        { action: "pick", label: game.i18n.localize("DS_TRIGGERS.Queue.DamageRedirectPick"), default: true, disabled: !tokens.length },
+        { action: "none", label: game.i18n.localize("DS_TRIGGERS.Queue.DamageRedirectNone") },
+      ],
+      rejectClose: false,
+    }).catch(() => null);
+    if (choice !== "pick") return "none";
+  }
+  if (!tokens.length) return allowNone ? "none" : null;
+  const picked = await _runTriggerPicker(tokens, game.i18n.format("DS_TRIGGERS.Queue.DamageRedirectHint", { modName }));
+  return picked?.document?.uuid ?? (allowNone ? "none" : null);
+}
+
+async function _redirectHeldDamage(hold, u) {
+  const director = u.damageRedirect === "director";
+  const pickUser = director ? primaryGM() : _pickUserFor(u.ownerActorUuid);
+  const payload = { modName: u.itemName, tokenUuids: _damageRedirectCandidates(hold, u).map((t) => t.document.uuid), allowNone: director };
+  const picked = pickUser && !pickUser.isSelf
+    ? await socket.executeAsUser("pickDamageRedirect", pickUser.id, payload).catch(() => null)
+    : await _onPickDamageRedirect(payload);
+  const victim = await fromUuid(hold.actorUuid).catch(() => null);
+  const typeLabel = hold.damageType ? game.i18n.localize(ds.CONFIG.damageTypes?.[hold.damageType]?.label ?? hold.damageType) : "";
+  const amount = typeLabel ? `${hold.amount} ${typeLabel}` : String(hold.amount);
+  if (!picked) {
+    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.DamageRedirectSkipped", { modName: u.itemName }));
+    return false;
+  }
+  Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
+  if (picked === "none") {
+    postSystemCard({
+      title: game.i18n.localize("DS_TRIGGERS.Queue.RedirectAfterHeader"),
+      flavor: null,
+      kind: "Redirect",
+      content: cardContent({ intro: foundry.utils.escapeHTML(game.i18n.format("DS_TRIGGERS.Queue.DamageRedirectByHand", { modName: u.itemName, name: victim?.name ?? "", amount })) }),
+      whisper: game.users.filter((x) => x.isGM).map((x) => x.id),
+      flags: { [MODULE_ID]: { reminder: { event: "REDIRECT_AFTER" } } },
+    });
+    return true;
+  }
+  const target = (await fromUuid(picked).catch(() => null))?.actor ?? null;
+  if (!target) return true;
+  const options = { ...(hold.damageOptions ?? {}), ...(u.unreducible ? { ignoredImmunities: ["all"], dstBypass: true } : {}) };
+  if (u.unreducible) _damageBypass.add(target.uuid);
+  try {
+    await target.system.takeDamage(hold.amount, options);
+  } finally {
+    _damageBypass.delete(target.uuid);
+  }
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RedirectApplied", { modName: u.itemName, newName: target.name, oldName: victim?.name ?? "" }));
+  return true;
+}
+
 async function _settleDamageHold(hold) {
   if (!hold.anyUsed) {
     await _applyHeldDamage(hold, hold.amount);
     Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: hold.amount });
     return;
   }
+  const redirect = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.damageRedirect);
+  if (redirect && await _redirectHeldDamage(hold, redirect)) return;
 
   
   
@@ -842,7 +928,7 @@ function _collectRetargets(usedEntries) {
       ownerActorUuid: u.ownerActorUuid ?? null,
       removeTokenUuid: subjects[0],
       subjectTokenUuids: subjects,
-      newActorUuid: (u.redirect === "reflect" || u.redirect === "chooser") ? null : u.ownerActorUuid,
+      newActorUuid: (u.redirect === "reflect" || u.redirect === "chooser" || u.redirect === "flanker") ? null : u.ownerActorUuid,
       pool: u.redirectPool ?? null,
     });
   }
@@ -864,6 +950,17 @@ async function _resolveRetargetPicks(retargets, resume) {
     if (r.subjectTokenUuids.length > 1 && pickUser) {
       const picked = await socket.executeAsUser("pickRedirectSubject", pickUser.id, r.modName, r.subjectTokenUuids).catch(() => null);
       if (picked) r.removeTokenUuid = picked;
+    }
+    if (r.mode === "flanker") {
+      const striker = resume?.itemUuid ? fromUuidSync(resume.itemUuid)?.actor : null;
+      const flanker = flankingAllyOf(striker?.getActiveTokens?.(false, true)?.[0] ?? null, r.removeTokenUuid);
+      if (!flanker) {
+        ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.RedirectNoFlanker", { modName: r.modName }));
+        continue;
+      }
+      r.mode = "choice";
+      r.newTokenUuid = flanker.document.uuid;
+      r.ignoreRange = true;
     }
     if (r.mode === "chooser") {
       if (!pickUser) continue;
@@ -917,6 +1014,25 @@ function _fmSpendUsed(itemUuid) {
     return (part.effects ?? []).some((id) => spendIds.has(id));
   }
   return false;
+}
+
+const _onPickStabilityShare = (ownerName, max, sourceName) => pickStabilityShare(ownerName, max, sourceName);
+
+async function _shareStabilityOnUse(entry) {
+  const owner = fromUuidSync(entry.ownerActorUuid);
+  const held = _queue.find((e) => e.resumeId === entry.resumeId && e.kind === "held");
+  const ally = held?.ownerActorUuid ? fromUuidSync(held.ownerActorUuid) : null;
+  const max = Math.max(0, Math.floor(Number(owner?.system?.combat?.stability) || 0));
+  if (!owner || !ally) return;
+  if (!max) {
+    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.LineEffect.StabilityNone", { owner: owner.name }));
+    return;
+  }
+  const pickUser = _pickUserFor(entry.ownerActorUuid);
+  const n = pickUser && !pickUser.isSelf
+    ? await socket.executeAsUser("pickStabilityShare", pickUser.id, owner.name, max, entry.itemName).catch(() => null)
+    : await pickStabilityShare(owner.name, max, entry.itemName);
+  if (n) await shareStability(owner, ally, n, entry.itemName, fromUuidSync(entry.itemUuid)?.img ?? null);
 }
 
 function _applyFmRunning(entry) {
@@ -1045,6 +1161,9 @@ function _collectRollMods(usedEntries) {
       modName: u.itemName,
       edges: u.rollMod.edges ?? 0,
       banes: u.rollMod.banes ?? 0,
+      bonus: u.rollMod.bonus ?? 0,
+      tierShift: u.rollMod.tierShift ?? 0,
+      scopeTokenUuid: u.rollMod.perTarget ? (u.subjectTokenUuid ?? u.subjectTokenUuids?.[0] ?? null) : null,
     });
   }
   return out;
@@ -1189,6 +1308,7 @@ const _pendingRollMods = new Map();
 async function _onResumeRoll(itemUuid, retargets = [], rollMods = []) {
   const item = await fromUuid(itemUuid).catch(() => null);
   if (!item) return;
+  if (retargets.some((r) => r.ignoreRange)) game.modules.get("draw-steel-combat-tools")?.api?.allowOutOfRange?.(itemUuid);
   await _applyRetargets(item, retargets);
   if (rollMods.length) {
     for (const m of rollMods) {
@@ -1214,7 +1334,15 @@ function _rollModLabel(m) {
   else if (m.banes === 1) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModBane"));
   if (m.edges === 2) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModDoubleEdge"));
   else if (m.edges === 1) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModEdge"));
+  if (m.bonus) parts.push(game.i18n.format("DS_TRIGGERS.Editor.RollModBonus", { n: `${m.bonus > 0 ? "+" : ""}${m.bonus}` }));
+  if (m.tierShift) parts.push(game.i18n.localize(m.tierShift > 0 ? "DS_TRIGGERS.Editor.RollModTierUp" : "DS_TRIGGERS.Editor.RollModTierDown"));
   return parts.join(" + ");
+}
+
+function _pillScope(app, tokenUuid) {
+  if (!tokenUuid) return "global";
+  const entry = Object.entries(app.options?.context?.targets ?? {}).find(([, t]) => (t?.tokenUuid ?? t?.token?.uuid) === tokenUuid);
+  return entry?.[0] ?? "global";
 }
 
 Hooks.on("renderAbilityConfigurationDialog", (app) => {
@@ -1238,18 +1366,23 @@ function _applyRollMods(app, mods) {
   const modifiers = app.options?.context?.modifiers;
   for (const m of mods) {
     let asPills = false;
+    const scope = _pillScope(app, m.scopeTokenUuid);
     if (addPill) {
       const specs = [];
       if (m.edges) specs.push({ kind: "edge", amount: m.edges });
       if (m.banes) specs.push({ kind: "bane", amount: m.banes });
+      if (m.bonus) specs.push({ kind: "bonus", amount: m.bonus });
+      if (m.tierShift) specs.push({ kind: "tier", amount: m.tierShift });
       asPills = specs.length > 0 && specs.every((s) => addPill(app, {
-        ...s, reason: m.modName, src: m.src ?? null, srcTokenId: m.srcTokenId ?? null,
+        ...s, reason: m.modName, src: m.src ?? null, srcTokenId: m.srcTokenId ?? null, scope,
       }));
     }
     if (!asPills && modifiers) {
       bumped = true;
       modifiers.edges = Math.min(2, (modifiers.edges ?? 0) + (m.edges ?? 0));
       modifiers.banes = Math.min(2, (modifiers.banes ?? 0) + (m.banes ?? 0));
+      modifiers.bonuses = (modifiers.bonuses ?? 0) + (m.bonus ?? 0);
+      if (m.tierShift) ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.TierByHand", { modName: m.modName }));
     }
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModInjected", {
       modName: m.modName, effect: _rollModLabel(m),
@@ -1351,7 +1484,11 @@ async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
   return picked?.document?.uuid ?? null;
 }
 
+let _retargetEpoch = 0;
+export const retargetEpoch = () => _retargetEpoch;
+
 async function _applyRetargets(item, retargets) {
+  if (retargets?.length) _retargetEpoch++;
   for (const r of retargets ?? []) {
     try {
       const removeDoc = r.removeTokenUuid ? await fromUuid(r.removeTokenUuid).catch(() => null) : null;
@@ -1406,6 +1543,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     event: m._lockEvent ?? event,
     causeLabel: m._causeLabel ?? causeLabel,
     halvesOnUse: m._halvesOnUse ?? false,
+    reflectHalf: m._redirect === "reflect" && !!m.clause?.reflectHalf,
     redirect: m._redirect ?? null,
     redirectPool: m.clause?.redirectPool ?? null,
     rollMod: m._rollMod ?? null,
@@ -1500,6 +1638,9 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     defersDeath: !!m.defersDeath,
     halfDamage: m.clause?.halfDamage ?? false,
     damageReduction: m.clause?.damageReduction ?? null,
+    damageRedirect: m.clause?.damageRedirect ?? null,
+    redirectRange: m.clause?.redirectRange ?? null,
+    unreducible: !!m.clause?.unreducible,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
   entries.push({
@@ -1697,6 +1838,8 @@ Hooks.once("socketlib.ready", () => {
   socket.register("useCancelled", _onUseCancelled);
   socket.register("pickRedirectSubject", _onPickRedirectSubject);
   socket.register("pickRedirectTarget", _onPickRedirectTarget);
+  socket.register("pickDamageRedirect", _onPickDamageRedirect);
+  socket.register("pickStabilityShare", _onPickStabilityShare);
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
   socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
   socket.register("queueSyncRequest", _onQueueSyncRequest);

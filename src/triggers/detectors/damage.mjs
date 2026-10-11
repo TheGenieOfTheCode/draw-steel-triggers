@@ -161,6 +161,16 @@ function _lethal(actor, damage, options) {
   return damage + weakness - immunity >= stamina.value + (stamina.temporary ?? 0);
 }
 
+function _wouldDrop(actor, damage, options) {
+  const stamina = actor.system?.stamina;
+  if (!stamina) return false;
+  const { immunity = 0, weakness = 0 } = actor.system.calculateImmunityAndWeakness?.({
+    type: options?.type, ignoredImmunities: [...(options?.ignoredImmunities ?? [])],
+  }) ?? {};
+  const taken = Math.max(0, damage + weakness - immunity);
+  return stamina.value + (stamina.temporary ?? 0) - taken <= 0;
+}
+
 function _tryHoldDamage(model, damage, options) {
   const actor = model.parent;
   if (!actor) return false;
@@ -171,7 +181,7 @@ function _tryHoldDamage(model, damage, options) {
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
   const deaths = _deathMatches(actor, token, options?.type ?? null, _lethal(actor, damage, options));
-  const matches = [..._holdMatches(actor, token, options?.type ?? null, { fromFalling: !!options?.dsctFall, fromForcedMovement: !!options?.dsctForced }), ...deaths];
+  const matches = [..._holdMatches(actor, token, options?.type ?? null, { fromFalling: !!options?.dsctFall, fromForcedMovement: !!options?.dsctForced, wouldDying: _wouldDrop(actor, damage, options) }), ...deaths];
   if (!matches.length) return false;
 
   const damageOptions = {};
@@ -220,7 +230,7 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
   const token = actor.getActiveTokens(true, true)[0] ?? null;
   const lethal = cur.value > 0 && (updates["system.stamina.value"] ?? cur.value) <= 0;
   const deaths = _deathMatches(actor, token, _pendingDamageType, lethal);
-  const matches = [..._holdMatches(actor, token, _pendingDamageType), ...deaths];
+  const matches = [..._holdMatches(actor, token, _pendingDamageType, { wouldDying: newTotal <= 0 }), ...deaths];
   if (!matches.length) return;
 
   enqueueDamageHold(matches, {
@@ -245,7 +255,7 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   const token = hit ?? death?.token ?? null;
   const actor = token?.actor;
   if (!actor) return;
-  const matches = [...(hit ? _holdMatches(actor, token, damageType) : []), ...(death?.matches ?? [])];
+  const matches = [...(hit ? _holdMatches(actor, token, damageType, { wouldDying: false }) : []), ...(death?.matches ?? [])];
   if (!matches.length) return;
 
   const amount = prev - Number(next);

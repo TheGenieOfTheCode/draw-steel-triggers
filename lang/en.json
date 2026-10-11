@@ -247,7 +247,7 @@
         "RollModifying": "Roll modifying: using this applies {effect} to the triggering roll.",
         "Redirect": "Redirects on use: the triggering strike is retargeted {mode}.",
         "Revisit": "Marked for a later revisit; not detected yet.",
-      "EffectTodo": "Detected and held at the right moment, but its effect still needs applying by hand.",
+        "EffectTodo": "Detected and held at the right moment, but its effect still needs applying by hand.",
         "DsctOnly": "Needs Draw Steel: Combat Tools data to detect.",
         "DsctGrab": "Reads grabs made through Draw Steel: Combat Tools.",
         "EventNeedsDsct": "{event}: needs Draw Steel: Combat Tools, which records who holds a grab."
@@ -257,7 +257,8 @@
         "reflect": "back at the striker",
         "chooser": "to a chosen target (manual pick for now)",
         "swap": "to this ability's owner, who switches places with the original target",
-        "after": "to this ability's own target, with a manual update reminder posted on use"
+        "after": "to this ability's own target, with a manual update reminder posted on use",
+        "flanker": "to the creature flanking its owner"
       }
     },
     "Editor": {
@@ -347,7 +348,7 @@
       "FmModSlide": "Changes the forced movement: the push becomes a slide.",
       "FmModVertical": "Changes the forced movement: it can be vertical.",
       "FmModObject": "Changes the forced movement: +{n} damage when the moved creature hits an object.",
-      "QualEffectEntersSpace":"Enforced: fires once, when the first matching creature enters the space this creature died in.",
+      "QualEffectEntersSpace": "Enforced: fires once, when the first matching creature enters the space this creature died in.",
       "QualEffectLineOfEffect": "Enforced: only fires when this creature has line of effect to the creature the trigger names, even with Require Line of Effect off.",
       "QualSideCreature": "creature",
       "DamageTypes": "Damage Types",
@@ -423,7 +424,7 @@
         "EFFECT_ENDS": "A named effect on a creature ends. Prompts on the stack.",
         "SAVING_THROW": "A creature makes a saving throw. Not detected yet.",
         "REGAINS_STAMINA": "A creature regains Stamina. Chat reminder.",
-    "LOSES_STAMINA": "A creature loses Stamina for any reason, damage or otherwise. Use this rather than Takes Damage for something that reacts to bleeding. Chat reminder.",
+        "LOSES_STAMINA": "A creature loses Stamina for any reason, damage or otherwise. Use this rather than Takes Damage for something that reacts to bleeding. Chat reminder.",
         "MARKED": "The watched creature is marked. Needs Draw Steel: Combat Tools data.",
         "RESOURCE_GAIN": "A creature gains a heroic resource. Special case abilities only.",
         "STAMINA_BELOW": "Stamina falls below a set threshold. Prompts on the stack.",
@@ -451,7 +452,20 @@
       "Save": "Save Override",
       "Reset": "Reset to Parser",
       "Saved": "Trigger override saved for {name}.",
-      "ResetDone": "{name} uses the automatic parser again."
+      "ResetDone": "{name} uses the automatic parser again.",
+      "RangeChar": "Within your {char} score",
+      "RangeAbility": "Within the distance of {ability}",
+      "RollModBonus": "{n} bonus",
+      "RollModTierUp": "One tier higher",
+      "RollModTierDown": "One tier lower",
+      "RedirectFlanker": "The creature flanking the owner becomes the target",
+      "QualEffectFlanked": "Enforced: only while the attacker is flanking you.",
+      "QualEffectDealerRange": "Enforced: only when the creature dealing the damage is within {n} squares.",
+      "QualEffectAbilityRange": "Enforced: only {ability}.",
+      "QualEffectOwnerInRange": "Enforced: only while you are within the triggering ability's distance.",
+      "QualEffectThroughMark": "Enforced: only a creature insubstantial to you.",
+      "QualEffectWouldDying": "Enforced: only damage that would leave them at 0 Stamina or below.",
+      "QualEffectDamageRedirect": "Using this trigger moves the held damage to another creature."
     },
     "Queue": {
       "Title": "Trigger Stack",
@@ -669,7 +683,15 @@
       "SectionHeroes": "Heroes",
       "SectionMine": "Mine",
       "SectionGains": "Heroic Resource Gains",
-      "RosterToggle": "Show or hide the trigger list"
+      "RosterToggle": "Show or hide the trigger list",
+      "TierByHand": "{modName}: change the tier by hand, the roll window can't.",
+      "RedirectNoFlanker": "{modName}: no creature is flanking, so the strike was not redirected.",
+      "DamageRedirectAsk": "Where does the damage go?",
+      "DamageRedirectPick": "Pick a creature",
+      "DamageRedirectNone": "No target",
+      "DamageRedirectHint": "{modName}: pick who takes the damage",
+      "DamageRedirectSkipped": "{modName}: no creature was picked, so the damage was not redirected.",
+      "DamageRedirectByHand": "{modName} redirected {amount} damage away from {name}. Deal it by hand where it lands."
     },
     "MaliceCard": {
       "Header": "Malice Features",
@@ -702,7 +724,7 @@
       "Line": "line {n}",
       "Speaker": "Draw Steel: Triggers",
       "DeletedTitle": "Derived Ability Deleted",
-      "DeletedWhisper":"{user} deleted <strong>{ability}</strong> from {actor}, so <strong>{name}</strong> is now ignored for everyone. Remove it from Ignored Features in the module settings to bring it back."
+      "DeletedWhisper": "{user} deleted <strong>{ability}</strong> from {actor}, so <strong>{name}</strong> is now ignored for everyone. Remove it from Ignored Features in the module settings to bring it back."
     },
     "Squad": {
       "OwnerCount": "{name} ×{n}"
@@ -803,7 +825,7 @@
       "MovesAdjacent": "Triggered by {name} moving adjacent.",
       "Winded": "Triggered by {name} becoming winded.",
       "RegainsStamina": "Triggered by {name} regaining {amount} Stamina.",
-    "LosesStamina": "Triggered by {name} losing {amount} Stamina.",
+      "LosesStamina": "Triggered by {name} losing {amount} Stamina.",
       "StaminaBelow": "Triggered by {name} falling to {value} Stamina.",
       "ConditionGain": "Triggered by {name} becoming {condition}.",
       "ConditionGainBy": "Triggered by {by} making {name} {condition}.",
@@ -835,6 +857,17 @@
       "MenuMarkUnused": "Mark Villain Action Unused",
       "MarkedUsed": "{name} is marked as used for this combat.",
       "MarkedUnused": "{name} can be offered again."
+    },
+    "LineEffect": {
+      "Insubstantial": "Insubstantial to {owner}",
+      "InsubstantialDesc": "{owner} can pass through this creature freely, and this creature can't make opportunity attacks against {owner}. From {source}.",
+      "Applied": "{name} is {effect} ({source}).",
+      "Stability": "Stability shared ({source})",
+      "StabilityShared": "{owner} gives {n} stability to {ally} until the end of the round.",
+      "StabilityPrompt": "How much of your stability does {owner} give?",
+      "StabilityAmount": "Stability",
+      "StabilityConfirm": "Share",
+      "StabilityNone": "{owner} has no stability to share."
     }
   }
 }

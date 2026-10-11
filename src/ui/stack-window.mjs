@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from "./snooze.mjs";
@@ -94,6 +94,7 @@ async function useWithTriggerContext(item, entry) {
   const token = subject?.object ?? (subject?.documentName === "Token" ? subject : null);
   const previous = [...game.user.targets];
   const borrowed = !!token?.isVisible;
+  const epoch = retargetEpoch();
 
   if (Number.isFinite(entry.triggerDamage)) {
     game.modules.get(DSCT_ID)?.api?.setTriggerDamage?.(entry.triggerDamage);
@@ -104,7 +105,7 @@ async function useWithTriggerContext(item, entry) {
     await item.system.use();
     await runBespokeUse(item, entry);
   } finally {
-    if (borrowed) {
+    if (borrowed && retargetEpoch() === epoch) {
       for (const t of game.user.targets) t.setTarget(false, { user: game.user, releaseOthers: false });
       for (const t of previous) t.setTarget(true, { user: game.user, releaseOthers: false });
     }
@@ -196,6 +197,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
       : Promise.resolve("")));
     const roster = buildRoster();
+    
+    for (const s of roster.sections ?? []) if (this._sectionOpen?.has(s.id)) s.collapsed = !this._sectionOpen.get(s.id);
     return {
       isGM: game.user.isGM,
       roster,
@@ -331,8 +334,13 @@ export class StackWindow extends ds.applications.api.DSApplication {
       this._resizeHookedOn = handle;
       handle.addEventListener("pointerdown", () => { this._userSized = true; });
     }
+    
+    const stackKey = getQueueMirror().map((e) => `${e.id}:${e.state}`).join("|");
+    const stackChanged = stackKey !== this._lastStackKey;
+    this._lastStackKey = stackKey;
     setTimeout(() => {
-      if (!this._userSized) this.setPosition({ height: "auto" });
+      if (!this._userSized && (stackChanged || !this._sizedOnce)) this.setPosition({ height: "auto" });
+      this._sizedOnce = true;
       this._fitRoster();
     }, 0);
     const count = getQueueMirror().length;
@@ -347,7 +355,19 @@ export class StackWindow extends ds.applications.api.DSApplication {
     
     
     this.element.querySelector('.header-control[data-action="toggleRoster"]')?.classList.toggle("is-open", !!this._rosterOpen);
-    this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
+    if (this._widthFor !== !!this._rosterOpen) {
+      this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
+      this._widthFor = !!this._rosterOpen;
+    }
+    for (const d of this.element.querySelectorAll("details.dst-roster-section[data-section]")) {
+      d.addEventListener("toggle", () => (this._sectionOpen ??= new Map()).set(d.dataset.section, d.open));
+    }
+    for (const uuid of this._rosterEmbeds ?? []) {
+      const host = this.element.querySelector("[data-embed-for=" + JSON.stringify(uuid) + "]");
+      const button = this.element.querySelector(`.dst-roster-expand[data-ability-uuid=${JSON.stringify(uuid)}]`);
+      if (host) StackWindow.#openRosterEmbed(host, button?.querySelector("i"), uuid);
+      else this._rosterEmbeds.delete(uuid);
+    }
     this._fitRoster();
 
     ctlib()?.activateFaces?.(this.element);
@@ -523,6 +543,13 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this._fitRoster();
   }
 
+  _onClose(options) {
+    super._onClose?.(options);
+    this._sizedOnce = false;
+    this._widthFor = undefined;
+    this._lastStackKey = undefined;
+  }
+
   _setRosterOpen(open) {
     this._rosterOpen = !!open;
     this.element.querySelector(".dst-shell")?.classList.toggle("roster-open", this._rosterOpen);
@@ -532,6 +559,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     
     this.element.style.transition = "width 0.25s ease";
     this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
+    this._widthFor = this._rosterOpen;
     clearTimeout(this._drawerTimer);
     this._drawerTimer = setTimeout(() => { if (this.element) this.element.style.transition = ""; }, 300);
   }
@@ -550,11 +578,18 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const host = this.element.querySelector("[data-embed-for=" + JSON.stringify(uuid) + "]");
     if (!host) return;
     const icon = target.querySelector("i");
+    this._rosterEmbeds ??= new Set();
     if (!host.hidden) {
       host.hidden = true;
       icon?.classList.replace("fa-angle-down", "fa-angle-right");
+      this._rosterEmbeds.delete(uuid);
       return;
     }
+    this._rosterEmbeds.add(uuid);
+    StackWindow.#openRosterEmbed(host, icon, uuid);
+  }
+
+  static #openRosterEmbed(host, icon, uuid) {
     host.hidden = false;
     icon?.classList.replace("fa-angle-right", "fa-angle-down");
     if (host.dataset.built) return;

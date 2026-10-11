@@ -162,7 +162,7 @@
   {{/unless}}
 
   {{#each roster.sections}}
-  <details class="dst-roster-section dst-roster-section--{{id}}{{#if divided}} is-divided{{/if}}"{{#unless collapsed}} open{{/unless}}>
+  <details class="dst-roster-section dst-roster-section--{{id}}{{#if divided}} is-divided{{/if}}" data-section="{{id}}"{{#unless collapsed}} open{{/unless}}>
     <summary class="dst-roster-section-head">
       <i class="fa-solid fa-angle-right dst-roster-caret"></i>
       <span>{{label}}</span>
