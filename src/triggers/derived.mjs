@@ -50,9 +50,21 @@ function effectHTML(source, line, useMacro = null) {
 const SCOPE_TARGETS = { SELF: { type: "self" }, ALLY: { type: "ally", value: 1 }, ENEMY: { type: "enemy", value: 1 },
   ANY: { type: "creature", value: 1 }, GROUP: { type: "creature", value: 1 }, SELF_OR_ALLY: { type: "selfOrAlly" }, OBJECT: { type: "object", value: 1 } };
 
-function reachOf(parse) {
+const EFFECT_TARGETS = [
+  [/\b(?:that|the triggering|the) enem(?:y|ies)\b/i, "ENEMY"],
+  [/\b(?:that|the triggering) all(?:y|ies)\b/i, "ALLY"],
+  [/\b(?:that|the triggering) creatures?\b/i, null],
+];
+
+function reachOf(parse, effect = "") {
   const clause = parse?.clauses?.find((c) => c.event && c.event !== "UNKNOWN") ?? null;
-  const target = SCOPE_TARGETS[clause?.scope] ?? { type: "special" };
+  let scope = clause?.scope;
+  const named = EFFECT_TARGETS.find(([rx]) => rx.test(effect));
+  if (named) {
+    const other = clause?.sourceScope ?? clause?.victimScope ?? (scope && scope !== "SELF" ? scope : null);
+    scope = named[1] ?? other ?? "ANY";
+  }
+  const target = SCOPE_TARGETS[scope] ?? { type: "special" };
   const range = Number.isFinite(clause?.range) && clause.range > 0 ? clause.range : null;
   const distance = range === 1 ? { type: "melee", primary: "1" }
     : range ? { type: "ranged", primary: String(range) }
@@ -123,7 +135,7 @@ function specFor(source, line, useMacro = null) {
     trigger: line.trigger,
     story: line.flavor ?? "",
     keywords: [],
-    ...reachOf(line.parse),
+    ...reachOf(line.parse, line.effect),
     _dsid: line.key,
     effects,
   };
