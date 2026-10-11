@@ -1,5 +1,5 @@
 import { getSetting, dbg, isPrimaryGM, batchedNotice } from "../../util.mjs";
-import { collectTriggerMatches, footprintGap, triggersLive } from "../dispatch.mjs";
+import { collectTriggerMatches, dispatchTriggerEvent, footprintGap, triggersLive } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { generateDSID } from "../../parser/trigger-parser.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
@@ -504,8 +504,39 @@ async function _onApplyFmRedirect(payload) {
   });
 }
 
+function _onForcedMovement({ type, targetUuid, sourceUuid }) {
+  if (!isPrimaryGM() || !triggersLive()) return;
+  const target = targetUuid ? fromUuidSync(targetUuid) : null;
+  const source = sourceUuid ? fromUuidSync(sourceUuid) : null;
+  if (!target?.actor) return;
+  const fmType = String(type ?? "").toLowerCase().replace(/^vertical\s*/, "") || null;
+  const notInterrupt = (m) => !FM_INTERRUPTS[generateDSID(m.item.name)];
+  dispatchTriggerEvent({
+    event: "FORCE_MOVED", subjectActor: target.actor, subjectToken: target,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ForceMoved", { name: target.name }),
+    eventContext: { dealerActor: source?.actor ?? null, dealerToken: source ?? null, fmType },
+    filter: notInterrupt,
+  });
+  if (!source?.actor || source.actor === target.actor) return;
+  dispatchTriggerEvent({
+    event: "FORCE_MOVES", subjectActor: source.actor, subjectToken: source,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ForceMoves", { name: source.name, target: target.name }),
+    eventContext: { victimActor: target.actor, victimToken: target, fmType },
+    filter: notInterrupt,
+  });
+}
+
+Hooks.on("dsct.forcedMovement", (ctx) => {
+  if (!(Number(ctx?.moved) > 0)) return;
+  const uuidOf = (t) => (t?.document ?? t)?.uuid ?? null;
+  const payload = { type: ctx.type ?? null, targetUuid: uuidOf(ctx.target), sourceUuid: uuidOf(ctx.source) };
+  if (isPrimaryGM()) _onForcedMovement(payload);
+  else asPrimaryGM("forcedMovementEvent", payload);
+});
+
 Hooks.once("ready", () => {
   const s = queueSocket();
+  s?.register("forcedMovementEvent", _onForcedMovement);
   s?.register("resumeForcedMove", _onResumeFm);
   s?.register("driveFmRedirect", _onDriveFmRedirect);
   s?.register("applyFmRedirect", _onApplyFmRedirect);

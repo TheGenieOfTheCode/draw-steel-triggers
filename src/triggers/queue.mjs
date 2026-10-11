@@ -868,8 +868,16 @@ async function _resolveRetargetPicks(retargets, resume) {
   return out;
 }
 
+function _resumeFall(resume, usedItemUuids) {
+  if (game.users.get(resume.userId)?.active) socket?.executeForUsers("resumeFall", [resume.userId], resume.fallId, usedItemUuids);
+}
+
 function _finishResume(usedEntries, resume) {
   if (getSetting("debugMode")) console.log(`DS_TRIGGERS | finishResume: used=${(usedEntries ?? []).map((u) => `${u.itemName}:${u.redirect ?? "-"}`).join(",")} resume=${resume?.itemUuid ?? resume?.fmId ?? resume?.kind ?? null}`);
+  if (resume?.kind === "fall") {
+    _resumeFall(resume, (usedEntries ?? []).map((u) => u.itemUuid));
+    return;
+  }
   if (resume?.kind === "turn") {
     asPrimaryGM("resumeTurn", resume, (usedEntries ?? []).filter((u) => !u.villain).map((u) => ({
       itemUuid: u.itemUuid, ownerActorUuid: u.ownerActorUuid, ownerName: u.ownerName, itemName: u.itemName,
@@ -1057,6 +1065,10 @@ export async function postRedirectCard(u, { after = true, recipients = [] } = {}
 }
 
 function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {
+  if (resume?.kind === "fall") {
+    _resumeFall(resume, []);
+    return;
+  }
   if (resume?.kind === "turn") {
     asPrimaryGM("resumeTurn", resume, []);
     return;

@@ -9,7 +9,12 @@ import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown } from "./feature-triggers.mjs";
 
-const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
+const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
+
+const EVENT_ALIASES = { WINDED: ["WINDED_OR_DYING"], DYING: ["WINDED_OR_DYING"] };
+export const eventHits = (clauseEvent, event) => clauseEvent === event || !!EVENT_ALIASES[event]?.includes(clauseEvent);
+
+const OPTIONAL = /\b(?:you|they|it|the [\w'’-]+) (?:can|may)\b/i;
 const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
 const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, ...CONDITION_PROMPTS, "USES_ABILITY"]);
 const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
@@ -282,16 +287,59 @@ function grabsHeldBy(ownerActor, status) {
   return count;
 }
 
+function damageOutcomeMatches(outcomes, ctx) {
+  const prev = Number(ctx.victimPrev), cur = Number(ctx.victimCur), winded = Number(ctx.victimWinded);
+  if (!Number.isFinite(prev) || !Number.isFinite(cur)) return true;
+  return outcomes.some((o) => o === "zero" ? prev > 0 && cur <= 0
+    : o === "winded" && winded > 0 && prev > winded && cur <= winded);
+}
+
+export const forcesMovement = (ability) => (ability?.system?.power?.effects?.contents ?? []).some((e) => e.type === "forced");
+
+
+function beyondRange(squares, ownerToken, otherToken) {
+  const a = tokenDoc(ownerToken), b = tokenDoc(otherToken);
+  if (!a || !b || a.parent !== b.parent) return true;
+  return footprintGap(a, b) >= (squares - 1) * canvas.grid.distance;
+}
+
+function endsAdjacent(whom, ownerActor, ownerToken, victimToken, ownerDisposition) {
+  const victim = tokenDoc(victimToken);
+  if (!victim) return true;
+  const near = (doc) => doc && doc !== victim && doc.parent === victim.parent && footprintGap(doc, victim) < canvas.grid.distance;
+  if (whom === "self") return near(tokenDoc(ownerToken));
+  return (canvas.tokens?.placeables ?? []).some((t) => t.actor && t.actor !== ownerActor && t.actor !== victim.actor
+    && near(t.document) && scopeMatches({ scope: "ALLY" }, ownerActor, ownerDisposition, t.actor, t.document.disposition));
+}
+
+function holdsSmallerGrab(ownerActor) {
+  const size = Number(ownerActor.system?.combat?.size?.value ?? 1);
+  return (canvas.tokens?.placeables ?? []).some((t) => {
+    const held = t.actor;
+    if (!held?.statuses?.has("grabbed") || held === ownerActor) return false;
+    const mine = held.system?.statuses?.grabbed?.sources?.has?.(ownerActor.uuid)
+      || ownerActor.effects.some((e) => e.flags?.["draw-steel-combat-tools"]?.grab?.grabbedId === t.id);
+    return mine && Number(held.system?.combat?.size?.value ?? 1) <= size;
+  });
+}
+
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
   switch (event) {
     case "DEALS_DAMAGE":
       if (!damageKeywordsMatch(clause, ctx)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
+      if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
+      if (clause.victimCondition && !ctx.victimActor?.statuses?.has(clause.victimCondition)) return false;
+      if (clause.notForceMoved && forcesMovement(ctx.ability)) return false;
+      if (clause.rangeMin && !beyondRange(clause.rangeMin, subjectToken, ctx.victimToken)) return false;
       if (!clause.victimScope || !ctx.victimActor) return true;
       return scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null);
-    
+    case "WOULD_TAKE_DAMAGE":
+      return !clause.fromFalling || !!ctx.fromFalling;
     case "TAKES_DAMAGE":
       if (!damageKeywordsMatch(clause, ctx)) return false;
+      if (clause.reducedByImmunity && !ctx.immunityReduced) return false;
+      if (clause.fromFalling && !ctx.fromFalling) return false;
       if (!clause.dealerScope) return !ctx.dealerOnly;
       if (!ctx.dealerActor) return false;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
@@ -336,7 +384,24 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (ctx.deathOffered && item?.featureLine?.defersDeath) return false;
       if (clause.damageTypes?.length && ctx.damageType && !clause.damageTypes.includes(ctx.damageType)) return false;
       return !clause.lastMinion || lastMinionStanding(subjectActor, subjectToken);
+    case "DYING":
+      return !clause.damageTypes?.length || !ctx.damageType || clause.damageTypes.includes(ctx.damageType);
+    case "FORCE_MOVES":
+    case "FORCE_MOVED": {
+      if (clause.fmBefore) return false;
+      if (clause.fmType && ctx.fmType && clause.fmType !== ctx.fmType) return false;
+      if (event === "FORCE_MOVED") return true;
+      if (clause.victimScope && ctx.victimActor
+        && !scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null)) return false;
+      return !clause.victimEndsAdjacent || endsAdjacent(clause.victimEndsAdjacent, ownerActor, subjectToken, ctx.victimToken, ownerDisposition);
+    }
+    case "RESISTS_POTENCY":
+      return keywordsMatch(clause, ctx.ability);
+    case "USES_ABILITY":
+      return !clause.ownerGrabbing || holdsSmallerGrab(ownerActor);
     case "TURN_START":
+      if (clause.firstTurn && !ctx.firstTurn) return false;
+    
     case "TURN_END": {
       if (clause.captainOnly && !isSquadCaptain(ownerActor)) {
         dbg(`${ownerActor.name} is not a squad captain, skipped on ${event}`);
@@ -411,7 +476,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
-        c.event === event && (!fallen || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
+        eventHits(c.event, event) &&(!fallen || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
         && statusMatches(c, actor, subjectActor)
@@ -449,12 +514,13 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   return matches;
 }
 
-export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {} }) {
+export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {}, filter = null, gains = true }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
-  noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext, causeLabel });
+  if (gains) noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext, causeLabel });
 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, ...eventContext });
+  if (filter) matches = matches.filter(filter);
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
   }
@@ -462,10 +528,12 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
 
   const promptsOn = DAMAGE_PROMPTS.has(event) ? getSetting("damagePrompts")
     : CONDITION_PROMPTS.has(event) ? getSetting("conditionPrompts") : true;
-  if (PROMPT_EVENTS.has(event) && promptsOn) {
-    const prompts = matches.filter((m) =>
-      !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
-    if (prompts.length) enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
+  const promptable = (m) => !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual");
+  
+  const optionalLine = (m) => !!m.item.featureLine && (!!m.item.featureLine.action || OPTIONAL.test(m.item.featureLine.effect ?? ""));
+  const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m)));
+  if (prompts.length) {
+    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
     matches = matches.filter((m) => !prompts.includes(m));
   }
 

@@ -5,7 +5,6 @@ import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
 
 let _pendingDamageType = null;
 
-
 let _pendingStaminaLoss = false;
 
 let _dealer = null;
@@ -59,8 +58,11 @@ Hooks.once("ready", () => {
 
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
     _pendingDamageType  = options?.type ?? null;
-    if (this.parent?.uuid) _typeFor.set(this.parent.uuid, options?.type ?? "");
+    if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
+      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall,
+    });
     _pendingStaminaLoss = !!options?.staminaLoss;
+    _noteAbsorbed(this.parent, damage, options);
     try {
       if (_tryHoldDamage(this, damage, options)) return this.parent;
       return wrapped(damage, options);
@@ -71,8 +73,25 @@ Hooks.once("ready", () => {
   }, "MIXED");
 });
 
-function _holdMatches(actor, token, damageType) {
-  let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token).filter((m) =>
+function _noteAbsorbed(actor, damage, options) {
+  if (!actor || !(damage > 0) || options?.staminaLoss || options?.dstBypass || !options?.type) return;
+  const { immunity = 0, weakness = 0 } = actor.system?.calculateImmunityAndWeakness?.({
+    type: options.type, ignoredImmunities: [...(options.ignoredImmunities ?? [])],
+  }) ?? {};
+  if (!(immunity > 0) || damage + weakness - immunity > 0) return;
+  dispatchTriggerEvent({
+    event: "TAKES_DAMAGE",
+    subjectActor: actor,
+    subjectToken: actor.getActiveTokens(true, true)[0] ?? null,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: 0 }),
+    eventContext: { damageType: options.type, immunityReduced: true, dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null },
+    filter: (m) => !!m.clause?.reducedByImmunity,
+    gains: false,
+  });
+}
+
+function _holdMatches(actor, token, damageType, ctx = {}) {
+  let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, ctx).filter((m) =>
     !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
   if (damageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType));
   return matches;
@@ -86,7 +105,6 @@ function _deathMatches(actor, token, damageType, lethal) {
     .filter((m) => m.item.featureLine?.defersDeath)
     .map((m) => ({ ...m, defersDeath: true }));
 }
-
 
 function _lastMinionDeath(group, hit, damageType) {
   if (!deferDeathApi()) return null;
@@ -122,11 +140,12 @@ function _tryHoldDamage(model, damage, options) {
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
   const deaths = _deathMatches(actor, token, options?.type ?? null, _lethal(actor, damage, options));
-  const matches = [..._holdMatches(actor, token, options?.type ?? null), ...deaths];
+  const matches = [..._holdMatches(actor, token, options?.type ?? null, { fromFalling: !!options?.dsctFall }), ...deaths];
   if (!matches.length) return false;
 
   const damageOptions = {};
   if (options?.type) damageOptions.type = options.type;
+  if (options?.dsctFall) damageOptions.dsctFall = true;
   if (options?.ignoredImmunities?.length) damageOptions.ignoredImmunities = [...options.ignoredImmunities];
   if (options?.dsbl) damageOptions.dsbl = foundry.utils.deepClone(options.dsbl);
 
@@ -179,7 +198,6 @@ Hooks.on("modifyTokenAttribute", (change, updates, actor) => {
   batchedNotice("HeldDamageNotice", actor.name);
   return false;
 });
-
 
 Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   if (options?.dstBypass || options?.staminaLoss) return;
@@ -274,7 +292,8 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, ability: dealer.ability },
+        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, ability: dealer.ability,
+          victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
       });
       dispatchTriggerEvent({
         event: "TAKES_DAMAGE",
@@ -307,8 +326,10 @@ Hooks.on("updateActor", (actor, changed, options) => {
   if (!cur) return;
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
-  const damageType = _typeFor.get(actor.uuid) ?? null;
+  const record = _typeFor.get(actor.uuid) ?? null;
+  const damageType = record?.type ?? null;
   _typeFor.delete(actor.uuid);
+  const immunityReduced = !!damageType && (actor.system.calculateImmunityAndWeakness?.({ type: damageType, ignoredImmunities: record.ignored })?.immunity ?? 0) > 0;
   const prevTotal = prev.value + prev.temporary;
   const curTotal = cur.value + (cur.temporary ?? 0);
 
@@ -328,7 +349,8 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
-      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null },
+      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null,
+        immunityReduced, fromFalling: !!record?.fall },
     });
 
     
@@ -341,7 +363,8 @@ Hooks.on("updateActor", (actor, changed, options) => {
           name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
-        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null, ability: _dealer.ability ?? null },
+        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null, ability: _dealer.ability ?? null,
+          victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
       });
     }
   }
@@ -354,7 +377,19 @@ Hooks.on("updateActor", (actor, changed, options) => {
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.StaminaBelow", { name: actor.name, value: cur.value }),
     });
   }
-  if (prev.value > 0 && cur.value <= 0) {
+  
+  const hero = actor.type === "hero";
+  const deathAt = hero ? -(Number(prev.winded) || 0) : 0;
+  if (hero && prev.value > 0 && cur.value <= 0) {
+    dispatchTriggerEvent({
+      event: "DYING",
+      subjectActor: actor,
+      subjectToken: token,
+      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.Dying", { name: actor.name }),
+      eventContext: { damageType },
+    });
+  }
+  if (prev.value > deathAt && cur.value <= deathAt) {
     dispatchTriggerEvent({
       event: "DIES",
       subjectActor: actor,
@@ -365,7 +400,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
   }
   if (prev.winded > 0 && prev.value > prev.winded && cur.value <= prev.winded) {
     dispatchTriggerEvent({
-      event: "WINDED_OR_DYING",
+      event: "WINDED",
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.Winded", { name: actor.name }),

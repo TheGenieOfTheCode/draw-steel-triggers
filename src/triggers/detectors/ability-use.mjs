@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent, triggersLive } from "../dispatch.mjs";
+import { dispatchTriggerEvent, triggersLive, hasPotency } from "../dispatch.mjs";
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { gainsActive } from "../resource-gains.mjs";
 
@@ -47,4 +47,16 @@ Hooks.on("createChatMessage", (message) => {
       name: used.actor.name, ability: used.item.name,
     }),
   });
+  if (!hasPotency(used.item)) return;
+  for (const target of targets) {
+    if (!target.actor || target.actor === used.actor) continue;
+    dispatchTriggerEvent({
+      event: "RESISTS_POTENCY",
+      subjectActor: target.actor,
+      subjectToken: target,
+      sourceMessageId: message.id,
+      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ResistsPotency", { name: target.name, ability: used.item.name }),
+      eventContext: { ability: used.item, dealerActor: used.actor, dealerToken: used.token },
+    });
+  }
 });

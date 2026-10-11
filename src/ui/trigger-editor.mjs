@@ -30,6 +30,17 @@ const FLAG_FIELDS = {
   victimNotMentor: ["victimNotMentor"],
   entersSpace: ["entersSpace"],
   lineOfEffect: ["lineOfEffect"],
+  fmType: ["fmType"],
+  victimEndsAdjacent: ["victimEndsAdjacent"],
+  firstTurn: ["firstTurn"],
+  damageOutcome: ["damageOutcome"],
+  reducedByImmunity: ["reducedByImmunity"],
+  rangeMin: ["rangeMin"],
+  notForceMoved: ["notForceMoved"],
+  ownerGrabbing: ["ownerGrabbing"],
+  fromFalling: ["fromFalling"],
+  victimCondition: ["victimCondition"],
+  fallReduction: ["fallReduction"],
 };
 
 const keywordLabel = (k) => {
@@ -76,12 +87,23 @@ function describeFilter(id, fields) {
     case "victimNotMentor": return L("QualEffectNotMentor");
     case "entersSpace": return L("QualEffectEntersSpace");
     case "lineOfEffect": return L("QualEffectLineOfEffect");
+    case "fmType": return L("QualEffectFmType", { type: fields.fmType ?? "" });
+    case "victimEndsAdjacent": return L(fields.victimEndsAdjacent === "ally" ? "QualEffectEndsAdjacentAlly" : "QualEffectEndsAdjacentSelf");
+    case "firstTurn": return L("QualEffectFirstTurn");
+    case "damageOutcome": return L("QualEffectDamageOutcome");
+    case "reducedByImmunity": return L("QualEffectImmunity");
+    case "rangeMin": return L("QualEffectRangeMin", { n: fields.rangeMin });
+    case "notForceMoved": return L("QualEffectNotForceMoved");
+    case "ownerGrabbing": return L("QualEffectOwnerGrabbing");
+    case "fromFalling": return L("QualEffectFromFalling");
+    case "victimCondition": return L("QualEffectVictimCondition", { condition: conditionLabel(fields.victimCondition).toLowerCase() });
+    case "fallReduction": return L("QualEffectFallReduction");
     default: return L("QualEffectNone");
   }
 }
 
 const abilityFilterList = (event, triggerText, effectText) => event === "USES_ABILITY" ? explainAbilityFilters(triggerText, effectText)
-  : event === "DEALS_DAMAGE" || event === "TAKES_DAMAGE" ? explainAbilityFilters(triggerText, effectText).filter((f) => f.id === "abilityKeywords") : [];
+  : ["DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY"].includes(event) ? explainAbilityFilters(triggerText, effectText).filter((f) => f.id === "abilityKeywords") : [];
 
 function qualifierPills(clause, triggerText, effectText, pristine = null) {
   const off = new Set(clause.filtersOff ?? []);
@@ -132,17 +154,18 @@ function qualifierPills(clause, triggerText, effectText, pristine = null) {
 
 const EVENT_GROUPS = [
   ["Common", [
-    "TAKES_DAMAGE", "DEALS_DAMAGE", "DIES", "WINDED_OR_DYING",
+    "TAKES_DAMAGE", "DEALS_DAMAGE", "DIES", "WINDED", "DYING",
     "TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "MAKES_STRIKE", "POWER_ROLL", "MOVES", "FORCE_MOVED",
     "TURN_START", "TURN_END", "CONDITION_GAIN", "USES_ABILITY",
   ]],
   ["Rare", [
     "FORCE_MOVES", "ROUND_START", "POWER_ROLL_RESULT", "ZONE_ENTER", "ZONE_TURN_START",
     "EFFECT_ENDS", "SAVING_THROW", "REGAINS_STAMINA", "LOSES_STAMINA", "MARKED",
+    "WINDED_OR_DYING", "FALL_START", "SPENDS_RECOVERY", "HERO_TOKEN_EARNED", "RESISTS_POTENCY",
   ]],
   ["Bespoke", [
     "RESOURCE_GAIN", "STAMINA_BELOW", "MECHANISM", "NARRATIVE",
-    "GRAB_ENDS", "RESISTS_POTENCY", "TEST_FAILED", "UNKNOWN",
+    "GRAB_ENDS", "TEST_FAILED", "UNKNOWN",
   ]],
 ];
 const SCOPES = [
@@ -231,7 +254,9 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       .sort((a, b) => a.label.localeCompare(b.label));
     const damageTypes = Object.entries(ds.CONFIG.damageTypes ?? {})
       .map(([value, cfg]) => ({ value, label: game.i18n.localize(cfg.label ?? value) }));
-    const annotated = annotateTrigger(this._triggerText, this._line ? { effectText: this._effectText } : {
+    const side = this.item.actor && this.item.actor.type !== "hero" ? "monster" : "hero";
+    const annotated = annotateTrigger(this._triggerText, this._line ? { effectText: this._effectText, side } : {
+      side,
       dsid: this.item.system?._dsid ?? this.item.dsid,
       ownerName: this.item.actor?.name ?? "",
       effectText: this._effectText,

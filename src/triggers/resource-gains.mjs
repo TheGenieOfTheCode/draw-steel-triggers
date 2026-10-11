@@ -1,7 +1,7 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, executeAsDirector } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
-import { footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
+import { eventHits, footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
 import { isTriggerSnoozed } from "../ui/snooze.mjs";
@@ -159,7 +159,7 @@ export function heroGainLines(actor) {
 function _lineMatches(line, e, hero, heroToken) {
   const ctx = e.eventContext;
   return (line.parse?.clauses ?? []).some((clause) => {
-    if (clause.event !== e.event) return false;
+    if (!eventHits(clause.event, e.event)) return false;
     if (e.event === "TAKES_DAMAGE" && ctx.dealerOnly && !line.gates.includes("dealerJudged")) return false;
     const subjectToken = _token(e.subjectToken);
     if (!scopeMatches(clause, hero, _token(heroToken)?.disposition ?? null, e.subjectActor, subjectToken?.disposition ?? null)) return false;
@@ -300,7 +300,10 @@ export function noteGainEvent(e) {
   if (!combat?.started) return;
   e = { ...e, eventContext: e.eventContext ?? {} };
   e.threeHeroes = _threeHeroes(e);
+  const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   for (const { actor, token } of _heroes(combat)) {
+    
+    if (actor.statuses?.has(defeated) && String(resourceName(actor) ?? "").toLowerCase() !== "drama") continue;
     for (const { item, line } of heroGainLines(actor)) {
       if (!line.enabled || !line.automated) continue;
       if (isTriggerSnoozed(actor, gainSnoozeId(line))) continue;
@@ -455,10 +458,4 @@ Hooks.on("createChatMessage", (message) => {
   const actor = token?.actor ?? (message.speaker?.actor ? game.actors.get(message.speaker.actor) : null);
   if (!actor) return;
   noteGainEvent({ event: "NATURAL_19_20", subjectActor: actor, subjectToken: token ?? actor.getActiveTokens(true, true)[0] ?? null });
-});
-
-Hooks.on("dsct.forcedMovement", (ctx) => {
-  if (!(Number(ctx?.moved) > 0)) return;
-  const token = _token(ctx.target);
-  noteGainEvent({ event: "FORCE_MOVED", subjectActor: token?.actor ?? null, subjectToken: token });
 });

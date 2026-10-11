@@ -31,6 +31,8 @@ import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
+import "./triggers/detectors/hero-events.mjs";
+import "./triggers/detectors/fall-lock.mjs";
 import "./ui/feature-card.mjs";
 import "./ui/derived-chat-links.mjs";
 import "./triggers/derived-names.mjs";
