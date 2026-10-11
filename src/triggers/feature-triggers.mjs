@@ -53,7 +53,6 @@ const appliesEffects = (item) => !!(item.effects?.some((e) => !e.transfer) || it
 
 export const carriesEffect = (actor, origin) => !!origin && !!actor?.effects?.some((e) => e.origin === origin && e.active);
 
-
 function nearbyActors(owner) {
   const actors = new Set([owner]);
   for (const c of game.combat?.combatants ?? []) if (c.actor) actors.add(c.actor);
@@ -98,24 +97,35 @@ export function itemFeatureLines(item, { withIgnored = false } = {}) {
   const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
   const applies = ability && appliesEffects(item);
   const ignored = withIgnored ? new Set() : ignoredLines();
+  const benefits = ability ? [] : grantedBenefits(item);
+  const benefitKey = benefits.join("|");
   const cached = _lineCache.get(item.uuid);
-  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name && cached.ownerName === ownerName && cached.applies === applies) {
+  if (cached && cached.html === html && cached.resource === resource && cached.name === item.name && cached.ownerName === ownerName
+    && cached.applies === applies && cached.benefitKey === benefitKey) {
     return ignored.size ? cached.lines.filter((l) => !ignored.has(l.key)) : cached.lines;
   }
-  const opts = { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName };
+  const opts = { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName, benefits };
   const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies }).filter((l) => l.watch !== "self")
     : featureTriggerLines(html, opts);
   const lines = found.filter((l) => l.kind === "trigger")
     .map((l) => ({ ...l, manual: MANUAL.filter(([rx]) => rx.test(l.sentence)).map(([, why]) => why) }));
-  _lineCache.set(item.uuid, { html, resource, name: item.name, ownerName, applies, lines });
+  _lineCache.set(item.uuid, { html, resource, name: item.name, ownerName, applies, benefitKey, lines });
   return ignored.size ? lines.filter((l) => !ignored.has(l.key)) : lines;
+}
+
+function grantedBenefits(item) {
+  const advancements = item.system?.advancements;
+  return [...(advancements?.contents ?? Object.values(advancements ?? {}))].filter((a) => a.type === "itemGrant")
+    .flatMap((a) => a.pool ?? []).map((p) => (p?.uuid ? fromUuidSync(p.uuid, { strict: false }) : null))
+    .filter((d) => d?.name && d.type !== "ability").map((d) => d.name);
 }
 
 export function coveredBy(item) {
   const actor = item?.actor;
   if (!actor) return null;
   const dsid = item.system?._dsid;
-  const grants = new Set(Object.values(item.system?.advancements ?? {}).filter((a) => a.type === "itemGrant")
+  const advancements = item.system?.advancements;
+  const grants = new Set([...(advancements?.contents ?? Object.values(advancements ?? {}))].filter((a) => a.type === "itemGrant")
     .flatMap((a) => a.pool ?? []).map((p) => p.uuid).filter(Boolean));
   return actor.items.find((i) => i.type === "ability" && TRIGGERED.has(i.system?.type)
     && ((dsid && i.system?._dsid === dsid) || grants.has(i._stats?.compendiumSource))) ?? null;

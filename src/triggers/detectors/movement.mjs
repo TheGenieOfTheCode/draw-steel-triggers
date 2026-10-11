@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent, collectTriggerMatches, triggersLive } from "../dispatch.mjs";
+import { dispatchTriggerEvent, collectTriggerMatches, triggersLive, footprintGap } from "../dispatch.mjs";
 import { getTriggeredAbilities } from "../registry.mjs";
 import { lingeringTokens, endLingering } from "../lingering.mjs";
 import { dbg, isPrimaryGM } from "../../util.mjs";
@@ -56,6 +56,32 @@ async function enteredSpaces(doc, movement) {
   }
 }
 
+const watchesArrivals = (actor) => getTriggeredAbilities(actor)
+  .some((e) => e.parse?.clauses?.some((c) => c.event === "MOVES" && c.arrives));
+
+async function arrivals(doc, movement) {
+  const origin = movement.origin;
+  if (!origin) return;
+  const watchers = (doc.parent?.tokens?.contents ?? []).filter((t) => t.id !== doc.id && t.actor && watchesArrivals(t.actor));
+  if (!watchers.length) return;
+  
+  const box = (p) => ({ x: p?.x ?? doc.x, y: p?.y ?? doc.y, width: p?.width ?? doc.width, height: p?.height ?? doc.height });
+  const start = box(origin);
+  const end = box(movement.destination);
+  const near = canvas.grid.distance;
+  const adjacentBefore = new Set(watchers.filter((t) => footprintGap(t, start) < near).map((t) => t.actor.uuid));
+  if (!watchers.some((t) => !adjacentBefore.has(t.actor.uuid) && footprintGap(t, end) < near)) return;
+  for (let i = 0; i < 40 && (doc.x !== end.x || doc.y !== end.y); i++) await new Promise((r) => setTimeout(r, 100));
+  dbg(`${doc.name} moved adjacent to a creature watching for arrivals`);
+  dispatchTriggerEvent({
+    event: "MOVES",
+    subjectActor: doc.actor,
+    subjectToken: doc,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.MovesAdjacent", { name: doc.name }),
+    eventContext: { arrived: true, adjacentBefore },
+  });
+}
+
 Hooks.on("updateToken", (doc, _changes, options) => {
   if (!isPrimaryGM()) return;
   if (!triggersLive()) return;
@@ -63,6 +89,7 @@ Hooks.on("updateToken", (doc, _changes, options) => {
   const movement = options?._movement?.[doc.id];
   if (!movement || !doc.actor) return;
   enteredSpaces(doc, movement);
+  arrivals(doc, movement);
   if (!movesThrough(doc.actor)) return;
   for (const victim of passedThrough(doc, movement)) {
     dbg(`${doc.name} moved through ${victim.name}`);

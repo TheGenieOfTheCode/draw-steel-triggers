@@ -41,12 +41,27 @@ const FLAG_FIELDS = {
   fromFalling: ["fromFalling"],
   victimCondition: ["victimCondition"],
   fallReduction: ["fallReduction"],
+  subjectConcealed: ["subjectConcealed"],
+  fromForcedMovement: ["fromForcedMovement"],
+  arrives: ["arrives"],
+  highGround: ["highGround"],
+  damageReduction: ["damageReduction"],
+  damageBonus: ["damageBonus"],
+  fmMod: ["fmMod"],
 };
 
 const keywordLabel = (k) => {
   const label = ds.CONFIG?.abilities?.keywords?.[k]?.label;
   return label ? game.i18n.localize(label) : k;
 };
+
+const charLabel = (c) => game.i18n.localize(ds.CONFIG?.characteristics?.[c]?.label ?? c);
+
+function fmModText(mod) {
+  const n = mod?.amount ?? (mod?.char ? charLabel(mod.char) : "");
+  const key = { boost: "FmModBoost", reduce: "FmModReduce", redirect: "FmModRedirect", slide: "FmModSlide", vertical: "FmModVertical", objectDamage: "FmModObject" }[mod?.mode];
+  return key ? L(key, { n }) : L("QualEffectNone");
+}
 
 function describeFilter(id, fields) {
   switch (id) {
@@ -87,7 +102,7 @@ function describeFilter(id, fields) {
     case "victimNotMentor": return L("QualEffectNotMentor");
     case "entersSpace": return L("QualEffectEntersSpace");
     case "lineOfEffect": return L("QualEffectLineOfEffect");
-    case "fmType": return L("QualEffectFmType", { type: fields.fmType ?? "" });
+    case "fmType": return L("QualEffectFmType", { type: [].concat(fields.fmType ?? []).join(" or ") });
     case "victimEndsAdjacent": return L(fields.victimEndsAdjacent === "ally" ? "QualEffectEndsAdjacentAlly" : "QualEffectEndsAdjacentSelf");
     case "firstTurn": return L("QualEffectFirstTurn");
     case "damageOutcome": return L("QualEffectDamageOutcome");
@@ -98,12 +113,19 @@ function describeFilter(id, fields) {
     case "fromFalling": return L("QualEffectFromFalling");
     case "victimCondition": return L("QualEffectVictimCondition", { condition: conditionLabel(fields.victimCondition).toLowerCase() });
     case "fallReduction": return L("QualEffectFallReduction");
+    case "subjectConcealed": return L("QualEffectConcealed");
+    case "fromForcedMovement": return L("QualEffectFromForcedMovement");
+    case "arrives": return L("QualEffectArrives");
+    case "highGround": return L("QualEffectHighGround");
+    case "damageReduction": return L("QualEffectDamageReduction", { n: fields.damageReduction === "level" ? L("QualYourLevel") : fields.damageReduction });
+    case "damageBonus": return L("QualEffectDamageBonus", { n: fields.damageBonus });
+    case "fmMod": return fmModText(fields.fmMod);
     default: return L("QualEffectNone");
   }
 }
 
 const abilityFilterList = (event, triggerText, effectText) => event === "USES_ABILITY" ? explainAbilityFilters(triggerText, effectText)
-  : ["DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY"].includes(event) ? explainAbilityFilters(triggerText, effectText).filter((f) => f.id === "abilityKeywords") : [];
+  : ["DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY", "FORCE_MOVES"].includes(event) ? explainAbilityFilters(triggerText, effectText).filter((f) => f.id === "abilityKeywords") : [];
 
 function qualifierPills(clause, triggerText, effectText, pristine = null) {
   const off = new Set(clause.filtersOff ?? []);

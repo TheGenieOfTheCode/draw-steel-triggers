@@ -296,7 +296,6 @@ function damageOutcomeMatches(outcomes, ctx) {
 
 export const forcesMovement = (ability) => (ability?.system?.power?.effects?.contents ?? []).some((e) => e.type === "forced");
 
-
 function beyondRange(squares, ownerToken, otherToken) {
   const a = tokenDoc(ownerToken), b = tokenDoc(otherToken);
   if (!a || !b || a.parent !== b.parent) return true;
@@ -323,9 +322,22 @@ function holdsSmallerGrab(ownerActor) {
   });
 }
 
+const CONDITION_STATUS = { hidden: "dsctHidden" };
+
+const CONCEALED = ["invisible", "dsctConcMagic", "dsctConcMundane"];
+const isConcealed = (actor) => CONCEALED.some((id) => actor?.statuses?.has(id));
+
+export function fmMatches(clause, ctx) {
+  if (clause.fmType && ctx.fmType && ![].concat(clause.fmType).includes(ctx.fmType)) return false;
+  if (!clause.abilityKeywords?.length) return true;
+  const kw = new Set((ctx.keywords ?? []).map((k) => String(k).toLowerCase()));
+  return clause.abilityKeywordsAll ? clause.abilityKeywords.every((k) => kw.has(k)) : clause.abilityKeywords.some((k) => kw.has(k));
+}
+
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
   switch (event) {
     case "DEALS_DAMAGE":
+      if (clause.damageBonus) return false;
       if (!damageKeywordsMatch(clause, ctx)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
@@ -335,11 +347,13 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (!clause.victimScope || !ctx.victimActor) return true;
       return scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null);
     case "WOULD_TAKE_DAMAGE":
-      return !clause.fromFalling || !!ctx.fromFalling;
+      return (!clause.fromFalling || !!ctx.fromFalling) && (!clause.fromForcedMovement || !!ctx.fromForcedMovement);
     case "TAKES_DAMAGE":
       if (!damageKeywordsMatch(clause, ctx)) return false;
       if (clause.reducedByImmunity && !ctx.immunityReduced) return false;
       if (clause.fromFalling && !ctx.fromFalling) return false;
+      if (clause.fromForcedMovement && !ctx.fromForcedMovement) return false;
+      if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
       if (!clause.dealerScope) return !ctx.dealerOnly;
       if (!ctx.dealerActor) return false;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
@@ -349,7 +363,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (!clause.dealerScope || !ctx.dealerActor) return true;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "CONDITION_GAIN": {
-      if (clause.condition && ctx.condition !== clause.condition) return false;
+      if (clause.condition && ctx.condition !== (CONDITION_STATUS[clause.condition] ?? clause.condition)) return false;
       if (clause.sourceScope) {
         const sources = (ctx.sourceActorUuids ?? []).map((u) => fromUuidSync(u)).map((d) => d?.actor ?? d).filter(Boolean);
         if (sources.length && !sources.some((a) => scopeMatches({ scope: clause.sourceScope }, ownerActor, ownerDisposition, a, null))) return false;
@@ -371,6 +385,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "STAMINA_BELOW":
       return Number.isFinite(clause.value) && ctx.prevValue >= clause.value && ctx.curValue < clause.value;
     case "MOVES": {
+      if (clause.arrives) return !!ctx.arrived && !ctx.adjacentBefore?.has(ownerActor.uuid);
       if (clause.entersSpace) return !!ctx.enteredActor && ctx.enteredActor === ownerActor;
       if (!clause.through || !ctx.throughActor) return false;
       if (clause.victimNotMentor) {
@@ -388,13 +403,16 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return !clause.damageTypes?.length || !ctx.damageType || clause.damageTypes.includes(ctx.damageType);
     case "FORCE_MOVES":
     case "FORCE_MOVED": {
-      if (clause.fmBefore) return false;
-      if (clause.fmType && ctx.fmType && clause.fmType !== ctx.fmType) return false;
+      
+      if (ctx.preMove ? !clause.fmMod : (clause.fmBefore || clause.fmMod)) return false;
+      if (!fmMatches(clause, ctx)) return false;
       if (event === "FORCE_MOVED") return true;
       if (clause.victimScope && ctx.victimActor
         && !scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null)) return false;
       return !clause.victimEndsAdjacent || endsAdjacent(clause.victimEndsAdjacent, ownerActor, subjectToken, ctx.victimToken, ownerDisposition);
     }
+    case "SPENDS_RECOVERY":
+      return !clause.recoveryByOwner || ctx.recoveryBy === ownerActor.uuid;
     case "RESISTS_POTENCY":
       return keywordsMatch(clause, ctx.ability);
     case "USES_ABILITY":
@@ -419,6 +437,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
 }
 
 function statusMatches(clause, ownerActor, subjectActor) {
+  if (clause.subjectConcealed && !isConcealed(subjectActor)) return false;
   if (clause.tauntedByOwner && !subjectActor?.system?.statuses?.taunted?.sources?.has?.(ownerActor.uuid)) return false;
   return !(clause.ownerLacks && ownerActor.statuses?.has(clause.ownerLacks));
 }
@@ -462,6 +481,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
     for (const entry of getTriggeredAbilities(actor)) {
       if (dazed && (entry.item.system.type === "triggered" || entry.item.system.type === "freeTriggered")) continue;
       if (entry.item.system.restricted || entry.item.featureLine?.marksSpace) continue;
+      
+      if (entry.item.featureLine && entry.parse?.confidence !== "high" && entry.parse?.source !== "manual") continue;
       
       
       if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;

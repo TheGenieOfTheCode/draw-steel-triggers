@@ -218,7 +218,7 @@ Hooks.once("init", () => {
     scope: "world",
     config: true,
     type: String,
-    default: JSON.stringify([{ dsid: "perseverance", name: "Perseverance" }]),
+    default: "[]",
     onChange: () => {
       for (const app of foundry.applications.instances.values()) {
         if (app.document?.documentName === "Item" || app.document?.type === "hero") app.render();

@@ -30,7 +30,7 @@ export function registerDamagePillBridge() {
   dbg("damage pill bridge registered with Combat Tools");
 }
 
-async function addDamagePill(message, targetUuid, pill) {
+export async function addDamagePill(message, targetUuid, pill) {
   const flag = message.getFlag(MODULE_ID, PILL_FLAG);
   const existing = Array.isArray(flag) ? flag : [];
   if (existing.some((e) => e.targetUuid === targetUuid && e.pill?.label === pill.label)) return;

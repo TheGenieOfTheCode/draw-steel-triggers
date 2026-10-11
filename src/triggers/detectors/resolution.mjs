@@ -78,7 +78,8 @@ function _rollerTierCandidates(rollerActor, rollerToken, ability) {
       && (m.parse?.confidence === "high" || m.parse?.source === "manual")
       && (m.clause?.tierFilter?.length ?? 0) > 0
       && _rollerClause(m.clause)
-      && (!m.clause?.signatureOnly || signature));
+      && (!m.clause?.signatureOnly || signature)
+      && (!m.clause?.abilityDsid || ability?.system?._dsid === m.clause.abilityDsid));
 }
 
 function _rollerToken(message, rollerActor) {

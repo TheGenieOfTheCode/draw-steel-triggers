@@ -1,17 +1,12 @@
 import { getSetting, dbg, isPrimaryGM, batchedNotice } from "../../util.mjs";
 import { collectTriggerMatches, dispatchTriggerEvent, footprintGap, triggersLive } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
-import { generateDSID } from "../../parser/trigger-parser.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
 
-const FM_INTERRUPTS = {
-  "lines-of-force": { mode: "redirect", char: "might" },
-  "repel": { mode: "reduce", char: "reason" },
-  "explosive-assistance": { mode: "boost", char: "reason" },
-};
+const OPTIONAL = /\b(?:you|they) (?:can|may)\b/i;
 
 const _pendingFm = new Map();
 
@@ -22,44 +17,79 @@ function _pruneFm() {
   }
 }
 
-function _fmMatches(event, subjectActor, subjectToken) {
-  return collectTriggerMatches(event, subjectActor, subjectToken).filter((m) => {
-    if (m.malice) return false;
-    if (m.parse?.confidence !== "high" && m.parse?.source !== "manual") return false;
-    return !!FM_INTERRUPTS[generateDSID(m.item.name)];
-  });
+const fmTypeOf = (type) => String(type ?? "").toLowerCase().replace(/^vertical\s*/, "") || null;
+
+function _fmMatches(event, subjectActor, subjectToken, eventContext) {
+  return collectTriggerMatches(event, subjectActor, subjectToken, null, eventContext).filter((m) =>
+    !m.malice && !!m.clause?.fmMod && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+}
+
+const passive = (m) => !!m.item.featureLine && !m.item.featureLine.action
+  && !OPTIONAL.test(String(m.item.featureLine.effect ?? "").split(/(?<=[.!?])\s+/)[0])
+  && !["vertical", "redirect"].includes(m.clause.fmMod.mode);
+
+function _modAmount(mod, actor) {
+  if (mod.amount != null) return Number(mod.amount) || 0;
+  return Math.max(0, Number(actor?.system?.characteristics?.[mod.char]?.value ?? 0));
+}
+
+function _applyPassive(ctx, m) {
+  const mod = m.clause.fmMod;
+  const n = _modAmount(mod, m.actor);
+  const tell = (change) => ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmChange", { modName: m.item.name, change }));
+  if ((mod.mode === "boost" || mod.mode === "reduce") && n > 0) {
+    ctx.distance = Math.max(0, (Number(ctx.distance) || 0) + (mod.mode === "reduce" ? -n : n));
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmDelta", { modName: m.item.name, amount: `${mod.mode === "reduce" ? "-" : "+"}${n}` }));
+  } else if (mod.mode === "objectDamage" && n > 0) {
+    ctx.bonusObjectDmg = (Number(ctx.bonusObjectDmg) || 0) + n;
+    tell(game.i18n.format("DS_TRIGGERS.Queue.FmObjectDamage", { n }));
+  } else if (mod.mode === "slide" && fmTypeOf(ctx.type) === "push") {
+    ctx.type = String(ctx.type).replace(/push/i, (w) => (w[0] === "P" ? "Slide" : "slide"));
+    tell(game.i18n.localize("DS_TRIGGERS.Queue.FmToSlide"));
+  }
 }
 
 Hooks.on("dsct.preForcedMovement", (ctx) => {
-  if (!getSetting("fmInterrupts")) return;
   if (!triggersLive()) return;
   const target = ctx.target;
   const source = ctx.source;
   const targetActor = target?.actor;
   if (!targetActor) return;
 
-  const matches = [];
+  const eventContext = {
+    preMove: true, fmType: fmTypeOf(ctx.type), keywords: ctx.keywords ?? [],
+    victimActor: targetActor, victimToken: target.document ?? target,
+    dealerActor: source?.actor ?? null, dealerToken: source?.document ?? source ?? null,
+  };
+  const found = [];
   const seen = new Set();
   const add = (list, causeKey, causeName) => {
     for (const m of list) {
       if (seen.has(m.item.uuid)) continue;
       seen.add(m.item.uuid);
-      const eff = FM_INTERRUPTS[generateDSID(m.item.name)];
-      m._fmMode = eff.mode;
-      m._fmChar = eff.char;
       m._causeLabel = game.i18n.format(`DS_TRIGGERS.Queue.${causeKey}`, { name: causeName });
-      matches.push(m);
+      found.push(m);
     }
   };
-  add(_fmMatches("FORCE_MOVED", targetActor, target.document ?? target), "FmCauseMoved", target.name);
+  add(_fmMatches("FORCE_MOVED", targetActor, target.document ?? target, eventContext), "FmCauseMoved", target.name);
   if (source?.actor && source.actor !== targetActor) {
-    add(_fmMatches("FORCE_MOVES", source.actor, source.document ?? source), "FmCauseMover", source.name);
+    add(_fmMatches("FORCE_MOVES", source.actor, source.document ?? source, eventContext), "FmCauseMover", source.name);
+  }
+  for (const m of found.filter(passive)) _applyPassive(ctx, m);
+
+  if (!getSetting("fmInterrupts")) return;
+  const matches = found.filter((m) => !passive(m));
+  for (const m of matches) {
+    const mod = m.clause.fmMod;
+    m._fmMode = mod.mode;
+    m._fmChar = mod.char ?? null;
+    m._fmAmount = mod.amount ?? null;
   }
   if (!matches.length) return;
 
   const fmId = foundry.utils.randomID();
   _pendingFm.set(fmId, {
-    resume: ctx.resume, type: ctx.type, distance: Number(ctx.distance) || 0,
+    resume: ctx.resume, type: ctx.type, distance: Number(ctx.distance) || 0, bonusObjectDmg: Number(ctx.bonusObjectDmg) || 0,
     targetTokenId: target.id, targetName: target.name,
     origTargetUuid: (target.document ?? target)?.uuid ?? null,
     sourceTokenId: source?.id ?? null, at: Date.now(),
@@ -176,18 +206,25 @@ async function _onResumeFm(fmId, mods) {
   
   for (const d of after) announce(d);
   const deltas = [...before, ...after];
+  const toSlide = !!mods?.movement && fmTypeOf(pending.type) === "push";
+  for (const c of [toSlide ? mods.movement : null, mods?.vertical].filter(Boolean)) {
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmChange", {
+      modName: c.modName, change: game.i18n.localize(c === mods.vertical ? "DS_TRIGGERS.Queue.FmToVertical" : "DS_TRIGGERS.Queue.FmToSlide"),
+    }));
+  }
+  const shapes = [
+    ...(toSlide ? [{ ...mods.movement, amount: 0, movement: "slide" }] : []),
+    ...(mods?.vertical ? [{ ...mods.vertical, amount: 0, vertical: true }] : []),
+  ];
 
-  
-  
-  
-  if (deltas.length && pending.messageId && game.modules.get(DSTD_ID)?.active
+  if ((deltas.length || shapes.length) && pending.messageId && game.modules.get(DSTD_ID)?.active
     && game.messages.get(pending.messageId)) {
     const payload = {
       messageId: pending.messageId,
       origTargetUuid: pending.origTargetUuid,
       distance: pending.distance,
       moveBase: pending.moveBase,
-      deltas: _deltaPayload(deltas),
+      deltas: [..._deltaPayload(deltas), ..._deltaPayload(shapes).map((d, i) => ({ ...d, movement: shapes[i].movement ?? null, vertical: !!shapes[i].vertical }))],
       counter: null,
     };
     if (distance <= 0) {
@@ -217,7 +254,12 @@ async function _onResumeFm(fmId, mods) {
     ui.notifications.warn(game.i18n.localize(reduced ? "DS_TRIGGERS.Queue.FmStoppedCounter" : "DS_TRIGGERS.Queue.FmStopped"));
     return;
   }
-  pending.resume({ distance });
+  pending.resume({
+    distance,
+    ...(toSlide ? { type: String(pending.type).replace(/push/i, (w) => (w[0] === "P" ? "Slide" : "slide")) } : {}),
+    ...(mods?.vertical ? { verticalHeight: distance } : {}),
+    ...(mods?.objectDamage ? { bonusObjectDmg: pending.bonusObjectDmg + mods.objectDamage } : {}),
+  });
 }
 
 async function _onDriveFmRedirect(payload) {
@@ -355,7 +397,7 @@ async function _onApplyFmDeltas(payload) {
     running += applied;
     
     
-    const changed = d.newSourceTokenId ? { sourceTokenId: d.newSourceTokenId } : {};
+    const changed = { ...(d.newSourceTokenId ? { sourceTokenId: d.newSourceTokenId } : {}), ...(d.movement ? { movement: d.movement } : {}), ...(d.vertical ? { vertical: true } : {}) };
     deltaPills.push({
       modState: [{ ...modState, distanceDelta: applied, ...changed }],
       noteName: d.modName, noteDesc: "",
@@ -504,32 +546,29 @@ async function _onApplyFmRedirect(payload) {
   });
 }
 
-function _onForcedMovement({ type, targetUuid, sourceUuid }) {
+function _onForcedMovement({ type, targetUuid, sourceUuid, keywords = [] }) {
   if (!isPrimaryGM() || !triggersLive()) return;
   const target = targetUuid ? fromUuidSync(targetUuid) : null;
   const source = sourceUuid ? fromUuidSync(sourceUuid) : null;
   if (!target?.actor) return;
   const fmType = String(type ?? "").toLowerCase().replace(/^vertical\s*/, "") || null;
-  const notInterrupt = (m) => !FM_INTERRUPTS[generateDSID(m.item.name)];
   dispatchTriggerEvent({
     event: "FORCE_MOVED", subjectActor: target.actor, subjectToken: target,
     causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ForceMoved", { name: target.name }),
-    eventContext: { dealerActor: source?.actor ?? null, dealerToken: source ?? null, fmType },
-    filter: notInterrupt,
+    eventContext: { dealerActor: source?.actor ?? null, dealerToken: source ?? null, fmType, keywords },
   });
   if (!source?.actor || source.actor === target.actor) return;
   dispatchTriggerEvent({
     event: "FORCE_MOVES", subjectActor: source.actor, subjectToken: source,
     causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ForceMoves", { name: source.name, target: target.name }),
-    eventContext: { victimActor: target.actor, victimToken: target, fmType },
-    filter: notInterrupt,
+    eventContext: { victimActor: target.actor, victimToken: target, fmType, keywords },
   });
 }
 
 Hooks.on("dsct.forcedMovement", (ctx) => {
   if (!(Number(ctx?.moved) > 0)) return;
   const uuidOf = (t) => (t?.document ?? t)?.uuid ?? null;
-  const payload = { type: ctx.type ?? null, targetUuid: uuidOf(ctx.target), sourceUuid: uuidOf(ctx.source) };
+  const payload = { type: ctx.type ?? null, targetUuid: uuidOf(ctx.target), sourceUuid: uuidOf(ctx.source), keywords: [...(ctx.keywords ?? [])] };
   if (isPrimaryGM()) _onForcedMovement(payload);
   else asPrimaryGM("forcedMovementEvent", payload);
 });

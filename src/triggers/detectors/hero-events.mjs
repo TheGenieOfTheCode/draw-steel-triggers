@@ -18,6 +18,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
     subjectActor: actor,
     subjectToken: actor.getActiveTokens(true, true)[0] ?? null,
     causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.SpendsRecovery", { name: actor.name }),
+    eventContext: { recoveryBy: options.dsctRecoveryBy ?? null },
   });
 });
 

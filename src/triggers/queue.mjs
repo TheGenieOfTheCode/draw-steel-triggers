@@ -369,8 +369,8 @@ async function _onQueueResolve(id, outcome, userName) {
           .map((e) => ({
             itemUuid: e.itemUuid, ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName,
             itemName: e.itemName, usedAt: e.usedAt,
-            redirect: e.redirect ?? null, rollMod: e.rollMod ?? null,
-            fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null,
+            redirect: e.redirect ?? null, redirectPool: e.redirectPool ?? null, rollMod: e.rollMod ?? null,
+            fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null, fmAmount: e.fmAmount ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
             subjectTokenUuids: e.subjectTokenUuids ?? null,
             villain: e.villain ?? null,
@@ -834,6 +834,7 @@ function _collectRetargets(usedEntries) {
       removeTokenUuid: subjects[0],
       subjectTokenUuids: subjects,
       newActorUuid: (u.redirect === "reflect" || u.redirect === "chooser") ? null : u.ownerActorUuid,
+      pool: u.redirectPool ?? null,
     });
   }
   return out;
@@ -857,7 +858,7 @@ async function _resolveRetargetPicks(retargets, resume) {
     }
     if (r.mode === "chooser") {
       if (!pickUser) continue;
-      const ctx = { triggerItemUuid: r.itemUuid ?? null, triggeringUuid: resume?.itemUuid ?? null };
+      const ctx = { triggerItemUuid: r.itemUuid ?? null, triggeringUuid: resume?.itemUuid ?? null, pool: r.pool ?? null, ownerActorUuid: r.ownerActorUuid ?? null };
       const picked = await socket.executeAsUser("pickRedirectTarget", pickUser.id, r.modName, r.removeTokenUuid, ctx).catch(() => null);
       if (!picked) continue;
       r.mode = "choice";
@@ -914,9 +915,9 @@ function _applyFmRunning(entry) {
   if (!held || held.fmDistance == null) return null;
   const amount = _fmAmount(entry);
   held.fmTrail = [...(held.fmTrail ?? []), {
-    itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid ?? null, fmChar: entry.fmChar ?? null,
+    itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid ?? null, fmChar: entry.fmChar ?? null, fmAmount: entry.fmAmount ?? null,
     modName: entry.itemName, ownerName: entry.ownerName ?? "", mode: entry.fmMode,
-    amount: entry.fmMode === "reduce" ? -amount : amount,
+    amount: entry.fmMode === "reduce" ? -amount : entry.fmMode === "boost" ? amount : 0,
   }];
   return _replayFmTrail(held);
 }
@@ -935,7 +936,7 @@ function _refreshFmRunning(abilityUuid) {
     let changed = false;
     held.fmTrail = (held.fmTrail ?? []).map((t) => {
       if (t.itemUuid !== abilityUuid) return t;
-      const signed = t.mode === "reduce" ? -_fmAmount(t) : _fmAmount(t);
+      const signed = t.mode === "reduce" ? -_fmAmount(t) : t.mode === "boost" ? _fmAmount(t) : 0;
       if (signed === t.amount) return t;
       changed = true;
       return { ...t, amount: signed };
@@ -993,6 +994,7 @@ function _dismissPendingRedirects(resumeId, why) {
 }
 
 function _fmAmount(entry) {
+  if (entry?.fmAmount != null) return Number(entry.fmAmount) || 0;
   const owner = entry?.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
   const amount = Math.max(0, Number(owner?.system?.characteristics?.[entry?.fmChar]?.value ?? 0));
   return (amount && _fmSpendUsed(entry.itemUuid)) ? amount * 2 : amount;
@@ -1008,6 +1010,12 @@ function _collectFmMods(usedEntries) {
     if (u.fmMode === "reduce" || u.fmMode === "boost") {
       const signed = { ...base, amount: u.fmMode === "reduce" ? -amount : amount };
       (out.redirect ? out.after : out.deltas).push(signed);
+    } else if (u.fmMode === "slide") {
+      out.movement ??= base;
+    } else if (u.fmMode === "vertical") {
+      out.vertical ??= base;
+    } else if (u.fmMode === "objectDamage") {
+      out.objectDamage = (out.objectDamage ?? 0) + amount;
     } else if (u.fmMode === "redirect" && !out.redirect) {
       const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
       const driveUser = (owner
@@ -1016,7 +1024,7 @@ function _collectFmMods(usedEntries) {
       out.redirect = { ...base, amount, driveUserId: driveUser?.id ?? null };
     }
   }
-  return (out.deltas.length || out.after.length || out.redirect) ? out : null;
+  return (out.deltas.length || out.after.length || out.redirect || out.movement || out.vertical || out.objectDamage) ? out : null;
 }
 
 function _collectRollMods(usedEntries) {
@@ -1266,7 +1274,7 @@ function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } 
   if (!triggerItemUuid || !triggeringUuid) return null;
   const trigItem = fromUuidSync(triggerItemUuid);
   if (!trigItem) return null;
-  if (!/within distance of the triggering/i.test(triggerEffectText(trigItem))) return null;
+  if (!/within distance of the (?:triggering|ability)/i.test(triggerEffectText(trigItem))) return null;
   const triggering = fromUuidSync(triggeringUuid);
   const range = abilityRangeSquares(triggering);
   if (!range) return null;
@@ -1305,6 +1313,12 @@ function _legalRedirectTargets({ triggerItemUuid } = {}) {
 async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
   const removeDoc = removeTokenUuid ? fromUuidSync(removeTokenUuid) : null;
   let tokens = canvas.tokens.placeables.filter((t) => t.actor && t.document.uuid !== removeDoc?.uuid);
+  
+  if (ctx.pool === "selfOrAlly") {
+    const owner = ctx.ownerActorUuid ? fromUuidSync(ctx.ownerActorUuid) : null;
+    const side = owner?.getActiveTokens?.(false, true)?.[0]?.disposition ?? null;
+    tokens = tokens.filter((t) => t.actor === owner || (side != null && t.document.disposition === side));
+  }
   const constraints = [];
   try {
     const fromText = _chooserRangeConstraint(removeDoc, ctx);
@@ -1384,9 +1398,11 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     causeLabel: m._causeLabel ?? causeLabel,
     halvesOnUse: m._halvesOnUse ?? false,
     redirect: m._redirect ?? null,
+    redirectPool: m.clause?.redirectPool ?? null,
     rollMod: m._rollMod ?? null,
     fmMode: m._fmMode ?? null,
     fmChar: m._fmChar ?? null,
+    fmAmount: m._fmAmount ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     subjectTokenUuids: m._subjectTokenUuids ?? null,
     villain: m._villain ?? null,

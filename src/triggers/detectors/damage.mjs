@@ -2,6 +2,10 @@ import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor, triggersLiv
 import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor } from "../queue.mjs";
 import { deferDeathApi } from "../../compat/death-tracker.mjs";
 import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
+import { damageBonusFor } from "../damage-bonus.mjs";
+
+const OPTIONAL = /\b(?:you|they) (?:can|may)\b/i;
+const passiveLine = (m) => !!m.item.featureLine && !m.item.featureLine.action && !OPTIONAL.test(m.item.featureLine.effect ?? "");
 
 let _pendingDamageType = null;
 
@@ -18,7 +22,7 @@ function _dealerFromMessage(message) {
   const actor = token?.actor ?? (speaker.actor ? game.actors.get(speaker.actor) : null);
   const use = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   const ability = use?.abilityUuid ? fromUuidSync(use.abilityUuid) : null;
-  return actor ? { actor, token, ability } : null;
+  return actor ? { actor, token, ability, message } : null;
 }
 
 Hooks.once("ready", () => {
@@ -59,8 +63,9 @@ Hooks.once("ready", () => {
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
     _pendingDamageType  = options?.type ?? null;
     if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
-      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall,
+      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced,
     });
+    damage = _autoAdjust(this.parent, damage, options);
     _pendingStaminaLoss = !!options?.staminaLoss;
     _noteAbsorbed(this.parent, damage, options);
     try {
@@ -72,6 +77,31 @@ Hooks.once("ready", () => {
     }
   }, "MIXED");
 });
+
+function _autoAdjust(actor, damage, options) {
+  if (!actor || !(damage > 0) || options?.dstBypass || options?.staminaLoss || !triggersLive()) return damage;
+  const token = actor.getActiveTokens(true, true)[0] ?? null;
+  let out = damage;
+  if (options?.dsctForced) {
+    for (const m of collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, { fromForcedMovement: true })) {
+      if (!m.clause.fromForcedMovement || !m.clause.damageReduction || !passiveLine(m)) continue;
+      const n = m.clause.damageReduction === "level" ? levelOf(m.actor) : Number(m.clause.damageReduction) || 0;
+      if (!(n > 0)) continue;
+      out = Math.max(0, out - n);
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageReduced", { name: m.item.name, n }));
+    }
+  }
+  if (_dealer?.actor && _dealer.ability && _dealer.actor !== actor && token) {
+    for (const b of damageBonusFor(_dealer.actor, _dealer.token, token, _dealer.message)) {
+      out += b.amount;
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonus", { name: b.name, n: b.amount }));
+    }
+  }
+  if (out !== damage) dbg(`damage to ${actor.name} adjusted by triggers: ${damage} to ${out}`);
+  return out;
+}
+
+const levelOf = (actor) => Number(actor?.system?.level ?? actor?.system?.details?.level ?? 0) || 0;
 
 function _noteAbsorbed(actor, damage, options) {
   if (!actor || !(damage > 0) || options?.staminaLoss || options?.dstBypass || !options?.type) return;
@@ -92,7 +122,8 @@ function _noteAbsorbed(actor, damage, options) {
 
 function _holdMatches(actor, token, damageType, ctx = {}) {
   let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, ctx).filter((m) =>
-    !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+    !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual")
+    && !(m.clause.damageReduction && passiveLine(m)));
   if (damageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType));
   return matches;
 }
@@ -140,12 +171,13 @@ function _tryHoldDamage(model, damage, options) {
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
   const deaths = _deathMatches(actor, token, options?.type ?? null, _lethal(actor, damage, options));
-  const matches = [..._holdMatches(actor, token, options?.type ?? null, { fromFalling: !!options?.dsctFall }), ...deaths];
+  const matches = [..._holdMatches(actor, token, options?.type ?? null, { fromFalling: !!options?.dsctFall, fromForcedMovement: !!options?.dsctForced }), ...deaths];
   if (!matches.length) return false;
 
   const damageOptions = {};
   if (options?.type) damageOptions.type = options.type;
   if (options?.dsctFall) damageOptions.dsctFall = true;
+  if (options?.dsctForced) damageOptions.dsctForced = true;
   if (options?.ignoredImmunities?.length) damageOptions.ignoredImmunities = [...options.ignoredImmunities];
   if (options?.dsbl) damageOptions.dsbl = foundry.utils.deepClone(options.dsbl);
 
@@ -303,7 +335,8 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability },
+        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability,
+          victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
       });
     }
   }
@@ -350,7 +383,8 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
       eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null,
-        immunityReduced, fromFalling: !!record?.fall },
+        immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced,
+        victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
     });
 
     
