@@ -57,7 +57,6 @@ const MANUAL = [
   [/area ability|aid attack|hide maneuver|temporary stamina|triggered action|single turn|spends? malice|natural 2\b|last recovery|falls \d+/i, "an event Triggers does not detect yet"],
 ];
 
-
 const FIXUPS = [
   [/the director uses an ability that costs malice/i, { event: "USES_ABILITY", scope: "ANY", range: "none" }],
   [/rolls a natural 19 or 20/i, { event: "NATURAL_19_20", scope: "ANY", range: "none" }],
@@ -95,7 +94,6 @@ function kindOf(sentence) {
   if (/^if the roll is\b/i.test(sentence) || /\bpray\b/i.test(sentence)) return "pray";
   return "trigger";
 }
-
 
 export function featureGainLines(html, { resource, dsid = "" } = {}) {
   if (!html || !resource) return [];

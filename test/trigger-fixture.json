@@ -306,7 +306,7 @@
       "clauses": [
         {
           "event": "WOULD_TAKE_DAMAGE",
-          "scope": "ALLY",
+          "scope": "SELF_OR_ALLY",
           "qualifiers": []
         }
       ]
@@ -5632,7 +5632,11 @@
         {
           "event": "FORCE_MOVED",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "fmMod": {
+            "mode": "reduce",
+            "char": "reason"
+          }
         }
       ]
     }
@@ -5738,7 +5742,11 @@
         {
           "event": "FORCE_MOVES",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "fmMod": {
+            "mode": "boost",
+            "char": "reason"
+          }
         }
       ]
     }
@@ -5927,7 +5935,9 @@
           "event": "DEALS_DAMAGE",
           "scope": "SELF",
           "qualifiers": [],
-          "damageOutcome": ["zero"]
+          "damageOutcome": [
+            "zero"
+          ]
         }
       ]
     }
@@ -5963,7 +5973,11 @@
         {
           "event": "FORCE_MOVED",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "fmMod": {
+            "mode": "redirect",
+            "char": "might"
+          }
         }
       ]
     }

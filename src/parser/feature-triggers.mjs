@@ -97,16 +97,16 @@ function eventCondition(body) {
   return cut > 0 ? { condition: rest.slice(0, cut), effect: rest.slice(cut + 1).trim() } : null;
 }
 
-
-export function featureTriggerLines(html, { dsid = "", name = "", resource = null, ownerName = "" } = {}) {
+export function featureTriggerLines(html, { dsid = "", name = "", resource = null, ownerName = "", benefits = [] } = {}) {
   if (!html || PARKED.some((rx) => rx.test(dsid))) return [];
   const gains = resource ? new Set(featureGainLines(html, { resource }).map((l) => l.sentence)) : new Set();
   const base = dsid && dsid === generateDSID(name) ? dsid : `${dsid} ${name}`.trim();
   const lines = [];
   const keys = new Set();
+  const skip = new Set(benefits.map((n) => plainWords(n)));
   const { rest, rows } = tierRows(html);
-  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name });
-  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name });
+  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip });
+  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip });
   return lines;
 }
 
@@ -171,7 +171,6 @@ const CURATED = {
   "empowered-will": { once: "round" },
 };
 
-
 const CURATED_LINES = [
   [/^Breath of Creation$/, /another Breath of Creation/, { drop: true }],
   [/^Camouflage Hunter$/, /./, { drop: true }],
@@ -208,7 +207,6 @@ const CURATED_LINES = [
   [/^Minion Chain$/, /./, { kind: "augment" }],
   [/^Shifting Ring$/, /teleport/, { kind: "augment" }],
   [/^Rampage$/, /increases their size/, { kind: "augment" }],
-  [/^Death From Above$/, /./, { kind: "augment" }],
   [/^Control the Elements$/, /./, { kind: "augment", note: "Summoner" }],
   [/^Elemental Affinity$/, /./, { kind: "augment", note: "Summoner" }],
 
@@ -225,6 +223,56 @@ const CURATED_LINES = [
   [/^Ease Their Fall$/, /./, { trigger: "A creature within 2 squares would take damage", clause: { fromFalling: true } }],
   [/^I['’]ve Got You$/, /./, { trigger: "An ally adjacent to you would take damage", clause: { fromFalling: true }, note: "Willingness is confirmed by hand" }],
   [/^(?:Corven|Chain of the Sea and Sky)$/, /^(?:Additionally, )?whenever you fall/i, { clause: { fallCancel: true } }],
+
+  [/^(?:Gum Up the Works|Mortal Coil|Open Book|Quantum Satchel|Refugee|Requisition|Scannerstone|Ventriloquist|Vow of Honesty)$/, /./, { drop: true }],
+  [/^Master Chef$/, /when you retire/, { drop: true }],
+  [/^Passionate Artisan$/, /stirred by a passion/, { drop: true }],
+  [/^Master of Fire$/, /melt a treasure/, { drop: true }],
+  [/^Master of Green$/, /Life Fruit/, { drop: true }],
+  [/^Perseverance$/, /you are slowed/, { drop: true }],
+  [/^Quick Gate$/, /etch an arcane circle/, { drop: true }],
+  [/^Telepathic Speech$/, /communicate with someone this way/, { drop: true }],
+  [/^Vengeance Mark$/, /place a sigil/, { drop: true }],
+
+  [/^Masterwork$/, /last ability you use/, { kind: "outOfCombat" }],
+  [/^Pirate$/, /pirates or pirate hunters/, { kind: "outOfCombat" }],
+  [/^Scene Partner$/, /exceed the limit/, { kind: "outOfCombat" }],
+  [/^Strange Inheritance$/, /Wealth exceeds/, { kind: "outOfCombat" }],
+  [/^Wyrding$/, /comes adjacent to the surface|create the seal/, { kind: "outOfCombat" }],
+
+  [/^Cryokinetic Mastery$/, /untyped damage with a psionic ability/, { kind: "augment", note: "Combat Tools" }],
+  [/^King['’]s Roar$/, /cause the shield to roar/, { kind: "augment" }],
+  [/^Kuran['’]zoi Prismscale$/, /^Additionally, (?:when|whenever) you capture a moment/, { kind: "augment" }],
+  [/^Paper Trappings$/, /paper thin|return to your true form/, { kind: "augment" }],
+  [/^Rex Scepter$/, /command using the scepter/, { kind: "augment" }],
+  [/^Sanctuary Horn$/, /teleported by this horn/, { kind: "augment" }],
+
+  [/^(?:Demon Slayer|Made of Teeth)$/, /physical contact/, { later: "Rules question: physical contact" }],
+  [/^Lifebonded$/, /When they die/, { trigger: "The creature you are bound to dies", later: "Who you are bound to" }],
+  [/^Lightning Soul$/, /you are wet/, { later: "Combat Tools: the wet effect" }],
+  [/^Marauder of the Primordial Chaos$/, /first becomes aware/, { later: "Potency tests" }],
+  [/^Melee Superiority$/, /opportunity attack/, { later: "Opportunity attacks" }],
+  [/^Mindlink$/, /linked creature spends/, { later: "Linked creatures" }],
+  [/^Mundane$/, /more than three magic treasures/, { later: "Combat Tools: ability automation" }],
+  [/^(?:No Matter the Cost|Soul Flense)$/, /./, { later: "Summoner" }],
+  [/^Piety$/, /praying for piety/, { later: "Praying for piety" }],
+  [/^Rampage$/, /size is increased this way/, { later: "Combat Tools: Rampage" }],
+  [/^Revenger['’]s Wrap$/, /three or more creatures marked for revenge/,{ later: "Combat Tools: ability automation" }],
+  [/^Vuken$/, /hybrid form/, { later: "Combat Tools: the Hybrid Form choice" }],
+
+  [/^Flying Circus$/, /willing ally on their turn/, { triggers: [["An ally starts their turn adjacent to you"], ["An ally moves adjacent to you", { arrives: true }]],
+    note: "Willingness is confirmed by hand" }],
+  [/^Goaded$/, /marked by you uses a strike/, { clause: { scope: "SELF_OR_ALLY", qualifiers: [], lineOfEffect: undefined, redirect: "chooser", redirectPool: "selfOrAlly" } }],
+  [/^Cryokinetic Mastery$/, /grab a creature or an enemy moves/, { trigger: "You grab a creature", note: "Null Field half: Later (zones)" }],
+  [/^Disciple of the Green$/, /outcome on a melee free strike/, { clause: { abilityDsid: "melee-free-strike" } }],
+  [/^Loner$/, /reduces one of your allies to 0 Stamina/, { trigger: "An ally takes damage", clause: { damageOutcome: ["zero"] },
+    note: "The taunt ends by hand when the ally is above 0 Stamina" }],
+  [/^The Lists of Heaven$/, /allow another creature to spend a Recovery/, { trigger: "An ally spends a Recovery", clause: { recoveryByOwner: true } }],
+  [/^Lance of the Sundered Star$/, /allows you to push a target/, { trigger: "You push a creature", clause: { abilityKeywords: ["weapon"] } }],
+  [/^Lance of the Sundered Star$/, /allows you to push or slide a target/, { trigger: "You push a creature", clause: { abilityKeywords: ["weapon"], fmType: ["push", "slide"] } }],
+  [/^Thunderhead Bident$/, /any ability that pushes a target/, { triggers: [["You push a creature", { abilityKeywords: ["weapon"] }],
+    ["You deal damage", { abilityKeywords: ["weapon"], notForceMoved: true }]] }],
+  [/^Death From Above$/, /due to high ground/, { trigger: "You deal damage", clause: { highGround: true, damageBonus: 8 } }],
 ];
 
 const curatedLine = (name, sentence) => CURATED_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
@@ -234,14 +282,23 @@ const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
 
 const EFFECT_COST = /^(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
 
-function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "" }) {
+function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set() }) {
   let lead = null;
   let leads = 0;
   let benefitsOf = null;
   let earlier = null;
+  let skipping = false;
   for (const raw of blocksOf(html)) {
     const li = raw.startsWith(LI);
     const block = li ? raw.slice(1).trim() : raw;
+    
+    const label = skip.size ? block.match(/^([^:]{2,40}):(?:\s|$)/)?.[1] : null;
+    if (label) skipping = skip.has(plainWords(label));
+    else if (li) skipping = false;
+    if (skipping) {
+      benefitsOf = null;
+      continue;
+    }
     if (li && benefitsOf) {
       benefitsOf.effect = `${benefitsOf.effect} • ${block}`;
       continue;
@@ -304,8 +361,18 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
       const paid = effect.match(EFFECT_COST);
       const cost = f.cost ?? (paid ? { amount: Number(paid[1]), resource: paid[2].toLowerCase() } : null);
-      const parse = parseTrigger(`${parseText}.`, { effectText: effect, ownerName, side: ownerName ? "monster" : "hero" });
-      if (curated.clause) parse.clauses = parse.clauses.map((c) => ({ ...c, ...curated.clause }));
+      const parseOne = (text) => parseTrigger(`${text}.`, { effectText: effect, ownerName, side: ownerName ? "monster" : "hero" });
+      let parse;
+      if (curated.triggers) {
+        const parts = curated.triggers.map(([text, patch]) => ({ p: parseOne(text), patch }));
+        parse = { ...parts[0].p, clauses: parts.flatMap(({ p, patch }) => p.clauses.map((c) => ({ ...c, ...(patch ?? {}) }))),
+          confidence: parts.every(({ p }) => p.confidence === "high") ? "high" : "low" };
+      } else parse = parseOne(parseText);
+      if (curated.clause) {
+        parse.clauses = parse.clauses.map((c) => ({ ...c, ...curated.clause }));
+        
+        if (parse.clauses.every((c) => c.event !== "UNKNOWN" && c.scope !== "UNKNOWN")) parse.confidence = "high";
+      }
       if (!curated.note && !curated.later && parse.clauses.length > 1 && parse.clauses.some((c) => c.scope === "COMPANION")) curated.note = "Companion half: Later";
       const line = { key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),

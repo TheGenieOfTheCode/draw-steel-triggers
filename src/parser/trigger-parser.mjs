@@ -36,7 +36,6 @@ export function generateDSID(name) {
   return name.toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-
 export const DAMAGE_MODIFYING = new Set([
   "adaptability", "armor-of-corpses", "armor-of-the-ancients", "break-armor", "buss-buffer",
   "dissipate", "field-collapse", "in-all-this-confusion", "inertial-absorption", "inertial-shield",
@@ -46,10 +45,7 @@ export const DAMAGE_MODIFYING = new Set([
   "unearthly-reflexes", "withdraw", "zephyr-feint",
 ]);
 
-
 export const TARGETED_HALVERS = new Set(["shriek", "pain-absorption"]);
-
-
 
 const BESPOKE_EFFECTS = new Set(["devilish-charm", "devilish-suggestion"]);
 
@@ -157,7 +153,39 @@ export const REDIRECT_TEXT = [
   [/becomes? the (?:[\w'’]+ ){0,3}target\b|is the (?:strike|ability)['’]?s? new target/i, "self"],
 ];
 
-const ROLL_MOD_SUBJECT = "(?:triggering )?(?:strike|power roll|ability roll)|it";
+const FM_MOD_ABILITIES = {
+  "lines-of-force": { mode: "redirect", char: "might" },
+  "repel": { mode: "reduce", char: "reason" },
+  "explosive-assistance": { mode: "boost", char: "reason" },
+};
+
+const CHAR = "(might|agility|reason|intuition|presence)";
+export const FM_MOD_TEXT = [
+  [new RegExp(`\\bforced movement distance gains a bonus equal to your ${CHAR} score\\b`, "i"), (m) => ({ mode: "boost", char: m[1].toLowerCase() })],
+  [/\bgains? a \+(\d+) bonus to the forced movement distance\b/i, (m) => ({ mode: "boost", amount: Number(m[1]) })],
+  [/\bslide (?:them|it|the target|that creature) instead\b/i, () => ({ mode: "slide" })],
+  [/\b(?:that|the) forced movement can be vertical\b/i, () => ({ mode: "vertical" })],
+  [new RegExp(`\\btakes? extra damage equal to your ${CHAR} score\\b`, "i"), (m) => ({ mode: "objectDamage", char: m[1].toLowerCase() })],
+];
+
+function fmModLayer(result, id, effectText) {
+  let mod = FM_MOD_ABILITIES[id] ? { ...FM_MOD_ABILITIES[id] } : null;
+  for (const [rx, make] of mod || !effectText ? [] : FM_MOD_TEXT) {
+    const m = String(effectText).match(rx);
+    if (m) { mod = make(m); break; }
+  }
+  if (!mod) return result;
+  let stamped = 0;
+  const clauses = result.clauses.map((c) => {
+    if (c.event !== "FORCE_MOVES" && c.event !== "FORCE_MOVED") return c;
+    stamped++;
+    const { fmBefore, ...rest } = c;
+    return { ...rest, fmMod: mod };
+  });
+  return stamped ? { ...result, clauses } : result;
+}
+
+const ROLL_MOD_SUBJECT ="(?:triggering )?(?:strike|power roll|ability roll)|it";
 
 export const ROLL_MOD_TEXT = [
   [new RegExp(`\\b(?:${ROLL_MOD_SUBJECT}) (?:takes?|has|gains?) a bane\\b`, "i"), { banes: 1 }],
@@ -281,7 +309,7 @@ const EVENTS = [
   ["DYING",           /(?<!\bwhile (?:you are |they are |it is )?|\bnot )\bdying\b/i],
   ["WOULD_TAKE_DAMAGE", /\bwould take damage\b/i],
   ["FORCE_MOVED",     /\b(is |are |be |being )?(force(d)? moved|pushed|pulled|slid)\b/i],
-  ["FORCE_MOVES",     /\b(force moves?|(?:you|the self|your companion) (?:use forced movement to )?(?:push|pull|slide)(?:e?s)?)\b/i],
+  ["FORCE_MOVES",     /\b(force moves?|(?:you|the self|your companion) (?:would )?(?:use forced movement to )?(?:push|pull|slide)(?:e?s)?)\b/i],
   ["FALL_START",      /\b(?:you|they|the self|(?:a|an|any) [\w -]+?) falls?\b(?! prone)/i],
   ["SPENDS_RECOVERY", /(?<!\bto )\bspends? (?:a|one|\d+) recover(?:y|ies)\b/i],
   ["HERO_TOKEN_EARNED", /\b(?:earns?|gains?|would earn) (?:a|one|\d+) hero tokens?\b/i],
@@ -298,7 +326,7 @@ const EVENTS = [
   ["TURN_END",        /\b(ends? (their|its|his|her|a|the|your)? ?turn|turn ends|end of (their|its|a|the) turn)\b/i],
   ["ROUND_START",     /\bnew round starts\b/i],
   ["MOVES",           /\b(moves?|enters?|leaves?|exits?|shifts?|flies|comes within|ends? (their|its) (movement|move)|willingly)\b/i],
-  ["CONDITION_GAIN",  /\b(gains? (a|the) condition|is subject to an effect|gains? [^,]*condition|becomes? (grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding)|is (grabbed|restrained|frightened|taunted|knocked prone|made bleeding)|falls prone|grabs|(?:you|the self) grab (?:a|an|any|one|two)|knocks? (?:a|an|any|the) [\w -]+? prone)\b/i],
+  ["CONDITION_GAIN",  /\b(gains? (a|the) condition|is subject to an effect|gains? [^,]*condition|becomes? (grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding|hidden)|is (grabbed|restrained|frightened|taunted|knocked prone|made bleeding)|falls prone|grabs|(?:you|the self) grab (?:a|an|any|one|two)|knocks? (?:a|an|any|the) [\w -]+? prone)\b/i],
   ["SAVING_THROW",    /\bsaving throw\b/i],
   ["REGAINS_STAMINA", /\bregains? stamina\b/i],
   ["LOSES_STAMINA",   /\bloses? stamina\b/i],
@@ -336,9 +364,6 @@ const QUALIFIERS = [
   /non-minion|minion|leader|solo|size \d/, /that (isn['’]t|is not|doesn['’]t|has|targets|costs|uses|emits|gains)[^,]*/,
 ];
 
-
-
-
 let _keywordRx = null;
 let _keywordKey = "";
 const KEYWORD_SPLIT = /,? or |,? and |, /;
@@ -354,7 +379,6 @@ function keywordRx() {
   return _keywordRx;
 }
 const keywordHits = (text) => [...String(text ?? "").matchAll(new RegExp(keywordRx().source, "g"))];
-
 
 function keywordFields(text) {
   const groups = keywordHits(text).map((m) => {
@@ -451,7 +475,6 @@ const OWNER_EFFECT_NOUN = String.raw`\s+(?:(?:an?|the|any|one)\s+|one or more\s+
 const HIT_BEFORE = new RegExp(String.raw`\b(?:damages?|to|against|attack|targets?)` + OWNER_EFFECT_NOUN);
 const FROM_BEFORE = new RegExp(String.raw`\bfrom` + OWNER_EFFECT_NOUN);
 
-
 function ownerEffectRole(lc, at, event) {
   const before = lc.slice(0, at);
   if (HIT_BEFORE.test(before)) return "victim";
@@ -506,6 +529,15 @@ const CLAUSE_FLAGS = [
     rx: /\bdamage to (?:a|an|any|the) (?:bleeding|dazed|frightened|grabbed|prone|restrained|slowed|taunted|weakened) (?:creature|enemy|target)\b/i },
   { id: "fallReduction",     from: "effect",  when: (c) => c.fallReduction,
     rx: /\breduce (?:the )?(?:effective height|distance) of (?:the|your) fall by (?:\d+ squares|a number of squares equal to your jump distance)/i },
+  { id: "subjectConcealed",  from: "trigger", when: (c) => c.subjectConcealed, rx: /\b(?:with concealment|while (?:you are |the self is )?concealed)\b/i },
+  { id: "fromForcedMovement", from: "trigger", when: (c) => c.fromForcedMovement,
+    rx: /\bdamage from (?:being )?(?:force moved|forced movement|a collision)\b/i },
+  { id: "arrives",           from: "trigger", when: (c) => c.arrives, rx: /\bmoves? adjacent to (?:you|the self)\b/i },
+  { id: "highGround",        from: "trigger", when: (c) => c.highGround, rx: /\bdue to high ground\b/i },
+  { id: "damageReduction",   from: "effect",  when: (c) => c.damageReduction,
+    rx: /\breduce (?:that|the) damage by (?:\d+|an amount equal to your level)\b/i },
+  { id: "damageBonus",       from: "effect",  when: (c) => c.damageBonus, rx: /\bgains? a \+ ?\d+ damage bonus\b/i },
+  { id: "fmMod",             from: "effect",  when: (c) => c.fmMod, list: () => FM_MOD_TEXT.map((r) => r[0]) },
   { id: "half",              from: "effect",  when: (c) => c.halfDamage || c.halfOnUse, list: () => HALF_TEXT },
   { id: "rollMod",           from: "effect",  when: (c) => c.rollMod,   list: () => ROLL_MOD_TEXT.map((r) => r[0]) },
   { id: "redirect",          from: "effect",  when: (c) => c.redirect,  list: () => REDIRECT_TEXT.map((r) => r[0]) },
@@ -549,7 +581,7 @@ function stripPrefix(t) {
 function splitClauses(text) {
   const t = stripPrefix(text.trim().replace(/\.$/, ""));
   
-  if (/^(the [\w'’ ]+|you) or an ally\b/i.test(t)) return [t];
+  if (/^(the [\w'’ ]+|you) or (?:an|any) ally\b/i.test(t)) return [t];
   
   const pair = t.match(/^you or your companion (\w+)\b(.*)$/i);
   if (pair) {
@@ -577,7 +609,7 @@ function ownerWords(ownerName) {
     .filter(w => w.length > 2 && !OWNER_STOPWORDS.has(w));
 }
 
-const SUBJECT_RX = /^(you\b|the target\b|your companion\b|the [\w'’ ]+?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|obtains?|hears|causes?|fails?|succeeds?))|(?:an?|one|another|any) [\w -]+?(?: or object)?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|marks|resists|fails?|succeeds?|within)))/;
+const SUBJECT_RX = /^(you\b|the target\b|your companion\b|the [\w'’ ]+?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|obtains?|hears|causes?|fails?|succeeds?))|(?:an?|one|another|any) [\w -]+?(?: or object)?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|marks|resists|fails?|succeeds?|spends?|within)))/;
 
 function scopeOf(lc, event, owner) {
   const words = ownerWords(owner);
@@ -598,9 +630,9 @@ function scopeOf(lc, event, owner) {
   if (event === "TAKES_DAMAGE" && /^(the self|you)\b/.test(s) && /\bdamages? (a|an|another) /.test(lc)) {
     return "SELF:DEALS";
   }
+  if (/^(the [\w' ]+|you) or (?:an|any) ally\b/.test(affected) || /^(the [\w' ]+|you) or (?:an|any) ally\b/.test(lc)) return "SELF_OR_ALLY";
   if (/^you\b/.test(affected) || /^the self\b/.test(affected)) return "SELF";
   if (/mentor/.test(affected)) return "MENTOR";
-  if (/^(the [\w' ]+|you) or an ally\b/.test(affected) || /^(the [\w' ]+|you) or an ally\b/.test(lc)) return "SELF_OR_ALLY";
   if (/^the target\b/.test(affected)) return "TARGET";
   if (/companion/.test(affected)) return "COMPANION";
   if (/\bally\b|another hero|a hero\b|ally minion/.test(affected)) return "ALLY";
@@ -696,7 +728,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
-  if (special) return todoLayer(bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id), id);
+  if (special) return fmModLayer(todoLayer(bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ ...special, confidence: "high", source: "special" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id), id), id, effectText);
 
   const clean = text.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   const clauses = [];
@@ -707,11 +739,11 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     const lc = clause.toLowerCase();
     const hits = EVENTS.filter(([, rx]) => rx.test(clause)).map(([e]) => e);
     const events = hits.filter(e => !(SHADOW[e] || []).some(s => hits.includes(s)));
-    if (events.length !== 1) ambiguous = true;
+    let unsure = events.length !== 1;
     let scope = scopeOf(lc, events[0], ownerName);
     if (scope === "UNKNOWN" && (events[0] === "RESISTS_POTENCY" || (events[0] === "FALL_START" && /^(?:you|they)\b/.test(lc)))) scope = "SELF";
     if (scope === "SELF:DEALS") { scope = "SELF"; events.splice(0, events.length, "DEALS_DAMAGE"); }
-    if (scope === "UNKNOWN") ambiguous = true;
+    if (scope === "UNKNOWN") unsure = true;
     const qualifiers = QUALIFIERS.map(rx => lc.match(rx)?.[0]).filter(Boolean);
     const entry = { event: events[0] || "UNKNOWN", events, scope, qualifiers };
     
@@ -726,8 +758,14 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     if (/\bis struck by\b/.test(lc)) entry.postRoll = true;
     if (POST_ROLL_PHRASE.test(lc)) entry.postRoll = true;
     
-    const tierMatch = lc.match(/\btier ([1-3])\b/);
-    if (tierMatch && /\boutcome\b/.test(lc)) { entry.tierFilter = [Number(tierMatch[1])]; entry.postRoll = true; }
+    const tiers = [...lc.matchAll(/\btier ([1-3])\b/g)].map((m) => Number(m[1]));
+    if (tiers.length && /\boutcome\b/.test(lc)) {
+      const floor = lc.match(/\btier ([1-3]) (?:outcome )?or (?:higher|better)\b/);
+      entry.tierFilter = floor ? [1, 2, 3].filter((t) => t >= Number(floor[1])) : [...new Set(tiers)];
+      entry.postRoll = true;
+      
+      if (entry.event === "POWER_ROLL_RESULT" && entry.scope === "SELF" && /^(?:you|the self) (?:obtains?|scores?|rolls?|gets?)\b/.test(lc)) entry.rollerScoped = true;
+    }
     
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
     const notTypes = lc.match(NOT_DAMAGE_TYPES);
@@ -761,7 +799,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     if (/\b(gains? (an|a double) edge|has an edge|with an edge)\b/.test(lc)) entry.edgeRequired = true;
     if (/\bsaving throw\b|ends? at the end of their turn/.test(lc) && entry.event === "CONDITION_GAIN") entry.durationFilter = "save-or-eot";
     if (entry.event === "CONDITION_GAIN") {
-      const cond = lc.match(/\b(grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding)\b/);
+      const cond = lc.match(/\b(grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding|hidden)\b/);
       if (cond) entry.condition = cond[1];
       const grabs = lc.match(/\bgrabs (two|three|\d+|a|an|one)\b/);
       if (grabs) {
@@ -791,8 +829,17 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       if (/\benemy\b/.test(who)) entry.victimScope = "ENEMY";
       else if (/\bally\b/.test(who)) entry.victimScope = "ALLY";
     }
-    if (entry.event === "FORCE_MOVES" && /\binto (?:an?|another|the) (?:object|creature|wall)/.test(lc)) ambiguous = true;
-    if (entry.event === "TURN_START" && /\bturn (?:with|while)\b(?!.*\bgrabbed\b)/.test(lc)) ambiguous = true;
+    
+    if (entry.event === "FORCE_MOVES" && /\binto (?:an?|another|the) (?:object|creature|wall)/.test(lc)
+      && !(/\binto (?:an?|the) object\b/.test(lc) && /\bextra damage equal to\b/i.test(effectText ?? ""))) unsure = true;
+    if (/\b(?:with concealment|while (?:you are |the self is )?concealed)\b/.test(lc)) entry.subjectConcealed = true;
+    if (entry.event === "TURN_START" && /\bturn (?:with|while)\b(?!.*\bgrabbed\b)/.test(lc) && !entry.subjectConcealed) unsure = true;
+    if (/\btakes? damage from (?:being )?(?:force moved|forced movement|a collision)\b/.test(lc)) {
+      Object.assign(entry, { event: "TAKES_DAMAGE", events: ["TAKES_DAMAGE"], fromForcedMovement: true });
+      unsure = entry.scope === "UNKNOWN";
+      const cut = String(effectText ?? "").match(/\breduce (?:that|the) damage by (?:(\d+)|an amount equal to your level)\b/i);
+      if (cut) entry.damageReduction = cut[1] ? Number(cut[1]) : "level";
+    }
     if (entry.event === "FORCE_MOVES") {
       const kind = lc.match(/\b(push|pull|slide)(?:e?s)?\b/)?.[1];
       if (kind) entry.fmType = kind;
@@ -814,7 +861,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       if (by) entry.fallReduction = by[1] ? Number(by[1]) : "jump";
     }
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
-    if (!["USES_ABILITY", "DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY"].includes(entry.event)) {
+    if (!["USES_ABILITY", "DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY", "FORCE_MOVES"].includes(entry.event)) {
       delete entry.abilityKeywords;
       delete entry.abilityKeywordsAll;
       delete entry.abilityKeywordGroups;
@@ -844,7 +891,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     if (TARGETING_EVENTS.has(entry.event) && /\bdeals? rolled damage\b/.test(lc)) entry.rolledDamage = true;
     const nonOrg = lc.match(/\bnon-(minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (minion|leader|solo|elite)\b/);
     if (nonOrg) entry.organization = { exclude: [nonOrg[1] ?? nonOrg[2]] };
+    if (unsure) ambiguous = true;
     clauses.push(entry);
   }
-  return todoLayer(bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id), id);
+  return fmModLayer(todoLayer(bespokeLayer(rangeLayer(holdHalfLayer(postRollHalfLayer(rollModLayer(redirectLayer(damageModLayer(resolveTargetScope({ clauses, confidence: ambiguous ? "low" : "high", source: "regex" }, targetType), id, effectText), id, effectText), id, effectText), id, effectText), id, effectText)), id), id), id, effectText);
 }
