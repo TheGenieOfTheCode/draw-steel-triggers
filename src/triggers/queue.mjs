@@ -227,6 +227,7 @@ const _asChoice = (e) => ({
   promptId: e.promptId ?? null,
   triggerDamage: e.triggerDamage ?? null,
   halfDamage: e.halfDamage ?? false,
+  damageReduction: e.damageReduction ?? null,
   sourceMessageId: e.sourceMessageId ?? null,
 });
 
@@ -416,7 +417,7 @@ async function _onQueueResolve(id, outcome, userName) {
     if (outcome === "used" && !entry.defersDeath) {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
-      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false });
+      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null });
     }
   }
   for (const damageId of new Set(_choiceIds(entry, "damageId"))) {
@@ -728,6 +729,13 @@ export function noteHeldLinked(hold) {
   _broadcast();
 }
 
+export function reductionAmount(cut, actor) {
+  if (typeof cut === "number") return cut;
+  if (cut === "level") return Number(actor?.system?.level ?? 0) || 0;
+  if (cut && typeof cut === "object") return (Number(cut.base) || 0) + (Number(actor?.system?.characteristics?.[cut.char]?.value) || 0);
+  return 0;
+}
+
 async function _settleDamageHold(hold) {
   if (!hold.anyUsed) {
     await _applyHeldDamage(hold, hold.amount);
@@ -755,10 +763,11 @@ async function _settleDamageHold(hold) {
   }
   const seedPills = [];
   for (const u of hold.usedEntries ?? []) {
-    if (u.cancelled || !u.halfDamage) continue;
+    if (u.cancelled || (!u.halfDamage && !u.damageReduction)) continue;
     const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    const cut = u.damageReduction ? reductionAmount(u.damageReduction, owner) : 0;
     seedPills.push({
-      kind: "half", label: u.itemName, src: u.ownerName ?? null,
+      ...(u.halfDamage ? { kind: "half" } : { kind: "delta", value: -cut }), label: u.itemName, src: u.ownerName ?? null,
       srcTokenId: owner?.getActiveTokens?.(true, false)[0]?.id ?? null, source: "trigger",
     });
   }
@@ -1490,6 +1499,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     subjectTokenUuid: heldDamage.tokenUuid ?? null,
     defersDeath: !!m.defersDeath,
     halfDamage: m.clause?.halfDamage ?? false,
+    damageReduction: m.clause?.damageReduction ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));
   entries.push({

@@ -220,8 +220,8 @@ const CURATED_LINES = [
   [/^Elemental Buffer$/, /damage immunity/, { trigger: "You take acid, cold, corruption, fire, lightning, poison, or sonic damage", clause: { reducedByImmunity: true } }],
   [/^Master of Reels$/, /2 or more squares away/, { trigger: "You deal damage to a creature", clause: { rangeMin: 2, notForceMoved: true } }],
   [/^Foes as Weapons$/, /grabbed/, { trigger: "You use your Melee Free Strike ability", clause: { ownerGrabbing: "sameOrSmaller" } }],
-  [/^Ease Their Fall$/, /./, { trigger: "A creature within 2 squares would take damage", clause: { fromFalling: true } }],
-  [/^I['’]ve Got You$/, /./, { trigger: "An ally adjacent to you would take damage", clause: { fromFalling: true }, note: "Willingness is confirmed by hand" }],
+  [/^Ease Their Fall$/, /./, { trigger: "A creature within 2 squares would take damage", clause: { fromFalling: true, damageReduction: { base: 2, char: "reason" } } }],
+  [/^I['’]ve Got You$/, /./, { trigger: "An ally adjacent to you falls", clause: { scope: "ALLY", fallSafe: true }, note: "Willingness is confirmed by hand" }],
   [/^(?:Corven|Chain of the Sea and Sky)$/, /^(?:Additionally, )?whenever you fall/i, { clause: { fallCancel: true } }],
 
   [/^(?:Gum Up the Works|Mortal Coil|Open Book|Quantum Satchel|Refugee|Requisition|Scannerstone|Ventriloquist|Vow of Honesty)$/, /./, { drop: true }],

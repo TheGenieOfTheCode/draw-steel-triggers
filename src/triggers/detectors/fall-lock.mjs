@@ -15,7 +15,7 @@ const reductionOf = (clause, actor) => clause.fallReduction === "jump" ? jumpDis
 function effectOf(match) {
   const actor = match.actor;
   const cancel = !!match.clause.fallCancel && (Number(actor.system?.movement?.value) || 0) > 0;
-  return { cancel, reduction: cancel ? 0 : reductionOf(match.clause, actor) };
+  return { cancel, safe: !cancel && !!match.clause.fallSafe, reduction: cancel ? 0 : reductionOf(match.clause, actor) };
 }
 
 Hooks.on("dsct.preFall", (ctx) => {
@@ -59,12 +59,13 @@ function _onResumeFall(fallId, usedItemUuids = []) {
   const pending = _pendingFalls.get(fallId);
   if (!pending) return;
   _pendingFalls.delete(fallId);
-  const mods = { reduction: 0, cancel: false };
+  const mods = { reduction: 0, cancel: false, safe: false };
   for (const uuid of usedItemUuids) {
     const effect = pending.effects.get(uuid);
     if (!effect) continue;
     mods.reduction += effect.reduction;
     if (effect.cancel) mods.cancel = true;
+    if (effect.safe) mods.safe = true;
   }
   pending.resolve(mods);
 }

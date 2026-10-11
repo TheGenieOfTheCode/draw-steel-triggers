@@ -48,6 +48,7 @@ const FLAG_FIELDS = {
   damageReduction: ["damageReduction"],
   damageBonus: ["damageBonus"],
   fmMod: ["fmMod"],
+  fallSafe: ["fallSafe"],
 };
 
 const keywordLabel = (k) => {
@@ -117,7 +118,9 @@ function describeFilter(id, fields) {
     case "fromForcedMovement": return L("QualEffectFromForcedMovement");
     case "arrives": return L("QualEffectArrives");
     case "highGround": return L("QualEffectHighGround");
-    case "damageReduction": return L("QualEffectDamageReduction", { n: fields.damageReduction === "level" ? L("QualYourLevel") : fields.damageReduction });
+    case "damageReduction": return L("QualEffectDamageReduction", { n: fields.damageReduction === "level" ? L("QualYourLevel")
+      : typeof fields.damageReduction === "object" ? `${fields.damageReduction.base} + ${charLabel(fields.damageReduction.char)}` : fields.damageReduction });
+    case "fallSafe": return L("QualEffectFallSafe");
     case "damageBonus": return L("QualEffectDamageBonus", { n: fields.damageBonus });
     case "fmMod": return fmModText(fields.fmMod);
     default: return L("QualEffectNone");
