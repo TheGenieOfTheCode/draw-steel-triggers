@@ -1528,7 +1528,7 @@ body.draw-steel-target-damage-hide-system section[data-message-part="dstFreeStri
 .dst-derived-note {
   margin: 0.25em 0;
   font-size: var(--font-size-12, 12px);
-  opacity: 0.8;
+  opacity: var(--dst-dim-8, 0.8);
 }
 
 .dst-derived-note a { text-decoration: underline; }
