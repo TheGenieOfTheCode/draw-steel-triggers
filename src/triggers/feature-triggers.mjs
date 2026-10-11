@@ -53,7 +53,7 @@ const appliesEffects = (item) => !!(item.effects?.some((e) => !e.transfer) || it
 
 export const carriesEffect = (actor, origin) => !!origin && !!actor?.effects?.some((e) => e.origin === origin && e.active);
 
-/* An ability's lines only count while something it applied is still on a creature. */
+
 function nearbyActors(owner) {
   const actors = new Set([owner]);
   for (const c of game.combat?.combatants ?? []) if (c.actor) actors.add(c.actor);

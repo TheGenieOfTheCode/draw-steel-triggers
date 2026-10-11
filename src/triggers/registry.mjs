@@ -55,7 +55,8 @@ export function getParsedTrigger(item) {
   const cached = _parseCache.get(item.uuid);
   if (cached && cached.text === text && cached.ownerName === ownerName && cached.effectText === effectText && cached.targetType === targetType) return cached.result;
 
-  const result = parseTrigger(text, { dsid: item.dsid, ownerName, effectText, targetType });
+  const side = !item.actor ? undefined : item.actor.type === "hero" ? "hero" : "monster";
+  const result = parseTrigger(text, { dsid: item.dsid, ownerName, effectText, targetType, side });
   _parseCache.set(item.uuid, { text, ownerName, effectText, targetType, result });
   return result;
 }

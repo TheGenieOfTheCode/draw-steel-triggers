@@ -52,16 +52,17 @@ const AUGMENT = /^(?:you|your companion|you or your companion) (?:use|uses|make|
 function cleanCondition(c) {
   let t = c.replace(/^additionally,?\s*/i, "").replace(/\s*\([^)]*\)/g, "");
   t = t.replace(/^once per (?:combat )?(?:round|turn|encounter)\s*,?\s*/i, "");
-  t = t.replace(/^(?:the )?first time (?:each|in an|in a|during an|during a|during each|on a|per)? ?(?:combat )?(?:round|encounter|turn)?\s*(?:that\s+)?/i, "");
+  t = t.replace(/^(?:the )?first time (?:(?:each|in any|in an|in a|during an|during a|during each|on a|per)\b ?)?(?:combat )?(?:round|encounter|turn)?\s*(?:that\s+)?/i, "");
   t = t.replace(/^(?:whenever|when|each time|every time|if)\s+/i, "");
-  t = t.replace(/\b(?:each|every|in an|in a|per|during the|during an|this) (?:combat )?(?:round|encounter)\b/gi, "");
+  t = t.replace(/\b(?:each|every|in any|in an|in a|per|during the|during an|this) (?:combat )?(?:round|encounter)\b/gi, "");
+  t = t.replace(/\b(?:on|in) a turn\b/gi, "");
   t = t.replace(/^\s*that\s+/i, "").replace(/,\s*$/, "").replace(/\s+/g, " ").trim();
   return t ? t[0].toUpperCase() + t.slice(1) : "";
 }
 
 function onceOf(s) {
-  if (/once per (?:combat )?round|\b(?:each|every|in a|per) (?:combat )?round\b/i.test(s)) return "round";
-  if (/once per turn/i.test(s)) return "turn";
+  if (/once per (?:combat )?round|\b(?:each|every|in a|in any|per) (?:combat )?round\b/i.test(s)) return "round";
+  if (/once per turn|\bfirst time\b[^.]*?\b(?:on|in) a turn\b/i.test(s)) return "turn";
   if (/first time|once per (?:encounter|combat)/i.test(s)) return "encounter";
   return null;
 }
@@ -96,19 +97,7 @@ function eventCondition(body) {
   return cut > 0 ? { condition: rest.slice(0, cut), effect: rest.slice(cut + 1).trim() } : null;
 }
 
-/**
- * Every sentence in a feature, trait, title, perk, complication or treasure description that works like a triggered
- * ability. A line spends a triggered action, a free triggered action, or nothing at all ("whenever ...").
- * @param {string} html  the stored description, enrichers as written
- * @param {object} options
- * @param {string} [options.dsid]      the item's dsid
- * @param {string} [options.name]      the item's name, keys lines when the dsid is shared (several treasures are "treasure")
- * @param {string} [options.resource]  the class resource, so heroic resource gain lines are left to resource-gains
- * @param {string} [options.ownerName] the actor's name, so "the chimera" or "Locratix" reads as the owner
- * @returns {object[]} lines: { key, sentence, action, kind, once, trigger, effect, flavor, parse, tier, family }
- *   action: "triggered" | "freeTriggered" | null; kind: "trigger" | "augment" | "outOfCombat"
- *   tier: { min, level, resource } for a row of a Growing Ferocity style table, else null
- */
+
 export function featureTriggerLines(html, { dsid = "", name = "", resource = null, ownerName = "" } = {}) {
   if (!html || PARKED.some((rx) => rx.test(dsid))) return [];
   const gains = resource ? new Set(featureGainLines(html, { resource }).map((l) => l.sentence)) : new Set();
@@ -116,8 +105,8 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   const lines = [];
   const keys = new Set();
   const { rest, rows } = tierRows(html);
-  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid });
-  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid });
+  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name });
+  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name });
   return lines;
 }
 
@@ -182,12 +171,70 @@ const CURATED = {
   "empowered-will": { once: "round" },
 };
 
-const LIST_LEAD = /\b(?:spend (\d+) ([\w’'-]+(?: resource)?) to )?(?:take|use) one of the following (free )?triggered actions?\b/i;
+
+const CURATED_LINES = [
+  [/^Breath of Creation$/, /another Breath of Creation/, { drop: true }],
+  [/^Camouflage Hunter$/, /./, { drop: true }],
+  [/^Cinder Step$/, /teleport this way/, { drop: true }],
+  [/^Clarity and Strain$/, /clarity below 0/, { drop: true }],
+  [/^Disciple of the Green$/, /take on an animal form/, { drop: true }],
+  [/^Elemental Inside$/, /./, { drop: true }],
+  [/^Field Arsenal$/, /./, { drop: true }],
+  [/^Harlequin Gambit$/, /illusion would end/, { drop: true }],
+  [/^Chosen One$/, /spend your Heroic Resource/, { drop: true }],
+  [/^Font of Creation$/, /./, { drop: true }],
+  [/^Drama$/, /When you are dead/, { drop: true }],
+
+  [/Field Commander/, /end this slide adjacent/, { later: "Chained trigger: the Baton's own slide" }],
+  [/^Evil Revealed$/, /./, { later: "Seeing through disguises" }],
+  [/^Saint['’]s Vigilance$/, /./, { later: "Combat Tools: finding hidden creatures" }],
+  [/Blade of the Luxurious Fop/, /opportunity attack/, { later: "Opportunity attacks" }],
+  [/^Boren$/, /use forced movement to push/, { later: "Forced movement interrupt" }],
+  [/Chain of the Sea and Sky/, /feet are not touching/, { later: "Combat Tools: off the ground" }],
+  [/^Chosen One$/, /destiny points/, { later: "Destiny points" }],
+  [/^Corrupted Mentor$/, /Corrupt Spirit/, { later: "Combat Tools: ability automation" }],
+  [/^Coward$/, /run in terror/, { later: "Combat Tools: frightened movement" }],
+  [/^Curse of Punishment$/, /./, { later: "Combat Tools: dying at 0 Recoveries" }],
+  [/^Doomsight$/, /negative of your winded value/, { later: "Death Tracker: hero deaths" }],
+  [/^Tough But Withered$/, /negative of your winded value/, { later: "Death Tracker: hero deaths" }],
+  [/^Glancing Bow$/, /./, { later: "Companion" }],
+  [/^Guess It['’]s the Hard Way Then$/, /./, { later: "Surprised" }],
+  [/^Infernal Contract$/, /present for a battle/, { later: "Surprised" }],
+  [/^Leader Formation$/, /./, { later: "Summoner" }],
+  [/^Rampage$/, /spends ferocity|gains 8 rampage/, { later: "Companion rampage" }],
+
+  [/^Caustic Alchemy$/, /./, { kind: "augment" }],
+  [/^Chimeric Manifestation$/, /./, { kind: "augment" }],
+  [/^Minion Chain$/, /./, { kind: "augment" }],
+  [/^Shifting Ring$/, /teleport/, { kind: "augment" }],
+  [/^Rampage$/, /increases their size/, { kind: "augment" }],
+  [/^Death From Above$/, /./, { kind: "augment" }],
+  [/^Control the Elements$/, /./, { kind: "augment", note: "Summoner" }],
+  [/^Elemental Affinity$/, /./, { kind: "augment", note: "Summoner" }],
+
+  [/^(?:Engrossing Monologue|Famous Relative|Formal Introductions|Grifter|Honor Among Thieves|Host Body|Hunted|Indebted|Fiery Ideal)$/, /./, { kind: "outOfCombat" }],
+  [/^Pack Harness$/, /activate this armor/, { kind: "outOfCombat" }],
+  [/^Doomsight$/, /encounter begins/, { kind: "outOfCombat" }],
+
+  [/^Boren$/, /hybrid form/, { trigger: "You use your Aspect of the Wild ability", note: "Revisit with Enhanced: the Hybrid Form choice" }],
+  [/^Allow Me to Introduce/, /first turn/, { trigger: "You start your turn", clause: { firstTurn: true } }],
+  [/^Volant$/, /winded or reduces them to 0 Stamina/, { trigger: "The self deals damage to a creature", clause: { damageOutcome: ["winded", "zero"] } }],
+  [/^Elemental Buffer$/, /damage immunity/, { trigger: "You take acid, cold, corruption, fire, lightning, poison, or sonic damage", clause: { reducedByImmunity: true } }],
+  [/^Master of Reels$/, /2 or more squares away/, { trigger: "You deal damage to a creature", clause: { rangeMin: 2, notForceMoved: true } }],
+  [/^Foes as Weapons$/, /grabbed/, { trigger: "You use your Melee Free Strike ability", clause: { ownerGrabbing: "sameOrSmaller" } }],
+  [/^Ease Their Fall$/, /./, { trigger: "A creature within 2 squares would take damage", clause: { fromFalling: true } }],
+  [/^I['’]ve Got You$/, /./, { trigger: "An ally adjacent to you would take damage", clause: { fromFalling: true }, note: "Willingness is confirmed by hand" }],
+  [/^(?:Corven|Chain of the Sea and Sky)$/, /^(?:Additionally, )?whenever you fall/i, { clause: { fallCancel: true } }],
+];
+
+const curatedLine = (name, sentence) => CURATED_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
+
+const LIST_LEAD =/\b(?:spend (\d+) ([\w’'-]+(?: resource)?) to )?(?:take|use) one of the following (free )?triggered actions?\b/i;
 const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
 
 const EFFECT_COST = /^(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
 
-function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid }) {
+function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "" }) {
   let lead = null;
   let leads = 0;
   let benefitsOf = null;
@@ -237,9 +284,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
       const next = found[i + 1]?.index ?? sentences.length;
       const effect = [f.effect, ...sentences.slice(f.index + 1, next)].join(" ").replace(/\s+/g, " ").trim();
       if (!f.action && !MECHANICS.test(effect)) return;
-      /* "...the artifact appears on your person. When the artifact appears, you lose a Recovery": a trigger that only
-         restates a thing the line before it produced is that line continuing. One about you ("you capture a moment",
-         a treasure's 5th level rider) is a trigger of its own. */
+      
       const restated = plainWords(f.trigger).replace(/^you /, "");
       const byYou = /^you\b/.test(plainWords(f.trigger).replace(/^(?:additionally|also|then) /, ""));
       const host = byYou ? null : previous ?? fromEarlier;
@@ -247,19 +292,25 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid })
         host.effect = `${host.effect} ${f.sentence}`.trim();
         return;
       }
-      const curated = CURATED[dsid || generateDSID(base)] ?? {};
-      const kind = curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger");
+      const pick = curatedLine(name, f.sentence) ?? {};
+      if (pick.drop) return;
+      const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...pick };
+      const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger");
       const once = curated.once ?? onceOf(f.sentence) ?? (/\buntil the end of the round\b/i.test(effect) ? "round" : null);
-      const parseText = ownerName ? asOwner(f.trigger, ownerName) : f.trigger;
+      const parseText = curated.trigger ?? (ownerName ? asOwner(f.trigger, ownerName) : f.trigger);
       let key = generateDSID(`${base} ${f.trigger}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
       for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
       const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
       const paid = effect.match(EFFECT_COST);
       const cost = f.cost ?? (paid ? { amount: Number(paid[1]), resource: paid[2].toLowerCase() } : null);
+      const parse = parseTrigger(`${parseText}.`, { effectText: effect, ownerName, side: ownerName ? "monster" : "hero" });
+      if (curated.clause) parse.clauses = parse.clauses.map((c) => ({ ...c, ...curated.clause }));
+      if (!curated.note && !curated.later && parse.clauses.length > 1 && parse.clauses.some((c) => c.scope === "COMPANION")) curated.note = "Companion half: Later";
       const line = { key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
-        parse: parseTrigger(`${parseText}.`, { effectText: effect, ownerName }), tier, family: tier ? generateDSID(f.trigger) : null };
+        ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
+        parse, tier, family: tier ? generateDSID(f.trigger) : null };
       lines.push(line);
       previous = line;
       earlier = line;

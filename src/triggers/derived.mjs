@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, isPrimaryGM, getSetting, executeAsDirector } from "../util.mjs";
-import { FEATURE_ACTOR_TYPES, itemEffectiveLines, featureTriggersActive, ignoreLine, isLineSource, lineCost } from "./feature-triggers.mjs";
+import { FEATURE_ACTOR_TYPES, itemEffectiveLines, itemFeatureLines, featureTriggersActive, ignoreLine, isLineSource, lineCost } from "./feature-triggers.mjs";
 import { enricherText, asOwner, abilityEffectHTML } from "../parser/feature-triggers.mjs";
 import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
@@ -66,7 +66,8 @@ function reachOf(parse, effect = "") {
   }
   const target = SCOPE_TARGETS[scope] ?? { type: "special" };
   const range = Number.isFinite(clause?.range) && clause.range > 0 ? clause.range : null;
-  const distance = range === 1 ? { type: "melee", primary: "1" }
+  const distance = clause?.rangeMin ? { type: "special" }
+    : range === 1 ? { type: "melee", primary: "1" }
     : range ? { type: "ranged", primary: String(range) }
       : target.type === "self" ? { type: "self" } : { type: "special" };
   return { distance, target };
@@ -174,11 +175,16 @@ export function derivedParse(item) {
     if (stored?.clauses?.length) return { clauses: stored.clauses, confidence: "high", source: "manual" };
   }
   const text = String(item.system?.trigger ?? "").trim().replace(/[.!]+$/, "");
+  
+  const d = derivedInfo(item);
+  const source = d && !d.edited ? sourceOf(item) : null;
+  const line = source ? itemFeatureLines(source, { withIgnored: true }).find((l) => l.key === d.lineKey) : null;
+  if (line?.parse && line.trigger.replace(/[.!]+$/, "") === text) return line.parse;
   const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
   const effectText = (item.system?.effects?.contents ?? []).map((e) => e.description ?? "").join(" ").replace(/<[^>]+>/g, " ");
   const cached = _parseCache.get(item.uuid);
   if (cached && cached.text === text && cached.ownerName === ownerName && cached.effectText === effectText) return cached.result;
-  const result = parseTrigger(`${ownerName ? asOwner(text, ownerName) : text}.`, { effectText, ownerName });
+  const result = parseTrigger(`${ownerName ? asOwner(text, ownerName) : text}.`, { effectText, ownerName, side: ownerName ? "monster" : "hero" });
   _parseCache.set(item.uuid, { text, ownerName, effectText, result });
   return result;
 }

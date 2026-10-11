@@ -57,13 +57,13 @@ const MANUAL = [
   [/area ability|aid attack|hide maneuver|temporary stamina|triggered action|single turn|spends? malice|natural 2\b|last recovery|falls \d+/i, "an event Triggers does not detect yet"],
 ];
 
-/* Clauses the general parser cannot say, keyed by a phrase of the gain line. */
+
 const FIXUPS = [
   [/the director uses an ability that costs malice/i, { event: "USES_ABILITY", scope: "ANY", range: "none" }],
   [/rolls a natural 19 or 20/i, { event: "NATURAL_19_20", scope: "ANY", range: "none" }],
   [/three or more heroes use an ability/i, { event: "USES_ABILITY", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
   [/(?:you or another hero|any hero) dies/i, { event: "STAMINA_BELOW", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
-  [/any hero is made winded/i, { event: "WINDED_OR_DYING", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
+  [/any hero is made winded/i, { event: "WINDED", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
   [/^you or a creature within (\d+) squares takes damage that isn['’]t/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]) })],
   [/^you or a creature within (\d+) squares takes ([a-z, ]+?) damage/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: m[2].split(/,\s*(?:or\s+)?|\s+or\s+/).filter(Boolean) })],
   [/^an enemy within (\d+) squares takes ([a-z, ]+?) damage/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ENEMY", range: Number(m[1]), damageTypes: m[2].split(/,\s*(?:or\s+)?|\s+or\s+/).filter(Boolean) })],
@@ -96,14 +96,7 @@ function kindOf(sentence) {
   return "trigger";
 }
 
-/**
- * Every heroic resource gain line in a feature's description.
- * @param {string} html            the stored description (enrichers still as written)
- * @param {object} options
- * @param {string} options.resource the class's resource name ("Ferocity")
- * @param {string} [options.dsid]   the feature's dsid, for stable line keys
- * @returns {object[]} lines: { key, sentence, amount, once, kind, trigger, parse, gates, manual, upgradeOf }
- */
+
 export function featureGainLines(html, { resource, dsid = "" } = {}) {
   if (!html || !resource) return [];
   const res = resource.toLowerCase();
@@ -137,7 +130,7 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
         line.manual = MANUAL.filter(([rx]) => rx.test(sentence)).map(([, why]) => why);
         if (!/^[A-Za-z]/.test(line.trigger)) { line.kind = "other"; line.trigger = ""; }
         if (line.trigger) {
-          const parse = parseTrigger(`${line.trigger}.`, {});
+          const parse = parseTrigger(`${line.trigger}.`, { side: "hero" });
           const fix = FIXUPS.find(([rx]) => rx.test(line.trigger) || rx.test(sentence));
           if (fix) {
             const m = line.trigger.match(fix[0]) ?? sentence.match(fix[0]);
@@ -164,7 +157,7 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
   return lines;
 }
 
-export const GAIN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "WINDED_OR_DYING", "FORCE_MOVED", "USES_ABILITY",
+export const GAIN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "WINDED_OR_DYING", "WINDED", "DYING", "FORCE_MOVED", "FORCE_MOVES", "USES_ABILITY",
   "NATURAL_19_20", "STAMINA_BELOW", "REGAINS_STAMINA"]);
 
 export function lineAutomated(line) {

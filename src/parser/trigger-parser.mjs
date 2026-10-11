@@ -36,10 +36,7 @@ export function generateDSID(name) {
   return name.toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-// ---------- Layer 3: damage-modifying abilities ----------
-// Curated from the 2026-09-04 compendium sweep (vault/interrupt-sweep.json): triggered
-// abilities whose effect halves, reduces, or blocks the triggering damage. Their damage
-// must be held BEFORE it lands, so TAKES_DAMAGE clauses upgrade to WOULD_TAKE_DAMAGE.
+
 export const DAMAGE_MODIFYING = new Set([
   "adaptability", "armor-of-corpses", "armor-of-the-ancients", "break-armor", "buss-buffer",
   "dissipate", "field-collapse", "in-all-this-confusion", "inertial-absorption", "inertial-shield",
@@ -49,13 +46,10 @@ export const DAMAGE_MODIFYING = new Set([
   "unearthly-reflexes", "withdraw", "zephyr-feint",
 ]);
 
-// Targeting-based halvers: the owner IS the strike target and the decision happens
-// at roll time (lock flow), so the damage button itself gets pre-halved instead of
-// holding the damage at apply time. Owner-is-not-target modifiers (Intercede,
-// Trick of the Eye, Testudo) stay lock-only for now.
+
 export const TARGETED_HALVERS = new Set(["shriek", "pain-absorption"]);
 
-// The Devilish variants keep their half/bane inside their OWN power roll's tier
+
 
 const BESPOKE_EFFECTS = new Set(["devilish-charm", "devilish-suggestion"]);
 
@@ -157,12 +151,9 @@ export const REDIRECT_TEXT = [
   [/switch(?:es)? places/i, "swap"],
   [/choose[\s\S]{0,90}?targets? (?:that|the) (?:enemy|creature) instead|chooses?[\s\S]{0,90}?to become the target/i, "chooser"],
   [/targeting them instead|reflects?[\w'’ ]* back/i, "reflect"],
-  /* "The ally is the target of the triggering strike instead": the new target is somebody the user names,
-     not the owner, which is the chooser flow. Kept to this exact shape so it cannot swallow the damage
-     transfer wording ("takes the damage instead of"), which is a different tier entirely. */
+  
   [/\bis the target of the triggering (?:strike|ability)\b/i, "chooser"],
-  /* Words get between "becomes the" and "target": Valiar Cloak says "becomes the triggering ability's
-     target instead", which the contiguous form missed entirely, leaving a plain redirect unflagged. */
+  
   [/becomes? the (?:[\w'’]+ ){0,3}target\b|is the (?:strike|ability)['’]?s? new target/i, "self"],
 ];
 
@@ -272,10 +263,7 @@ function redirectLayer(result, id, effectText) {
       stamped++;
       return { ...c, redirect: mode };
     }
-    /* Damage that has landed cannot be retargeted. Brawny Buffer is worded as an ally taking damage but
-       its effect makes the brain "the new target of the ability", so answering it at the damage offers a
-       redirect at the one moment it can no longer do anything. It belongs at the targeting, after the
-       roll, where the retarget machinery can still rewrite the row. */
+    
     if (c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE") {
       stamped++;
       return { ...c, event: "TARGETED_BY_ABILITY", events: ["TARGETED_BY_ABILITY"], postRoll: true, redirect: mode };
@@ -287,11 +275,17 @@ function redirectLayer(result, id, effectText) {
 }
 
 const EVENTS = [
-  ["DIES",            /\b(dies|would die|is destroyed|enough damage to (die|be destroyed)|reduced? [^,]*?to 0 stamina|reduces? [^,]*?to 0 stamina|to 0 stamina)\b/i],
-  ["WINDED_OR_DYING", /\b(winded|dying)\b/i],
+  ["DIES",            /\b(dies|would die|you die|is destroyed|enough damage to (die|be destroyed)|reduced? [^,]*?to 0 stamina|reduces? [^,]*?to 0 stamina|to 0 stamina|negative of (?:your|their|its) winded value)\b/i],
+  ["WINDED_OR_DYING", /\b(winded or dying|dying or winded)\b/i],
+  ["WINDED",          /(?<!\bwhile (?:you are |they are |it is )?)\bwinded\b/i],
+  ["DYING",           /(?<!\bwhile (?:you are |they are |it is )?|\bnot )\bdying\b/i],
   ["WOULD_TAKE_DAMAGE", /\bwould take damage\b/i],
   ["FORCE_MOVED",     /\b(is |are |be |being )?(force(d)? moved|pushed|pulled|slid)\b/i],
-  ["FORCE_MOVES",     /\bforce moves?\b/i],
+  ["FORCE_MOVES",     /\b(force moves?|(?:you|the self|your companion) (?:use forced movement to )?(?:push|pull|slide)(?:e?s)?)\b/i],
+  ["FALL_START",      /\b(?:you|they|the self|(?:a|an|any) [\w -]+?) falls?\b(?! prone)/i],
+  ["SPENDS_RECOVERY", /(?<!\bto )\bspends? (?:a|one|\d+) recover(?:y|ies)\b/i],
+  ["HERO_TOKEN_EARNED", /\b(?:earns?|gains?|would earn) (?:a|one|\d+) hero tokens?\b/i],
+  ["RESISTS_POTENCY", /\bresist(?:s|ing)? (?:a |the )?potenc(?:y|ies)\b/i],
   
   ["TAKES_DAMAGE",    /\b(takes? (?:[\w-]+(?:,? or | ?, | ))*damage|is damaged|damages? (you|the target|them|it|an ally|the \w+)|deals? ([\w, ]+ )?damage to (you|the target|the \w+))/i],
   ["DEALS_DAMAGE",    /\b(deals? ([\w, ]+ )?damage|deals? rolled damage|damages? (a|an|another|any) )\b/i],
@@ -300,11 +294,11 @@ const EVENTS = [
   ["POWER_ROLL_RESULT", /\b(obtains? a tier \d outcome|tier \d (outcome|result)|(?<!isn['’]t a |not a )critical hit|natural (19|20))\b/i],
   ["POWER_ROLL",      /\b(makes? an? (ability|power) roll|power roll|ability roll)\b/i],
   ["USES_ABILITY",    /\b(uses? (a|an|any|their|its|the|your) [^,]*?(ability|action|maneuver)|uses? [^,]*?ability)\b/i],
-  ["TURN_START",      /\b(starts? (their|its|his|her|a|the)? ?turn|turn starts|start of (their|its|a|the) turn)\b/i],
-  ["TURN_END",        /\b(ends? (their|its|his|her|a|the)? ?turn|turn ends|end of (their|its|a|the) turn)\b/i],
+  ["TURN_START",      /\b(starts? (their|its|his|her|a|the|your)? ?turn|turn starts|start of (their|its|a|the) turn)\b/i],
+  ["TURN_END",        /\b(ends? (their|its|his|her|a|the|your)? ?turn|turn ends|end of (their|its|a|the) turn)\b/i],
   ["ROUND_START",     /\bnew round starts\b/i],
   ["MOVES",           /\b(moves?|enters?|leaves?|exits?|shifts?|flies|comes within|ends? (their|its) (movement|move)|willingly)\b/i],
-  ["CONDITION_GAIN",  /\b(gains? (a|the) condition|is subject to an effect|gains? [^,]*condition|becomes? (grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding)|is (grabbed|restrained|frightened|taunted|knocked prone|made bleeding)|falls prone|grabs)\b/i],
+  ["CONDITION_GAIN",  /\b(gains? (a|the) condition|is subject to an effect|gains? [^,]*condition|becomes? (grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding)|is (grabbed|restrained|frightened|taunted|knocked prone|made bleeding)|falls prone|grabs|(?:you|the self) grab (?:a|an|any|one|two)|knocks? (?:a|an|any|the) [\w -]+? prone)\b/i],
   ["SAVING_THROW",    /\bsaving throw\b/i],
   ["REGAINS_STAMINA", /\bregains? stamina\b/i],
   ["LOSES_STAMINA",   /\bloses? stamina\b/i],
@@ -313,7 +307,7 @@ const EVENTS = [
   ["ZONE_TURN_START", /\bstarts? their turn (there|in|within|adjacent)\b/i],
 ];
 const SHADOW = {
-  TAKES_DAMAGE: ["WOULD_TAKE_DAMAGE", "DIES", "WINDED_OR_DYING"],
+  TAKES_DAMAGE: ["WOULD_TAKE_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING"],
   DEALS_DAMAGE: ["TAKES_DAMAGE", "DIES", "WOULD_TAKE_DAMAGE", "TARGETED_BY_STRIKE"],
   USES_ABILITY: ["TARGETED_BY_STRIKE", "POWER_ROLL", "DEALS_DAMAGE", "TAKES_DAMAGE"],
   TARGETED_BY_STRIKE: ["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "POWER_ROLL", "MAKES_STRIKE", "POWER_ROLL_RESULT"],
@@ -321,10 +315,14 @@ const SHADOW = {
   MAKES_STRIKE: ["POWER_ROLL", "POWER_ROLL_RESULT"],
   TARGETED_BY_STRIKE_BY_MAKES: [],
   WINDED_OR_DYING: ["DIES"],
+  WINDED: ["DIES", "WINDED_OR_DYING"],
+  DYING: ["DIES", "WINDED_OR_DYING"],
+  FORCE_MOVED: ["FORCE_MOVES"],
+  SPENDS_RECOVERY: ["USES_ABILITY"],
   POWER_ROLL: ["WOULD_TAKE_DAMAGE", "POWER_ROLL_RESULT"],
   TARGETED_BY_STRIKE_RESULT: [],
   CONDITION_GAIN: ["TURN_START"],
-  MOVES: ["FORCE_MOVED", "FORCE_MOVES", "ZONE_ENTER"],
+  MOVES: ["FORCE_MOVED", "FORCE_MOVES", "ZONE_ENTER", "DYING", "WINDED", "WINDED_OR_DYING"],
   TURN_START: ["TURN_END", "ZONE_TURN_START"],
   TURN_END: ["CONDITION_GAIN"],
   SAVING_THROW: ["CONDITION_GAIN"],
@@ -338,14 +336,9 @@ const QUALIFIERS = [
   /non-minion|minion|leader|solo|size \d/, /that (isn['’]t|is not|doesn['’]t|has|targets|costs|uses|emits|gains)[^,]*/,
 ];
 
-/* What the ability being used has to look like. Without these a trigger on USES_ABILITY fires on
-   every ability anybody uses, which is worse than not having it.
 
-   Exported because the trigger builder runs it over a hand written qualifier too, so typing
-   "main action" there does the same thing the book's own phrasing would have done. */
 
-/* The keyword list is the system's (and whatever other modules add to it), read when first needed. A keyword
-   inside a capitalised name ("their Feral Strike ability") is a name, not a keyword. */
+
 let _keywordRx = null;
 let _keywordKey = "";
 const KEYWORD_SPLIT = /,? or |,? and |, /;
@@ -362,7 +355,7 @@ function keywordRx() {
 }
 const keywordHits = (text) => [...String(text ?? "").matchAll(new RegExp(keywordRx().source, "g"))];
 
-/* Each keyword phrase must hold; inside one, "or" takes any of its words and "and" takes all of them. */
+
 function keywordFields(text) {
   const groups = keywordHits(text).map((m) => {
     const words = m[1].toLowerCase().split(KEYWORD_SPLIT);
@@ -401,8 +394,7 @@ export const ABILITY_FILTERS = [
     rx: /costs? (\d+) or (?:fewer|less)[\w ]*/i,
     fields: (m) => ({ abilityCostMax: Number(m[1]) }),
   },
-  /* Category, not cost inferred from it. The two nearly agree and the exceptions are real: seven
-     heroic abilities cost nothing, and the Troubadour's own Flashback is a signature costing 5. */
+  
   {
     id: "abilityCategory",
     from: "trigger",
@@ -459,8 +451,7 @@ const OWNER_EFFECT_NOUN = String.raw`\s+(?:(?:an?|the|any|one)\s+|one or more\s+
 const HIT_BEFORE = new RegExp(String.raw`\b(?:damages?|to|against|attack|targets?)` + OWNER_EFFECT_NOUN);
 const FROM_BEFORE = new RegExp(String.raw`\bfrom` + OWNER_EFFECT_NOUN);
 
-/* Which creature must carry the owner's effect: the one hit, the attacker, or the one acting. On a
-   targeted event the acting creature is the attacker, unless the text was turned into "is struck by". */
+
 function ownerEffectRole(lc, at, event) {
   const before = lc.slice(0, at);
   if (HIT_BEFORE.test(before)) return "victim";
@@ -500,6 +491,21 @@ const CLAUSE_FLAGS = [
   { id: "victimNotMentor",   from: "trigger", when: (c) => c.victimNotMentor, rx: /\bother than (?:their|its|your) mentor\b/i },
   { id: "organization",      from: "trigger", when: (c) => c.organization?.exclude?.length,
     rx: /\bnon-(?:minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (?:minion|leader|solo|elite)\b/i },
+  { id: "fmType",            from: "trigger", when: (c) => c.fmType, rx: /\b(?:push|pull|slide)(?:e?s)?\b/i },
+  { id: "victimEndsAdjacent", from: "trigger", when: (c) => c.victimEndsAdjacent,
+    rx: /\b(?:end[\w ]*? )?adjacent to (?:you|one of (?:your|their) allies)\b/i },
+  { id: "firstTurn",         from: "trigger", when: (c) => c.firstTurn, rx: /\bfirst turn\b/i },
+  { id: "damageOutcome",     from: "trigger", when: (c) => c.damageOutcome?.length,
+    rx: /\b(?:makes? [\w ]+? winded(?: or reduces? [\w ]+? to 0 stamina)?|reduces? [\w ]+? to 0 stamina|(?:causes? [\w ]+? to )?become winded|kills? [\w -]+)/i },
+  { id: "reducedByImmunity", from: "trigger", when: (c) => c.reducedByImmunity, rx: /\bwith damage immunity\b/i },
+  { id: "rangeMin",          from: "trigger", when: (c) => c.rangeMin, rx: /\b\d+ or more squares away(?: from you)?/i },
+  { id: "notForceMoved",     from: "trigger", when: (c) => c.notForceMoved, rx: /\b(?:isn['’]t|is not) also force moved\b/i },
+  { id: "ownerGrabbing",     from: "trigger", when: (c) => c.ownerGrabbing, rx: /\bhave a creature of your size or smaller grabbed\b/i },
+  { id: "fromFalling",       from: "trigger", when: (c) => c.fromFalling, rx: /\b(?:after a fall|falling creature|falls and would land)\b/i },
+  { id: "victimCondition",   from: "trigger", when: (c) => c.victimCondition,
+    rx: /\bdamage to (?:a|an|any|the) (?:bleeding|dazed|frightened|grabbed|prone|restrained|slowed|taunted|weakened) (?:creature|enemy|target)\b/i },
+  { id: "fallReduction",     from: "effect",  when: (c) => c.fallReduction,
+    rx: /\breduce (?:the )?(?:effective height|distance) of (?:the|your) fall by (?:\d+ squares|a number of squares equal to your jump distance)/i },
   { id: "half",              from: "effect",  when: (c) => c.halfDamage || c.halfOnUse, list: () => HALF_TEXT },
   { id: "rollMod",           from: "effect",  when: (c) => c.rollMod,   list: () => ROLL_MOD_TEXT.map((r) => r[0]) },
   { id: "redirect",          from: "effect",  when: (c) => c.redirect,  list: () => REDIRECT_TEXT.map((r) => r[0]) },
@@ -534,7 +540,7 @@ export function explainAbilityFilters(text, effectText = "") {
   return found;
 }
 
-const EVENT_VERB = /\b(takes?|deals?|damages?|dies|destroyed|moves?|enters?|leaves?|shifts?|starts?|ends?|uses?|makes?|targets?|targeted|forced?|pushed|pulled|slid|becomes?|gains?|grabs?|regains?|reduced?|winded|dying|falls|flies|comes|obtains?)\b/;
+const EVENT_VERB = /\b(takes?|deals?|damages?|dies|destroyed|moves?|enters?|leaves?|shifts?|starts?|ends?|uses?|makes?|targets?|targeted|forced?|pushed|pulled|slid|becomes?|gains?|grabs?|regains?|reduced?|winded|dying|falls|flies|comes|obtains?|push(?:es)?|pulls?|slides?|knocks?|causes?|spends?)\b/;
 
 function stripPrefix(t) {
   return t.replace(/^(whenever|when|once per (round|turn) when|after)\s+/i, "").replace(/^while [^,]+,\s*/i, "");
@@ -545,15 +551,21 @@ function splitClauses(text) {
   
   if (/^(the [\w'’ ]+|you) or an ally\b/i.test(t)) return [t];
   
+  const pair = t.match(/^you or your companion (\w+)\b(.*)$/i);
+  if (pair) {
+    const base = pair[1].replace(/(?<=sh|ch|x|ss|z)es$/i, "").replace(/s$/i, "");
+    return [...splitClauses(`you ${base}${pair[2]}`), ...splitClauses(`your companion ${pair[1]}${pair[2]}`)];
+  }
+  
   const qi = t.search(/\b(that|which) \b/);
   if (qi > 0) { const inner = splitClauses(t.slice(0, qi).trim()); inner[inner.length - 1] += " " + t.slice(qi); return inner; }
   const DT = "(?!(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic|untyped)\\b)";
-  const split = t.split(new RegExp(`,\\s*or\\s+${DT}|,\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would)\\b)|\\s+or\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would|reduced|falls|damages|obtains|the [\\w]+ obtains)\\b)`, "i"));
-  /* "deals damage to or takes damage from the shieldwall": the first half shares the last half's object. */
+  const split = t.split(new RegExp(`,\\s*or\\s+${DT}|,\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would)\\b)|\\s+or\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would|reduced|falls|damages|obtains|knocks?|the [\\w]+ obtains)\\b)`, "i"));
+  
   const shared = split.at(-1).match(/\b(?:to|from|against) ((?:you|the [\w'’ -]+|an? [\w'’ -]+|any [\w'’ -]+))$/i)?.[1];
   const parts = shared ? split.map((p, i) => i < split.length - 1 && /\b(?:to|from|against)$/i.test(p.trim()) ? `${p.trim()} ${shared}` : p) : split;
   if (parts.length <= 1 || !parts.every(p => EVENT_VERB.test(p.toLowerCase())) || parts.slice(1).some(p => /^(that|which|has|had)\b/i.test(p))) return [t];
-  const subjectMatch = t.match(/^((?:the target|you|your companion|(?:a|an|any|one|another) [\w'’ -]+?|the [\w'’ ]+?)(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|causes?|obtains?)\b))/i);
+  const subjectMatch = t.match(/^((?:the target|you|your companion|(?:a|an|any|one|another) [\w'’ -]+?|the [\w'’ ]+?)(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|causes?|obtains?|push(?:es)?|pulls?|slides?|knocks?|spends?|reduces?|kills?)\b))/i);
   const subject = subjectMatch ? subjectMatch[1] : "";
   return parts.map((p, i) => (i === 0 || !subject || /^(the|you|an?|another|any|one) /i.test(p)) ? p.trim() : (subject + " " + p.trim()));
 }
@@ -574,8 +586,9 @@ function scopeOf(lc, event, owner) {
   const s = subj ? subj[1] : "";
   if (/^you or (?:a|an|any|another) (?:[\w-]+ )?creature\b/.test(lc)) return "ANY";
   if (/^(?:a|an|any) director-controlled creature\b/.test(lc)) return "SELF_OR_ALLY";
+  if (/^your stamina\b/.test(lc)) return "SELF";
 
-  const objectEvents = new Set(["TAKES_DAMAGE", "TARGETED_BY_STRIKE", "WINDED_OR_DYING", "DIES"]);
+  const objectEvents = new Set(["TAKES_DAMAGE", "TARGETED_BY_STRIKE", "WINDED_OR_DYING", "WINDED", "DYING", "DIES"]);
   const objectSide = /\b(deals? [\w, ]*damage to|damages?|targets?|strike against|strikes?|causes?|reduces?) (you|the target|an ally|any ally|an enemy|a creature|the [\w' ]+|[a-z]+)\b/;
   let affected = s;
   if (objectEvents.has(event) && !/^(you|the target)\b/.test(s) && !/\b(takes?|is targeted|targeted by|is made|is reduced|dies)\b/.test(lc)) {
@@ -605,16 +618,18 @@ function normalizeTrigger(clean, ownerName) {
   let normalized = clean;
   for (const w of properWords) normalized = normalized.replace(new RegExp(`\\b(Lord |Queen |King )?${w[0].toUpperCase()}${w.slice(1)}(['’]s)?\\b`, "g"), (m, t, poss) => poss ? "the self's" : "the self");
   normalized = normalized.replace(/^(a|an|one) ([\w -]+?)['’]s turn starts/i, "a $2 starts their turn");
+  normalized = normalized.replace(/\b(you|they) pass through\b/gi, "$1 move through").replace(/\bpasses through\b/gi, "moves through");
+  normalized = normalized.replace(/\bwinded or (?:are|is) dying\b/gi, "winded or dying");
   normalized = normalized.replace(/\b(deals?|takes?) or (deals?|takes?) ((?:[\w-]+ )*?damage)\b/i, "$1 $3, or $2 $3");
   normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero)( within \d+ squares?| within (?:distance|reach)| adjacent(?: to [\w'’ ]+?)?)? makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
     (m, qual, kind, tgt) => `${tgt} is struck by a ${kind ?? ""}strike${qual ? ` while${qual}` : ""}`);
   return normalized;
 }
 
-export function annotateTrigger(text, { dsid, ownerName, effectText, targetType } = {}) {
+export function annotateTrigger(text, { dsid, ownerName, effectText, targetType, side } = {}) {
   const clean = String(text ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   if (!clean) return { sentence: "", segments: [] };
-  const parse = parseTrigger(clean, { dsid, ownerName, effectText, targetType });
+  const parse = parseTrigger(clean, { dsid, ownerName, effectText, targetType, side });
   const sentence = normalizeTrigger(clean, ownerName);
   const lower = sentence.toLowerCase();
   const spans = [];
@@ -677,7 +692,7 @@ export function parseTrigger(text, options = {}) {
   return lineOfEffectLayer(parseTriggerClauses(text, options), text);
 }
 
-function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType } = {}) {
+function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, side } = {}) {
   const id = dsid || "";
   const key = ownerName ? `${generateDSID(ownerName)}:${id}` : null;
   const special = (key && SPECIAL_CASES[key]) || SPECIAL_CASES[id];
@@ -694,6 +709,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType } =
     const events = hits.filter(e => !(SHADOW[e] || []).some(s => hits.includes(s)));
     if (events.length !== 1) ambiguous = true;
     let scope = scopeOf(lc, events[0], ownerName);
+    if (scope === "UNKNOWN" && (events[0] === "RESISTS_POTENCY" || (events[0] === "FALL_START" && /^(?:you|they)\b/.test(lc)))) scope = "SELF";
     if (scope === "SELF:DEALS") { scope = "SELF"; events.splice(0, events.length, "DEALS_DAMAGE"); }
     if (scope === "UNKNOWN") ambiguous = true;
     const qualifiers = QUALIFIERS.map(rx => lc.match(rx)?.[0]).filter(Boolean);
@@ -724,8 +740,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType } =
     if (using) entry.abilityDsid = generateDSID(using[1]);
 
     Object.assign(entry, abilityFiltersFrom(clause, effectText));
-    /* "Deals damage to an ally" names the one who is hit, on the owner's side. Without it the clause
-       fires on every hit anybody lands. */
+    
     const victim = entry.event === "DEALS_DAMAGE" && lc.match(/\b(?:deals? [\w, ]*damage to|damages?) (?:an?|any) (ally|enemy)\b/);
     if (victim) entry.victimScope = victim[1] === "ally" ? "ALLY" : "ENEMY";
     const dealerSide = entry.event === "TAKES_DAMAGE" && lc.match(/\btakes? [\w, ]*damage from an? (ally|enemy)\b/);
@@ -756,8 +771,50 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType } =
         if (n > 1) entry.grabCount = n;
       }
     }
+    if (entry.event === "CONDITION_GAIN" && /^(?:you|the self) grab (?:a|an|any|one|two)\b/.test(lc)) {
+      Object.assign(entry, { condition: "grabbed", asSource: true, scope: "ANY" });
+    }
+    if (entry.event === "CONDITION_GAIN" && /^(?:you|the self) knocks? (?:a|an|any|the) [\w -]+? prone\b/.test(lc)) {
+      Object.assign(entry, { condition: "prone", asSource: true, scope: "ANY" });
+    }
+    if (entry.event === "CONDITION_GAIN" && entry.condition && /^(?:you|the self) causes? (?:a|an|any|the) [\w -]+? to become\b/.test(lc)) {
+      Object.assign(entry, { asSource: true, scope: "ANY" });
+    }
+    const hitState = entry.event === "DEALS_DAMAGE" && lc.match(/\bdamage to (?:a|an|any|the) (bleeding|dazed|frightened|grabbed|prone|restrained|slowed|taunted|weakened) (?:creature|enemy|target)\b/);
+    if (hitState) entry.victimCondition = hitState[1];
+    
+    const outcome = lc.match(/^(?:you|the self) (?:reduces? (?:an?|any|another|the) ([\w -]+?) to 0 stamina|(?:makes?|causes?) (?:an?|any|another|the) ([\w -]+?) (?:to become )?winded|kills? (?:an?|any|another|the) ([\w -]+?))(?=$|[ ,.])/);
+    if (outcome && ["DIES", "DYING", "WINDED", "WINDED_OR_DYING"].includes(entry.event)) {
+      const who = outcome[1] ?? outcome[2] ?? outcome[3];
+      const outcomes = [/winded/.test(lc) ? "winded" : null, /0 stamina|\bkills?\b/.test(lc) ? "zero" : null].filter(Boolean);
+      Object.assign(entry, { event: "DEALS_DAMAGE", events: ["DEALS_DAMAGE"], scope: "SELF", damageOutcome: outcomes });
+      if (/\benemy\b/.test(who)) entry.victimScope = "ENEMY";
+      else if (/\bally\b/.test(who)) entry.victimScope = "ALLY";
+    }
+    if (entry.event === "FORCE_MOVES" && /\binto (?:an?|another|the) (?:object|creature|wall)/.test(lc)) ambiguous = true;
+    if (entry.event === "TURN_START" && /\bturn (?:with|while)\b(?!.*\bgrabbed\b)/.test(lc)) ambiguous = true;
+    if (entry.event === "FORCE_MOVES") {
+      const kind = lc.match(/\b(push|pull|slide)(?:e?s)?\b/)?.[1];
+      if (kind) entry.fmType = kind;
+      const victim = lc.match(/\b(?:push|pull|slide)(?:e?s)? (?:an?|any|that|the) (enemy|ally)\b/)?.[1];
+      if (victim) entry.victimScope = victim.toUpperCase();
+      const ends = lc.match(/\b(?:adjacent to (you|the self)|end[\w ]*? adjacent to (?:one of )?(?:your|their) (all(?:y|ies)))\b/);
+      if (ends) entry.victimEndsAdjacent = ends[1] ? "self" : "ally";
+      if (/\binstead\b/i.test(effectText ?? "")) entry.fmBefore = true;
+    }
+    
+    if (side === "hero" && entry.event === "DIES" && /\b0 stamina\b/.test(lc) && !/\b(?:dies|die)\b/.test(lc)
+      && /^(?:you|your stamina|an? (?:[\w-]+ )*?(?:ally|hero))\b/.test(lc) && ["SELF", "ALLY", "SELF_OR_ALLY"].includes(entry.scope)) {
+      entry.event = "DYING";
+      entry.events = ["DYING"];
+    }
+    if (entry.event === "FALL_START") {
+      const fx = String(effectText ?? "");
+      const by = fx.match(/\breduce (?:the )?(?:effective height|distance) of (?:the|your) fall by (?:(\d+) squares|a number of squares equal to your jump distance)/i);
+      if (by) entry.fallReduction = by[1] ? Number(by[1]) : "jump";
+    }
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
-    if (entry.event !== "USES_ABILITY" && entry.event !== "DEALS_DAMAGE" && entry.event !== "TAKES_DAMAGE") {
+    if (!["USES_ABILITY", "DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY"].includes(entry.event)) {
       delete entry.abilityKeywords;
       delete entry.abilityKeywordsAll;
       delete entry.abilityKeywordGroups;

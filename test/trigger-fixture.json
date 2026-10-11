@@ -514,7 +514,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "WINDED_OR_DYING",
+          "event": "WINDED",
           "scope": "GROUP",
           "qualifiers": [
             "within distance"
@@ -3189,7 +3189,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "WINDED_OR_DYING",
+          "event": "WINDED",
           "scope": "SELF",
           "qualifiers": [
             "for the first time in the encounter"
@@ -4515,7 +4515,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "WINDED_OR_DYING",
+          "event": "WINDED",
           "scope": "ANY",
           "qualifiers": [
             "within distance"
@@ -5116,7 +5116,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "WINDED_OR_DYING",
+          "event": "WINDED",
           "scope": "TARGET",
           "qualifiers": [
             "leader"
@@ -5924,9 +5924,10 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "DIES",
+          "event": "DEALS_DAMAGE",
           "scope": "SELF",
-          "qualifiers": []
+          "qualifiers": [],
+          "damageOutcome": ["zero"]
         }
       ]
     }
@@ -5978,7 +5979,7 @@
       "confidence": "high",
       "clauses": [
         {
-          "event": "WINDED_OR_DYING",
+          "event": "LOSES_STAMINA",
           "scope": "SELF",
           "qualifiers": []
         }
