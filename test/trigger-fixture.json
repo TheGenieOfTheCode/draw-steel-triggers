@@ -648,6 +648,9 @@
           "qualifiers": [
             "with a melee strike",
             "melee strike"
+          ],
+          "abilityKeywords": [
+            "melee"
           ]
         }
       ]
@@ -1949,7 +1952,10 @@
           "qualifiers": [
             "melee strike"
           ],
-          "postRoll": true
+          "postRoll": true,
+          "abilityKeywords": [
+            "melee"
+          ]
         }
       ]
     }
@@ -2637,6 +2643,9 @@
           "qualifiers": [
             "with a ranged strike",
             "ranged strike"
+          ],
+          "abilityKeywords": [
+            "ranged"
           ]
         }
       ]
@@ -2658,6 +2667,9 @@
           "qualifiers": [
             "with a ranged strike",
             "ranged strike"
+          ],
+          "abilityKeywords": [
+            "ranged"
           ]
         }
       ]
@@ -3530,6 +3542,9 @@
           "scope": "SELF",
           "qualifiers": [
             "ranged strike"
+          ],
+          "abilityKeywords": [
+            "ranged"
           ]
         }
       ]

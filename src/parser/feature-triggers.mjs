@@ -273,6 +273,20 @@ const CURATED_LINES = [
   [/^Thunderhead Bident$/, /any ability that pushes a target/, { triggers: [["You push a creature", { abilityKeywords: ["weapon"] }],
     ["You deal damage", { abilityKeywords: ["weapon"], notForceMoved: true }]] }],
   [/^Death From Above$/, /due to high ground/, { trigger: "You deal damage", clause: { highGround: true, damageBonus: 8 } }],
+
+  [/^Cross of the Scorned Puppeteer$/, /enemy minion is reduced/, { later: "Minion qualifier" }],
+  [/^Thief of Joy$/, /deals damage to another creature/, { later: "Ability Automation: choose effect" }],
+  [/^Prophecy$/, /replace the total on the dice/, { later: "Combat Tools: Prophecy" }],
+  [/^Words Become Wonders at Next Breath$/, /magic or psionic ability/, { trigger: "You or a creature makes a power roll",
+    clause: { abilityKeywords: ["magic", "psionic"], selfRoll: true, lineOfEffect: "subject" } }],
+  [/^Command$/, /deal rolled damage to a creature marked by you/, { trigger: "A creature marked by you is targeted by an ability that deals rolled damage",
+    clause: { dealerScope: "SELF_OR_ALLY", rollMod: { tierShift: 1, perTarget: true } } }],
+  [/^G['’]Allios Visiting Card$/, /./, { clause: { damageRedirect: "director" } }],
+  [/^Word of Fate Denied$/, /would leave them dying/, { trigger: "An ally within 10 squares would take damage",
+    clause: { wouldLeave: "dying", damageRedirect: "pool", redirectPool: "selfOrAlly", redirectRange: 10, unreducible: true },
+    note: "Willingness is confirmed by hand" }],
+  [/^The Mountain Does Not Move$/, /force moved/, { clause: { fmMod: { mode: "stability" } } }],
+  [/^Ether-Fueled Vessel$/, /they become insubstantial to you/, { clause: { markVictim: "insubstantial" } }],
 ];
 
 const curatedLine = (name, sentence) => CURATED_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
@@ -280,7 +294,7 @@ const curatedLine = (name, sentence) => CURATED_LINES.find(([n, s]) => n.test(na
 const LIST_LEAD =/\b(?:spend (\d+) ([\w’'-]+(?: resource)?) to )?(?:take|use) one of the following (free )?triggered actions?\b/i;
 const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
 
-const EFFECT_COST = /^(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
+const EFFECT_COST = /^(?:and )?(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
 
 function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set() }) {
   let lead = null;
