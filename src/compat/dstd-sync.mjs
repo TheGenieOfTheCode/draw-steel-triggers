@@ -173,7 +173,8 @@ function _tryWriteHalfOverrides(message) {
     if (pending.abilityUuid !== abilityUse.abilityUuid) continue;
     const target = state.targets.find((t) => _targetMatches(t, pending.targetActorUuid));
     if (!target) continue;
-    const halfOwner = pending.targetActorUuid ? fromUuidSync(pending.targetActorUuid) : null;
+    const sourceUuid = pending.sourceActorUuid ?? pending.targetActorUuid;
+    const halfOwner = sourceUuid ? fromUuidSync(sourceUuid) : null;
     const halfFields = {
       dstHalf: true,
       dstModName: pending.modName ?? "",

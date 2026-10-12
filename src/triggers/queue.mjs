@@ -321,12 +321,13 @@ async function _onQueueResolve(id, outcome, userName) {
     Hooks.callAll("dst.targetedHalfUsed", {
       abilityUuid: entry.resume.itemUuid,
       targetActorUuid: entry.ownerActorUuid,
+      sourceActorUuid: entry.ownerActorUuid,
       modName: entry.itemName,
     });
   }
   if (outcome === "used" && entry.reflectHalf && entry.resume?.itemUuid) {
     const striker = fromUuidSync(entry.resume.itemUuid)?.actor ?? null;
-    if (striker) Hooks.callAll("dst.targetedHalfUsed", { abilityUuid: entry.resume.itemUuid, targetActorUuid: striker.uuid, modName: entry.itemName });
+    if (striker) Hooks.callAll("dst.targetedHalfUsed", { abilityUuid: entry.resume.itemUuid, targetActorUuid: striker.uuid, sourceActorUuid: entry.ownerActorUuid, modName: entry.itemName });
   }
   if (outcome === "used" && entry.fmMode === "stability") await _shareStabilityOnUse(entry);
   dbg(`queue resolve ${id} -> ${outcome}`);
@@ -590,6 +591,7 @@ async function _finalizeResolutionHold(resolutionId) {
     Hooks.callAll("dst.targetedHalfUsed", {
       abilityUuid: hold.abilityUuid,
       targetActorUuid,
+      sourceActorUuid: u.ownerActorUuid ?? targetActorUuid,
       modName: u.itemName,
       messageId: hold.messageId,
     });
@@ -690,6 +692,9 @@ async function _applyRollModOverride(hold, u) {
     tier, total, naturalTotal: natural, staticModifier, edges, banes, bonuses,
     isCritical: natural >= critThreshold,
     dstModName: u.itemName,
+    dstSrcName: u.ownerName ?? null,
+    ...(u.rollMod.tierShift ? { dstTierShift: u.rollMod.tierShift } : {}),
+    dstSrcTokenId: (u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null)?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
   };
   state.updatedAt = Date.now();
   await message.setFlag("draw-steel-target-damage", "state", state);

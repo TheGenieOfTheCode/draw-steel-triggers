@@ -232,11 +232,12 @@ async function _onResumeFm(fmId, mods) {
       const srcTok = pending.sourceTokenId ? canvas.tokens.get(pending.sourceTokenId) : null;
       if (reduceDelta && srcTok) {
         const doc = srcTok.document;
+        const reducer = reduceDelta.ownerActorUuid ? fromUuidSync(reduceDelta.ownerActorUuid) : null;
         payload.counter = {
           modName: reduceDelta.modName,
-          ownerName: pending.targetName ?? "",
+          ownerName: reduceDelta.ownerName ?? reducer?.name ?? pending.targetName ?? "",
           amount: -reduceDelta.amount,
-          srcTokenId: pending.targetTokenId ?? null,
+          srcTokenId: reducer?.getActiveTokens?.(true, false)?.[0]?.id ?? pending.targetTokenId ?? null,
           newTarget: {
             tokenUuid: doc.uuid, tokenId: doc.id ?? null, sceneId: doc.parent?.id ?? null,
             actorUuid: srcTok.actor?.uuid ?? null, actorId: srcTok.actor?.id ?? null,
