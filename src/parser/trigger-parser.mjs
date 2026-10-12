@@ -110,7 +110,10 @@ function todoLayer(result, id) {
 const carries = (clause, event) => clause.event === event || !!clause.events?.includes(event);
 
 function damageModLayer(result, id, effectText) {
-  if (TARGETED_HALVERS.has(id)) {
+  const textHalves = halvesDamage(effectText) && !POST_ROLL_PHRASE.test(effectText)
+    && !/\btier [1-3] outcome\b|\bwould have taken\b|\bchange the target\b|\bignore the strike\b/i.test(effectText)
+    && result.clauses.some((c) => TARGETING_EVENTS.has(c.event) && !c.postRoll);
+  if (TARGETED_HALVERS.has(id) || textHalves) {
     return {
       ...result,
       damageModifying: true,
