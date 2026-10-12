@@ -305,6 +305,7 @@ export function featureTriggerEntries(actor) {
   const seen = new Set();
   for (const item of actor.items) {
     if (!isLineSource(item)) continue;
+    if (item.type === "treasure" && item.system?.category === "consumable" && Number(item.system?.quantity ?? 1) <= 0) continue;
     for (const line of _bestTiers(actor, itemEffectiveLines(item))) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);

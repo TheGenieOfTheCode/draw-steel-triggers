@@ -4,6 +4,7 @@ import { enricherText, asOwner, abilityEffectHTML } from "../parser/feature-trig
 import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
 import { cardContent, facesIn, postSystemCard } from "../ui/system-card.mjs";
+import { remindConsumable } from "./consumables.mjs";
 
 const FLAG = "derived";
 const ONCE_FLAG = "derivedOnce";
@@ -339,6 +340,7 @@ Hooks.on("createChatMessage", (message) => {
     actor.update({ "system.hero.epic.value": Math.max(0, held - cost) }).catch(() => {});
     dbg(`${actor.name} spent ${cost} ${actor.system?.hero?.epic?.label ?? "epic"} on ${ability.name}`);
   }
+  remindConsumable(actor, actor.items.get(info.sourceId));
   if (info.spendsRecovery && typeof actor.system?.spendRecovery === "function") {
     actor.system.spendRecovery().catch((err) => console.warn(`${MODULE_ID} | ${ability.name} could not spend a Recovery`, err));
   }

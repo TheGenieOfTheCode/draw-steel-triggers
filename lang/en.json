@@ -146,6 +146,10 @@
         "Name": "Derived Trigger Abilities",
         "Hint": "Each trigger found in a feature becomes its own triggered ability on the actor, listed with the others. Edit one to correct it; delete one to ignore that trigger."
       },
+      "AutoSpendConsumables": {
+        "Name": "Spend Consumables Automatically",
+        "Hint": "Using a trigger from a consumable takes one from its stack straight away, instead of asking with a button. A consumable with none left stops triggering either way."
+      },
       "DerivedChatLinks": {
         "Name": "Link Derived Triggers in Chat",
         "Hint": "An ability's chat card shows each trigger that became its own ability as a link to it, instead of the trigger's full text. Abilities only."
@@ -739,7 +743,8 @@
         "Redirect": "Redirect",
         "Declined": "Declined",
         "SquadTurn": "Squad Turn",
-        "Derived": "Derived Ability"
+        "Derived": "Derived Ability",
+        "Consumable": "Consumable"
       },
       "TypeOnce": "{action} ({once})",
       "OnceRound": "1/round",
@@ -855,6 +860,12 @@
       "MenuMarkUnused": "Mark Villain Action Unused",
       "MarkedUsed": "{name} is marked as used for this combat.",
       "MarkedUnused": "{name} can be offered again."
+    },
+    "Consumable": {
+      "Used": "{name} used up {item}.",
+      "UseOne": "Use One ({left} Left)",
+      "Spent": "Spent ({left} Left)",
+      "Gone": "Already Gone"
     },
     "LineEffect": {
       "Insubstantial": "Insubstantial to {owner}",

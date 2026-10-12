@@ -188,6 +188,14 @@ Hooks.once("init", () => {
     default: true,
     onChange: (on) => onDerivedSetting(on),
   });
+  game.settings.register(MODULE_ID, "autoSpendConsumables", {
+    name: "DS_TRIGGERS.Settings.AutoSpendConsumables.Name",
+    hint: "DS_TRIGGERS.Settings.AutoSpendConsumables.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
   game.settings.register(MODULE_ID, "derivedChatLinks", {
     name: "DS_TRIGGERS.Settings.DerivedChatLinks.Name",
     hint: "DS_TRIGGERS.Settings.DerivedChatLinks.Hint",
