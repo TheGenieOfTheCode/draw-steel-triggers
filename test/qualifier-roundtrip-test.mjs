@@ -12,7 +12,7 @@ const SYSTEM_KEYWORDS = ["animal", "animapathy", "area", "charge", "chronopathy"
 globalThis.ds ??= { CONFIG: { abilities: { keywords: Object.fromEntries(SYSTEM_KEYWORDS.map((k) => [k, {}])) } } };
 
 const CORE = new Set(["event", "events", "scope", "qualifiers", "range", "rangeOn", "rangeMin", "ownerInAbilityRange", "postRoll", "oncePerRound",
-  "targetScoped", "rollerScoped", "fmBefore", "filtersOff", "abilityKeywordGroups", "_customs", "_customPending",
+  "targetScoped", "rollerScoped", "fmBefore", "filtersOff", "impactText", "abilityKeywordGroups", "_customs", "_customPending",
   ...IMPACTS.flatMap((i) => i.keys)]);
 const OWNED = new Set(QUALIFIERS.flatMap(ownedFields));
 

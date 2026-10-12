@@ -1,8 +1,11 @@
 <section class="tab dst-editor-tab {{tab.cssClass}}" data-group="primary" data-tab="impact">
-  {{#if effectText}}
+  {{#if effectHtml}}
   <div class="dst-editor-effect">
     <span class="dst-editor-effect-label">{{labels.effect}}</span>
-    <span class="dst-editor-effect-text">{{effectText}}</span>
+    <div class="dst-editor-effect-body">
+      <div class="dst-editor-effect-text">{{{effectHtml}}}</div>
+      <p class="hint">{{labels.effectHint}}</p>
+    </div>
   </div>
   {{/if}}
   <section class="item-list-container dst-editor-list">
@@ -22,7 +25,7 @@
           <div class="item-column item-name"{{#if hasBody}} data-action="toggleRow" data-row="{{row}}"{{/if}}>
             <i class="dst-row-icon {{icon}}" inert></i>
             <div class="name">
-              <div class="label">{{label}}</div>
+              <div class="label">{{label}}{{#if source}} <span class="dst-src dst-src-{{source}}" data-tooltip="{{sourceHint}}">{{sourceLabel}}</span>{{/if}}{{#if linked}} <i class="fa-solid fa-link dst-linked" data-tooltip="{{fragment}}" inert></i>{{/if}}</div>
               <div class="keywords">{{#if unsupported}}<i class="fa-solid fa-triangle-exclamation" inert></i> {{unsupported}}{{else}}{{summary}}{{/if}}</div>
             </div>
           </div>

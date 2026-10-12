@@ -30,6 +30,69 @@ const FLAG_TO_QUALIFIER = {
 
 const SOURCE_RANK = ["manual", "bespoke", "effect", "parser"];
 
+const FLAG_TO_IMPACTS = {
+  half: ["halfHeld", "halfStrike"], rollMod: ["rollMod"], redirect: ["redirect"], fmMod: ["fmMod"], damageRedirect: ["redirectHeld"],
+  damageReduction: ["reduceHeld"], fallReduction: ["fallReduce"], fallSafe: ["fallSafe"], damageBonus: ["damageBonus"],
+};
+
+function impactFragments(clause, triggerText, effectText) {
+  const out = {};
+  for (const f of explainClauseFlags(clause, triggerText, effectText)) {
+    for (const id of FLAG_TO_IMPACTS[f.id] ?? []) out[id] ??= { fragment: f.fragment, from: f.from };
+  }
+  return out;
+}
+
+const shownWords = (text) => String(text ?? "")
+  .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, "$1")
+  .replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, "$1")
+  .replace(/<[^>]+>/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+function markFragments(html, pieces) {
+  const box = document.createElement("div");
+  box.innerHTML = html;
+  const nodes = [];
+  let full = "";
+  const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    nodes.push({ node: n, start: full.length });
+    full += n.nodeValue;
+  }
+  const taken = [];
+  for (const piece of pieces) {
+    const words = shownWords(piece.fragment);
+    if (!words) continue;
+    const rx = new RegExp(words.split(" ").map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+"), "gi");
+    for (const m of full.matchAll(rx)) {
+      const start = m.index, end = m.index + m[0].length;
+      if (taken.some((t) => start < t.end && end > t.start)) continue;
+      taken.push({ ...piece, start, end });
+      break;
+    }
+  }
+  taken.sort((x, y) => y.start - x.start);
+  for (const t of taken) {
+    for (const { node, start } of [...nodes].reverse()) {
+      const len = node.nodeValue.length;
+      const from = Math.max(t.start - start, 0), to = Math.min(t.end - start, len);
+      if (from >= to || !node.parentNode) continue;
+      const tail = node.splitText(to);
+      const middle = from > 0 ? node.splitText(from) : node;
+      const pill = document.createElement("span");
+      pill.className = `dst-effect-pill dst-src-${t.source}`;
+      pill.dataset.row = t.row;
+      pill.dataset.tooltip = t.tooltip;
+      pill.setAttribute("role", "button");
+      pill.tabIndex = 0;
+      middle.parentNode.insertBefore(pill, tail);
+      pill.append(middle);
+    }
+  }
+  return box.innerHTML;
+}
+
 const charLabel = (c) => game.i18n.localize(ds.CONFIG?.characteristics?.[c]?.label ?? c);
 
 function shortValue(q, rule, value) {
@@ -163,6 +226,12 @@ function shownEffect(item) {
   for (const secret of box.querySelectorAll("section.secret")) secret.remove();
   for (const block of box.querySelectorAll("p, li, div")) block.append(" ");
   return box.textContent.replace(/\s+/g, " ").trim();
+}
+
+function unlinkImpactText(clause, id) {
+  if (!clause?.impactText?.[id]) return;
+  delete clause.impactText[id];
+  if (!Object.keys(clause.impactText).length) delete clause.impactText;
 }
 
 const blankClause = () => ({ event: "UNKNOWN", scope: "SELF", qualifiers: [] });
@@ -315,12 +384,25 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     };
   }
 
+  _impactSource(impact, c, index, fromEffect) {
+    const base = this._baseline?.clauses?.[index];
+    const same = !!base && impact.has(base) && (impact.id !== "hold" || base.event === c.event)
+      && impact.keys.every((k) => JSON.stringify(c[k]) === JSON.stringify(base[k]));
+    if (!same) return "manual";
+    if (impact.keys.some((k) => isBespoke(this._baseline, k)) || this._baseline?.source === "special") return "bespoke";
+    return fromEffect ? "effect" : "parser";
+  }
+
   _impactRows() {
     const rows = [];
     const many = this._clauses.length > 1;
+    const shown = this._shownEffectText();
     this._clauses.forEach((c, index) => {
+      const found = impactFragments(c, this._triggerText, shown);
       for (const impact of IMPACTS) {
         if (!impact.has(c)) continue;
+        const source = this._impactSource(impact, c, index, !!found[impact.id] || impact.keys.length > 0);
+        const linked = c.impactText?.[impact.id] ?? null;
         const row = `${impact.id}-${index}`;
         const fields = (impact.fields?.(c) ?? []).map((f) => ({ ...f, attrs: fieldAttrs(impact, index, f) }));
         const homes = impact.keys.length && many
@@ -330,13 +412,15 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
           value: i, label: game.i18n.format("DS_TRIGGERS.Editor.ClauseLegend", { n: i + 1 }), selected: i === index,
         })) : null;
         rows.push({
-          id: impact.id, index, row, icon: impact.icon,
+          id: impact.id, index, row, icon: impact.icon, source,
+          sourceLabel: Q(`Source.${source}`), sourceHint: Q(`SourceHint.${source}`),
+          fragment: linked ?? found[impact.id]?.fragment ?? null, linked: !!linked,
           label: impactLabel(impact),
           summary: impact.summary(c),
           hint: impactHint(impact),
           unsupported: impact.supports(c) ? "" : L("Impact.Unsupported", { n: index + 1 }),
           colour: index % 4,
-          clauseLabel: many ? game.i18n.format("DS_TRIGGERS.Editor.ClauseLegend", { n: index + 1 }) : "",
+          clauseLabel: game.i18n.format("DS_TRIGGERS.Editor.ClauseLegend", { n: index + 1 }),
           fields, clauseOptions,
           hasBody: true,
           expanded: this._expanded.has(row),
@@ -346,9 +430,45 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     return [...this._wholeImpactRows(), ...rows];
   }
 
+  _shownEffectText() {
+    const effect = this._line ? (this._lineType === "feature" ? this._line.effect : "") : shownEffect(this.item);
+    return effect ? effect[0].toUpperCase() + effect.slice(1) : "";
+  }
+
+  _effectSourceHtml() {
+    if (this._line) return this._lineType === "feature" && this._line.effect ? `<p>${foundry.utils.escapeHTML(this._line.effect)}</p>` : "";
+    const box = document.createElement("div");
+    box.innerHTML = [...(this.item.system.effects ?? [])].map((e) => e.description ?? "").join("");
+    for (const secret of box.querySelectorAll("section.secret")) secret.remove();
+    return box.innerHTML.trim();
+  }
+
+  async _effectHtml(rows) {
+    const source = this._effectSourceHtml();
+    if (!source) return "";
+    const enriched = await foundry.applications.ux.TextEditor.implementation.enrichHTML(source, {
+      relativeTo: this.item, rollData: this.item.getRollData?.() ?? this.item.actor?.getRollData?.() ?? {}, secrets: false,
+    });
+    return markFragments(enriched, this._effectPieces(rows));
+  }
+
+  _effectPieces(rows) {
+    const text = this._shownEffectText();
+    if (!text) return [];
+    const pieces = rows.filter((r) => r.fragment).map((r) => ({
+      fragment: r.fragment, row: r.row, source: r.linked ? "manual" : r.source,
+      tooltip: `<strong>${foundry.utils.escapeHTML(r.label)}</strong> (${foundry.utils.escapeHTML(Q(`Source.${r.linked ? "manual" : r.source}`))})`,
+    }));
+    const recovery = rows.find((r) => r.id === "recovery");
+    const spend = text.match(/\bspend a recovery\b/i);
+    if (recovery && spend) pieces.push({ fragment: spend[0], row: recovery.row, source: recovery.fixed ? "effect" : "manual", tooltip: foundry.utils.escapeHTML(recovery.label) });
+    return pieces;
+  }
+
   _wholeImpactRows() {
     const row = (id, icon, summary, { fields = [], removable = false } = {}) => ({
       id, row: `whole-${id}`, icon, whole: true, fixed: !removable, label: L(`Impact.${id}.Label`), summary,
+      source: removable ? "manual" : "effect", sourceLabel: Q(`Source.${removable ? "manual" : "effect"}`), sourceHint: Q(`SourceHint.${removable ? "manual" : "effect"}`),
       hint: L(`Impact.${id}.Hint`), fields, hasBody: true, expanded: this._expanded.has(`whole-${id}`),
     });
     const line = this._line;
@@ -403,13 +523,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         tooltip: s.kind === "plain" ? "" : game.i18n.format(`DS_TRIGGERS.Editor.TriggerPill.${s.kind}`, { n: clauses.map((c) => c + 1).join(" & ") }),
       };
     });
-    const effect = this._line ? (this._lineType === "feature" ? this._line.effect : "") : shownEffect(this.item);
+    const impacts = this._impactRows();
     return {
       ...context,
       header: this._headerContext(),
       triggerText: this._triggerText,
       triggerPills,
-      effectText: effect ? effect[0].toUpperCase() + effect.slice(1) : "",
+      effectText: this._shownEffectText(),
+      effectHtml: await this._effectHtml(impacts),
       gain: this._lineType === "gain" ? this._gainContext() : null,
       feature: this._lineType === "feature" ? this._featureContext() : null,
       isLine: !!this._line,
@@ -422,7 +543,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         rangeOn: L("RangeMeasureDealer"), rangeMin: L("RangeMin"), ownerInAbility: L("RangeOwnerInAbility"),
         howOften: L("HowOften"),
         addClause: L("AddClause"), options: L("RowOptions"), expand: L("RowExpand"),
-        impacts: L("Impacts"), clause: L("Clause"), wholeTrigger: L("WholeTrigger"), effect: L("EffectText"),
+        impacts: L("Impacts"), clause: L("Clause"), wholeTrigger: L("WholeTrigger"), effect: L("EffectText"), effectHint: L("Impact.EffectHint"),
         addImpact: L("AddImpact"), noImpacts: L("NoImpacts"), noImpactsPossible: L("NoImpactsPossible"),
         malice: L("Malice"), save: L("Save"), reset: L("Reset"),
       },
@@ -432,7 +553,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         save: L("SaveHint"), reset: L("ResetHint"),
       },
       clauses: this._clauses.map((c, index) => this._clauseContext(c, index)),
-      impacts: this._impactRows(),
+      impacts,
       canAddImpact: this._addableImpacts().length > 0 || this._addableWhole().length > 0,
       howOftenOptions: this._line ? null : [["", L("HowOftenAny")], ["round", L("HowOftenRound")]]
         .map(([value, optLabel]) => ({ value, label: optLabel, selected: (this._clauses.some((c) => c.oncePerRound) ? "round" : "") === value })),
@@ -516,12 +637,32 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         setTimeout(() => indexes.forEach((index, i) => this._flashControl(index, ttPill.dataset.field, ttPill.textContent.trim(), { scroll: i === 0 })), opening.length ? 200 : 0);
         return;
       }
+      const effectPill = event.target.closest(".dst-effect-pill[data-row]");
+      if (effectPill) {
+        event.preventDefault();
+        this._setExpanded(effectPill.dataset.row, true);
+        const li = el.querySelector(`[data-action="toggleRow"][data-row="${effectPill.dataset.row}"]`)?.closest(".expandable-document");
+        if (li) {
+          li.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          void li.offsetWidth;
+          li.classList.add("dst-flash");
+          setTimeout(() => li.classList.remove("dst-flash"), 1800);
+        }
+        return;
+      }
       const add = event.target.closest("[data-qual-add]");
       const pill = add ? null : event.target.closest(".dst-qual-pill[data-qualifier]");
       if (!add && !pill?.dataset.qualifier) return;
       event.preventDefault();
       this._syncFromDOM();
       this._openQualifierPicker(Number((add ?? pill).dataset.index), pill?.dataset.qualifier || null);
+    }, { signal });
+
+    el.querySelector(".dst-editor-effect-text")?.addEventListener("mouseup", (event) => {
+      const selection = window.getSelection();
+      const picked = selection?.toString().replace(/\s+/g, " ").trim();
+      if (!picked || picked.length < 2 || !event.currentTarget.contains(selection.anchorNode)) return;
+      this._openLinkMenu(event, picked);
     }, { signal });
 
     el.addEventListener("change", (event) => {
@@ -539,6 +680,29 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   close(options) {
     this._listenerAbort?.abort();
     return super.close(options);
+  }
+
+  _openLinkMenu(event, picked) {
+    this._syncFromDOM();
+    const many = this._clauses.length > 1;
+    const entries = [];
+    this._clauses.forEach((c, index) => {
+      for (const impact of IMPACTS) {
+        if (!impact.has(c)) continue;
+        entries.push({
+          label: many ? L("Impact.LinkToClause", { impact: impactLabel(impact), n: index + 1 }) : L("Impact.LinkTo", { impact: impactLabel(impact) }),
+          icon: impact.icon,
+          onClick: () => {
+            c.impactText = { ...(c.impactText ?? {}), [impact.id]: picked };
+            window.getSelection()?.removeAllRanges();
+            this.render();
+          },
+        });
+      }
+    });
+    if (!entries.length) entries.push({ label: L("Impact.NothingToLink"), icon: "fa-solid fa-circle-info", onClick: () => {} });
+    const anchor = event.currentTarget ?? event.target;
+    this._openMenu(event, anchor, entries);
   }
 
   _openQualifierPicker(index, qualifierId) {
@@ -739,15 +903,27 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     const impact = impactById(target.dataset.impact);
     const index = Number(target.dataset.index);
     if (!impact) return;
-    this._openMenu(event, target, [{
-      label: L("RemoveImpact"), icon: "fa-solid fa-trash",
-      onClick: () => {
-        this._syncFromDOM();
-        removeImpact(impact, this._clauses[index]);
-        this._expanded.delete(`${impact.id}-${index}`);
-        this.render();
+    const clause = this._clauses[index];
+    this._openMenu(event, target, [
+      ...(clause?.impactText?.[impact.id] ? [{
+        label: L("Impact.Unlink"), icon: "fa-solid fa-link-slash",
+        onClick: () => {
+          this._syncFromDOM();
+          unlinkImpactText(clause, impact.id);
+          this.render();
+        },
+      }] : []),
+      {
+        label: L("RemoveImpact"), icon: "fa-solid fa-trash",
+        onClick: () => {
+          this._syncFromDOM();
+          removeImpact(impact, clause);
+          unlinkImpactText(clause, impact.id);
+          this._expanded.delete(`${impact.id}-${index}`);
+          this.render();
+        },
       },
-    }]);
+    ]);
   }
 
   static #onToggleRow(event, target) {

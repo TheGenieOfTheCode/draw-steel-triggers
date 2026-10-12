@@ -527,7 +527,12 @@
           "Manual": "Offers a Use One button in chat",
           "Auto": "Spends one automatically",
           "Hint": "Using the trigger uses one of the consumable it comes from. Spend Consumables Automatically in the settings decides whether that happens on its own."
-        }
+        },
+        "EffectHint": "Pills mark the words each impact was read from, coloured by where it came from. Select any words to link them to an impact yourself.",
+        "LinkTo": "Link to {impact}",
+        "LinkToClause": "Link to {impact} (clause {n})",
+        "Unlink": "Unlink the effect text",
+        "NothingToLink": "Add an impact first, then link words to it."
       },
       "RangeMeasureDealer": "Measured to the attacker",
       "RangeMin": "At least, in squares",
