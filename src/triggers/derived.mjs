@@ -135,7 +135,7 @@ function specFor(source, line, useMacro = null) {
     type: line.action ?? "none",
     resource: linePool(source.actor, line) === "system.hero.primary.value" ? lineCost(source.actor, line) : null,
     trigger: line.trigger,
-    story: line.flavor ?? "",
+    story: String(line.flavor ?? "").replace(/^\s*[^.:!?]{1,30}:\s+/, ""),
     keywords: [],
     ...reachOf(line.parse, line.effect),
     _dsid: line.key,
