@@ -1,198 +1,117 @@
 import { MODULE_ID, getSetting } from "../util.mjs";
 import { getParsedTrigger, clearParseCache, isMaliceAbility, isImplicitMaliceTrigger, isTriggeredAbility, triggerEffectText } from "../triggers/registry.mjs";
 import { explainAbilityFilters, explainClauseFlags, annotateTrigger } from "../parser/trigger-parser.mjs";
-import { heroGainLines, namedGainLines } from "../triggers/resource-gains.mjs";
-import { tierText, ignoreFeature } from "../triggers/feature-triggers.mjs";
+import { heroGainLines, namedGainLines, itemGainLines } from "../triggers/resource-gains.mjs";
+import { tierText, ignoreFeature, itemFeatureLines } from "../triggers/feature-triggers.mjs";
 import { defersDeath } from "../parser/feature-triggers.mjs";
 import { derivedInfo } from "../triggers/derived.mjs";
 import { isConsumable } from "../triggers/consumables.mjs";
-import { rollNeeds } from "../triggers/dispatch.mjs";
+import { QUALIFIERS, qualifierById, hasQualifier, writeSettings, clearQualifier } from "./qualifier-library.mjs";
+import { QualifierPicker, optionLabel, conditionLabel } from "./qualifier-picker.mjs";
 import { IMPACTS, impactById, impactLabel, impactHint, moveImpact, pruneImpacts, removeImpact } from "./editor-impacts.mjs";
 
 const L = (k, data) => data
   ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
   : game.i18n.localize(`DS_TRIGGERS.Editor.${k}`);
 
-const FLAG_FIELDS = {
-  damageTypes: ["damageTypes"],
-  edgeRequired: ["edgeRequired", "rollHas"],
-  excludeSelfTarget: ["excludeSelfTarget"],
-  effectName: ["effectName"],
-  zone: ["zone"],
-  postRoll: ["postRoll"],
-  half: ["halfDamage", "halfOnUse"],
-  rollMod: ["rollMod"],
-  redirect: ["redirect"],
-  targetsOwner: ["targetsOwner"],
-  victimNotSelf: ["victimNotSelf"],
-  sourceScope: ["sourceScope"],
-  rolledDamage: ["rolledDamage"],
-  organization: ["organization"],
-  tauntedByOwner: ["tauntedByOwner"],
-  ownerLacks: ["ownerLacks"],
-  ownerEffect: ["ownerEffect"],
-  through: ["through", "throughScope"],
-  victimNotMentor: ["victimNotMentor"],
-  entersSpace: ["entersSpace"],
-  lineOfEffect: ["lineOfEffect"],
-  fmType: ["fmType"],
-  victimEndsAdjacent: ["victimEndsAdjacent"],
-  firstTurn: ["firstTurn"],
-  damageOutcome: ["damageOutcome"],
-  reducedByImmunity: ["reducedByImmunity"],
-  rangeMin: ["rangeMin"],
-  notForceMoved: ["notForceMoved"],
-  ownerGrabbing: ["ownerGrabbing"],
-  fromFalling: ["fromFalling"],
-  victimCondition: ["victimCondition"],
-  fallReduction: ["fallReduction"],
-  subjectConcealed: ["subjectConcealed"],
-  fromForcedMovement: ["fromForcedMovement"],
-  arrives: ["arrives"],
-  highGround: ["highGround"],
-  damageReduction: ["damageReduction"],
-  damageBonus: ["damageBonus"],
-  fmMod: ["fmMod"],
-  fallSafe: ["fallSafe"],
-  flankedByDealer: ["flankedByDealer"],
-  rangeOn: ["rangeOn"],
-  rangeAbility: ["range"],
-  ownerInAbilityRange: ["ownerInAbilityRange"],
-  throughMark: ["throughMark"],
-  wouldLeave: ["wouldLeave"],
-  damageRedirect: ["damageRedirect"],
+const Q = (k, data) => data
+  ? game.i18n.format(`DS_TRIGGERS.Qualifier.${k}`, data)
+  : game.i18n.localize(`DS_TRIGGERS.Qualifier.${k}`);
+
+const FLAG_TO_QUALIFIER = {
+  damageTypes: "damage", edgeRequired: "roll", excludeSelfTarget: "ability", effectName: "which", zone: "zone", targetsOwner: "ability",
+  victimNotSelf: "creatureIs", sourceScope: "hasEffect", rolledDamage: "ability", organization: "creatureIs", tauntedByOwner: "hasEffect",
+  ownerLacks: "hasEffect", ownerEffect: "hasEffect", through: "movement", entersSpace: "movement", lineOfEffect: "lineOfEffect",
+  victimNotMentor: "creatureIs", fmType: "movement", victimEndsAdjacent: "movement", firstTurn: "acted", damageOutcome: "damage",
+  reducedByImmunity: "damage", notForceMoved: "ability", ownerGrabbing: "grabbing", fromFalling: "damage", victimCondition: "hasEffect",
+  subjectConcealed: "subjectConcealed", fromForcedMovement: "damage", arrives: "movement", highGround: "highGround",
+  flankedByDealer: "flankedByDealer", throughMark: "hasEffect", wouldLeave: "damage",
 };
 
-const keywordLabel = (k) => {
-  const label = ds.CONFIG?.abilities?.keywords?.[k]?.label;
-  return label ? game.i18n.localize(label) : k;
-};
+const SOURCE_RANK = ["manual", "bespoke", "effect", "parser"];
 
 const charLabel = (c) => game.i18n.localize(ds.CONFIG?.characteristics?.[c]?.label ?? c);
 
-function fmModText(mod) {
-  const n = mod?.amount ?? (mod?.char ? charLabel(mod.char) : "");
-  const key = { boost: "FmModBoost", reduce: "FmModReduce", redirect: "FmModRedirect", slide: "FmModSlide", vertical: "FmModVertical", objectDamage: "FmModObject" }[mod?.mode];
-  return key ? L(key, { n }) : L("QualEffectNone");
+function shortValue(q, rule, value) {
+  if (rule.kind === "check") return "";
+  if (rule.kind === "ownerEffect") return value.label;
+  if (rule.kind === "effects") {
+    return value.map((e) => [Q(`Effect.on.${e.on ?? "subject"}`), Q(`Effect.has.${e.has !== false}`),
+      e.kind === "condition" ? conditionLabel(e.value) : e.kind === "mark" ? Q(`Effect.mark.${e.value}`) : e.value,
+      e.by && e.by !== "anyone" ? Q(`Effect.by.${e.by}`) : ""].filter(Boolean).join(" ")).join("; ");
+  }
+  return [].concat(value).map((v) => optionLabel(rule, v)).join(" or ");
 }
 
-function describeFilter(id, fields) {
-  switch (id) {
-    case "range": return L("QualEffectRange", { n: fields.range });
-    case "abilityType": return L("QualEffectType", { type: fields.abilityType });
-    case "abilityCostMax": return L("QualEffectCost", { n: fields.abilityCostMax });
-    case "abilityCategory": return L({ heroic: "QualEffectHeroic", signature: "QualEffectSignature" }[fields.abilityCategory] ?? "QualEffectNonHeroic");
-    case "abilityKeywords": return L("QualEffectKeywords", { keywords: fields.abilityKeywordGroups?.length
-      ? fields.abilityKeywordGroups.map((g) => g.map(keywordLabel).join(" or ")).join(", and ")
-      : fields.abilityKeywords.map(keywordLabel).join(fields.abilityKeywordsAll ? " and " : " or ") });
-    case "abilityCostScales": return L("QualEffectScales");
-    case "abilityPotency": return L("QualEffectPotency");
-    case "abilityTargetCount": return L("QualEffectTargets", {
-      n: fields.abilityTargetCount,
-      side: fields.abilityTargetSide ?? L("QualSideCreature"),
-    });
-    case "abilityDsid": return L("QualEffectDsid", { dsid: fields.abilityDsid });
-    case "damageTypes": return L("QualEffectDamageTypes");
-    case "edgeRequired": return L("QualEffectEdge");
-    case "excludeSelfTarget": return L("QualEffectExcludeSelf");
-    case "effectName": return L("QualEffectEffectName");
-    case "zone": return L("QualEffectZone");
-    case "postRoll": return L("QualEffectPostRoll");
-    case "half": return L("QualEffectHalf");
-    case "rollMod": return L("QualEffectRollMod");
-    case "redirect": return L("QualEffectRedirect");
-    case "targetsOwner": return L("QualEffectTargetsOwner");
-    case "victimNotSelf": return L("QualEffectVictimNotSelf");
-    case "sourceScope": return L("QualEffectSourceScope", { side: String(fields.sourceScope ?? "").toLowerCase() });
-    case "rolledDamage": return L("QualEffectRolledDamage");
-    case "organization": return L("QualEffectOrganization", { org: (fields.organization?.exclude ?? []).join(", ") });
-    case "tauntedByOwner": return L("QualEffectTauntedByOwner");
-    case "ownerLacks": return L("QualEffectOwnerLacks", { condition: conditionLabel(fields.ownerLacks).toLowerCase() });
-    case "ownerEffect": return L({ victim: "QualEffectOwnerEffectHit", dealer: "QualEffectOwnerEffectDealer" }[fields.ownerEffect?.on] ?? "QualEffectOwnerEffect", { label: fields.ownerEffect?.label ?? "" });
-    case "through": return fields.throughScope
-      ? L("QualEffectThroughSide", { side: String(fields.throughScope).toLowerCase() })
-      : L("QualEffectThrough");
-    case "victimNotMentor": return L("QualEffectNotMentor");
-    case "entersSpace": return L("QualEffectEntersSpace");
-    case "lineOfEffect": return L("QualEffectLineOfEffect");
-    case "fmType": return L("QualEffectFmType", { type: [].concat(fields.fmType ?? []).join(" or ") });
-    case "victimEndsAdjacent": return L(fields.victimEndsAdjacent === "ally" ? "QualEffectEndsAdjacentAlly" : "QualEffectEndsAdjacentSelf");
-    case "firstTurn": return L("QualEffectFirstTurn");
-    case "damageOutcome": return L("QualEffectDamageOutcome");
-    case "reducedByImmunity": return L("QualEffectImmunity");
-    case "rangeMin": return L("QualEffectRangeMin", { n: fields.rangeMin });
-    case "notForceMoved": return L("QualEffectNotForceMoved");
-    case "ownerGrabbing": return L("QualEffectOwnerGrabbing");
-    case "fromFalling": return L("QualEffectFromFalling");
-    case "victimCondition": return L("QualEffectVictimCondition", { condition: conditionLabel(fields.victimCondition).toLowerCase() });
-    case "fallReduction": return L("QualEffectFallReduction");
-    case "subjectConcealed": return L("QualEffectConcealed");
-    case "fromForcedMovement": return L("QualEffectFromForcedMovement");
-    case "arrives": return L("QualEffectArrives");
-    case "highGround": return L("QualEffectHighGround");
-    case "damageReduction": return L("QualEffectDamageReduction", { n: fields.damageReduction === "level" ? L("QualYourLevel")
-      : typeof fields.damageReduction === "object" ? `${fields.damageReduction.base} + ${charLabel(fields.damageReduction.char)}` : fields.damageReduction });
-    case "fallSafe": return L("QualEffectFallSafe");
-    case "damageBonus": return L("QualEffectDamageBonus", { n: fields.damageBonus });
-    case "fmMod": return fmModText(fields.fmMod);
-    case "flankedByDealer": return L("QualEffectFlanked");
-    case "rangeOn": return L("QualEffectDealerRange", { n: fields.range?.char ? charLabel(fields.range.char) : fields.range });
-    case "rangeAbility": return L("QualEffectAbilityRange", { ability: rangeLineLabel(fields.range) });
-    case "ownerInAbilityRange": return L("QualEffectOwnerInRange");
-    case "throughMark": return L("QualEffectThroughMark");
-    case "wouldLeave": return L("QualEffectWouldDying");
-    case "damageRedirect": return L("QualEffectDamageRedirect");
-    default: return L("QualEffectNone");
+function qualifierSummary(q, clause) {
+  const parts = [];
+  for (const rule of q.rules) {
+    const value = rule.read(clause);
+    if (value === undefined) continue;
+    parts.push(Q(`${q.id}.Short.${rule.key}`, { v: shortValue(q, rule, value) }));
   }
+  return parts.join(", ");
 }
 
-const abilityFilterList = (event, triggerText, effectText) => event === "USES_ABILITY" ? explainAbilityFilters(triggerText, effectText)
-  : ["DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY", "FORCE_MOVES"].includes(event) ? explainAbilityFilters(triggerText, effectText).filter((f) => f.id === "abilityKeywords") : [];
-
-function qualifierPills(clause, triggerText, effectText, pristine = null) {
-  const off = new Set(clause.filtersOff ?? []);
-  const flagView = { ...clause };
-  for (const id of off) for (const field of FLAG_FIELDS[id] ?? []) if (pristine?.[field] !== undefined) flagView[field] = pristine[field];
-  const pills = [];
-  const consumed = [];
-
-  const distance = (clause.qualifiers ?? []).find((q) => /within \d+|\badjacent\b/i.test(q));
-  if (distance || Number.isFinite(clause.range)) {
-    const n = Number.isFinite(clause.range) ? clause.range : 1;
-    pills.push({
-      id: "range", text: distance ?? L("QualRangeImplied", { n }),
-      tooltip: describeFilter("range", { range: n }),
-      enforced: true, disabled: off.has("range"),
-    });
-    if (distance) consumed.push(distance);
+function textFragments(clause, triggerText, effectText) {
+  const out = [];
+  for (const f of explainAbilityFilters(triggerText, effectText)) {
+    if (Object.keys(f.fields ?? {}).some((k) => clause[k] !== undefined)) out.push({ q: "ability", fragment: f.fragment, from: f.from });
   }
+  for (const f of explainClauseFlags(clause, triggerText, effectText)) out.push({ q: FLAG_TO_QUALIFIER[f.id] ?? null, fragment: f.fragment, from: f.from });
+  return out;
+}
 
-  for (const f of abilityFilterList(clause.event, triggerText, effectText)) {
-    pills.push({
-      id: f.id, text: f.fragment,
-      tooltip: describeFilter(f.id, f.id === "abilityKeywords" && typeof clause.abilityKeywordsAll === "boolean" ? { ...f.fields, abilityKeywordsAll: clause.abilityKeywordsAll } : f.fields)
-        + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
-      enforced: true, disabled: off.has(f.id), fromEffect: f.from === "effect",
-    });
-    consumed.push(f.fragment);
-  }
-
-  for (const f of explainClauseFlags(flagView, triggerText, effectText)) {
-    pills.push({
-      id: f.id, text: f.fragment,
-      tooltip: describeFilter(f.id, flagView) + (f.from === "effect" ? ` ${L("QualFromEffect")}` : ""),
-      enforced: true, disabled: off.has(f.id), fromEffect: f.from === "effect",
-    });
-    consumed.push(f.fragment);
-  }
-
-  
+function leftoverText(clause, consumed) {
   let rest = (clause.qualifiers ?? []).filter((q) => !consumed.includes(q)).join(", ");
   for (const c of consumed) rest = rest.replace(new RegExp(c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "ig"), "");
   rest = rest.replace(/\s*(?:^|,)\s*(?:that|and|or|the)\b\s*/gi, " ").replace(/[\s,]+/g, " ").trim();
   if (/^(?:(?:with|using|by|from|to|of|against|a|an|the|that|and|or)\b\s*)+$/i.test(rest)) rest = "";
-  if (rest) pills.push({ id: "", text: rest, tooltip: L("QualEffectNone"), enforced: false, disabled: false });
+  return rest;
+}
 
+const isBespoke = (baseline, key) => baseline?.source === "special" || baseline?.bespoke === "all" || (Array.isArray(baseline?.bespoke) && baseline.bespoke.includes(key));
+
+function ruleSource(rule, clause, baseClause, baseline, fromEffect) {
+  const now = rule.read(clause);
+  if (now === undefined) return null;
+  const was = baseClause ? rule.read(baseClause) : undefined;
+  if (JSON.stringify(now) !== JSON.stringify(was)) return "manual";
+  if (isBespoke(baseline, rule.key)) return "bespoke";
+  return fromEffect ? "effect" : "parser";
+}
+
+export function qualifierSources(q, clause, baseClause, baseline, fragments = []) {
+  const effectOnly = fragments.length > 0 && fragments.every((f) => f.from === "effect");
+  const out = {};
+  for (const rule of q.rules) {
+    const src = ruleSource(rule, clause, baseClause, baseline, effectOnly || rule.key === "abilityCostScales");
+    if (src) out[rule.key] = src;
+  }
+  return out;
+}
+
+function clauseQualifierPills(clause, triggerText, effectText, baseClause, baseline) {
+  const fragments = textFragments(clause, triggerText, effectText);
+  const consumed = fragments.map((f) => f.fragment);
+  const distance = (clause.qualifiers ?? []).find((q) => /within \d+|\badjacent\b/i.test(q));
+  if (distance) consumed.push(distance);
+  const pills = [];
+  for (const q of QUALIFIERS) {
+    if (!hasQualifier(q, clause)) continue;
+    const mine = fragments.filter((f) => f.q === q.id);
+    const sources = qualifierSources(q, clause, baseClause, baseline, mine);
+    const ranked = Object.values(sources).sort((a, b) => SOURCE_RANK.indexOf(a) - SOURCE_RANK.indexOf(b));
+    const source = q.unchecked ? "unchecked" : ranked[0] ?? "parser";
+    const fromText = [...new Set(mine.map((f) => f.fragment))].join(", ");
+    pills.push({
+      id: q.id, source,
+      text: fromText || qualifierSummary(q, clause) || Q(`${q.id}.Label`),
+      tooltip: `<strong>${foundry.utils.escapeHTML(Q(`${q.id}.Label`))}</strong> (${foundry.utils.escapeHTML(Q(`Source.${source}`))})<br>${foundry.utils.escapeHTML(qualifierSummary(q, clause))}<br><em>${foundry.utils.escapeHTML(Q("PillHint"))}</em>`,
+    });
+  }
+  const rest = leftoverText(clause, consumed);
+  if (rest) pills.push({ id: "", source: "unchecked", text: rest, tooltip: foundry.utils.escapeHTML(Q("SourceHint.unchecked")) });
   return pills;
 }
 
@@ -217,14 +136,6 @@ const SCOPES = [
   "GROUP", "SELF_OR_ALLY", "OBJECT", "GRABBED_CREATURE", "UNKNOWN",
 ];
 
-const DAMAGE_EVENTS = new Set(["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE"]);
-
-const CONDITIONS = ["bleeding", "dazed", "frightened", "grabbed", "prone", "restrained", "slowed", "taunted", "weakened"];
-const conditionLabel = (id) => {
-  const status = Array.isArray(CONFIG.statusEffects) ? CONFIG.statusEffects.find((s) => s.id === id) : CONFIG.statusEffects?.[id];
-  return status?.name ? game.i18n.localize(status.name) : label(id);
-};
-
 const TARGETING_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 
 const CHARACTERISTIC_LABEL = (key) => game.i18n.localize(ds.CONFIG?.characteristics?.[key]?.label ?? key);
@@ -244,8 +155,6 @@ function rangeColumn(range) {
 
 const label = (v) => v.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
-const ROLL_KNOWN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "POWER_ROLL"]);
-
 const shownEvent = (event) => event === "WOULD_TAKE_DAMAGE" ? "TAKES_DAMAGE" : event;
 
 function shownEffect(item) {
@@ -256,7 +165,7 @@ function shownEffect(item) {
   return box.textContent.replace(/\s+/g, " ").trim();
 }
 
-const blankClause = () => ({ event: "UNKNOWN", scope: "SELF", qualifiers: [], _customs: [] });
+const blankClause = () => ({ event: "UNKNOWN", scope: "SELF", qualifiers: [] });
 
 function fieldAttrs(impact, index, field) {
   const attrs = [`data-impact-field="${field.name}"`, `data-impact="${impact.id}"`, `data-index="${index}"`];
@@ -311,16 +220,33 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     const parse = line ? line.parse : getParsedTrigger(item);
     this._clauses = (parse?.clauses ?? [blankClause()])
       .map((c) => foundry.utils.deepClone(c));
-    const keywordIds = new Set(Object.keys(ds.CONFIG.monsters?.keywords ?? {}));
-    for (const clause of this._clauses) {
-      clause._customs = clause.groupName && !keywordIds.has(clause.groupName) ? [clause.groupName] : [];
-    }
-    this._pristine = foundry.utils.deepClone(this._clauses);
+    this._baseline = this._computeBaseline();
     this._expanded = new Set();
     this._malice = item.getFlag(MODULE_ID, "malice");
     this._useImpacts = foundry.utils.deepClone(item.getFlag(MODULE_ID, "useImpacts") ?? {});
     this._source = parse?.source ?? "none";
     this._confidence = parse?.confidence ?? "";
+  }
+
+  _computeBaseline() {
+    try {
+      if (this._lineType === "feature") return itemFeatureLines(this.item, { withIgnored: true }).find((l) => l.key === this._line.key)?.parse ?? null;
+      if (this._lineType === "gain") return itemGainLines(this.item).find((l) => l.key === this._line.key)?.parse ?? null;
+      return getParsedTrigger(this.item, { ignoreManual: true });
+    } catch (err) {
+      console.warn(`${MODULE_ID} | trigger builder could not read the parser's version of ${this.item.name}`, err);
+      return null;
+    }
+  }
+
+  _ownAbilityOptions(current) {
+    const list = new Map([["melee-free-strike", L("RangeFreeMelee")], ["ranged-free-strike", L("RangeFreeRanged")]]);
+    for (const i of this.item.actor?.items ?? []) {
+      const dsid = i.type === "ability" ? i.system?._dsid : null;
+      if (dsid && !list.has(dsid)) list.set(dsid, i.name);
+    }
+    if (current && !list.has(current)) list.set(current, current);
+    return [...list].map(([value, name]) => ({ value, label: name, selected: value === current }));
   }
 
   get title() {
@@ -343,10 +269,13 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     };
   }
 
-  _clauseContext(c, index, keywords, damageTypes) {
-    const qualifiers = qualifierPills(c, this._triggerText, this._effectText, this._pristine?.[index]);
-    const summary = qualifiers.filter((q) => !q.disabled).map((q) => q.text);
+  _clauseContext(c, index) {
+    const qualifiers = clauseQualifierPills(c, this._triggerText, this._effectText, this._baseline?.clauses?.[index], this._baseline);
+    const summary = qualifiers.map((q) => q.text);
     if (c.postRoll) summary.unshift(L("TimingAfterShort"));
+    const range = c.range;
+    const rangeMode = range === "none" ? "none" : Number.isFinite(range) ? "custom" : range?.char ? "char"
+      : range?.ability ? "ability" : range && typeof range === "object" ? "line" : "auto";
     return {
       index,
       colour: index % 4,
@@ -361,42 +290,28 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         options: list.map((e) => ({ value: e, label: label(e), selected: e === shownEvent(c.event) })),
       })),
       eventHint: game.i18n.localize(`DS_TRIGGERS.Editor.EventDesc.${shownEvent(c.event)}`),
-      scopeOptions: SCOPES.map((s) => ({ value: s, label: label(s), selected: s === c.scope })),
+      scopeOptions: SCOPES.map((sc) => ({ value: sc, label: label(sc), selected: sc === c.scope })),
       rangeOptions: [
-        ...(c.range && typeof c.range === "object" ? [["line", rangeLineLabel(c.range)]] : []),
+        ...(rangeMode === "line" ? [["line", rangeLineLabel(range)]] : []),
         ["auto", L("RangeAuto")], ["none", L("RangeNone")], ["custom", L("RangeCustom")],
-      ].map(([value, optLabel]) => ({
-        value, label: optLabel,
-        selected: (c.range === "none" ? "none" : Number.isFinite(c.range) ? "custom"
-          : c.range && typeof c.range === "object" ? "line" : "auto") === value,
-      })),
-      rangeCustom: Number.isFinite(c.range),
-      rangeValue: Number.isFinite(c.range) ? c.range : 1,
+        ["char", L("RangeCharOption")], ["ability", L("RangeAbilityOption")],
+      ].map(([value, optLabel]) => ({ value, label: optLabel, selected: rangeMode === value })),
+      rangeCustom: rangeMode === "custom",
+      rangeValue: Number.isFinite(range) ? range : 1,
+      rangeChar: rangeMode === "char",
+      charOptions: Object.keys(ds.CONFIG?.characteristics ?? {}).map((k) => ({ value: k, label: charLabel(k), selected: range?.char === k })),
+      rangeAbility: rangeMode === "ability",
+      abilityOptions: rangeMode === "ability" ? this._ownAbilityOptions(range.ability) : [],
+      showRangeOn: ["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE", "DEALS_DAMAGE"].includes(c.event) || c.rangeOn === "dealer",
+      rangeOnDealer: c.rangeOn === "dealer",
+      showRangeMin: c.event === "DEALS_DAMAGE" || Number.isFinite(c.rangeMin),
+      rangeMin: Number.isFinite(c.rangeMin) ? c.rangeMin : "",
+      showOwnerInAbility: c.event === "USES_ABILITY" || !!c.ownerInAbilityRange,
+      ownerInAbilityRange: !!c.ownerInAbilityRange,
       qualifiers,
-      showKeywordMode: (c.abilityKeywords?.length ?? 0) > 1 && !c.abilityKeywordGroups?.length,
-      keywordAll: !!c.abilityKeywordsAll,
-      keywordHint: L("KeywordModeHint", { keywords: (c.abilityKeywords ?? []).map(keywordLabel).join(", ") }),
-      showDamageTypes: DAMAGE_EVENTS.has(c.event),
-      showCondition: c.event === "CONDITION_GAIN",
-      conditionOptions: [...new Set([...CONDITIONS, ...[].concat(c.condition ?? [])])]
-        .map((value) => ({ value, label: conditionLabel(value), selected: [].concat(c.condition ?? []).includes(value) })),
       showTiming: TARGETING_EVENTS.has(c.event) || !!c.postRoll,
       timingOptions: [["before", L("TimingBefore")], ["after", L("TimingAfter")]]
         .map(([value, optLabel]) => ({ value, label: optLabel, selected: (c.postRoll ? "after" : "before") === value })),
-      targeting: TARGETING_EVENTS.has(c.event),
-      excludeSelfTarget: !!c.excludeSelfTarget,
-      showGroup: c.scope === "GROUP",
-      damageTypeOptions: damageTypes.map((d) => ({ ...d, active: (c.damageTypes ?? []).includes(d.value) })),
-      groupOptions: keywords.map((k) => ({ ...k, active: c.groupName === k.value })),
-      customOptions: (c._customs ?? []).filter(Boolean).map((value) => ({ value, active: c.groupName === value })),
-      customPending: !!c._customPending,
-      abilityDsid: c.abilityDsid ?? "",
-      showRollHas: ROLL_KNOWN_EVENTS.has(c.event),
-      rollHasOptions: ["edge", "bane", "surge"].map((value) => ({
-        value, label: L(`RollHas_${value}`), selected: (rollNeeds(c) ?? []).includes(value),
-      })),
-      ownerUnacted: !!c.ownerUnacted,
-      anyHeroUnacted: !!c.anyHeroUnacted,
     };
   }
 
@@ -468,11 +383,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
-    const keywords = Object.entries(ds.CONFIG.monsters?.keywords ?? {})
-      .map(([value, cfg]) => ({ value, label: game.i18n.localize(cfg.label ?? value) }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-    const damageTypes = Object.entries(ds.CONFIG.damageTypes ?? {})
-      .map(([value, cfg]) => ({ value, label: game.i18n.localize(cfg.label ?? value) }));
     const side = this.item.actor && this.item.actor.type !== "hero" ? "monster" : "hero";
     const annotated = annotateTrigger(this._triggerText, this._line ? { effectText: this._effectText, side } : {
       side,
@@ -508,13 +418,9 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       isManual: this._line ? !!this.item.getFlag(MODULE_ID, `${this._lineFlag()}.${this._line.key}`) : !!this.item.getFlag(MODULE_ID, "manual"),
       labels: {
         clauses: L("Clauses"), event: L("Event"), scope: L("Scope"), range: L("Range"), timing: L("Timing"),
-        qualifiers: L("Qualifiers"), qualifiersNone: L("QualifiersNone"),
-        keywordMode: L("KeywordMode"), keywordAny: L("KeywordAny"), keywordAll: L("KeywordAll"),
-        damageTypes: L("DamageTypes"), condition: L("Condition"),
-        abilityDsid: L("AbilityDsid"), groupName: L("GroupName"), groupNone: L("GroupNone"),
-        customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
-        rollHas: L("RollHas"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"),
-        availability: L("Availability"), excludeSelfTarget: L("ExcludeSelfTarget"),
+        qualifiers: L("Qualifiers"), qualifiersNone: L("QualifiersNone"), addQualifier: game.i18n.localize("DS_TRIGGERS.Qualifier.AddPill"),
+        rangeOn: L("RangeMeasureDealer"), rangeMin: L("RangeMin"), ownerInAbility: L("RangeOwnerInAbility"),
+        howOften: L("HowOften"),
         addClause: L("AddClause"), options: L("RowOptions"), expand: L("RowExpand"),
         impacts: L("Impacts"), clause: L("Clause"), wholeTrigger: L("WholeTrigger"), effect: L("EffectText"),
         addImpact: L("AddImpact"), noImpacts: L("NoImpacts"), noImpactsPossible: L("NoImpactsPossible"),
@@ -522,14 +428,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       },
       hints: {
         scope: L("ScopeHint"), range: L("RangeHint"), qualifiers: L("QualifiersHint"), timing: L("TimingHint"),
-        damageTypes: L("DamageTypesHint"), condition: L("ConditionHint"), abilityDsid: L("AbilityDsidHint"),
-        groupName: L("GroupNameHint"), checks: L("ChecksHint"), rollHas: L("RollHasHint"), malice: L("MaliceHint"),
-        excludeSelfTarget: L("ExcludeSelfTargetHint"),
+        malice: L("MaliceHint"), howOften: L("HowOftenHint"),
         save: L("SaveHint"), reset: L("ResetHint"),
       },
-      clauses: this._clauses.map((c, index) => this._clauseContext(c, index, keywords, damageTypes)),
+      clauses: this._clauses.map((c, index) => this._clauseContext(c, index)),
       impacts: this._impactRows(),
       canAddImpact: this._addableImpacts().length > 0 || this._addableWhole().length > 0,
+      howOftenOptions: this._line ? null : [["", L("HowOftenAny")], ["round", L("HowOftenRound")]]
+        .map(([value, optLabel]) => ({ value, label: optLabel, selected: (this._clauses.some((c) => c.oncePerRound) ? "round" : "") === value })),
       maliceOptions: [
         { value: "default", label: L("MaliceDefault"), selected: this._malice === undefined },
         { value: "true", label: L("MaliceAlways"), selected: this._malice === true },
@@ -576,7 +482,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     let target = null;
     if (field === "qualifiers") {
       const wanted = text.toLowerCase();
-      target = [...clauseEl.querySelectorAll(".dst-qual-pill")].find((p) => p.textContent.trim().toLowerCase() === wanted)
+      target = [...clauseEl.querySelectorAll(".dst-qual-pill")].find((p) => p.textContent.trim().toLowerCase().includes(wanted))
         ?? clauseEl.querySelector(".dst-qual-pills");
     } else {
       target = clauseEl.querySelector(`select[data-field="${field}"]`);
@@ -610,43 +516,16 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         setTimeout(() => indexes.forEach((index, i) => this._flashControl(index, ttPill.dataset.field, ttPill.textContent.trim(), { scroll: i === 0 })), opening.length ? 200 : 0);
         return;
       }
-      const pill = event.target.closest("[data-qual-toggle]");
-      if (!pill) return;
+      const add = event.target.closest("[data-qual-add]");
+      const pill = add ? null : event.target.closest(".dst-qual-pill[data-qualifier]");
+      if (!add && !pill?.dataset.qualifier) return;
       event.preventDefault();
       this._syncFromDOM();
-      const clause = this._clauses[Number(pill.dataset.index)];
-      const id = pill.dataset.qualToggle;
-      if (!clause || !id) return;
-      const off = new Set(clause.filtersOff ?? []);
-      if (off.has(id)) off.delete(id);
-      else off.add(id);
-      if (off.size) clause.filtersOff = [...off];
-      else delete clause.filtersOff;
-      this._applyFilters(clause);
-      this.render();
+      this._openQualifierPicker(Number((add ?? pill).dataset.index), pill?.dataset.qualifier || null);
     }, { signal });
 
     el.addEventListener("change", (event) => {
       const target = event.target;
-      if (target.matches?.('select[data-field="groupSelect"]') && target.value === "__custom__") {
-        this._syncFromDOM();
-        this._clauses[Number(target.dataset.index)]._customPending = true;
-        this.render();
-        return;
-      }
-      const custom = target.closest?.(".dst-custom-input");
-      if (custom) {
-        const value = custom.value.trim();
-        this._syncFromDOM();
-        const clause = this._clauses[Number(custom.dataset.index)];
-        clause._customPending = false;
-        if (value) {
-          if (!clause._customs.includes(value)) clause._customs.push(value);
-          clause.groupName = value;
-        }
-        this.render();
-        return;
-      }
       if (target.localName === "select" && target.dataset.field !== "malice" && !target.closest("[data-gain-field], [data-feature-field]")) {
         this._syncFromDOM();
         this.render();
@@ -655,10 +534,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         this.render();
       }
     }, { signal });
-
-    for (const input of el.querySelectorAll(".dst-custom-input")) {
-      if (!input.value) { input.focus(); break; }
-    }
   }
 
   close(options) {
@@ -666,38 +541,31 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     return super.close(options);
   }
 
-  _applyFilters(clause) {
-    const off = new Set(clause.filtersOff ?? []);
-    for (const k of ["abilityDsid", "abilityType", "abilityKeywords", "abilityCostMax", "abilityCategory",
-      "abilityCostScales", "abilityTargetCount", "abilityTargetSide", "abilityPotency", "abilityKeywordGroups"]) delete clause[k];
-
-    const keywordAll = clause.abilityKeywordsAll;
-    for (const f of abilityFilterList(clause.event, this._triggerText, this._effectText)) {
-      if (!off.has(f.id)) Object.assign(clause, f.fields);
-    }
-    if (typeof keywordAll === "boolean") clause.abilityKeywordsAll = keywordAll;
-
-    const index = this._clauses.indexOf(clause);
-    const pristine = this._pristine?.[index] ?? {};
-    for (const [id, fields] of Object.entries(FLAG_FIELDS)) {
-      for (const field of fields) {
-        if (off.has(id)) delete clause[field];
-        else if (pristine[field] !== undefined) clause[field] = foundry.utils.deepClone(pristine[field]);
-      }
-    }
-
-    const distance = (clause.qualifiers ?? [])
-      .map((q) => q.match(/within (\d+)/i)?.[1] ?? (/\badjacent\b/i.test(q) ? "1" : null))
-      .find(Boolean);
-    if (off.has("range")) clause.range = "none";
-    else if (distance) clause.range = Number(distance);
+  _openQualifierPicker(index, qualifierId) {
+    const clause = this._clauses[index];
+    if (!clause) return;
+    const q = qualifierId ? qualifierById(qualifierId) : null;
+    const baseClause = this._baseline?.clauses?.[index];
+    const sources = q ? qualifierSources(q, clause, baseClause, this._baseline) : {};
+    foundry.applications.instances.get("dst-qualifier-picker")?.close();
+    new QualifierPicker({
+      clause, event: clause.event, qualifierId, provenance: sources,
+      onApply: (id, settings) => {
+        writeSettings(qualifierById(id), clause, settings);
+        this.render();
+      },
+      onRemove: (id) => {
+        clearQualifier(qualifierById(id), clause);
+        this.render();
+      },
+    }).render({ force: true });
   }
 
   _syncFromDOM() {
     const el = this.element;
     const clauseAt = (node) => this._clauses[Number(node.dataset.index)];
     for (const input of el.querySelectorAll("input[data-field][data-index], select[data-field][data-index]")) {
-      if (input.localName === "multi-select" || ["groupSelect", "rangeSelect", "rangeValue", "timing"].includes(input.dataset.field)) continue;
+      if (input.localName === "multi-select" || ["rangeSelect", "rangeValue", "rangeChar", "rangeAbility", "rangeOn", "rangeMin", "ownerInAbilityRange", "timing", "howOften"].includes(input.dataset.field)) continue;
       const clause = clauseAt(input);
       if (!clause) continue;
       const field = input.dataset.field;
@@ -711,32 +579,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       } else if (input.value.trim()) clause[field] = input.value.trim();
       else delete clause[field];
     }
-    for (const radio of el.querySelectorAll("input[data-kw-mode]:checked")) {
-      const clause = clauseAt(radio);
-      if (clause) clause.abilityKeywordsAll = radio.value === "all";
-    }
-    for (const ms of el.querySelectorAll('multi-select[data-field="condition"]')) {
-      const clause = clauseAt(ms);
-      if (!clause) continue;
-      const value = Array.from(ms.value ?? []);
-      if (value.length) clause.condition = value.length > 1 ? value : value[0];
-      else delete clause.condition;
-    }
-    for (const ms of el.querySelectorAll('multi-select[data-field="rollHas"]')) {
-      const clause = clauseAt(ms);
-      if (!clause) continue;
-      const value = Array.from(ms.value ?? []);
-      delete clause.edgeRequired;
-      if (value.length) clause.rollHas = value;
-      else delete clause.rollHas;
-    }
-    for (const ms of el.querySelectorAll('multi-select[data-field="damageTypes"]')) {
-      const clause = clauseAt(ms);
-      if (!clause) continue;
-      const value = Array.from(ms.value ?? []);
-      if (value.length) clause.damageTypes = value;
-      else delete clause.damageTypes;
-    }
     for (const select of el.querySelectorAll('select[data-field="timing"]')) {
       const clause = clauseAt(select);
       if (!clause) continue;
@@ -746,17 +588,43 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     for (const select of el.querySelectorAll('select[data-field="rangeSelect"]')) {
       const clause = clauseAt(select);
       if (!clause || select.value === "line") continue;
-      if (select.value === "none") clause.range = "none";
-      else if (select.value === "custom") {
-        const input = select.closest(".form-fields")?.querySelector('input[data-field="rangeValue"]');
-        clause.range = input ? Math.max(1, Math.floor(Number(input.value) || 1)) : (Number.isFinite(clause.range) ? clause.range : 1);
-      } else delete clause.range;
+      const body = select.closest(".dst-row-body");
+      const pick = (f) => body?.querySelector(`[data-field="${f}"]`);
+      let next;
+      if (select.value === "none") next = "none";
+      else if (select.value === "custom") next = pick("rangeValue") ? Math.max(1, Math.floor(Number(pick("rangeValue").value) || 1)) : (Number.isFinite(clause.range) ? clause.range : 1);
+      else if (select.value === "char") next = { char: pick("rangeChar")?.value || clause.range?.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0] };
+      else if (select.value === "ability") next = { ability: pick("rangeAbility")?.value || clause.range?.ability || "melee-free-strike" };
+      if (JSON.stringify(next) === JSON.stringify(clause.range)) continue;
+      if (next === undefined) delete clause.range;
+      else clause.range = next;
     }
-    for (const select of el.querySelectorAll('select[data-field="groupSelect"]')) {
-      const clause = clauseAt(select);
-      if (!clause || select.value === "__custom__") continue;
-      if (select.value) clause.groupName = select.value;
-      else delete clause.groupName;
+    for (const box of el.querySelectorAll('input[data-field="rangeOn"]')) {
+      const clause = clauseAt(box);
+      if (!clause || box.checked === (clause.rangeOn === "dealer")) continue;
+      if (box.checked) clause.rangeOn = "dealer";
+      else delete clause.rangeOn;
+    }
+    for (const input of el.querySelectorAll('input[data-field="rangeMin"]')) {
+      const clause = clauseAt(input);
+      if (!clause) continue;
+      const n = input.value === "" ? undefined : Math.floor(Number(input.value));
+      if (n === clause.rangeMin || (n === undefined && clause.rangeMin === undefined)) continue;
+      if (Number.isFinite(n) && n > 0) clause.rangeMin = n;
+      else delete clause.rangeMin;
+    }
+    for (const box of el.querySelectorAll('input[data-field="ownerInAbilityRange"]')) {
+      const clause = clauseAt(box);
+      if (!clause || box.checked === !!clause.ownerInAbilityRange) continue;
+      if (box.checked) clause.ownerInAbilityRange = true;
+      else delete clause.ownerInAbilityRange;
+    }
+    const often = el.querySelector('select[data-field="howOften"]');
+    if (often && (often.value === "round") !== this._clauses.some((c) => c.oncePerRound)) {
+      for (const c of this._clauses) {
+        if (often.value === "round") c.oncePerRound = true;
+        else delete c.oncePerRound;
+      }
     }
     for (const li of el.querySelectorAll(".dst-editor-impact[data-impact]")) {
       const impact = impactById(li.dataset.impact);
@@ -802,10 +670,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const out = foundry.utils.deepClone(c);
       delete out._customs;
       delete out._customPending;
-      if (!TARGETING_EVENTS.has(out.event)) delete out.excludeSelfTarget;
       pruneImpacts(out);
-      if (out.event !== "DEALS_DAMAGE") delete out.victimScope;
-      if (out.event !== "TAKES_DAMAGE" && out.event !== "WOULD_TAKE_DAMAGE" && !TARGETING_EVENTS.has(out.event)) delete out.dealerScope;
       return out;
     });
   }
@@ -817,7 +682,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   static #onAddClause() {
     this._syncFromDOM();
     this._clauses.push(blankClause());
-    this._pristine.push(blankClause());
     this._expanded.add(`clause-${this._clauses.length - 1}`);
     this.render();
   }
@@ -828,7 +692,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       { label: L("DuplicateClause"), icon: "fa-solid fa-copy", onClick: () => {
         this._syncFromDOM();
         this._clauses.splice(index + 1, 0, foundry.utils.deepClone(this._clauses[index]));
-        this._pristine.splice(index + 1, 0, foundry.utils.deepClone(this._pristine[index] ?? {}));
         this._forgetRows();
         this._expanded.add(`clause-${index + 1}`);
         this.render();
@@ -836,11 +699,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       { label: L("RemoveClause"), icon: "fa-solid fa-trash", onClick: () => {
         this._syncFromDOM();
         this._clauses.splice(index, 1);
-        this._pristine.splice(index, 1);
-        if (!this._clauses.length) {
-          this._clauses.push(blankClause());
-          this._pristine.push(blankClause());
-        }
+        if (!this._clauses.length) this._clauses.push(blankClause());
         this._forgetRows();
         this.render();
       } },

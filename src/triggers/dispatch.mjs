@@ -20,7 +20,16 @@ const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]
 const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, ...CONDITION_PROMPTS, "USES_ABILITY"]);
 const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
 
-const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
+const FIXED_DISPOSITIONS = { FRIENDLY: "FRIENDLY", NEUTRAL: "NEUTRAL", HOSTILE: "HOSTILE", SECRET: "SECRET" };
+const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", ...Object.keys(FIXED_DISPOSITIONS)]);
+
+function groupMatches(kw, subjectActor) {
+  if (subjectActor.system?.monster?.keywords?.has?.(kw)) return true;
+  const name = subjectActor.name.toLowerCase();
+  if (name.includes(kw.toLowerCase())) return true;
+  const kwLabel = ds.CONFIG.monsters?.keywords?.[kw]?.label;
+  return !!kwLabel && name.includes(game.i18n.localize(kwLabel).toLowerCase());
+}
 
 export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor, subjectDisposition) {
   if (!subjectActor) return true;
@@ -28,6 +37,8 @@ export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor,
   const isSelf = ownerActor === subjectActor;
   if (clause.notSelf && isSelf) return false;
   if (clause.heroOnly && subjectActor.type !== "hero") return false;
+  if (clause.groupName && clause.scope !== "GROUP" && !groupMatches(clause.groupName, subjectActor)) return false;
+  if (FIXED_DISPOSITIONS[clause.scope]) return subjectDisposition === CONST.TOKEN_DISPOSITIONS[FIXED_DISPOSITIONS[clause.scope]];
   const sameSide = ownerDisposition != null && subjectDisposition != null
     ? ownerDisposition === subjectDisposition
     : ownerActor.hasPlayerOwner === subjectActor.hasPlayerOwner;
@@ -37,16 +48,7 @@ export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor,
     case "SELF_OR_ALLY": return isSelf || sameSide;
     case "ENEMY": return !isSelf && !sameSide;
     case "ANY": return true;
-    case "GROUP": {
-      if (!clause.groupName) return false;
-      const kw = clause.groupName;
-      
-      if (subjectActor.system?.monster?.keywords?.has?.(kw)) return true;
-      const name = subjectActor.name.toLowerCase();
-      if (name.includes(kw.toLowerCase())) return true;
-      const kwLabel = ds.CONFIG.monsters?.keywords?.[kw]?.label;
-      return !!kwLabel && name.includes(game.i18n.localize(kwLabel).toLowerCase());
-    }
+    case "GROUP": return !!clause.groupName && groupMatches(clause.groupName, subjectActor);
     default: return false;
   }
 }
@@ -497,6 +499,57 @@ function watchedCreatures(subjectActor, ctx = {}) {
   return [subjectActor, ctx.victimActor, ...targetActors(ctx)].filter(Boolean);
 }
 
+const actorOf = (uuid) => {
+  const doc = uuid ? fromUuidSync(uuid) : null;
+  return doc?.documentName === "Actor" ? doc : doc?.actor ?? doc?.parent ?? null;
+};
+
+function effectHolder(on, ownerActor, subjectActor, ctx) {
+  switch (on) {
+    case "victim": return ctx.victimActor ?? targetActors(ctx)[0] ?? null;
+    case "dealer": return ctx.dealerActor ?? null;
+    case "through": return ctx.throughActor ?? null;
+    case "owner": return ownerActor;
+    default: return subjectActor;
+  }
+}
+
+function appliersOf(holder, spec) {
+  const out = [];
+  for (const e of holder.effects ?? []) {
+    if (!e.active) continue;
+    let hit = false;
+    if (spec.kind === "condition") hit = e.statuses?.has?.(spec.value);
+    else if (spec.kind === "name") hit = String(e.name ?? "").toLowerCase() === String(spec.value).toLowerCase();
+    else if (spec.kind === "mark") hit = e.getFlag?.(MODULE_ID, "victimMark")?.label === spec.value;
+    else if (spec.kind === "ability") {
+      const origin = e.origin ? fromUuidSync(e.origin) : null;
+      hit = String(origin?.system?._dsid ?? "").toLowerCase() === String(spec.value).toLowerCase();
+    }
+    if (!hit) continue;
+    const mark = spec.kind === "mark" ? e.getFlag(MODULE_ID, "victimMark")?.ownerUuid : null;
+    out.push(actorOf(mark ?? e.origin));
+  }
+  if (spec.kind === "condition") {
+    for (const uuid of holder.system?.statuses?.[spec.value]?.sources ?? []) out.push(actorOf(uuid));
+  }
+  return out;
+}
+
+function effectsMatch(clause, ownerActor, ownerDisposition, subjectActor, ctx = {}) {
+  for (const spec of clause.effects ?? []) {
+    if (!spec?.value) continue;
+    const holder = effectHolder(spec.on, ownerActor, subjectActor, ctx);
+    const appliers = holder ? appliersOf(holder, spec) : [];
+    const carried = !!holder && (holder.statuses?.has?.(spec.value) || appliers.length > 0);
+    const byOk = !spec.by || spec.by === "anyone" ? carried
+      : appliers.some((a) => a && (spec.by === "self" ? a === ownerActor
+        : scopeMatches({ scope: spec.by }, ownerActor, ownerDisposition, a, a.getActiveTokens?.(false, true)?.[0]?.disposition ?? null)));
+    if ((spec.has !== false) !== byOk) return false;
+  }
+  return true;
+}
+
 function ownerEffectMatches(clause, ownerActor, subjectActor, ctx = {}) {
   const want = clause.ownerEffect;
   if (!want?.label || !labelKnown(ownerActor, want.label)) return true;
@@ -580,6 +633,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && rollHasMatches(c, usedContext)
         && statusMatches(c, actor, subjectActor)
         && ownerEffectMatches(c, actor, subjectActor, usedContext)
+        && effectsMatch(c, actor, disposition, subjectActor, usedContext)
         && lineOfEffectMatches(c, actor, token, subjectActor, subjectToken, usedContext)
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken, usedContext))));

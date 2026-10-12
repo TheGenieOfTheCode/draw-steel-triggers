@@ -382,6 +382,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
         parse = { ...parts[0].p, clauses: parts.flatMap(({ p, patch }) => p.clauses.map((c) => ({ ...c, ...(patch ?? {}) }))),
           confidence: parts.every(({ p }) => p.confidence === "high") ? "high" : "low" };
       } else parse = parseOne(parseText);
+      if (curated.trigger || curated.triggers) parse.bespoke = "all";
+      else if (curated.clause) parse.bespoke = Object.keys(curated.clause);
       if (curated.clause) {
         parse.clauses = parse.clauses.map((c) => ({ ...c, ...curated.clause }));
         

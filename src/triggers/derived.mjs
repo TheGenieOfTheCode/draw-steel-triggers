@@ -172,8 +172,8 @@ function otherFlags(spec, item = null) {
 
 const _parseCache = new Map();
 
-export function derivedParse(item) {
-  if (item.getFlag(MODULE_ID, "manual")) {
+export function derivedParse(item, { ignoreManual = false } = {}) {
+  if (!ignoreManual && item.getFlag(MODULE_ID, "manual")) {
     const stored = item.getFlag(MODULE_ID, "trigger");
     if (stored?.clauses?.length) return { clauses: stored.clauses, confidence: "high", source: "manual" };
   }

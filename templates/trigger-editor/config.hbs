@@ -64,6 +64,15 @@
 
   {{#unless isLine}}
   <div class="form-group">
+    <label>{{labels.howOften}}</label>
+    <div class="form-fields">
+      <select data-field="howOften">
+        {{#each howOftenOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
+    <p class="hint">{{hints.howOften}}</p>
+  </div>
+  <div class="form-group">
     <label>{{labels.malice}}</label>
     <div class="form-fields">
       <select data-field="malice">

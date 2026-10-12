@@ -284,87 +284,6 @@
       "RangeCustom": "Within squares...",
       "Qualifiers": "Qualifiers",
       "QualifiersNone": "None read from this trigger.",
-      "KeywordMode": "Keywords",
-      "KeywordAny": "Any of them",
-      "KeywordAll": "All of them",
-      "KeywordModeHint": "Whether the ability needs any one of {keywords}, or all of them.",
-      "QualEffectRange": "Enforced: only within {n} squares.",
-      "QualEffectType": "Enforced: only a {type} action.",
-      "QualEffectCost": "Enforced: only an ability costing {n} or less.",
-      "QualEffectTargets": "Enforced: only an ability targeting exactly {n} {side}.",
-      "QualEffectPotency": "Enforced: only an ability with a potency on one of its power roll tiers.",
-      "QualEffectDsid": "Enforced: only the ability {dsid}.",
-      "QualEffectNone": "Descriptive only. Shown in reminders, not enforced.",
-      "QualEffectHeroic": "Enforced: only a heroic ability.",
-      "QualEffectNonHeroic": "Enforced: only a non-heroic ability.",
-      "QualEffectSignature": "Enforced: only a signature ability.",
-      "QualEffectKeywords": "Enforced: only an ability with the {keywords} keyword.",
-      "QualEffectScales": "Enforced: a spend reaches more expensive abilities, so what decides is whether the owner can pay for the one that triggered it.",
-      "QualFromEffect": "Read from this ability's effect rather than its trigger.",
-      "QualRangeImplied": "within {n} squares",
-      "QualEffectDamageTypes": "Enforced: only these damage types.",
-      "QualEffectEdge": "Enforced: only when the triggering roll had an edge.",
-      "QualEffectExcludeSelf": "Enforced: skipped when the triggering ability also targets this creature.",
-      "QualEffectEffectName": "Enforced: only when that named effect ends.",
-      "QualEffectZone": "Enforced: only in that area.",
-      "QualEffectPostRoll": "Held after the roll, so the result can still be changed.",
-      "QualEffectHalf": "The triggering damage is halved, so it is held before it lands.",
-      "QualEffectRollMod": "Using this changes the triggering roll.",
-      "QualEffectRedirect": "Using this retargets the triggering ability.",
-      "QualEffectTargetsOwner": "Enforced: only when the ability targets this creature.",
-      "QualEffectVictimNotSelf": "Enforced: skipped when the damage is dealt to this creature.",
-      "QualEffectSourceScope": "Enforced: only when the grab comes from an {side}.",
-      "QualEffectRolledDamage": "Enforced: only an ability whose damage comes from a power roll, not flat damage.",
-      "QualEffectOrganization": "Enforced: never for a {org}.",
-      "QualEffectTauntedByOwner": "Enforced: only a creature this creature has taunted.",
-      "QualEffectOwnerLacks": "Enforced: skipped while this creature is {condition}.",
-      "QualEffectOwnerEffect": "Enforced: only a creature carrying the effect from this creature's \"{label}\" enricher.",
-      "QualEffectOwnerEffectDealer": "Enforced: only when the attacker carries the effect from this creature's \"{label}\" enricher.",
-      "QualEffectOwnerEffectHit": "Enforced: only when the creature hit carries the effect from this creature's \"{label}\" enricher.",
-      "QualEffectThrough": "Enforced: fires for each creature whose space this creature's movement passes through.",
-      "QualEffectThroughSide": "Enforced: fires for each {side} whose space this creature's movement passes through.",
-      "QualEffectNotMentor": "Enforced: skipped for this retainer's mentor.",
-      "QualEffectFmType": "Enforced: only a {type}.",
-      "QualEffectEndsAdjacentSelf": "Enforced: the moved creature must end adjacent to this creature.",
-      "QualEffectEndsAdjacentAlly": "Enforced: the moved creature must end adjacent to one of this creature's allies.",
-      "QualEffectFirstTurn": "Enforced: only the first turn of the combat.",
-      "QualEffectDamageOutcome": "Enforced: the damage must make the creature winded or take it to 0 Stamina, as the text says.",
-      "QualEffectImmunity": "Enforced: this creature's damage immunity must reduce the damage, and the attack must not ignore it.",
-      "QualEffectRangeMin": "Enforced: the creature hit must be at least {n} squares away.",
-      "QualEffectNotForceMoved": "Enforced: the ability used must not force move.",
-      "QualEffectOwnerGrabbing": "Enforced: this creature must have a creature its size or smaller grabbed.",
-      "QualEffectFromFalling": "Enforced: only damage from falling.",
-      "QualEffectVictimCondition": "Enforced: the creature hit must be {condition}.",
-      "QualEffectFallReduction": "Applied automatically: the fall is shortened by this much.",
-      "QualEffectConcealed": "Enforced: only while the creature has concealment or is invisible.",
-      "QualEffectFromForcedMovement": "Enforced: only damage from being force moved, such as hitting something.",
-      "QualEffectArrives": "Enforced: fires when the creature moves to end adjacent, not when it was already there.",
-      "QualEffectHighGround": "Enforced: only against a creature this creature has high ground over.",
-      "QualEffectDamageReduction": "The damage is reduced by {n}: on its own when there is nothing to choose, otherwise filled in when the line is used.",
-      "QualEffectFallSafe": "Using this catches the falling creature: it lands with no damage, and neither does anyone it would have landed on.",
-      "QualEffectDamageBonus": "Applied automatically: the damage gains a +{n} bonus.",
-      "QualYourLevel": "this creature's level",
-      "FmModBoost": "Changes the forced movement: +{n} distance. Applied automatically unless the line is a choice.",
-      "FmModReduce": "Changes the forced movement: -{n} distance.",
-      "FmModRedirect": "Changes the forced movement: this creature takes it over and moves someone else ({n}).",
-      "FmModSlide": "Changes the forced movement: the push becomes a slide.",
-      "FmModVertical": "Changes the forced movement: it can be vertical.",
-      "FmModObject": "Changes the forced movement: +{n} damage when the moved creature hits an object.",
-      "QualEffectEntersSpace": "Enforced: fires once, when the first matching creature enters the space this creature died in.",
-      "QualEffectLineOfEffect": "Enforced: only fires when this creature has line of effect to the creature the trigger names, even with Require Line of Effect off.",
-      "QualSideCreature": "creature",
-      "DamageTypes": "Damage Types",
-      "Condition": "Condition",
-      "AbilityDsid": "Causing Ability DSID",
-      "GroupName": "Group Keyword",
-      "GroupNone": "None",
-      "CustomEllipsis": "Custom...",
-      "CustomPh": "keyword",
-      "Availability": "Availability",
-      "OwnerUnacted": "Only if this creature has not acted this round",
-      "AnyHeroUnacted": "Only while any hero has not acted this round",
-      "ExcludeSelfTarget": "Not if the triggering ability also targets this creature",
-      "ExcludeSelfTargetHint": "The trigger is skipped when this ability's owner is among the triggering ability's targets, like the Orc Rampart's No.",
       "AddClause": "Add Clause",
       "Malice": "Malice Action",
       "RollModBane": "Bane",
@@ -421,12 +340,7 @@
       },
       "ScopeHint": "Who the event must happen to, from this ability's owner's point of view.",
       "RangeHint": "How close the triggering creature must be to this ability's owner. Ability distance uses the range printed on the ability, such as Melee 1.",
-      "QualifiersHint": "Extra conditions from the trigger text, displayed as pills that can be hovered over for details or disabled to loosen requirements.",
-      "DamageTypesHint": "For damage events only: fire the trigger just for these damage types. None selected means any type.",
-      "ConditionHint": "Fire the trigger only when this condition is gained.",
-      "AbilityDsidHint": "Only fire when the causing ability's Draw Steel ID matches, e.g. gore.",
-      "GroupNameHint": "For the Group scope: the event must happen to a creature with this keyword (or this word in its name).",
-      "ChecksHint": "Availability gates checked at the moment the event happens.",
+      "QualifiersHint": "Each pill is one qualifier, coloured by where it came from: the trigger text, the effect text, a hand-written special case, or your own change. Click a pill to view or change it, or + to add one.",
       "MaliceHint": "Malice actions are offered to the Director on the acting creature's turn and never spend a triggered action.",
       "SaveHint": "Stores this configuration on the ability and stops using the automatic parser.",
       "ResetHint": "Deletes the override and returns this ability to the automatic parser.",
@@ -443,13 +357,6 @@
       "RollModTierUp": "One tier higher",
       "RollModTierDown": "One tier lower",
       "RedirectFlanker": "The creature flanking the owner becomes the target",
-      "QualEffectFlanked": "Enforced: only while the attacker is flanking you.",
-      "QualEffectDealerRange": "Enforced: only when the creature dealing the damage is within {n} squares.",
-      "QualEffectAbilityRange": "Enforced: only {ability}.",
-      "QualEffectOwnerInRange": "Enforced: only while you are within the triggering ability's distance.",
-      "QualEffectThroughMark": "Enforced: only a creature insubstantial to you.",
-      "QualEffectWouldDying": "Enforced: only damage that would leave them at 0 Stamina or below.",
-      "QualEffectDamageRedirect": "Using this trigger moves the held damage to another creature.",
       "Tabs": {
         "trigger": "Trigger",
         "impact": "Impact",
@@ -622,11 +529,17 @@
           "Hint": "Using the trigger uses one of the consumable it comes from. Spend Consumables Automatically in the settings decides whether that happens on its own."
         }
       },
-      "RollHas": "The Roll Has",
-      "RollHasHint": "Only fire when the triggering roll has one of these, after edges and banes cancel out. Leave it empty for any roll.",
-      "RollHas_edge": "An edge",
-      "RollHas_bane": "A bane",
-      "RollHas_surge": "A spent surge"
+      "RangeMeasureDealer": "Measured to the attacker",
+      "RangeMin": "At least, in squares",
+      "RangeOwnerInAbility": "This creature is within the triggering ability's distance",
+      "RangeCharOption": "A characteristic score",
+      "RangeAbilityOption": "One of this creature's abilities",
+      "RangeFreeMelee": "Melee free strike",
+      "RangeFreeRanged": "Ranged free strike",
+      "HowOften": "How Often",
+      "HowOftenHint": "A limit on how often this trigger can be used.",
+      "HowOftenAny": "No limit",
+      "HowOftenRound": "Once per round"
     },
     "Queue": {
       "Title": "Trigger Stack",
@@ -1036,6 +949,413 @@
       "StabilityAmount": "Stability",
       "StabilityConfirm": "Share",
       "StabilityNone": "{owner} has no stability to share."
+    },
+    "Qualifier": {
+      "WindowTitle": "Qualifier",
+      "Pick": "Qualifier",
+      "ExamplesLabel": "Examples",
+      "Settings": "Settings",
+      "None": "None",
+      "NotThisEvent": "not for this event",
+      "Misfit": "This qualifier does nothing for the {event} event, so it cannot be added here.",
+      "NeedsEvents": "Only checked for: {events}.",
+      "LockedGroups": "Read from the trigger text as several keyword groups. Reset to Parser to change it.",
+      "Unchecked": "Triggers shows this in reminders but does not check it yet.",
+      "Apply": "Apply",
+      "Remove": "Remove",
+      "Cancel": "Cancel",
+      "AddEffect": "Add an effect check",
+      "RemoveEffect": "Remove this check",
+      "AbilityPh": "Search abilities and features",
+      "EffectNamePh": "Effect name",
+      "EffectLabelPh": "Effect name, e.g. Judgement",
+      "AddPill": "Add a qualifier",
+      "PillHint": "Click to view or change.",
+      "Group": {
+        "who": "Who it happens to",
+        "other": "The other creature",
+        "where": "Distance and position",
+        "ability": "The ability used",
+        "roll": "The roll",
+        "damage": "Damage",
+        "state": "Conditions and effects",
+        "move": "Movement",
+        "time": "Timing and limits"
+      },
+      "Source": {
+        "parser": "Parser",
+        "effect": "Effect",
+        "bespoke": "Bespoke",
+        "manual": "Manual",
+        "unchecked": "Not checked"
+      },
+      "SourceHint": {
+        "parser": "Read from the trigger text.",
+        "effect": "Read from the effect text.",
+        "bespoke": "Set by one of Triggers' hand-written special cases.",
+        "manual": "Added in the trigger builder.",
+        "unchecked": "Triggers reads these words but cannot check them yet."
+      },
+      "Option": {
+        "1": "Tier 1",
+        "2": "Tier 2",
+        "3": "Tier 3",
+        "SELF": "This creature",
+        "ALLY": "Same disposition, not this creature",
+        "SELF_OR_ALLY": "Same disposition, including this creature",
+        "ENEMY": "Different disposition",
+        "ANY": "Any creature",
+        "FRIENDLY": "Friendly",
+        "NEUTRAL": "Neutral",
+        "HOSTILE": "Hostile",
+        "SECRET": "Secret",
+        "heroic": "Heroic",
+        "signature": "Signature",
+        "non-heroic": "Not heroic",
+        "edge": "An edge",
+        "bane": "A bane",
+        "surge": "A spent surge",
+        "winded": "Winded",
+        "zero": "0 Stamina",
+        "dying": "Dying",
+        "push": "Push",
+        "pull": "Pull",
+        "slide": "Slide",
+        "subject": "The creature the event happens to",
+        "victim": "The creature hit",
+        "save-or-eot": "Ends on a save or at the end of its turn",
+        "ally": "Allies",
+        "enemy": "Enemies",
+        "victimEndsAdjacent": {
+          "self": "This creature",
+          "ally": "One of this creature's allies"
+        },
+        "abilityTargetSide": {
+          "ally": "Allies",
+          "enemy": "Enemies"
+        },
+        "sourceScope": {
+          "ALLY": "An ally",
+          "ENEMY": "An enemy"
+        },
+        "ownerEffectOn": {
+          "subject": "The creature the event happens to",
+          "victim": "The creature hit",
+          "dealer": "The attacker"
+        }
+      },
+      "Effect": {
+        "on": {
+          "subject": "The subject",
+          "victim": "The creature hit",
+          "dealer": "The attacker",
+          "through": "The creature moved through",
+          "owner": "This creature"
+        },
+        "has": {
+          "true": "has",
+          "false": "does not have"
+        },
+        "kind": {
+          "condition": "a condition",
+          "ability": "an effect from",
+          "name": "an effect named",
+          "mark": "a mark"
+        },
+        "by": {
+          "anyone": "from anyone",
+          "self": "from this creature",
+          "ALLY": "from an ally",
+          "ENEMY": "from an enemy",
+          "FRIENDLY": "from a Friendly token",
+          "NEUTRAL": "from a Neutral token",
+          "HOSTILE": "from a Hostile token",
+          "SECRET": "from a Secret token"
+        },
+        "mark": {
+          "insubstantial": "Insubstantial"
+        }
+      },
+      "creatureIs": {
+        "Label": "The creature is",
+        "Hint": "A creature in the event must be, or must not be, a certain kind of creature. Turn on each rule that applies.",
+        "Examples": "Fulfill Your Destiny (the subject is a hero), Time Loop (not this creature), Feast (not a minion), Exploit Opening (has a keyword), Do Not Hesitate in the Wode (this creature is its squad's captain), Abyssal Protectors (the last minion of its squad)",
+        "Rule": {
+          "heroOnly": "The subject is a hero",
+          "notSelf": "The subject is not this creature",
+          "victimNotSelf": "The creature hit is not this creature",
+          "groupName": "The subject has this keyword, or the word in its name",
+          "organization": "The subject is not one of these organizations",
+          "victimNotMentor": "The subject is not this retainer's mentor",
+          "captainOnly": "This creature is its squad's captain",
+          "lastMinion": "The subject is the last minion of its squad"
+        },
+        "Short": {
+          "heroOnly": "a hero",
+          "notSelf": "not this creature",
+          "victimNotSelf": "hits someone else",
+          "groupName": "{v}",
+          "organization": "not {v}",
+          "victimNotMentor": "not the mentor",
+          "captainOnly": "captain only",
+          "lastMinion": "last minion"
+        }
+      },
+      "recoveryByOwner": {
+        "Label": "Recovery this creature allowed",
+        "Hint": "Only a Recovery spent because this creature let them spend it.",
+        "Examples": "The Lists of Heaven",
+        "Rule": {
+          "recoveryByOwner": "Only a Recovery this creature allowed"
+        },
+        "Short": {
+          "recoveryByOwner": "a Recovery you allowed"
+        }
+      },
+      "disposition": {
+        "Label": "Another creature's disposition",
+        "Hint": "Another creature in the event must have a certain Token Disposition, compared with this creature's or as a fixed value. A token with the same disposition as this creature counts as an ally.",
+        "Examples": "Brawny Buffer (an ally attacks), Shared Sickness (an enemy is hit), Provoking Nettles (moving through an enemy), Command (you or an ally attacks)",
+        "Rule": {
+          "dealerScope": "The attacker",
+          "victimScope": "The creature hit",
+          "throughScope": "The creature moved through"
+        },
+        "Short": {
+          "dealerScope": "attacker: {v}",
+          "victimScope": "hit: {v}",
+          "throughScope": "through: {v}"
+        }
+      },
+      "lineOfEffect": {
+        "Label": "Line of effect",
+        "Hint": "This creature must have line of effect to the creature the trigger names, even with Require Line of Effect off.",
+        "Examples": "Goaded, Drama, Shared Sickness",
+        "Rule": {
+          "lineOfEffect": "Line of effect to"
+        },
+        "Short": {
+          "lineOfEffect": "line of effect"
+        }
+      },
+      "flankedByDealer": {
+        "Label": "While flanked",
+        "Hint": "Only while the attacker is flanking this creature.",
+        "Examples": "Duck!",
+        "Rule": {
+          "flankedByDealer": "The attacker is flanking this creature"
+        },
+        "Short": {
+          "flankedByDealer": "while flanked"
+        }
+      },
+      "highGround": {
+        "Label": "From high ground",
+        "Hint": "Only against a creature this creature has high ground over.",
+        "Examples": "Death From Above",
+        "Rule": {
+          "highGround": "This creature has high ground over the creature hit"
+        },
+        "Short": {
+          "highGround": "from high ground"
+        }
+      },
+      "subjectConcealed": {
+        "Label": "While concealed",
+        "Hint": "Only while the creature has concealment or is invisible.",
+        "Examples": "Shadow Born",
+        "Rule": {
+          "subjectConcealed": "The subject is concealed or invisible"
+        },
+        "Short": {
+          "subjectConcealed": "while concealed"
+        }
+      },
+      "zone": {
+        "Label": "In a named area",
+        "Hint": "Only in that area or terrain, such as the lava or a frozen pond.",
+        "Examples": "Liquid Hot Magma, Slippery Surface, Sticky Stakes",
+        "Rule": {
+          "zone": "The area's name"
+        },
+        "Short": {
+          "zone": "in {v}"
+        }
+      },
+      "ability": {
+        "Label": "The ability used",
+        "Hint": "The ability that set the trigger off must match every rule you turn on. Anything left off is not checked.",
+        "Examples": "Lash Out (a melee ability), Growing Ferocity (a heroic ability), Harmonize (costs at most 1, exactly one target), Horn Toss (a specific ability), Orc Rampart's No. (not if it also targets this creature), Master of Reels (does not force move)",
+        "Rule": {
+          "abilityKeywords": "Has these keywords",
+          "abilityKeywordsAll": "Needs all of the keywords, not just one",
+          "abilityType": "Action type",
+          "abilityCategory": "Heroic or signature",
+          "signatureOnly": "A signature ability (outcome triggers)",
+          "abilityCostMax": "Costs at most",
+          "abilityCostScales": "This creature can pay for it",
+          "abilityPotency": "Has a potency on one of its tiers",
+          "abilityTargetCount": "Targets exactly this many",
+          "abilityTargetSide": "Those targets are",
+          "targetsOwner": "Targets this creature",
+          "excludeSelfTarget": "Does not also target this creature",
+          "rolledDamage": "Its damage comes from a power roll",
+          "notForceMoved": "Does not force move",
+          "abilityDsid": "A specific ability"
+        },
+        "Short": {
+          "abilityKeywords": "{v}",
+          "abilityKeywordsAll": "all keywords",
+          "abilityType": "{v}",
+          "abilityCategory": "{v}",
+          "signatureOnly": "signature",
+          "abilityCostMax": "costs {v} or less",
+          "abilityCostScales": "can pay",
+          "abilityPotency": "has a potency",
+          "abilityTargetCount": "{v} target(s)",
+          "abilityTargetSide": "{v}",
+          "targetsOwner": "targets this creature",
+          "excludeSelfTarget": "not also targeting this creature",
+          "rolledDamage": "rolled damage",
+          "notForceMoved": "no forced movement",
+          "abilityDsid": "{v}"
+        }
+      },
+      "roll": {
+        "Label": "The roll",
+        "Hint": "Rules about the power roll that set the trigger off.",
+        "Examples": "Acquired Taste (an edge or a spent surge), Turnabout Is Fair Play (an edge or a bane), Courtesy Call (a tier 3 outcome), Words Become Wonders at Next Breath (this creature's own roll counts)",
+        "Rule": {
+          "rollHas": "The roll has, after edges and banes cancel out",
+          "tierFilter": "Outcome tier",
+          "selfRoll": "This creature's own rolls count"
+        },
+        "Short": {
+          "rollHas": "has {v}",
+          "tierFilter": "{v}",
+          "selfRoll": "own rolls count"
+        }
+      },
+      "damage": {
+        "Label": "The damage",
+        "Hint": "Rules about the damage that set the trigger off.",
+        "Examples": "Fire Bad (fire damage), Death Strike (makes them winded), Word of Fate Denied (would leave them dying), Elemental Buffer (stopped by immunity), Ease Their Fall (from falling), Inertial Sink (from forced movement)",
+        "Rule": {
+          "damageTypes": "Damage types",
+          "fromFalling": "Comes from a fall",
+          "fromForcedMovement": "Comes from being force moved",
+          "damageOutcome": "Makes the creature",
+          "wouldLeave": "Would leave the creature",
+          "reducedByImmunity": "Stopped by this creature's damage immunity"
+        },
+        "Short": {
+          "damageTypes": "{v}",
+          "fromFalling": "from falling",
+          "fromForcedMovement": "from forced movement",
+          "damageOutcome": "makes them {v}",
+          "wouldLeave": "would leave them {v}",
+          "reducedByImmunity": "stopped by immunity"
+        }
+      },
+      "hasEffect": {
+        "Label": "Has an effect",
+        "Hint": "A creature must have, or must not have, a condition or effect. Choose who carries it, which effect it is, and who applied it. Effects from abilities and features match by their Draw Steel ID, so every creature's copy counts.",
+        "Examples": "Warmaster (judged by you), Ether-Fueled Vessel (insubstantial to you), Slake My Thirst in Blood (a bleeding target), Wrathful Spirit (while you are not frightened), Knocking Heads (you grab a creature)",
+        "Rule": {
+          "effects": "Effect checks",
+          "ownerEffect": "Carries this creature's effect (read from the trigger)",
+          "tauntedByOwner": "The subject is taunted by this creature",
+          "throughMark": "The creature moved through is insubstantial to this creature",
+          "victimCondition": "The creature hit has this condition",
+          "ownerLacks": "This creature does not have this condition",
+          "sourceScope": "The grab comes from",
+          "asSource": "This creature causes the condition"
+        },
+        "Short": {
+          "effects": "{v}",
+          "ownerEffect": "{v} by you",
+          "tauntedByOwner": "taunted by you",
+          "throughMark": "insubstantial to you",
+          "victimCondition": "hit is {v}",
+          "ownerLacks": "while not {v}",
+          "sourceScope": "grab from {v}",
+          "asSource": "caused by you"
+        }
+      },
+      "which": {
+        "Label": "Which condition or effect",
+        "Hint": "For the events about a condition being gained or an effect ending: which one it must be, and how it ends.",
+        "Examples": "Blood For Blood (a condition), Prickly Situation (a named effect ends), Quick Shield (ends on a save or at turn end)",
+        "Rule": {
+          "condition": "Conditions",
+          "effectName": "The effect's name",
+          "durationFilter": "How it ends"
+        },
+        "Short": {
+          "condition": "{v}",
+          "effectName": "{v}",
+          "durationFilter": "ends on a save or turn end"
+        }
+      },
+      "grabbing": {
+        "Label": "This creature is grabbing",
+        "Hint": "This creature must be holding creatures grabbed.",
+        "Examples": "Knocking Heads (at least two), Foes as Weapons (one its size or smaller)",
+        "Rule": {
+          "grabCount": "Holding at least this many",
+          "ownerGrabbing": "Holding one its size or smaller"
+        },
+        "Short": {
+          "grabCount": "holding {v} grabs",
+          "ownerGrabbing": "grabbing someone smaller"
+        }
+      },
+      "movement": {
+        "Label": "The movement",
+        "Hint": "Rules about how a creature moved.",
+        "Examples": "Boren (a push or a slide that ends next to you), Provoking Nettles (moves through a space), Flying Circus (moves adjacent), Death Grasp (enters this space)",
+        "Rule": {
+          "fmType": "Kind of forced movement",
+          "through": "Passes through another creature's space, once for each",
+          "arrives": "Ends a move adjacent to this creature, and was not there already",
+          "victimEndsAdjacent": "The moved creature ends adjacent to",
+          "entersSpace": "Enters the square this creature died in, once"
+        },
+        "Short": {
+          "fmType": "{v}",
+          "through": "moves through",
+          "arrives": "moves adjacent",
+          "victimEndsAdjacent": "ends next to {v}",
+          "entersSpace": "enters this space"
+        }
+      },
+      "acted": {
+        "Label": "Who has acted",
+        "Hint": "Rules about turn order in the round.",
+        "Examples": "Hesitation is Weakness (before this creature acts), Prescient Grace (while a hero has not acted), Allow Me to Introduce Tonight's Players (first turn of combat)",
+        "Rule": {
+          "ownerUnacted": "This creature has not acted yet this round",
+          "anyHeroUnacted": "A hero has not acted yet this round",
+          "firstTurn": "The creature's first turn of the combat"
+        },
+        "Short": {
+          "ownerUnacted": "before this creature acts",
+          "anyHeroUnacted": "while a hero has not acted",
+          "firstTurn": "first turn"
+        }
+      },
+      "value": {
+        "Label": "Stamina drops below",
+        "Hint": "Fires when the creature's Stamina drops below this number.",
+        "Examples": "Abyssal Protectors",
+        "Rule": {
+          "value": "Stamina below"
+        },
+        "Short": {
+          "value": "below {v} Stamina"
+        }
+      },
+      "KeywordPh": "Search keywords, or type your own"
     }
   }
 }

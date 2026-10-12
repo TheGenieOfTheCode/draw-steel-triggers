@@ -107,9 +107,9 @@ export const IMPACTS = [
     add: (c) => { c[c.postRoll ? "halfOnUse" : "targetedHalf"] = true; },
     summary: (c) => L(c.postRoll ? "halfStrike.After" : "halfStrike.Before"),
     normalize: (c) => {
-      delete c.targetedHalf;
-      delete c.halfOnUse;
-      c[c.postRoll ? "halfOnUse" : "targetedHalf"] = true;
+      const want = c.postRoll ? "halfOnUse" : "targetedHalf";
+      delete c[want === "halfOnUse" ? "targetedHalf" : "halfOnUse"];
+      if (!c[want]) c[want] = true;
     },
   },
   {

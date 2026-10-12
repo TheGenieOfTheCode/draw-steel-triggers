@@ -1,0 +1,91 @@
+<div class="dst-qpick">
+  <div class="form-group">
+    <label>{{labels.qualifier}}</label>
+    <div class="form-fields">
+      <select name="qualifier" {{#if editing}}disabled{{/if}}>
+        {{#each groups}}
+        <optgroup label="{{label}}">
+          {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}{{#unless fits}} ({{@root.labels.notThisEvent}}){{/unless}}</option>{{/each}}
+        </optgroup>
+        {{/each}}
+      </select>
+    </div>
+  </div>
+
+  {{#with current}}
+  <div class="dst-qpick-about">
+    <p class="dst-qpick-desc">{{description}}</p>
+    {{#if examples}}<p class="hint"><strong>{{@root.labels.examples}}:</strong> {{examples}}</p>{{/if}}
+    {{#if unchecked}}<p class="hint dst-qpick-warn"><i class="fa-solid fa-circle-info" inert></i> {{@root.labels.unchecked}}</p>{{/if}}
+    {{#unless fits}}<p class="hint dst-qpick-warn"><i class="fa-solid fa-triangle-exclamation" inert></i> {{misfit}}</p>{{/unless}}
+  </div>
+
+  <fieldset class="dst-qpick-rules">
+    <legend>{{@root.labels.settings}}</legend>
+    {{#each rules}}
+    <div class="dst-qpick-rule{{#unless fits}} dst-qpick-off{{/unless}}" data-rule="{{key}}">
+      {{#if isCheck}}
+      <label class="checkbox dst-qpick-check"><input type="checkbox" name="rule.{{key}}" {{#if value}}checked{{/if}} {{#if locked}}disabled{{/if}}> <span>{{label}}</span>{{#if provenance}} <span class="dst-src dst-src-{{provenance}}" data-tooltip="{{provenanceHint}}">{{provenanceLabel}}</span>{{/if}}</label>
+      {{else}}
+      <div class="dst-qpick-row{{#if isOwnerEffect}} dst-qpick-wide{{/if}}{{#if combo}} dst-qpick-wide{{/if}}">
+      <label>{{label}}{{#if provenance}} <span class="dst-src dst-src-{{provenance}}" data-tooltip="{{provenanceHint}}">{{provenanceLabel}}</span>{{/if}}</label>
+      <div class="form-fields">
+        {{#if isNumber}}<input type="number" step="1" name="rule.{{key}}" value="{{value}}" {{#if locked}}disabled{{/if}}>{{/if}}
+        {{#if isText}}{{#if combo}}<div class="dst-combo" data-combo="{{combo}}"><input type="text" class="dst-combo-text" value="{{display}}" placeholder="{{placeholder}}" autocomplete="off" spellcheck="false" {{#if locked}}disabled{{/if}}><input type="hidden" name="rule.{{key}}" value="{{value}}"><i class="fa-solid fa-caret-down dst-combo-caret" inert></i><ul class="dst-combo-list" role="listbox" hidden></ul></div>{{else}}<input type="text" name="rule.{{key}}" value="{{value}}" placeholder="{{placeholder}}" {{#if locked}}disabled{{/if}}>{{/if}}{{/if}}
+        {{#if isSelect}}
+        <select name="rule.{{key}}" {{#if locked}}disabled{{/if}}>
+          <option value="">{{@root.labels.none}}</option>
+          {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+        {{/if}}
+        {{#if isMulti}}
+        <multi-select name="rule.{{key}}" {{#if locked}}disabled{{/if}}>
+          {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </multi-select>
+        {{/if}}
+        {{#if isOwnerEffect}}
+        <input type="text" name="rule.{{key}}.label" value="{{value.label}}" placeholder="{{@root.labels.effectLabelPh}}">
+        <select name="rule.{{key}}.on">
+          {{#each onOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+        {{/if}}
+      </div>
+      </div>
+      {{/if}}
+      {{#if isEffects}}
+      <div class="dst-qpick-effects">
+        {{#each value}}
+        <div class="dst-qpick-effect" data-effect-index="{{@index}}">
+          <div class="dst-qpick-effect-line">
+            <select name="effects.{{@index}}.on">{{#each onOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+            <select name="effects.{{@index}}.has">{{#each hasOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+            <select name="effects.{{@index}}.kind" data-rerender>{{#each kindOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+            <a class="dst-qpick-effect-remove" data-action="removeEffect" data-index="{{@index}}" data-tooltip="{{@root.labels.removeEffect}}" aria-label="{{@root.labels.removeEffect}}"><i class="fa-solid fa-trash" inert></i></a>
+          </div>
+          <div class="dst-qpick-effect-line">
+            {{#if isCondition}}
+            <select class="dst-qpick-effect-value" name="effects.{{@index}}.value">{{#each valueOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+            {{else if combo}}
+            <div class="dst-combo dst-qpick-effect-value" data-combo="{{combo}}"><input type="text" class="dst-combo-text" value="{{display}}" placeholder="{{placeholder}}" autocomplete="off" spellcheck="false" {{#if locked}}disabled{{/if}}><input type="hidden" name="effects.{{@index}}.value" value="{{value}}"><i class="fa-solid fa-caret-down dst-combo-caret" inert></i><ul class="dst-combo-list" role="listbox" hidden></ul></div>
+            {{else}}
+            <input type="text" class="dst-qpick-effect-value" name="effects.{{@index}}.value" value="{{value}}" placeholder="{{placeholder}}">
+            {{/if}}
+            <select name="effects.{{@index}}.by">{{#each byOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+          </div>
+        </div>
+        {{/each}}
+        <button type="button" data-action="addEffect"><i class="fa-solid fa-plus" inert></i> {{@root.labels.addEffect}}</button>
+      </div>
+      {{/if}}
+      {{#if note}}<p class="hint">{{note}}</p>{{/if}}
+    </div>
+    {{/each}}
+  </fieldset>
+  {{/with}}
+
+  <footer class="form-footer">
+    <button type="button" data-action="apply" {{#unless canApply}}disabled{{/unless}}><i class="fa-solid fa-check" inert></i> {{labels.apply}}</button>
+    {{#if editing}}<button type="button" data-action="remove"><i class="fa-solid fa-trash" inert></i> {{labels.remove}}</button>{{/if}}
+    <button type="button" data-action="cancel"><i class="fa-solid fa-xmark" inert></i> {{labels.cancel}}</button>
+  </footer>
+</div>

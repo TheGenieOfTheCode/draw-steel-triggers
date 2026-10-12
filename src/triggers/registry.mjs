@@ -36,14 +36,14 @@ function implicitMaliceParse() {
   };
 }
 
-export function getParsedTrigger(item) {
-  if (isDerived(item)) return derivedParse(item);
+export function getParsedTrigger(item, { ignoreManual = false } = {}) {
+  if (isDerived(item)) return derivedParse(item, { ignoreManual });
   if (!isTriggeredAbility(item)) {
     if (isImplicitMaliceTrigger(item)) return implicitMaliceParse();
     return null;
   }
 
-  if (item.getFlag(MODULE_ID, "manual")) {
+  if (!ignoreManual && item.getFlag(MODULE_ID, "manual")) {
     const stored = item.getFlag(MODULE_ID, "trigger");
     if (stored?.clauses?.length) return { clauses: stored.clauses, confidence: "high", source: "manual" };
   }

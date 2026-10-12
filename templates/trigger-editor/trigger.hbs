@@ -52,21 +52,6 @@
               </div>
               <p class="hint">{{@root.hints.scope}}</p>
             </div>
-            {{#if showGroup}}
-            <div class="form-group">
-              <label>{{@root.labels.groupName}}</label>
-              <div class="form-fields">
-                <select data-field="groupSelect" data-index="{{index}}">
-                  <option value="">{{@root.labels.groupNone}}</option>
-                  {{#each groupOptions}}<option value="{{value}}" {{#if active}}selected{{/if}}>{{label}}</option>{{/each}}
-                  {{#each customOptions}}<option value="{{value}}" {{#if active}}selected{{/if}}>{{value}}*</option>{{/each}}
-                  <option value="__custom__">{{@root.labels.customEllipsis}}</option>
-                </select>
-                {{#if customPending}}<input type="text" class="dst-custom-input" data-index="{{index}}" placeholder="{{@root.labels.customPh}}">{{/if}}
-              </div>
-              <p class="hint">{{@root.hints.groupName}}</p>
-            </div>
-            {{/if}}
             <div class="form-group">
               <label>{{@root.labels.range}}</label>
               <div class="form-fields">
@@ -74,60 +59,29 @@
                   {{#each rangeOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
                 </select>
                 {{#if rangeCustom}}<input type="number" min="1" step="1" data-field="rangeValue" data-index="{{index}}" value="{{rangeValue}}">{{/if}}
+                {{#if rangeChar}}<select data-field="rangeChar" data-index="{{index}}">{{#each charOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>{{/if}}
+                {{#if rangeAbility}}<select data-field="rangeAbility" data-index="{{index}}">{{#each abilityOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>{{/if}}
               </div>
               <p class="hint">{{@root.hints.range}}</p>
             </div>
-            <div class="form-group stacked">
-              <label>{{@root.labels.qualifiers}}</label>
-              <div class="form-fields dst-qual-pills">
-                {{#each qualifiers}}
-                <button type="button" class="dst-qual-pill{{#if disabled}} dst-qual-off{{/if}}{{#if enforced}} dst-qual-live{{/if}}{{#if fromEffect}} dst-qual-effect{{/if}}{{#unless enforced}} dst-qual-plain{{/unless}}"
-                        data-qual-toggle="{{id}}" data-index="{{../index}}" data-tooltip="{{tooltip}}">{{text}}</button>
-                {{else}}
-                <span class="dst-qual-empty">{{@root.labels.qualifiersNone}}</span>
-                {{/each}}
-              </div>
-              <p class="hint">{{@root.hints.qualifiers}}</p>
-            </div>
-            {{#if showKeywordMode}}
+            {{#if showRangeOn}}
             <div class="form-group">
-              <label>{{@root.labels.keywordMode}}</label>
-              <div class="form-fields dst-keyword-mode">
-                <label class="checkbox"><input type="radio" name="dst-kw-{{index}}" value="any" data-kw-mode data-index="{{index}}" {{#unless keywordAll}}checked{{/unless}}> {{@root.labels.keywordAny}}</label>
-                <label class="checkbox"><input type="radio" name="dst-kw-{{index}}" value="all" data-kw-mode data-index="{{index}}" {{#if keywordAll}}checked{{/if}}> {{@root.labels.keywordAll}}</label>
-              </div>
-              <p class="hint">{{keywordHint}}</p>
+              <label>{{@root.labels.rangeOn}}</label>
+              <div class="form-fields"><input type="checkbox" data-field="rangeOn" data-index="{{index}}" {{#if rangeOnDealer}}checked{{/if}}></div>
             </div>
             {{/if}}
-            {{#if showDamageTypes}}
+            {{#if showRangeMin}}
             <div class="form-group">
-              <label>{{@root.labels.damageTypes}}</label>
-              <div class="form-fields">
-                <multi-select data-field="damageTypes" data-index="{{index}}">
-                  {{#each damageTypeOptions}}<option value="{{value}}" {{#if active}}selected{{/if}}>{{label}}</option>{{/each}}
-                </multi-select>
-              </div>
-              <p class="hint">{{@root.hints.damageTypes}}</p>
+              <label>{{@root.labels.rangeMin}}</label>
+              <div class="form-fields"><input type="number" min="1" step="1" data-field="rangeMin" data-index="{{index}}" value="{{rangeMin}}"></div>
             </div>
             {{/if}}
-            {{#if showCondition}}
+            {{#if showOwnerInAbility}}
             <div class="form-group">
-              <label>{{@root.labels.condition}}</label>
-              <div class="form-fields">
-                <multi-select data-field="condition" data-index="{{index}}">
-                  {{#each conditionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-                </multi-select>
-              </div>
-              <p class="hint">{{@root.hints.condition}}</p>
+              <label>{{@root.labels.ownerInAbility}}</label>
+              <div class="form-fields"><input type="checkbox" data-field="ownerInAbilityRange" data-index="{{index}}" {{#if ownerInAbilityRange}}checked{{/if}}></div>
             </div>
             {{/if}}
-            <div class="form-group">
-              <label>{{@root.labels.abilityDsid}}</label>
-              <div class="form-fields">
-                <input type="text" data-field="abilityDsid" data-index="{{index}}" value="{{abilityDsid}}">
-              </div>
-              <p class="hint">{{@root.hints.abilityDsid}}</p>
-            </div>
             {{#if showTiming}}
             <div class="form-group">
               <label>{{@root.labels.timing}}</label>
@@ -139,31 +93,15 @@
               <p class="hint">{{@root.hints.timing}}</p>
             </div>
             {{/if}}
-            {{#if targeting}}
-            <div class="form-group">
-              <label>{{@root.labels.excludeSelfTarget}}</label>
-              <div class="form-fields"><input type="checkbox" data-field="excludeSelfTarget" data-index="{{index}}" {{#if excludeSelfTarget}}checked{{/if}}></div>
-              <p class="hint">{{@root.hints.excludeSelfTarget}}</p>
-            </div>
-            {{/if}}
-            {{#if showRollHas}}
-            <div class="form-group">
-              <label>{{@root.labels.rollHas}}</label>
-              <div class="form-fields">
-                <multi-select data-field="rollHas" data-index="{{index}}">
-                  {{#each rollHasOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-                </multi-select>
-              </div>
-              <p class="hint">{{@root.hints.rollHas}}</p>
-            </div>
-            {{/if}}
             <div class="form-group stacked">
-              <label>{{@root.labels.availability}}</label>
-              <div class="dst-editor-checks">
-                <label class="checkbox"><input type="checkbox" data-field="ownerUnacted" data-index="{{index}}" {{#if ownerUnacted}}checked{{/if}}> {{@root.labels.ownerUnacted}}</label>
-                <label class="checkbox"><input type="checkbox" data-field="anyHeroUnacted" data-index="{{index}}" {{#if anyHeroUnacted}}checked{{/if}}> {{@root.labels.anyHeroUnacted}}</label>
+              <label>{{@root.labels.qualifiers}}</label>
+              <div class="form-fields dst-qual-pills">
+                {{#each qualifiers}}
+                <button type="button" class="dst-qual-pill dst-src-{{source}}" {{#if id}}data-qualifier="{{id}}"{{/if}} data-index="{{../index}}" data-tooltip="{{tooltip}}">{{text}}</button>
+                {{/each}}
+                <button type="button" class="dst-qual-pill dst-qual-add" data-qual-add data-index="{{index}}" data-tooltip="{{@root.labels.addQualifier}}" aria-label="{{@root.labels.addQualifier}}"><i class="fa-solid fa-plus" inert></i></button>
               </div>
-              <p class="hint">{{@root.hints.checks}}</p>
+              <p class="hint">{{@root.hints.qualifiers}}</p>
             </div>
           </div></div>
         </div>
