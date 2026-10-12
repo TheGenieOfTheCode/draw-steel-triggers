@@ -146,10 +146,20 @@
               <p class="hint">{{@root.hints.excludeSelfTarget}}</p>
             </div>
             {{/if}}
+            {{#if showRollHas}}
+            <div class="form-group">
+              <label>{{@root.labels.rollHas}}</label>
+              <div class="form-fields">
+                <multi-select data-field="rollHas" data-index="{{index}}">
+                  {{#each rollHasOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+                </multi-select>
+              </div>
+              <p class="hint">{{@root.hints.rollHas}}</p>
+            </div>
+            {{/if}}
             <div class="form-group stacked">
               <label>{{@root.labels.availability}}</label>
               <div class="dst-editor-checks">
-                <label class="checkbox"><input type="checkbox" data-field="edgeRequired" data-index="{{index}}" {{#if edgeRequired}}checked{{/if}}> {{@root.labels.edgeRequired}}</label>
                 <label class="checkbox"><input type="checkbox" data-field="ownerUnacted" data-index="{{index}}" {{#if ownerUnacted}}checked{{/if}}> {{@root.labels.ownerUnacted}}</label>
                 <label class="checkbox"><input type="checkbox" data-field="anyHeroUnacted" data-index="{{index}}" {{#if anyHeroUnacted}}checked{{/if}}> {{@root.labels.anyHeroUnacted}}</label>
               </div>

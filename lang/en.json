@@ -361,7 +361,6 @@
       "CustomEllipsis": "Custom...",
       "CustomPh": "keyword",
       "Availability": "Availability",
-      "EdgeRequired": "Only with an edge",
       "OwnerUnacted": "Only if this creature has not acted this round",
       "AnyHeroUnacted": "Only while any hero has not acted this round",
       "ExcludeSelfTarget": "Not if the triggering ability also targets this creature",
@@ -622,7 +621,12 @@
           "Auto": "Spends one automatically",
           "Hint": "Using the trigger uses one of the consumable it comes from. Spend Consumables Automatically in the settings decides whether that happens on its own."
         }
-      }
+      },
+      "RollHas": "The Roll Has",
+      "RollHasHint": "Only fire when the triggering roll has one of these, after edges and banes cancel out. Leave it empty for any roll.",
+      "RollHas_edge": "An edge",
+      "RollHas_bane": "A bane",
+      "RollHas_surge": "A spent surge"
     },
     "Queue": {
       "Title": "Trigger Stack",

@@ -1,5 +1,5 @@
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
-import { collectTriggerMatches, triggersLive } from "../dispatch.mjs";
+import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds } from "../dispatch.mjs";
 import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
 import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 
@@ -115,6 +115,23 @@ function _addRollerMatches({ message, matches, seen, targets, rollerActor, abili
   return true;
 }
 
+function _addRollModMatches({ message, matches, seen, rollerActor, ability, dealer }) {
+  const rollerToken = dealer.dealerToken;
+  const found = collectTriggerMatches("POWER_ROLL", rollerActor, rollerToken, null, { ...dealer, rollMods: rollModsOf(message) })
+    .filter((m) => !m.malice && rollNeeds(m.clause) && (m.actor !== rollerActor || !!m.clause?.selfRoll)
+      && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+  for (const m of found) {
+    if (seen.has(m.item.uuid)) continue;
+    seen.add(m.item.uuid);
+    m._subjectTargetKey = null;
+    m._subjectTokenUuid = rollerToken?.uuid ?? null;
+    m._subjectTokenUuids = rollerToken?.uuid ? [rollerToken.uuid] : null;
+    m._subjectName = rollerToken?.name ?? rollerActor?.name ?? "";
+    m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.Cause.POWER_ROLL", { roller: m._subjectName, ability: ability.name });
+    matches.push(m);
+  }
+}
+
 function _pruneTierWatch() {
   const now = Date.now();
   for (const [id, w] of _tierWatch) if (now - w.at > 300000) _tierWatch.delete(id);
@@ -210,7 +227,7 @@ async function _tryDispatch(message) {
       matches.push(m);
     }
   }
-  
+  _addRollModMatches({ message, matches, seen, rollerActor, ability, dealer });
   if (_addRollerMatches({ message, matches, seen, targets, rollerActor, ability })) watching = true;
 
   if (watching && !_anyApplied(message)) { _tierWatch.set(message.id, { at: Date.now() }); _pruneTierWatch(); }

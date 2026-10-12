@@ -509,7 +509,7 @@ function ownerEffectRole(lc, at, event) {
 const CLAUSE_FLAGS = [
   { id: "damageTypes",       from: "trigger", when: (c) => c.damageTypes?.length,
     list: () => [NOT_DAMAGE_TYPES, /\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:[, ]+(?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic))*\b[\w ]*damage/i] },
-  { id: "edgeRequired",      from: "trigger", when: (c) => c.edgeRequired,
+  { id: "edgeRequired",      from: "trigger", when: (c) => c.edgeRequired || c.rollHas?.length,
     rx: /\b(?:gains? (?:an|a double) edge|has an edge|with an edge)\b/i },
   { id: "excludeSelfTarget", from: "trigger", when: (c) => c.excludeSelfTarget,
     rx: /(?:doesn['’]t|does not) also targets? [\w'’ -]+/i },
@@ -832,7 +832,11 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       const words = ownerWords(ownerName);
       if (/\b(self|you)\b/.test(excl[1]) || !words.length || words.some((w) => excl[1].includes(w))) entry.excludeSelfTarget = true;
     }
-    if (/\b(gains? (an|a double) edge|has an edge|with an edge)\b/.test(lc)) entry.edgeRequired = true;
+    if (/\b(gains? (an|a double) edge|has an edge|with an edge)\b/.test(lc)) {
+      entry.edgeRequired = true;
+      const also = [/\bbanes?\b/.test(lc) && "bane", /\bsurges?\b/.test(lc) && "surge"].filter(Boolean);
+      if (also.length) entry.rollHas = ["edge", ...also];
+    }
     if (/\bsaving throw\b|ends? at the end of their turn/.test(lc) && entry.event === "CONDITION_GAIN") entry.durationFilter = "save-or-eot";
     if (entry.event === "CONDITION_GAIN") {
       const conds = [...new Set([...lc.matchAll(/\b(grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding|hidden)\b/g)].map((m) => m[1]))];

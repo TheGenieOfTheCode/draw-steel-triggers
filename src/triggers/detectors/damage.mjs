@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor, triggersLive } from "../dispatch.mjs";
+import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor, triggersLive, rollModsOf } from "../dispatch.mjs";
 import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor } from "../queue.mjs";
 import { deferDeathApi } from "../../compat/death-tracker.mjs";
 import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
@@ -121,7 +121,8 @@ function _noteAbsorbed(actor, damage, options) {
 }
 
 function _holdMatches(actor, token, damageType, ctx = {}) {
-  let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, ctx).filter((m) =>
+  const dealt = _dealer && _dealer.actor !== actor ? { rollMods: rollModsOf(_dealer.message, token ?? actor), surgeSpend: _dealer.surges || null } : {};
+  let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, { ...dealt, ...ctx }).filter((m) =>
     !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual")
     && !(m.clause.damageReduction && passiveLine(m)));
   if (damageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType));
@@ -334,7 +335,7 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, ability: dealer.ability,
+        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc), ability: dealer.ability,
           victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
       });
       dispatchTriggerEvent({
@@ -346,6 +347,7 @@ Hooks.on("updateChatMessage", (message) => {
         }),
         triggerDamage: Number(r.amount),
         eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability,
+          surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc),
           victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
       });
     }
@@ -393,6 +395,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
       eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null,
+        surgeSpend: _dealer?.surges || null, rollMods: rollModsOf(_dealer?.message, token ?? actor),
         immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced,
         victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
     });
@@ -407,7 +410,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
           name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
-        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null, ability: _dealer.ability ?? null,
+        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null, rollMods: rollModsOf(_dealer.message, token ?? actor), ability: _dealer.ability ?? null,
           victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
       });
     }

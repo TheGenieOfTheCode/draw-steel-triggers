@@ -390,7 +390,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.fromFalling && !ctx.fromFalling) return false;
       if (clause.fromForcedMovement && !ctx.fromForcedMovement) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
-      if (!clause.dealerScope) return !ctx.dealerOnly;
+      if (!clause.dealerScope) return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length);
       if (!ctx.dealerActor) return false;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "TARGETED_BY_ABILITY":
@@ -505,6 +505,36 @@ function ownerEffectMatches(clause, ownerActor, subjectActor, ctx = {}) {
   return holders.some((a) => carriesMark(a, ownerActor, want.label));
 }
 
+export const rollNeeds = (clause) => clause?.rollHas?.length ? clause.rollHas : clause?.edgeRequired ? ["edge"] : null;
+
+export function rollModsOf(message, target = null) {
+  const part = message?.system?.parts?.contents?.find((p) => p.type === "abilityResult");
+  const rolls = (part?.rolls ?? []).filter((r) => r?.constructor?.name === "PowerRoll");
+  if (!rolls.length) return null;
+  const overrides = message.getFlag?.("draw-steel-target-damage", "state")?.tierOverrides ?? {};
+  const net = (o) => (Number(o?.edges) || 0) - (Number(o?.banes) || 0);
+  if (target) {
+    const doc = tokenDoc(target);
+    const actor = doc?.actor ?? target.actor ?? (target.documentName === "Actor" ? target : null);
+    const keys = [doc?.uuid, actor?.uuid].filter(Boolean);
+    const override = keys.map((k) => overrides[k.replace(/\./g, "__")]).find((o) => o?.edges != null);
+    if (override) return { nets: [net(override)] };
+    const own = rolls.find((r) => keys.includes(r.options?.target));
+    if (own) return { nets: [net(own.options)] };
+  }
+  const fromOverrides = Object.values(overrides).filter((o) => o?.edges != null).map(net);
+  return { nets: fromOverrides.length ? fromOverrides : rolls.map((r) => net(r.options)) };
+}
+
+function rollHasMatches(clause, ctx) {
+  const needs = rollNeeds(clause);
+  if (!needs) return true;
+  if (needs.includes("surge") && Number(ctx?.surgeSpend) > 0) return true;
+  const nets = ctx?.rollMods?.nets;
+  if (!nets?.length) return false;
+  return (needs.includes("edge") && nets.some((n) => n > 0)) || (needs.includes("bane") && nets.some((n) => n < 0));
+}
+
 export function collectTriggerMatches(event, subjectActor = null, subjectToken = null, usedAbility = null, usedContext = {}) {
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   const subjectDisposition = subjectToken?.disposition ?? null;
@@ -547,6 +577,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         eventHits(c.event, event) &&(!fallen || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
+        && rollHasMatches(c, usedContext)
         && statusMatches(c, actor, subjectActor)
         && ownerEffectMatches(c, actor, subjectActor, usedContext)
         && lineOfEffectMatches(c, actor, token, subjectActor, subjectToken, usedContext)

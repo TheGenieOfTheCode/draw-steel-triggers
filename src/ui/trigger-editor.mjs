@@ -6,6 +6,7 @@ import { tierText, ignoreFeature } from "../triggers/feature-triggers.mjs";
 import { defersDeath } from "../parser/feature-triggers.mjs";
 import { derivedInfo } from "../triggers/derived.mjs";
 import { isConsumable } from "../triggers/consumables.mjs";
+import { rollNeeds } from "../triggers/dispatch.mjs";
 import { IMPACTS, impactById, impactLabel, impactHint, moveImpact, pruneImpacts, removeImpact } from "./editor-impacts.mjs";
 
 const L = (k, data) => data
@@ -14,7 +15,7 @@ const L = (k, data) => data
 
 const FLAG_FIELDS = {
   damageTypes: ["damageTypes"],
-  edgeRequired: ["edgeRequired"],
+  edgeRequired: ["edgeRequired", "rollHas"],
   excludeSelfTarget: ["excludeSelfTarget"],
   effectName: ["effectName"],
   zone: ["zone"],
@@ -243,6 +244,8 @@ function rangeColumn(range) {
 
 const label = (v) => v.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
+const ROLL_KNOWN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "POWER_ROLL"]);
+
 const shownEvent = (event) => event === "WOULD_TAKE_DAMAGE" ? "TAKES_DAMAGE" : event;
 
 function shownEffect(item) {
@@ -388,7 +391,10 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       customOptions: (c._customs ?? []).filter(Boolean).map((value) => ({ value, active: c.groupName === value })),
       customPending: !!c._customPending,
       abilityDsid: c.abilityDsid ?? "",
-      edgeRequired: !!c.edgeRequired,
+      showRollHas: ROLL_KNOWN_EVENTS.has(c.event),
+      rollHasOptions: ["edge", "bane", "surge"].map((value) => ({
+        value, label: L(`RollHas_${value}`), selected: (rollNeeds(c) ?? []).includes(value),
+      })),
       ownerUnacted: !!c.ownerUnacted,
       anyHeroUnacted: !!c.anyHeroUnacted,
     };
@@ -507,7 +513,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         damageTypes: L("DamageTypes"), condition: L("Condition"),
         abilityDsid: L("AbilityDsid"), groupName: L("GroupName"), groupNone: L("GroupNone"),
         customPh: L("CustomPh"), customEllipsis: L("CustomEllipsis"),
-        edgeRequired: L("EdgeRequired"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"),
+        rollHas: L("RollHas"), ownerUnacted: L("OwnerUnacted"), anyHeroUnacted: L("AnyHeroUnacted"),
         availability: L("Availability"), excludeSelfTarget: L("ExcludeSelfTarget"),
         addClause: L("AddClause"), options: L("RowOptions"), expand: L("RowExpand"),
         impacts: L("Impacts"), clause: L("Clause"), wholeTrigger: L("WholeTrigger"), effect: L("EffectText"),
@@ -517,7 +523,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       hints: {
         scope: L("ScopeHint"), range: L("RangeHint"), qualifiers: L("QualifiersHint"), timing: L("TimingHint"),
         damageTypes: L("DamageTypesHint"), condition: L("ConditionHint"), abilityDsid: L("AbilityDsidHint"),
-        groupName: L("GroupNameHint"), checks: L("ChecksHint"), malice: L("MaliceHint"),
+        groupName: L("GroupNameHint"), checks: L("ChecksHint"), rollHas: L("RollHasHint"), malice: L("MaliceHint"),
         excludeSelfTarget: L("ExcludeSelfTargetHint"),
         save: L("SaveHint"), reset: L("ResetHint"),
       },
@@ -715,6 +721,14 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const value = Array.from(ms.value ?? []);
       if (value.length) clause.condition = value.length > 1 ? value : value[0];
       else delete clause.condition;
+    }
+    for (const ms of el.querySelectorAll('multi-select[data-field="rollHas"]')) {
+      const clause = clauseAt(ms);
+      if (!clause) continue;
+      const value = Array.from(ms.value ?? []);
+      delete clause.edgeRequired;
+      if (value.length) clause.rollHas = value;
+      else delete clause.rollHas;
     }
     for (const ms of el.querySelectorAll('multi-select[data-field="damageTypes"]')) {
       const clause = clauseAt(ms);

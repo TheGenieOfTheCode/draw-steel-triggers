@@ -2,6 +2,10 @@
 // Compares parseTrigger output against trigger-fixture.json (297 compendium triggers, reviewed 2026-09-02).
 import { parseTrigger, generateDSID } from "../src/parser/trigger-parser.mjs";
 import fs from "fs";
+const SYSTEM_KEYWORDS = ["animal", "animapathy", "area", "charge", "chronopathy", "cryokinesis", "earth", "encounter", "fire", "green",
+  "magic", "melee", "metamorphosis", "psionic", "pyrokinesis", "ranged", "resopathy", "rot", "performance", "strike", "telekinesis",
+  "telepathy", "void", "weapon"];
+globalThis.ds ??= { CONFIG: { abilities: { keywords: Object.fromEntries(SYSTEM_KEYWORDS.map((k) => [k, {}])) } } };
 const fixture = JSON.parse(fs.readFileSync(new URL("./trigger-fixture.json", import.meta.url)));
 let fail = 0;
 for (const f of fixture) {
