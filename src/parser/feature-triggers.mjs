@@ -107,17 +107,35 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   const { rest, rows } = tierRows(html);
   collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip });
   for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip });
-  const levels = levelRows(rest);
-  let next = 0;
-  for (const line of lines) {
-    if (line.tier || next >= levels.length) continue;
-    const said = plainWords(line.sentence ?? "").split(" ").slice(0, 10).join(" ");
-    const at = said ? levels.findIndex((r, i) => i >= next && r.words.includes(said)) : -1;
-    if (at < 0) continue;
-    next = at;
-    Object.assign(line, { tier: { min: levels[at].level, level: levels[at].level, resource: null }, family: generateDSID(line.trigger) });
+  for (const levels of [levelRows(rest), levelParagraphs(rest)]) {
+    let next = 0;
+    for (const line of lines) {
+      if (line.tier || next >= levels.length) continue;
+      const whole = plainWords(line.sentence ?? "");
+      const start = whole.split(" ").slice(0, 10).join(" ");
+      const find = (test) => levels.findIndex((r, i) => i >= next && test(r));
+      let at = whole ? find((r) => r.sentences.includes(whole)) : -1;
+      if (at < 0 && start) at = find((r) => r.sentences.some((t) => t.startsWith(start)));
+      if (at < 0 && start) at = find((r) => r.sentences.join(" ").includes(start));
+      if (at < 0) continue;
+      next = at;
+      if (levels[at].level > 1) Object.assign(line, { tier: { min: levels[at].level, level: levels[at].level, resource: null }, family: generateDSID(line.trigger) });
+    }
   }
   return lines;
+}
+
+const LEVEL_LABEL = /^(\d+)(?:st|nd|rd|th) level:/i;
+const shownSentences = (html) => blocksOf(html).map((b) => (b.startsWith(LI) ? b.slice(1).trim() : b)).flatMap(sentencesOf).map(plainWords);
+
+function levelParagraphs(html) {
+  const blocks = [];
+  let level = 0;
+  for (const m of String(html).replace(/<table[\s\S]*?<\/table>/gi, "").matchAll(/<(p|ul|ol)\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
+    if (m[1].toLowerCase() === "p") level = Number(cellText(m[2]).match(LEVEL_LABEL)?.[1]) || 0;
+    blocks.push({ level, sentences: shownSentences(m[0]) });
+  }
+  return blocks.some((b) => b.level > 1) ? blocks : [];
 }
 
 const LEVEL_CELL = /^(\d+)(?:st|nd|rd|th)?(?: level)?$/i;
@@ -126,13 +144,13 @@ function levelRows(html) {
   const rows = [];
   for (const table of String(html).match(/<table[\s\S]*?<\/table>/gi) ?? []) {
     const trs = table.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
-    const cells = (tr) => [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => cellText(m[1]));
-    const at = cells(trs[0] ?? "").findIndex((h) => /^level$/i.test(h));
+    const cells = (tr) => [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => m[1]);
+    const at = cells(trs[0] ?? "").findIndex((h) => /^level$/i.test(cellText(h)));
     if (at < 0) continue;
     for (const tr of trs.slice(1)) {
       const row = cells(tr);
-      const m = row[at]?.match(LEVEL_CELL);
-      if (m) rows.push({ level: Number(m[1]), words: plainWords(row.join(" ")) });
+      const m = cellText(row[at] ?? "").match(LEVEL_CELL);
+      if (m) rows.push({ level: Number(m[1]), sentences: row.flatMap((c) => shownSentences(c)) });
     }
   }
   return rows;
