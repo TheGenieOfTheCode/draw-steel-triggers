@@ -292,7 +292,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     this._baseline = this._computeBaseline();
     this._expanded = new Set();
     this._malice = item.getFlag(MODULE_ID, "malice");
-    this._useImpacts = foundry.utils.deepClone(item.getFlag(MODULE_ID, "useImpacts") ?? {});
     this._source = parse?.source ?? "none";
     this._confidence = parse?.confidence ?? "";
   }
@@ -482,10 +481,19 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     }
     const actor = this.item.actor;
     const derived = line ? null : derivedInfo(this.item);
-    const effect = String((line ?? derived) ? (line?.effect ?? "") : "").trim();
-    const fromText = line ? /^spend a recovery\.?$/i.test(effect) : !!derived?.spendsRecovery;
-    if (fromText) rows.push(row("recovery", "fa-solid fa-heart-pulse", L("Impact.recovery.Summary")));
-    else if (this._useImpacts?.spendsRecovery) rows.push(row("recovery", "fa-solid fa-heart-pulse", L("Impact.recovery.Added"), { removable: true }));
+    if (!line) {
+      for (const fx of this.item.system?.effects ?? []) {
+        if (!String(fx.type ?? "").startsWith("dsct.")) continue;
+        const data = fx[fx.type.slice(5)] ?? {};
+        const typeLabel = game.i18n.localize(CONFIG.DrawSteel?.SpecialEffect?.[fx.type]?.label ?? ds.CONFIG?.SpecialEffect?.[fx.type]?.label ?? `TYPES.SpecialEffect.${fx.type}`);
+        rows.push({
+          id: `enhanced-${fx.id}`, row: `whole-enhanced-${fx.id}`, icon: "fa-solid fa-wand-sparkles", whole: true, fixed: true,
+          label: data.display || fx.name || typeLabel, summary: data.displayText || typeLabel,
+          source: "enhanced", sourceLabel: Q("Source.enhanced"), sourceHint: Q("SourceHint.enhanced"),
+          hint: L("Impact.enhanced.Hint"), fields: [], hasBody: true, expanded: this._expanded.has(`whole-enhanced-${fx.id}`),
+        });
+      }
+    }
     if (line?.cost?.amount) rows.push(row("cost", "fa-solid fa-coins", L("Impact.cost.Summary", { n: line.cost.amount, resource: line.cost.resource ?? "" })));
     else if (derived?.epicCost) rows.push(row("cost", "fa-solid fa-coins", L("Impact.cost.Summary", { n: derived.epicCost, resource: actor?.system?.hero?.epic?.label ?? "" })));
     else if (!line && Number(this.item.system?.resource) > 0) rows.push(row("cost", "fa-solid fa-coins", L("Impact.cost.Summary", { n: this.item.system.resource, resource: actor?.system?.coreResource?.name ?? "" })));
@@ -493,12 +501,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     if (isConsumable(source)) rows.push(row("consumable", "fa-solid fa-flask", L(getSetting("autoSpendConsumables") ? "Impact.consumable.Auto" : "Impact.consumable.Manual")));
     if (line && defersDeath(line.effect)) rows.push(row("defersDeath", "fa-solid fa-skull", L("Impact.defersDeath.Summary")));
     return rows;
-  }
-
-  _addableWhole() {
-    if (this._line) return [];
-    const derived = derivedInfo(this.item);
-    return derived?.spendsRecovery || this._useImpacts.spendsRecovery ? [] : ["recovery"];
   }
 
   async _prepareContext(options) {
@@ -554,7 +556,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       },
       clauses: this._clauses.map((c, index) => this._clauseContext(c, index)),
       impacts,
-      canAddImpact: this._addableImpacts().length > 0 || this._addableWhole().length > 0,
+      canAddImpact: this._addableImpacts().length > 0,
       howOftenOptions: this._line ? null : [["", L("HowOftenAny")], ["round", L("HowOftenRound")]]
         .map(([value, optLabel]) => ({ value, label: optLabel, selected: (this._clauses.some((c) => c.oncePerRound) ? "round" : "") === value })),
       maliceOptions: [
@@ -872,14 +874,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   static #onAddImpact(event, target) {
     this._syncFromDOM();
-    const whole = this._addableWhole().map((id) => ({
-      label: L(`Impact.${id}.Label`), icon: "fa-solid fa-heart-pulse",
-      onClick: () => {
-        this._useImpacts.spendsRecovery = true;
-        this.render();
-      },
-    }));
-    this._openMenu(event, target, [...whole, ...this._addableImpacts().map(({ impact, index }) => ({
+    this._openMenu(event, target, [...this._addableImpacts().map(({ impact, index }) => ({
       label: impactLabel(impact), icon: impact.icon,
       onClick: () => {
         impact.add(this._clauses[index]);
@@ -890,16 +885,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   }
 
   static #onImpactMenu(event, target) {
-    if (target.dataset.whole) {
-      return this._openMenu(event, target, [{
-        label: L("RemoveImpact"), icon: "fa-solid fa-trash",
-        onClick: () => {
-          this._syncFromDOM();
-          delete this._useImpacts.spendsRecovery;
-          this.render();
-        },
-      }]);
-    }
     const impact = impactById(target.dataset.impact);
     const index = Number(target.dataset.index);
     if (!impact) return;
@@ -1021,8 +1006,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     };
     if (this._malice === undefined) update[`flags.${MODULE_ID}.-=malice`] = null;
     else update[`flags.${MODULE_ID}.malice`] = this._malice;
-    if (Object.keys(this._useImpacts).length) update[`flags.${MODULE_ID}.useImpacts`] = this._useImpacts;
-    else update[`flags.${MODULE_ID}.-=useImpacts`] = null;
     await this.item.update(update);
     clearParseCache(this.item.uuid);
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this.item.name }));
@@ -1048,7 +1031,6 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     const update = {
       [`flags.${MODULE_ID}.-=manual`]: null,
       [`flags.${MODULE_ID}.-=trigger`]: null,
-      [`flags.${MODULE_ID}.-=useImpacts`]: null,
     };
     if (this._malice === undefined) update[`flags.${MODULE_ID}.-=malice`] = null;
     else update[`flags.${MODULE_ID}.malice`] = this._malice;

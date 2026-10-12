@@ -1397,6 +1397,7 @@ button.dst-qual-pill.dst-qual-add:hover { border-style: solid; }
 .dst-src-effect { color: light-dark(#26692f, #6fcf8f); border-style: dotted; }
 .dst-src-bespoke { color: light-dark(#6a3aa8, #c09ae8); }
 .dst-src-manual { color: light-dark(#8f4510, #f0a35e); }
+.dst-src-enhanced { color: light-dark(#1d6a6e, #6fd3d8); }
 .dst-qualifier-picker .form-footer { display: flex; gap: 8px; }
 .dst-qualifier-picker .form-footer button { flex: 1; }
 

@@ -506,12 +506,6 @@
           "Summary": "Gain {n}",
           "Hint": "Using the trigger adds this to the hero's heroic resource. Dice such as 1d3 are rolled."
         },
-        "recovery": {
-          "Label": "Spend a Recovery",
-          "Summary": "From the effect text",
-          "Hint": "Using the trigger spends one of the owner's Recoveries.",
-          "Added": "Every time it is used"
-        },
         "cost": {
           "Label": "Resource Cost",
           "Summary": "{n} {resource}",
@@ -532,7 +526,10 @@
         "LinkTo": "Link to {impact}",
         "LinkToClause": "Link to {impact} (clause {n})",
         "Unlink": "Unlink the effect text",
-        "NothingToLink": "Add an impact first, then link words to it."
+        "NothingToLink": "Add an impact first, then link words to it.",
+        "enhanced": {
+          "Hint": "Added by Combat Tools' Enhanced Features: a button on the ability's chat card when it is used. Edit it on the ability's Impact tab in the item sheet."
+        }
       },
       "RangeMeasureDealer": "Measured to the attacker",
       "RangeMin": "At least, in squares",
@@ -992,14 +989,16 @@
         "effect": "Effect",
         "bespoke": "Bespoke",
         "manual": "Manual",
-        "unchecked": "Not checked"
+        "unchecked": "Not checked",
+        "enhanced": "Combat Tools"
       },
       "SourceHint": {
         "parser": "Read from the trigger text.",
         "effect": "Read from the effect text.",
         "bespoke": "Set by one of Triggers' hand-written special cases.",
         "manual": "Added in the trigger builder.",
-        "unchecked": "Triggers reads these words but cannot check them yet."
+        "unchecked": "Triggers reads these words but cannot check them yet.",
+        "enhanced": "An Enhanced effect from Combat Tools on this ability."
       },
       "Option": {
         "1": "Tier 1",

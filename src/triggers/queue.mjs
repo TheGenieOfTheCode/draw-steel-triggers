@@ -467,9 +467,6 @@ function _useFeatureLine(entry) {
   const pool = entry.featureLine.resourcePath ?? "system.hero.primary.value";
   const held = Number(foundry.utils.getProperty(owner, pool));
   if (cost && Number.isFinite(held)) owner.update({ [pool]: Math.max(0, held - cost) }).catch(() => {});
-  if (entry.featureLine.spendsRecovery && typeof owner.system?.spendRecovery === "function") {
-    owner.system.spendRecovery().catch((err) => console.warn(`${MODULE_ID} | ${entry.itemName} could not spend a Recovery`, err));
-  }
   if (entry.featureLine.action === "triggered") setTriggeredActionSpent(owner, true).catch(() => {});
   const item = fromUuidSync(entry.itemUuid);
   if (!item) return;
