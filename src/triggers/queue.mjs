@@ -440,6 +440,7 @@ async function _onQueueResolve(id, outcome, userName) {
         itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName,
         itemName: entry.itemName, usedAt: entry.usedAt,
         rollMod: entry.rollMod ?? null, redirect: entry.redirect ?? null,
+        reflectHalf: entry.reflectHalf ?? false, redirectPool: entry.redirectPool ?? null,
         halfOnUse: entry.halfOnUse ?? false, postHoc: entry.postHoc ?? false,
         subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
         subjectTokenUuid: entry.subjectTokenUuid ?? null, subjectTokenUuids: entry.subjectTokenUuids ?? null,
@@ -597,30 +598,33 @@ async function _finalizeResolutionHold(resolutionId) {
     });
   }
   
-  for (const u of used) {
-    if (!u.redirect || u.redirect === "after") continue;
-    const subject = u.subjectTokenUuid ?? (u.subjectTokenUuids ?? [])[0] ?? null;
-    if (!subject) continue;
-    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
-    const ownerToken = owner?.getActiveTokens?.(true, false)[0] ?? null;
-    if (!ownerToken) {
-      ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.RedirectNoToken", { modName: u.itemName }));
+  const retargets = await _resolveRetargetPicks(_collectRetargets(used), { itemUuid: hold.abilityUuid }).catch(() => []);
+  for (const rt of retargets) {
+    const u = used.find((x) => x.itemUuid === rt.itemUuid) ?? {};
+    const token = await _resolutionRedirectToken(rt, hold);
+    if (!token) {
+      ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.RedirectNoToken", { modName: rt.modName }));
       continue;
     }
+    const actor = token.actor ?? null;
     asPrimaryGM("applyResolutionRedirect", {
       messageId: hold.messageId,
-      origTargetUuid: subject,
-      modName: u.itemName,
-      halfOnUse: u.halfOnUse === true,
-      ownerName: u.ownerName ?? owner?.name ?? "",
+      origTargetUuid: rt.removeTokenUuid,
+      modName: rt.modName,
+      halfOnUse: u.halfOnUse === true || (rt.mode === "reflect" && u.reflectHalf === true),
+      ownerName: u.ownerName ?? "",
       newTarget: {
-        tokenUuid: ownerToken.document.uuid, tokenId: ownerToken.id, sceneId: ownerToken.scene?.id ?? null,
-        actorUuid: owner?.uuid ?? null, actorId: owner?.id ?? null,
-        name: ownerToken.name ?? owner?.name ?? "",
-        tokenImg: ownerToken.document.texture?.src ?? null, actorImg: owner?.img ?? null,
-        img: ownerToken.document.texture?.src ?? owner?.img ?? null,
+        tokenUuid: token.uuid, tokenId: token.id, sceneId: token.parent?.id ?? null,
+        actorUuid: actor?.uuid ?? null, actorId: actor?.id ?? null,
+        name: token.name ?? actor?.name ?? "",
+        tokenImg: token.texture?.src ?? null, actorImg: actor?.img ?? null,
+        img: token.texture?.src ?? actor?.img ?? null,
       },
     });
+    if (rt.mode === "swap") {
+      const old = await fromUuid(rt.removeTokenUuid).catch(() => null);
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RedirectSwapNote", { a: token.name ?? "", b: old?.name ?? "" }));
+    }
   }
 
   _postRedirectReminders(used, { userId: hold.authorUserId ?? null });
@@ -917,6 +921,18 @@ async function _applyHeldDamage(hold, amount) {
   } finally {
     _damageBypass.delete(hold.actorUuid);
   }
+}
+
+async function _resolutionRedirectToken(rt, hold) {
+  if (rt.mode === "choice" && rt.newTokenUuid) return (await fromUuid(rt.newTokenUuid).catch(() => null)) ?? null;
+  const actorUuid = rt.mode === "reflect" ? hold.rollerActorUuid : rt.ownerActorUuid;
+  const actor = actorUuid ? fromUuidSync(actorUuid) : null;
+  if (rt.mode === "reflect") {
+    const message = game.messages.get(hold.messageId);
+    const speaker = message?.speaker?.scene && message.speaker.token ? game.scenes.get(message.speaker.scene)?.tokens?.get(message.speaker.token) : null;
+    if (speaker) return speaker;
+  }
+  return actor?.getActiveTokens?.(true, true)?.[0] ?? null;
 }
 
 function _collectRetargets(usedEntries) {
@@ -1698,6 +1714,8 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     resolutionId,
     rollMod: m.clause?.rollMod ?? null,
     redirect: m.clause?.redirect ?? null,
+    reflectHalf: m.clause?.redirect === "reflect" && !!m.clause?.reflectHalf,
+    redirectPool: m.clause?.redirectPool ?? null,
     halfOnUse: m.clause?.halfOnUse === true
       || (m._postHoc === true && m.clause?.targetedHalf === true),
     postHoc: m._postHoc === true,
