@@ -33,7 +33,7 @@
   vertical-align: -0.22em;
 }
 
-.dst-stack-window:not(.minimized) {
+.dst-stack-window:not(.minimized):not(.minimizing) {
   min-width: 480px;
   min-height: 240px;
 }
@@ -108,7 +108,7 @@
   box-shadow: none;
 }
 
-.dst-trigger-editor:not(.minimized) {
+.dst-trigger-editor:not(.minimized):not(.minimizing) {
   min-width: 420px;
   min-height: 320px;
 }
