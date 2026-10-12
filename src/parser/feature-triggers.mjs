@@ -262,6 +262,7 @@ const CURATED_LINES = [
 
   [/^Boren$/, /hybrid form/, { trigger: "You use your Aspect of the Wild ability", note: "Revisit with Enhanced: the Hybrid Form choice" }],
   [/^Allow Me to Introduce/, /first turn/, { trigger: "You start your turn", clause: { firstTurn: true } }],
+  [/^Foesense Lenses$/, /creature whose senses you are using/, { clause: { effects: [{ on: "victim", has: true, kind: "name", value: "Foesense", by: "self" }] } }],
   [/^Volant$/, /winded or reduces them to 0 Stamina/, { trigger: "The self deals damage to a creature", clause: { damageOutcome: ["winded", "zero"] } }],
   [/^Elemental Buffer$/, /damage immunity/, { trigger: "You take acid, cold, corruption, fire, lightning, poison, or sonic damage", clause: { reducedByImmunity: true } }],
   [/^Master of Reels$/, /2 or more squares away/, { trigger: "You deal damage to a creature", clause: { rangeMin: 2, notForceMoved: true } }],
@@ -332,7 +333,8 @@ const CURATED_LINES = [
     clause: { wouldLeave: "dying", damageRedirect: "pool", redirectPool: "selfOrAlly", redirectRange: 10, unreducible: true },
     note: "Willingness is confirmed by hand" }],
   [/^The Mountain Does Not Move$/, /force moved/, { clause: { fmMod: { mode: "stability" } } }],
-  [/^Ether-Fueled Vessel$/, /they become insubstantial to you/, { clause: { markVictim: "insubstantial" } }],
+  [/^Ether-Fueled Vessel$/, /move through a creature who is insubstantial to you/, { clause: { throughMark: null,
+    effects: [{ on: "through", has: true, kind: "name", value: "Insubstantial", by: "self" }] } }],
 ];
 
 const curatedLine = (name, sentence) => CURATED_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;

@@ -1252,6 +1252,7 @@
           "fromFalling": "Comes from a fall",
           "fromForcedMovement": "Comes from being force moved",
           "damageOutcome": "Makes the creature",
+          "damageMin": "At least this much damage",
           "wouldLeave": "Would leave the creature",
           "reducedByImmunity": "Stopped by this creature's damage immunity"
         },
@@ -1260,6 +1261,7 @@
           "fromFalling": "from falling",
           "fromForcedMovement": "from forced movement",
           "damageOutcome": "makes them {v}",
+          "damageMin": "{v}+ damage",
           "wouldLeave": "would leave them {v}",
           "reducedByImmunity": "stopped by immunity"
         }

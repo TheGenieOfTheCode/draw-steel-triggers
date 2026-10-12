@@ -425,6 +425,8 @@ function keywordFragment(text) {
   return hits.length ? String(text).slice(hits[0].index, hits.at(-1).index + hits.at(-1)[0].length) : "";
 }
 
+const MIN_DAMAGE = /\b(\d+) or more (?:rolled )?damage\b|\bmore than (\d+) (?:rolled )?damage\b/;
+
 const COST_WORDS = /\b(?:and )?that costs? (?:\d+ or more )?[\w ]+? to use\b/;
 
 function coveredQualifier(q, entry) {
@@ -583,6 +585,7 @@ const CLAUSE_FLAGS = [
     rx: /\breduce (?:any|that|this|the|the falling) damage(?: from [\w ]+?)? by (?:\d+|an amount equal to [\w +]+)/i },
   { id: "fallSafe",          from: "effect",  when: (c) => c.fallSafe, rx: /\b(?:safely catch|neither of you takes damage)\b[^.]*/i },
   { id: "damageBonus",      from: "effect",  when: (c) => c.damageBonus, rx: /\bgains? a \+ ?\d+ damage bonus\b/i },
+  { id: "damageMin",        from: "trigger", when: (c) => c.damageMin != null, rx: /\b\d+ or more (?:rolled )?damage\b|\bmore than \d+ (?:rolled )?damage\b/i },
   { id: "flankedByDealer",   from: "trigger", when: (c) => c.flankedByDealer,
     rx: /\bwhile (?:a second|another) creature is flanking (?:you|the [\w'’-]+)\b/i },
   { id: "rangeOn",           from: "trigger", when: (c) => c.rangeOn === "dealer",
@@ -956,6 +959,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       if (/\bother than (?:their|its|your|the self['’]s) mentor\b/.test(lc)) entry.victimNotMentor = true;
     }
     if (TARGETING_EVENTS.has(entry.event) && /\bdeals? rolled damage\b/.test(lc)) entry.rolledDamage = true;
+    const minDamage = (entry.event === "DEALS_DAMAGE" || entry.event === "TAKES_DAMAGE") && lc.match(MIN_DAMAGE);
+    if (minDamage) entry.damageMin = minDamage[1] ? Number(minDamage[1]) : Number(minDamage[2]) + 1;
     const strikeKind = TARGETING_EVENTS.has(entry.event) && !entry.abilityKeywords?.length && lc.match(/\b(melee|ranged) strike\b/);
     if (strikeKind) entry.abilityKeywords = [strikeKind[1]];
     if (TARGETING_EVENTS.has(entry.event) && /\bwhile (?:a second|another) creature is flanking (?:you|the self)\b/.test(lc)) entry.flankedByDealer = true;

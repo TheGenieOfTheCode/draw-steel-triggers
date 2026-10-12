@@ -112,6 +112,7 @@ export const QUALIFIERS = [
     check("fromFalling", ["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE"]),
     check("fromForcedMovement", ["TAKES_DAMAGE", "WOULD_TAKE_DAMAGE"]),
     multi("damageOutcome", () => ["winded", "zero"], ["TAKES_DAMAGE", "DEALS_DAMAGE"]),
+    number("damageMin", ["TAKES_DAMAGE", "DEALS_DAMAGE"]),
     select("wouldLeave", () => ["dying"], ["WOULD_TAKE_DAMAGE"]),
     check("reducedByImmunity", ["TAKES_DAMAGE"]),
   ] },

@@ -212,6 +212,8 @@ function keywordsMatch(clause, ability) {
   return clause.abilityKeywordsAll ? clause.abilityKeywords.every(has) : clause.abilityKeywords.some(has);
 }
 
+const damageMinMet = (clause, ctx) => clause.damageMin == null || Number(ctx.triggerDamage ?? 0) >= clause.damageMin;
+
 const costMinMatches = (clause, ability) => clause.abilityCostMin == null || Number(ability?.system?.resource ?? 0) >= clause.abilityCostMin;
 
 const damageKeywordsMatch = (clause, ctx) => keywordsMatch(clause, ctx.ability) && costMinMatches(clause, ctx.ability);
@@ -378,7 +380,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
   switch (event) {
     case "DEALS_DAMAGE":
       if (clause.damageBonus) return false;
-      if (!damageKeywordsMatch(clause, ctx)) return false;
+      if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
       if (clause.victimCondition && !ctx.victimActor?.statuses?.has(clause.victimCondition)) return false;
@@ -390,7 +392,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.wouldLeave === "dying" && ctx.wouldDying === false) return false;
       return (!clause.fromFalling || !!ctx.fromFalling) && (!clause.fromForcedMovement || !!ctx.fromForcedMovement);
     case "TAKES_DAMAGE":
-      if (!damageKeywordsMatch(clause, ctx)) return false;
+      if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
       if (clause.reducedByImmunity && !ctx.immunityReduced) return false;
       if (clause.fromFalling && !ctx.fromFalling) return false;
       if (clause.fromForcedMovement && !ctx.fromForcedMovement) return false;
@@ -676,7 +678,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   if (!isPrimaryGM()) return;
   if (gains) noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext, causeLabel });
 
-  let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, ...eventContext });
+  let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
   if (filter) matches = matches.filter(filter);
   const marking = matches.filter((m) => m.clause?.markVictim);
   if (marking.length) {
