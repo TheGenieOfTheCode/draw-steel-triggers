@@ -248,9 +248,7 @@
         "Redirect": "Redirects on use: the triggering strike is retargeted {mode}.",
         "Revisit": "Marked for a later revisit; not detected yet.",
         "EffectTodo": "Detected and held at the right moment, but its effect still needs applying by hand.",
-        "DsctOnly": "Needs Draw Steel: Combat Tools data to detect.",
-        "DsctGrab": "Reads grabs made through Draw Steel: Combat Tools.",
-        "EventNeedsDsct": "{event}: needs Draw Steel: Combat Tools, which records who holds a grab."
+        "DsctOnly": "Needs Draw Steel: Combat Tools data to detect."
       },
       "RedirectMode": {
         "self": "to this ability's owner",

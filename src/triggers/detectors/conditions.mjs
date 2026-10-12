@@ -44,30 +44,9 @@ function _live() {
 
 const DSCT = "draw-steel-combat-tools";
 
-function _dsctGrab(effect) {
-  const grab = effect.flags?.[DSCT]?.grab;
-  if (!grab?.grabbedId || !grab?.grabberId) return null;
-  const grabbed = canvas.tokens?.get(grab.grabbedId)?.actor ?? null;
-  const grabber = canvas.tokens?.get(grab.grabberId)?.actor ?? _actorOf(effect);
-  if (!grabbed || !grabber) return null;
-  return { grabbed, grabbedToken: canvas.tokens.get(grab.grabbedId).document, grabber };
-}
-
 function _gained(effect) {
   if (!_live() || effect.disabled || effect.isSuppressed) return;
-  if (effect.flags?.[DSCT]?.grabbed) return;
-  const grab = _dsctGrab(effect);
-  if (grab) {
-    dbg(`condition gained: ${grab.grabbed.name} is grabbed by ${grab.grabber.name} (Combat Tools grab)`);
-    dispatchTriggerEvent({
-      event: "CONDITION_GAIN",
-      subjectActor: grab.grabbed,
-      subjectToken: grab.grabbedToken,
-      eventContext: { expiry: "combatEnd", sourceActorUuids: [grab.grabber.uuid], effectName: "grabbed", condition: "grabbed" },
-      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ConditionGainBy", { name: grab.grabbed.name, condition: _statusLabel("grabbed"), by: grab.grabber.name }),
-    });
-    return;
-  }
+  if (effect.flags?.[DSCT]?.grab) return;
   const actor = _actorOf(effect);
   if (!actor) return;
   const token = actor.getActiveTokens(true, true)[0] ?? null;
@@ -105,19 +84,7 @@ function _gained(effect) {
 
 function _ended(effect) {
   if (!_live()) return;
-  if (effect.flags?.[DSCT]?.grabbed) return;
-  const grab = _dsctGrab(effect);
-  if (grab) {
-    dbg(`grab ended: ${grab.grabber.name} no longer holds ${grab.grabbed.name} (Combat Tools grab)`);
-    dispatchTriggerEvent({
-      event: "GRAB_ENDS",
-      subjectActor: grab.grabbed,
-      subjectToken: grab.grabbedToken,
-      eventContext: { expiry: "combatEnd", sourceActorUuids: [grab.grabber.uuid], effectName: "grabbed", condition: "grabbed" },
-      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.GrabEndsBy", { name: grab.grabbed.name, by: grab.grabber.name }),
-    });
-    return;
-  }
+  if (effect.flags?.[DSCT]?.grab) return;
   const actor = _actorOf(effect);
   if (!actor) return;
   const token = actor.getActiveTokens(true, true)[0] ?? null;

@@ -296,10 +296,6 @@ function grabsHeldBy(ownerActor, status) {
     if (actor.system?.statuses?.[status]?.sources?.has?.(ownerActor.uuid)) count++;
   }
   
-  if (status === "grabbed") {
-    const held = ownerActor.effects.filter((e) => e.flags?.["draw-steel-combat-tools"]?.grab?.grabbedId).length;
-    count = Math.max(count, held);
-  }
   return count;
 }
 
@@ -332,8 +328,7 @@ function holdsSmallerGrab(ownerActor) {
   return (canvas.tokens?.placeables ?? []).some((t) => {
     const held = t.actor;
     if (!held?.statuses?.has("grabbed") || held === ownerActor) return false;
-    const mine = held.system?.statuses?.grabbed?.sources?.has?.(ownerActor.uuid)
-      || ownerActor.effects.some((e) => e.flags?.["draw-steel-combat-tools"]?.grab?.grabbedId === t.id);
+    const mine = held.system?.statuses?.grabbed?.sources?.has?.(ownerActor.uuid);
     return mine && Number(held.system?.combat?.size?.value ?? 1) <= size;
   });
 }

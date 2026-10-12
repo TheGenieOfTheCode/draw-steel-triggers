@@ -65,16 +65,12 @@ export function parseAutomationLevel(parse, { manual = false, malice = false } =
         ? (changesTheStrike(clause) || getSetting("holdInertTriggers") ? "resolution" : "prompt")
         : EVENT_MODES[clause.event];
     const scopeOk = BASE_SCOPES.has(clause.scope) || malice;
-    const grabClause = clause.event === "GRAB_ENDS" || (clause.event === "CONDITION_GAIN" && clause.asSource && clause.condition === "grabbed");
-    if (grabClause && !game.modules.get("draw-steel-combat-tools")?.active) {
-      detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.EventNeedsDsct", { event: clause.event }));
-    } else if (mode && scopeOk) {
+    if (mode && scopeOk) {
       detected++;
       detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.Detected", {
         event: clause.event, scope: clause.scope,
         mode: game.i18n.localize(`DS_TRIGGERS.Badge.Mode.${mode}`),
       }));
-      if (grabClause) detail.push(game.i18n.localize("DS_TRIGGERS.Badge.Detail.DsctGrab"));
     } else if (!mode) {
       detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.EventNeedsTier", { event: clause.event }));
     } else {
