@@ -115,6 +115,20 @@ function effectsUpdate(item, effects) {
   return out;
 }
 
+const aeShape = (e) => JSON.stringify([e._id, e.name, e.img ?? null, e.transfer ?? null, e.system ?? null, e.changes ?? null, e.duration ?? null]);
+
+const activeEffectsMatch = (item, effects = []) => {
+  const have = item.effects.map((e) => aeShape(e.toObject())).sort();
+  const want = effects.map(aeShape).sort();
+  return have.length === want.length && have.every((s, i) => s === want[i]);
+};
+
+async function syncActiveEffects(item, effects = []) {
+  const ids = item.effects.map((e) => e.id);
+  if (ids.length) await item.deleteEmbeddedDocuments("ActiveEffect", ids, SYNC);
+  if (effects.length) await item.createEmbeddedDocuments("ActiveEffect", foundry.utils.deepClone(effects), { ...SYNC, keepId: true });
+}
+
 const effectsMatch = (item, effects) => {
   const have = item._source.system?.effects ?? {};
   return Object.keys(have).length === Object.keys(effects).length
@@ -154,7 +168,8 @@ function specFor(source, line, useMacro = null) {
   
   Hooks.callAll("draw-steel-triggers.derivedSpec", out, { source, line });
   const others = Object.fromEntries(Object.entries(out.flags).filter(([scope]) => scope !== MODULE_ID));
-  flag.hash = JSON.stringify({ name: out.name, img: out.img, system: out.system, once: line.once ?? null, tier: line.tier ?? null, epic: flag.epicCost, others });
+  out.effects ??= [];
+  flag.hash = JSON.stringify({ name: out.name, img: out.img, system: out.system, effects: out.effects, once: line.once ?? null, tier: line.tier ?? null, epic: flag.epicCost, others });
   flag.contributed = Object.keys(others);
   return out;
 }
@@ -236,6 +251,7 @@ export async function syncActor(actor) {
     const creates = [...want].filter(([k]) => !have.has(k)).map(([, spec]) => spec);
     const updates = [];
     const deletes = [];
+    const effectSyncs = [];
     for (const [k, item] of have) {
       const d = derivedInfo(item);
       const spec = want.get(k);
@@ -246,9 +262,11 @@ export async function syncActor(actor) {
       if (d.edited || (d.hash === spec.flags[MODULE_ID][FLAG].hash && effectsMatch(item, spec.system.effects))) continue;
       updates.push({ _id: item.id, name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: effectsUpdate(item, spec.system.effects) },
         [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG], ...otherFlags(spec, item) });
+      if (!activeEffectsMatch(item, spec.effects)) effectSyncs.push([item, spec.effects]);
     }
     if (creates.length) await actor.createEmbeddedDocuments("Item", creates, SYNC);
     if (updates.length) await actor.updateEmbeddedDocuments("Item", updates, SYNC);
+    for (const [item, effects] of effectSyncs) await syncActiveEffects(item, effects);
     if (deletes.length) await actor.deleteEmbeddedDocuments("Item", deletes, SYNC);
     if (creates.length || updates.length || deletes.length) dbg(`derived triggers on ${actor.name}: +${creates.length} ~${updates.length} -${deletes.length}`);
   } finally {
@@ -300,6 +318,7 @@ export async function resyncDerived(item) {
     [`flags.${MODULE_ID}.${FLAG}`]: spec.flags[MODULE_ID][FLAG], ...otherFlags(spec, item),
     ...Object.fromEntries(["manual", "trigger", ONCE_FLAG].map((k) => (DEL ? [`flags.${MODULE_ID}.${k}`, new DEL()] : [`flags.${MODULE_ID}.-=${k}`, null]))),
   }, SYNC);
+  if (!activeEffectsMatch(item, spec.effects)) await syncActiveEffects(item, spec.effects);
   _parseCache.delete(item.uuid);
   return true;
 }
