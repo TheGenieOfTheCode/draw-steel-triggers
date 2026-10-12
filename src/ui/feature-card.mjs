@@ -167,7 +167,7 @@ export function prerequisites(item, tier) {
     const cls = item.actor?.items?.find((i) => i.type === "class")?.name ?? "";
     out.push(L("PrereqLevel", { ordinal: ordinal(tier.level), cls }).trim());
   }
-  out.push(L("PrereqResource", { n: tier.min, resource: cap(tier.resource ?? "") }));
+  if (tier.resource) out.push(L("PrereqResource", { n: tier.min, resource: cap(tier.resource) }));
   return out;
 }
 

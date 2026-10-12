@@ -248,6 +248,7 @@ export function turnPeakResource(actor) {
 export function tierText(tier) {
   if (!tier) return "";
   const resource = tier.resource ? tier.resource[0].toUpperCase() + tier.resource.slice(1) : "";
+  if (!tier.resource) return game.i18n.format("DS_TRIGGERS.Feature.LevelOnly", { level: tier.level });
   return game.i18n.format(`DS_TRIGGERS.Feature.${tier.level ? "TierLevel" : "Tier"}`, { n: tier.min, resource, level: tier.level });
 }
 
@@ -258,14 +259,16 @@ export function tierQualifies(actor, tier) {
   return turnPeakResource(actor) >= tier.min;
 }
 
+export const levelMet = (actor, line) => !line.tier?.level || (Number(actor?.system?.level) || 0) >= line.tier.level;
+
 function _bestTiers(actor, lines) {
   const best = new Map();
   for (const line of lines) {
-    if (!line.tier || !tierQualifies(actor, line.tier)) continue;
+    if (!line.tier?.resource || !tierQualifies(actor, line.tier)) continue;
     const held = best.get(line.family);
     if (!held || held.tier.min < line.tier.min) best.set(line.family, line);
   }
-  return lines.filter((l) => !l.tier || best.get(l.family) === l);
+  return lines.filter((l) => (l.tier?.resource ? best.get(l.family) === l : levelMet(actor, l)));
 }
 
 Hooks.on("updateActor", (actor, changes) => {

@@ -107,7 +107,35 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   const { rest, rows } = tierRows(html);
   collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip });
   for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip });
+  const levels = levelRows(rest);
+  let next = 0;
+  for (const line of lines) {
+    if (line.tier || next >= levels.length) continue;
+    const said = plainWords(line.sentence ?? "").split(" ").slice(0, 10).join(" ");
+    const at = said ? levels.findIndex((r, i) => i >= next && r.words.includes(said)) : -1;
+    if (at < 0) continue;
+    next = at;
+    Object.assign(line, { tier: { min: levels[at].level, level: levels[at].level, resource: null }, family: generateDSID(line.trigger) });
+  }
   return lines;
+}
+
+const LEVEL_CELL = /^(\d+)(?:st|nd|rd|th)?(?: level)?$/i;
+
+function levelRows(html) {
+  const rows = [];
+  for (const table of String(html).match(/<table[\s\S]*?<\/table>/gi) ?? []) {
+    const trs = table.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
+    const cells = (tr) => [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => cellText(m[1]));
+    const at = cells(trs[0] ?? "").findIndex((h) => /^level$/i.test(h));
+    if (at < 0) continue;
+    for (const tr of trs.slice(1)) {
+      const row = cells(tr);
+      const m = row[at]?.match(LEVEL_CELL);
+      if (m) rows.push({ level: Number(m[1]), words: plainWords(row.join(" ")) });
+    }
+  }
+  return rows;
 }
 
 const SELF_DESCRIPTION = /\b(?:this|the) (?:ability|movement|shift|maneuver|charge|move action|main action|feature)\b|\btakes? the [\w-]+ (?:move|main) action\b|^you do\b|^they use (?:this|that)\b|\bwhile using this\b/i;

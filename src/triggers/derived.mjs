@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, isPrimaryGM, getSetting, executeAsDirector } from "../util.mjs";
-import { FEATURE_ACTOR_TYPES, itemEffectiveLines, itemFeatureLines, featureTriggersActive, ignoreLine, isLineSource, lineCost, linePool } from "./feature-triggers.mjs";
+import { FEATURE_ACTOR_TYPES, levelMet, itemEffectiveLines, itemFeatureLines, featureTriggersActive, ignoreLine, isLineSource, lineCost, linePool } from "./feature-triggers.mjs";
 import { enricherText, asOwner, abilityEffectHTML } from "../parser/feature-triggers.mjs";
 import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
@@ -138,7 +138,7 @@ function specFor(source, line, useMacro = null) {
     story: String(line.flavor ?? "").replace(/^\s*[^.:!?]{1,30}:\s+/, ""),
     keywords: [],
     ...reachOf(line.parse, line.effect),
-    _dsid: line.key,
+    _dsid: line.key.replace(/~/g, "-"),
     effects,
   };
   const flag = {
@@ -223,7 +223,7 @@ export async function syncActor(actor) {
     for (const item of actor.items) {
       if (!isLineSource(item)) continue;
       for (const line of itemEffectiveLines(item)) {
-        if (!line.enabled || line.watch === "parked") continue;
+        if (!line.enabled || line.watch === "parked" || !levelMet(actor, line)) continue;
         const useMacro = item.type === "ability" && THIS_ABILITY.test(line.effect ?? "") ? await ensureUseMacro(item) : null;
         want.set(`${item.id}|${line.key}`, specFor(item, line, useMacro));
       }
@@ -344,6 +344,7 @@ Hooks.on("createChatMessage", (message) => {
 Hooks.on("createItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("deleteItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("updateItem", (item, changes) => {
+  if (item.type === "class" && foundry.utils.hasProperty(changes, "system.level") && item.parent) return queueSync(item.parent);
   if (isSource(item) && (foundry.utils.hasProperty(changes, "system.description") || foundry.utils.hasProperty(changes, "system.effects") || "name" in changes
     || foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.featureLines`))) queueSync(item.parent);
 });

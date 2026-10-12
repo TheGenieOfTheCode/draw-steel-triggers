@@ -862,6 +862,7 @@
       "Ignored": "{name} is now ignored. Remove {dsid} from the Ignored Features setting to bring it back.",
       "Tier": "Needs {n} {resource} at some point this turn. A higher row with the same trigger replaces this one.",
       "TierLevel": "Needs {n} {resource} at some point this turn, from level {level}. A higher row with the same trigger replaces this one.",
+      "LevelOnly": "From level {level}.",
       "Covered": "{name} is its own triggered ability and already handles this, so this line starts off.",
       "ManualWhy": "Reminder only: Triggers cannot check {why}.",
       "WidgetCovered": "Off: {name} already handles this trigger.",
