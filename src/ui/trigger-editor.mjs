@@ -498,7 +498,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       feature: this._lineType === "feature" ? this._featureContext() : null,
       isLine: !!this._line,
       noTriggerText: this._line?.sentence || L("NoTriggerText"),
-      statusLine: game.i18n.format("DS_TRIGGERS.Editor.Status", { source: this._source, confidence: this._confidence || "n/a" }),
+      statusLine: getSetting("debugMode") ? game.i18n.format("DS_TRIGGERS.Editor.Status", { source: this._source, confidence: this._confidence || "n/a" }) : "",
       isManual: this._line ? !!this.item.getFlag(MODULE_ID, `${this._lineFlag()}.${this._line.key}`) : !!this.item.getFlag(MODULE_ID, "manual"),
       labels: {
         clauses: L("Clauses"), event: L("Event"), scope: L("Scope"), range: L("Range"), timing: L("Timing"),
