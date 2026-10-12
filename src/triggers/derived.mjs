@@ -333,7 +333,9 @@ Hooks.on("createChatMessage", (message) => {
   const ability = use?.abilityUuid ? fromUuidSync(use.abilityUuid) : null;
   const info = derivedInfo(ability);
   const actor = ability?.actor;
-  if (!info || !actor) return;
+  const added = ability?.getFlag(MODULE_ID, "useImpacts");
+  if (!actor || (!info && !added?.spendsRecovery)) return;
+  if (!info) return spendRecoveryFor(actor, ability);
   const cost = Number(info.epicCost) || 0;
   if (cost) {
     const held = Number(actor.system?.hero?.epic?.value ?? 0);
@@ -341,10 +343,13 @@ Hooks.on("createChatMessage", (message) => {
     dbg(`${actor.name} spent ${cost} ${actor.system?.hero?.epic?.label ?? "epic"} on ${ability.name}`);
   }
   remindConsumable(actor, actor.items.get(info.sourceId));
-  if (info.spendsRecovery && typeof actor.system?.spendRecovery === "function") {
-    actor.system.spendRecovery().catch((err) => console.warn(`${MODULE_ID} | ${ability.name} could not spend a Recovery`, err));
-  }
+  if (info.spendsRecovery || added?.spendsRecovery) spendRecoveryFor(actor, ability);
 });
+
+function spendRecoveryFor(actor, ability) {
+  if (typeof actor.system?.spendRecovery !== "function") return;
+  actor.system.spendRecovery().catch((err) => console.warn(`${MODULE_ID} | ${ability.name} could not spend a Recovery`, err));
+}
 Hooks.on("createItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("deleteItem", (item) => { if (isSource(item)) queueSync(item.parent); });
 Hooks.on("updateItem", (item, changes) => {

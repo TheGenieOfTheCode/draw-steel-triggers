@@ -355,7 +355,6 @@
       "QualSideCreature": "creature",
       "DamageTypes": "Damage Types",
       "Condition": "Condition",
-      "ConditionAny": "Any condition",
       "AbilityDsid": "Causing Ability DSID",
       "GroupName": "Group Keyword",
       "GroupNone": "None",
@@ -365,30 +364,14 @@
       "EdgeRequired": "Only with an edge",
       "OwnerUnacted": "Only if this creature has not acted this round",
       "AnyHeroUnacted": "Only while any hero has not acted this round",
-      "TurnLock": "Takes the turn: hold the activation until this is decided",
-      "HoldDamage": "Modifies the incoming damage",
-      "HoldDamageHint": "The damage is held before it lands while the owner decides, so the effect can change it. Unchecked, the trigger only prompts after the damage applies.",
-      "TargetedHalf": "Halves the incoming damage when used",
-      "TargetedHalfHint": "When this ability is used from the roll lock, the strike's damage buttons are pre-halved for this creature.",
       "ExcludeSelfTarget": "Not if the triggering ability also targets this creature",
       "ExcludeSelfTargetHint": "The trigger is skipped when this ability's owner is among the triggering ability's targets, like the Orc Rampart's No.",
       "AddClause": "Add Clause",
       "Malice": "Malice Action",
-      "PostRoll": "Post-roll (after the strike's power roll)",
-      "PostRollHint": "This trigger fires after the strike's roll posts instead of locking it beforehand. The message's damage and effect rows are held until the trigger is decided.",
-      "HalfOnUse": "Halve damage on use",
-      "HalfOnUseHint": "Using this trigger halves the strike's damage buttons for the struck target, like Shriek.",
-      "EffectsHeader": "Effects on Use",
-      "RollMod": "Roll modifier on use",
-      "RollModHint": "Using this trigger modifies the triggering roll. From a pre-roll lock the modifier is applied in the roll dialog when the roll resumes; on a post-roll trigger the tier is recomputed for the struck target.",
-      "RollModNone": "None",
       "RollModBane": "Bane",
       "RollModDoubleBane": "Double bane",
       "RollModEdge": "Edge",
       "RollModDoubleEdge": "Double edge",
-      "Redirect": "Redirect on use",
-      "RedirectHint": "Using this trigger retargets the strike. Self and reflect apply automatically from a pre-roll lock; chooser and swap need manual follow-up; the post-roll option posts a manual retarget card.",
-      "RedirectNone": "None",
       "RedirectSelf": "This ability's owner becomes the target",
       "RedirectReflect": "Reflects back at the striker",
       "RedirectChooser": "A chosen creature becomes the target (manual pick)",
@@ -467,7 +450,179 @@
       "QualEffectOwnerInRange": "Enforced: only while you are within the triggering ability's distance.",
       "QualEffectThroughMark": "Enforced: only a creature insubstantial to you.",
       "QualEffectWouldDying": "Enforced: only damage that would leave them at 0 Stamina or below.",
-      "QualEffectDamageRedirect": "Using this trigger moves the held damage to another creature."
+      "QualEffectDamageRedirect": "Using this trigger moves the held damage to another creature.",
+      "Tabs": {
+        "trigger": "Trigger",
+        "impact": "Impact",
+        "config": "Configuration"
+      },
+      "KindMalice": "Malice Action",
+      "KindTrigger": "Trigger",
+      "Clauses": "Clauses",
+      "Clause": "Clause",
+      "Impacts": "Impacts",
+      "WholeTrigger": "Whole trigger",
+      "EffectText": "Effect",
+      "RowOptions": "Options",
+      "RowExpand": "Show or hide the settings",
+      "RangeWithin": "Within {n}",
+      "QualifiersShortNone": "No qualifiers",
+      "Timing": "Timing",
+      "TimingBefore": "Before the roll: pauses it",
+      "TimingAfter": "After the roll: holds the results",
+      "TimingAfterShort": "after the roll",
+      "TimingHint": "Before the roll, the trigger can change the roll or retarget the strike. After the roll, it fires once the result is known and holds the damage and effects while the owner decides.",
+      "AddImpact": "Add Impact",
+      "NoImpacts": "Nothing happens automatically when this trigger is used. Add an impact with the + above.",
+      "NoImpactsPossible": "None of this trigger's events support an automatic impact yet. Using it from the stack still posts the ability.",
+      "DuplicateClause": "Duplicate Clause",
+      "RemoveImpact": "Remove Impact",
+      "Impact": {
+        "Unsupported": "Clause {n}'s event can't use this, so saving drops it.",
+        "FieldBy": "From",
+        "FieldAmount": "Amount",
+        "FieldBase": "Base amount",
+        "FieldChar": "Characteristic",
+        "RollNothing": "None",
+        "hold": {
+          "Label": "Hold the Damage",
+          "Summary": "Waits before the damage lands",
+          "Hint": "The damage waits before it lands while the owner decides, so other impacts can change it. Without this, the trigger only prompts after the damage applies."
+        },
+        "halfHeld": {
+          "Label": "Halve the Held Damage",
+          "Summary": "Half damage",
+          "Hint": "Using the trigger halves the held damage in the final amount window."
+        },
+        "reduceHeld": {
+          "Label": "Reduce the Held Damage",
+          "ByN": "By {n}",
+          "ByLevel": "By the owner's level",
+          "ByChar": "By {n} + {char}",
+          "Flat": "A fixed amount",
+          "Level": "The owner's level",
+          "Char": "An amount plus a characteristic",
+          "Hint": "Using the trigger subtracts this from the held damage."
+        },
+        "redirectHeld": {
+          "Label": "Redirect the Held Damage",
+          "Who": "Who takes it",
+          "Director": "A creature the Director picks",
+          "Pool": "A creature the owner picks",
+          "Allies": "Only the owner or an ally",
+          "Range": "Within squares",
+          "RangeHint": "0 means any distance.",
+          "Unreducible": "Ignores immunity",
+          "Hint": "Using the trigger moves the held damage onto another creature."
+        },
+        "halfStrike": {
+          "Label": "Halve the Strike's Damage",
+          "Before": "Halves the damage this creature takes",
+          "After": "Halves the damage for the struck target",
+          "Hint": "Using the trigger halves the triggering strike's damage. Before the roll it halves the damage buttons for this creature; after the roll, for the struck target."
+        },
+        "rollMod": {
+          "Label": "Change the Roll",
+          "Dice": "Edges and banes",
+          "Bonus": "Bonus",
+          "Tier": "Tier",
+          "PerTarget": "Only for the triggering target",
+          "PerTargetHint": "When the roll has several targets, only the one that set off the trigger changes.",
+          "Hint": "Using the trigger changes the triggering power roll. Before the roll it goes into the roll dialog; after the roll the tier is worked out again for the struck target."
+        },
+        "redirect": {
+          "Label": "Redirect the Strike",
+          "Mode": "New target",
+          "ReflectHalf": "The reflected strike deals half damage",
+          "Allies": "Only the owner or an ally",
+          "Hint": "Using the trigger retargets the triggering strike. Self and reflect apply on their own before the roll; the others need a pick or a manual follow-up."
+        },
+        "fmMod": {
+          "Label": "Change the Forced Movement",
+          "Mode": "Change",
+          "Mode_boost": "Move further",
+          "Mode_reduce": "Move less",
+          "Mode_redirect": "The owner takes over the movement",
+          "Mode_slide": "A push becomes a slide",
+          "Mode_vertical": "The movement can be vertical",
+          "Mode_objectDamage": "Extra damage on hitting an object",
+          "Mode_stability": "Share stability with the target",
+          "boost": "+{n} distance",
+          "reduce": "-{n} distance",
+          "redirect": "The owner moves it ({n})",
+          "slide": "Push becomes a slide",
+          "vertical": "Can be vertical",
+          "objectDamage": "+{n} object damage",
+          "stability": "Shares stability",
+          "Hint": "Using the trigger changes the forced movement before it happens."
+        },
+        "fallReduce": {
+          "Label": "Shorten the Fall",
+          "ByN": "By {n} squares",
+          "Jump": "By the owner's jump distance",
+          "Squares": "A number of squares",
+          "Hint": "Using the trigger lowers the height of the fall."
+        },
+        "fallSafe": {
+          "Label": "Land Safely",
+          "Summary": "No fall damage",
+          "Hint": "Using the trigger makes the fall deal no damage."
+        },
+        "fallCancel": {
+          "Label": "Stop the Fall",
+          "Summary": "Cancels the fall",
+          "Hint": "Using the trigger cancels the fall, as long as the owner can still move."
+        },
+        "damageBonus": {
+          "Label": "Damage Bonus",
+          "Summary": "+{n} damage",
+          "Hint": "Adds this much damage on its own whenever the trigger matches, without asking."
+        },
+        "markVictim": {
+          "Label": "Mark the Victim",
+          "Mark": "Mark",
+          "insubstantial": "Insubstantial to the owner",
+          "Hint": "Marks the creature that took the damage, on its own whenever the trigger matches."
+        },
+        "turn": {
+          "Label": "Take the Turn",
+          "Summary": "Takes the turn",
+          "Bonus": "bonus turn",
+          "Squad": "whole squad",
+          "Manual": "put back by hand",
+          "bonusTurn": "A bonus turn that doesn't use an activation",
+          "squadTurn": "The owner's whole squad acts",
+          "manualTurn": "The Director puts the turn back by hand",
+          "Hint": "The activation waits while the owner decides. Using the trigger lets the owner take the turn instead."
+        },
+        "gain": {
+          "Label": "Gain Heroic Resource",
+          "Summary": "Gain {n}",
+          "Hint": "Using the trigger adds this to the hero's heroic resource. Dice such as 1d3 are rolled."
+        },
+        "recovery": {
+          "Label": "Spend a Recovery",
+          "Summary": "From the effect text",
+          "Hint": "Using the trigger spends one of the owner's Recoveries.",
+          "Added": "Every time it is used"
+        },
+        "cost": {
+          "Label": "Resource Cost",
+          "Summary": "{n} {resource}",
+          "Hint": "Using the trigger spends this. It isn't offered while the owner can't pay."
+        },
+        "defersDeath": {
+          "Label": "Delay Death",
+          "Summary": "From the effect text",
+          "Hint": "Using the trigger delays the hero's death, as the effect text describes."
+        },
+        "consumable": {
+          "Label": "Use Up a Consumable",
+          "Manual": "Offers a Use One button in chat",
+          "Auto": "Spends one automatically",
+          "Hint": "Using the trigger uses one of the consumable it comes from. Spend Consumables Automatically in the settings decides whether that happens on its own."
+        }
+      }
     },
     "Queue": {
       "Title": "Trigger Stack",

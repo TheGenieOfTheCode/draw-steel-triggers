@@ -1,0 +1,83 @@
+<section class="tab dst-editor-tab {{tab.cssClass}}" data-group="primary" data-tab="impact">
+  {{#if effectText}}
+  <div class="dst-editor-effect">
+    <span class="dst-editor-effect-label">{{labels.effect}}</span>
+    <span class="dst-editor-effect-text">{{effectText}}</span>
+  </div>
+  {{/if}}
+  <section class="item-list-container dst-editor-list">
+    <div class="item-header">
+      <div class="item-column item-name">{{labels.impacts}}</div>
+      <div class="item-column dst-col-clause">{{labels.clause}}</div>
+      <div class="item-column item-controls">
+        {{#if canAddImpact}}
+        <a data-action="addImpact" data-tooltip="{{labels.addImpact}}"><i class="fa-solid fa-plus" inert></i></a>
+        {{/if}}
+      </div>
+    </div>
+    <ol class="item-list">
+      {{#each impacts}}
+      <li class="item expandable-document dst-editor-impact{{#if unsupported}} dst-impact-unsupported{{/if}}" data-impact="{{id}}" data-index="{{index}}">
+        <div class="item-row">
+          <div class="item-column item-name"{{#if hasBody}} data-action="toggleRow" data-row="{{row}}"{{/if}}>
+            <i class="dst-row-icon {{icon}}" inert></i>
+            <div class="name">
+              <div class="label">{{label}}</div>
+              <div class="keywords">{{#if unsupported}}<i class="fa-solid fa-triangle-exclamation" inert></i> {{unsupported}}{{else}}{{summary}}{{/if}}</div>
+            </div>
+          </div>
+          <div class="item-column dst-col-clause">{{#if clauseLabel}}<span class="dst-row-swatch dst-tt-c{{colour}}" inert></span> {{clauseLabel}}{{else}}{{@root.labels.wholeTrigger}}{{/if}}</div>
+          <div class="item-column item-controls">
+            {{#if fixed}}
+            <span class="dst-control-spacer"></span>
+            {{else}}
+            <a class="fa-fw fa-solid fa-ellipsis-vertical" data-action="impactMenu" data-impact="{{id}}" data-index="{{index}}"{{#if whole}} data-whole="1"{{/if}} aria-label="{{@root.labels.options}}"></a>
+            {{/if}}
+            {{#if hasBody}}
+            <a class="fa-fw fa-solid fa-angle-{{#if expanded}}down{{else}}right{{/if}}" data-action="toggleRow" data-row="{{row}}" aria-label="{{@root.labels.expand}}"></a>
+            {{else}}
+            <span class="dst-control-spacer"></span>
+            {{/if}}
+          </div>
+        </div>
+        {{#if hasBody}}
+        <div class="document-description {{#if expanded}}expanded{{/if}}">
+          <div><div class="dst-row-body">
+            {{#if hint}}<p class="hint dst-row-hint">{{hint}}</p>{{/if}}
+            {{#if clauseOptions}}
+            <div class="form-group">
+              <label>{{@root.labels.clause}}</label>
+              <div class="form-fields">
+                <select data-impact-move="{{id}}" data-index="{{index}}">
+                  {{#each clauseOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+                </select>
+              </div>
+            </div>
+            {{/if}}
+            {{#each fields}}
+            <div class="form-group">
+              <label>{{label}}</label>
+              <div class="form-fields">
+                {{#if (eq type "select")}}
+                <select {{{attrs}}}>
+                  {{#each options}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+                </select>
+                {{else if (eq type "checkbox")}}
+                <input type="checkbox" {{{attrs}}} {{#if checked}}checked{{/if}}>
+                {{else}}
+                <input type="{{type}}" {{{attrs}}} value="{{value}}">
+                {{/if}}
+              </div>
+              {{#if hint}}<p class="hint">{{hint}}</p>{{/if}}
+            </div>
+            {{/each}}
+          </div></div>
+        </div>
+        {{/if}}
+      </li>
+      {{else}}
+      <li class="item dst-editor-empty"><p class="hint">{{#if canAddImpact}}{{labels.noImpacts}}{{else}}{{labels.noImpactsPossible}}{{/if}}</p></li>
+      {{/each}}
+    </ol>
+  </section>
+</section>

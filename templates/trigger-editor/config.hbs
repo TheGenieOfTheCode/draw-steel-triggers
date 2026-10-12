@@ -1,0 +1,76 @@
+<section class="tab dst-editor-tab standard-form {{tab.cssClass}}" data-group="primary" data-tab="config">
+  {{#if gain}}
+  <fieldset>
+    <legend>{{gain.legend}}</legend>
+    <p class="hint dst-line-sentence">{{gain.sentence}}</p>
+    {{#if gain.manualWhy}}<p class="hint dst-line-note">{{gain.manualWhy}}</p>{{/if}}
+    <div class="form-group">
+      <label>{{gain.labels.name}}</label>
+      <div class="form-fields"><input type="text" data-gain-field="name" value="{{gain.name}}" placeholder="{{gain.namePlaceholder}}"></div>
+    </div>
+    <div class="form-group">
+      <label>{{gain.labels.enabled}}</label>
+      <div class="form-fields"><input type="checkbox" data-gain-field="enabled" {{#if gain.enabled}}checked{{/if}}></div>
+    </div>
+    <div class="form-group">
+      <label>{{gain.labels.once}}</label>
+      <div class="form-fields">
+        <select data-gain-field="once">
+          {{#each gain.onceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+      {{#if gain.checks}}<p class="hint">{{gain.checks}}</p>{{/if}}
+    </div>
+  </fieldset>
+  {{/if}}
+
+  {{#if feature}}
+  <fieldset>
+    <legend>{{feature.legend}}</legend>
+    <p class="hint dst-line-sentence">{{feature.sentence}}</p>
+    {{#if feature.covered}}<p class="hint dst-line-note">{{feature.covered}}</p>{{/if}}
+    {{#if feature.tier}}<p class="hint">{{feature.tier}}</p>{{/if}}
+    {{#if feature.manualWhy}}<p class="hint dst-line-note">{{feature.manualWhy}}</p>{{/if}}
+    <div class="form-group">
+      <label>{{feature.labels.name}}</label>
+      <div class="form-fields"><input type="text" data-feature-field="name" value="{{feature.name}}" placeholder="{{feature.namePlaceholder}}"></div>
+    </div>
+    <div class="form-group">
+      <label>{{feature.labels.enabled}}</label>
+      <div class="form-fields"><input type="checkbox" data-feature-field="enabled" {{#if feature.enabled}}checked{{/if}}></div>
+    </div>
+    <div class="form-group">
+      <label>{{feature.labels.action}}</label>
+      <div class="form-fields">
+        <select data-feature-field="action">
+          {{#each feature.actionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+      <p class="hint">{{feature.actionHint}}</p>
+    </div>
+    <div class="form-group">
+      <label>{{feature.labels.once}}</label>
+      <div class="form-fields">
+        <select data-feature-field="once">
+          {{#each feature.onceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+    </div>
+    {{#if feature.canIgnore}}
+    <button type="button" class="dst-editor-ignore" data-action="ignoreFeature" data-tooltip="{{feature.ignoreHint}}"><i class="fa-solid fa-ban" inert></i> {{feature.labels.ignore}}</button>
+    {{/if}}
+  </fieldset>
+  {{/if}}
+
+  {{#unless isLine}}
+  <div class="form-group">
+    <label>{{labels.malice}}</label>
+    <div class="form-fields">
+      <select data-field="malice">
+        {{#each maliceOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+      </select>
+    </div>
+    <p class="hint">{{hints.malice}}</p>
+  </div>
+  {{/unless}}
+</section>
