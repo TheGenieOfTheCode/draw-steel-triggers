@@ -1317,20 +1317,22 @@
       "movement": {
         "Label": "The movement",
         "Hint": "Rules about how a creature moved.",
-        "Examples": "Boren (a push or a slide that ends next to you), Provoking Nettles (moves through a space), Flying Circus (moves adjacent), Death Grasp (enters this space)",
+        "Examples": "Boren (a push or a slide that ends next to you), Provoking Nettles (moves through a space), Flying Circus (moves adjacent), Death Grasp (enters this space), Absorbed Impact (even if resisted)",
         "Rule": {
           "fmType": "Kind of forced movement",
           "through": "Passes through another creature's space, once for each",
           "arrives": "Ends a move adjacent to this creature, and was not there already",
           "victimEndsAdjacent": "The moved creature ends adjacent to",
-          "entersSpace": "Enters the square this creature died in, once"
+          "entersSpace": "Enters the square this creature died in, once",
+          "evenIfResisted": "Counts even when stability stops the movement"
         },
         "Short": {
           "fmType": "{v}",
           "through": "moves through",
           "arrives": "moves adjacent",
           "victimEndsAdjacent": "ends next to {v}",
-          "entersSpace": "enters this space"
+          "entersSpace": "enters this space",
+          "evenIfResisted": "even if resisted"
         }
       },
       "acted": {

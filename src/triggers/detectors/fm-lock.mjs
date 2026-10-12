@@ -547,7 +547,7 @@ async function _onApplyFmRedirect(payload) {
   });
 }
 
-function _onForcedMovement({ type, targetUuid, sourceUuid, keywords = [] }) {
+function _onForcedMovement({ type, targetUuid, sourceUuid, keywords = [], resisted = false }) {
   if (!isPrimaryGM() || !triggersLive()) return;
   const target = targetUuid ? fromUuidSync(targetUuid) : null;
   const source = sourceUuid ? fromUuidSync(sourceUuid) : null;
@@ -556,20 +556,20 @@ function _onForcedMovement({ type, targetUuid, sourceUuid, keywords = [] }) {
   dispatchTriggerEvent({
     event: "FORCE_MOVED", subjectActor: target.actor, subjectToken: target,
     causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ForceMoved", { name: target.name }),
-    eventContext: { dealerActor: source?.actor ?? null, dealerToken: source ?? null, fmType, keywords },
+    eventContext: { dealerActor: source?.actor ?? null, dealerToken: source ?? null, fmType, keywords, resisted },
   });
   if (!source?.actor || source.actor === target.actor) return;
   dispatchTriggerEvent({
     event: "FORCE_MOVES", subjectActor: source.actor, subjectToken: source,
     causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.ForceMoves", { name: source.name, target: target.name }),
-    eventContext: { victimActor: target.actor, victimToken: target, fmType, keywords },
+    eventContext: { victimActor: target.actor, victimToken: target, fmType, keywords, resisted },
   });
 }
 
 Hooks.on("dsct.forcedMovement", (ctx) => {
-  if (!(Number(ctx?.moved) > 0)) return;
+  if (!(Number(ctx?.moved) > 0) && !ctx?.resisted) return;
   const uuidOf = (t) => (t?.document ?? t)?.uuid ?? null;
-  const payload = { type: ctx.type ?? null, targetUuid: uuidOf(ctx.target), sourceUuid: uuidOf(ctx.source), keywords: [...(ctx.keywords ?? [])] };
+  const payload = { type: ctx.type ?? null, targetUuid: uuidOf(ctx.target), sourceUuid: uuidOf(ctx.source), keywords: [...(ctx.keywords ?? [])], resisted: !!ctx.resisted };
   if (isPrimaryGM()) _onForcedMovement(payload);
   else asPrimaryGM("forcedMovementEvent", payload);
 });

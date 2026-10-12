@@ -760,7 +760,12 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
 }
 
 export function parseTrigger(text, options = {}) {
-  return lineOfEffectLayer(parseTriggerClauses(text, options), text);
+  return lineOfEffectLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), text);
+}
+
+function resistedLayer(result, effectText) {
+  if (!/\beven if (?:you|they|it) resists?\b/i.test(effectText ?? "")) return result;
+  return { ...result, clauses: result.clauses.map((c) => (carries(c, "FORCE_MOVED") ? { ...c, evenIfResisted: true } : c)) };
 }
 
 function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, side } = {}) {

@@ -446,6 +446,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "FORCE_MOVED": {
       
       if (ctx.preMove ? !clause.fmMod : (clause.fmBefore || clause.fmMod)) return false;
+      if (ctx.resisted && !clause.evenIfResisted) return false;
       if (!fmMatches(clause, ctx)) return false;
       if (event === "FORCE_MOVED") return true;
       if (clause.victimScope && ctx.victimActor
