@@ -425,6 +425,19 @@ function keywordFragment(text) {
   return hits.length ? String(text).slice(hits[0].index, hits.at(-1).index + hits.at(-1)[0].length) : "";
 }
 
+const COST_WORDS = /\b(?:and )?that costs? (?:\d+ or more )?[\w ]+? to use\b/;
+
+function coveredQualifier(q, entry) {
+  if (entry.range?.ability && q === "within distance") return true;
+  if (entry.ownerInAbilityRange && /^while (?:you are|the self is) within the ability['’]s distance$/.test(q)) return true;
+  if (/^that has\b/.test(q) && entry.abilityKeywords?.length) {
+    let rest = q.replace(/^that has the [\w ,]+? keywords?\b/, "");
+    if (entry.abilityCostMin != null) rest = rest.replace(COST_WORDS, "");
+    return !rest.trim();
+  }
+  return false;
+}
+
 export const ABILITY_FILTERS = [
   {
     id: "abilityDsid",
@@ -443,6 +456,12 @@ export const ABILITY_FILTERS = [
     from: "trigger",
     rx: /costs? (\d+) or (?:fewer|less)[\w ]*/i,
     fields: (m) => ({ abilityCostMax: Number(m[1]) }),
+  },
+  {
+    id: "abilityCostMin",
+    from: "trigger",
+    rx: /\bcosts? (?:(\d+) or more )?(?:essence|focus|ferocity|wrath|clarity|insight|discipline|piety|drama|virtue|heroic resource)(?: or more)? to use\b/i,
+    fields: (m) => ({ abilityCostMin: Number(m[1] ?? 1) }),
   },
   
   {
@@ -948,6 +967,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     const distanceOf = lc.match(/\bwithin distance of (?:your|the self['’]s) (?:(melee|ranged) (?:weapon )?free strike|([\w'’ -]+?) ability)\b/);
     if (distanceOf) entry.range = { ability: distanceOf[1] ? `${distanceOf[1]}-free-strike` : generateDSID(distanceOf[2]) };
     if (/\bwhile (?:you are|the self is) within the ability['’]s distance\b/.test(lc)) entry.ownerInAbilityRange = true;
+    entry.qualifiers = entry.qualifiers.filter((q) => !coveredQualifier(q, entry));
     if (entry.through && /\binsubstantial to (?:you|the self)\b/.test(lc)) entry.throughMark = "insubstantial";
     const nonOrg = lc.match(/\bnon-(minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (minion|leader|solo|elite)\b/);
     if (nonOrg) entry.organization = { exclude: [nonOrg[1] ?? nonOrg[2]] };

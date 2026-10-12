@@ -81,6 +81,7 @@ export const QUALIFIERS = [
     select("abilityCategory", () => ["heroic", "signature", "non-heroic"], ["USES_ABILITY"]),
     check("signatureOnly", ["POWER_ROLL_RESULT"]),
     number("abilityCostMax", ["USES_ABILITY"]),
+    number("abilityCostMin", ["USES_ABILITY", ...DAMAGE]),
     check("abilityCostScales", ["USES_ABILITY"]),
     check("abilityPotency", ["USES_ABILITY"]),
     number("abilityTargetCount", ["USES_ABILITY"]),

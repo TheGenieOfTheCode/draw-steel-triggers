@@ -212,11 +212,13 @@ function keywordsMatch(clause, ability) {
   return clause.abilityKeywordsAll ? clause.abilityKeywords.every(has) : clause.abilityKeywords.some(has);
 }
 
-const damageKeywordsMatch = (clause, ctx) => keywordsMatch(clause, ctx.ability);
+const costMinMatches = (clause, ability) => clause.abilityCostMin == null || Number(ability?.system?.resource ?? 0) >= clause.abilityCostMin;
+
+const damageKeywordsMatch = (clause, ctx) => keywordsMatch(clause, ctx.ability) && costMinMatches(clause, ctx.ability);
 
 export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length
-    && clause.abilityCostMax == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
+    && clause.abilityCostMax == null && clause.abilityCostMin == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
 
   const sys = used.system ?? {};
   if (clause.abilityDsid && (sys._dsid ?? used.dsid) !== clause.abilityDsid) return false;
@@ -249,6 +251,7 @@ export function usedAbilityMatches(clause, used, owner, context = {}) {
     } else if (usedCost > clause.abilityCostMax) return false;
   }
   
+  if (!costMinMatches(clause, used)) return false;
   if (clause.abilityPotency && !hasPotency(used)) return false;
   if (clause.abilityTargetCount != null) {
     const targets = context.usedTargets ?? [];
