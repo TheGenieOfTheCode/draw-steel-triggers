@@ -188,6 +188,13 @@ const _fitter = new ResizeObserver((entries) => {
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
   if (!message.flags?.[MODULE_ID]) return;
+  for (const embed of html.querySelectorAll?.("document-embed[uuid]") ?? []) {
+    if (fromUuidSync(embed.getAttribute("uuid"), { strict: false })) continue;
+    const kept = document.createElement("div");
+    kept.className = `${embed.className} dst-card-gone`.trim();
+    kept.innerHTML = embed.innerHTML;
+    embed.replaceWith(kept);
+  }
   html.querySelectorAll?.(".dst-card-faces").forEach((chain) => ctlib()?.activateFaces?.(chain));
   if (html.querySelector?.(".dst-face-name, .dst-card-event .ctlib-faces")) _fitter.observe(html);
 });
