@@ -58,6 +58,7 @@ const EFFECT_TARGETS = [
 ];
 
 function reachOf(parse, effect = "") {
+  if (/\b(?:each|all|every)\b[^.]*?\b(?:adjacent|within \d+ squares?)\b/i.test(effect)) return { distance: { type: "special" }, target: { type: "special" } };
   const clause = parse?.clauses?.find((c) => c.event && c.event !== "UNKNOWN") ?? null;
   let scope = clause?.scope;
   const named = EFFECT_TARGETS.find(([rx]) => rx.test(effect));

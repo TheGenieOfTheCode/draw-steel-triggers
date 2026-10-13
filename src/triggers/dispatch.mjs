@@ -430,7 +430,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.condition && ![].concat(clause.condition).some((c) => ctx.condition === (CONDITION_STATUS[c] ?? c))) return false;
       if (clause.sourceScope) {
         const sources = (ctx.sourceActorUuids ?? []).map((u) => fromUuidSync(u)).map((d) => d?.actor ?? d).filter(Boolean);
-        if (sources.length && !sources.some((a) => scopeMatches({ scope: clause.sourceScope }, ownerActor, ownerDisposition, a, null))) return false;
+        if (sources.length && !sources.some((a) => scopeMatches({ scope: clause.sourceScope }, ownerActor, ownerDisposition, a, ownTokenOf(a)?.disposition ?? null))) return false;
       }
       if (clause.durationFilter === "save-or-eot" && !SAVE_OR_EOT.has(ctx.expiry)) return false;
       if (clause.asSource) {
@@ -711,6 +711,22 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   return matches;
 }
 
+const tokenUuidOf = (thing) => (thing?.document ?? thing)?.uuid ?? null;
+const ownTokenOf = (actor) => actor?.token ?? actor?.getActiveTokens?.(false, true)?.[0] ?? null;
+
+function aimOf(m, subjectToken, ctx) {
+  if (m.item.system?.distance?.type === "burst") return "";
+  const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
+  if (/^(?:you|the self)\b/.test(effect)) return tokenUuidOf(ownTokenOf(m.actor));
+  if (!/^(?:they|it|that (?:enemy|creature|ally|target)|the (?:enemy|creature|target|triggering creature))\b/.test(effect)) return null;
+  if (m.clause?.through && ctx.throughToken) return tokenUuidOf(ctx.throughToken);
+  const subject = tokenUuidOf(subjectToken);
+  if (subject && (subject !== tokenUuidOf(ownTokenOf(m.actor)) || m.clause?.scope !== "SELF")) return subject;
+  if (ctx.dealerToken) return tokenUuidOf(ctx.dealerToken);
+  const source = ctx.sourceActorUuids?.map((uuid) => fromUuidSync(uuid)).find(Boolean);
+  return source ? tokenUuidOf(ownTokenOf(source)) ?? "" : "";
+}
+
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {}, filter = null, gains = true }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
@@ -750,7 +766,12 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   const promptable = (m) => !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual");
   
   const optionalLine = (m) => !!m.item.featureLine && (!!m.item.featureLine.action || OPTIONAL.test(m.item.featureLine.effect ?? ""));
-  const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m)));
+  const automated = (m) => !!m.item.getFlag?.(MODULE_ID, "derived") && (m.item.system?.effects?.contents ?? []).some((e) => e.type !== "base");
+  for (const m of matches) {
+    const aim = aimOf(m, subjectToken, eventContext);
+    if (aim !== null) m._subjectTokenUuid = aim;
+  }
+  const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m) || automated(m)));
   if (prompts.length) {
     enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
     matches = matches.filter((m) => !prompts.includes(m));

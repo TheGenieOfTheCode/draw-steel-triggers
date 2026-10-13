@@ -99,7 +99,10 @@ async function useWithTriggerContext(item, entry) {
   if (Number.isFinite(entry.triggerDamage)) {
     game.modules.get(DSCT_ID)?.api?.setTriggerDamage?.(entry.triggerDamage);
   }
-  if (borrowed) token.setTarget(true, { user: game.user, releaseOthers: true });
+  if (borrowed) {
+    token.setTarget(true, { user: game.user, releaseOthers: true });
+    game.modules.get(DSCT_ID)?.api?.allowOutOfRange?.(item.uuid);
+  }
 
   try {
     await item.system.use();
