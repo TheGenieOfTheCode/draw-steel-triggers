@@ -58,8 +58,10 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   const targetActor = target?.actor;
   if (!targetActor) return;
 
+  const use = ctx.messageId ? game.messages.get(ctx.messageId)?.system?.parts?.contents?.find((p) => p.type === "abilityUse") : null;
   const eventContext = {
     preMove: true, fmType: fmTypeOf(ctx.type), keywords: ctx.keywords ?? [],
+    ability: use?.abilityUuid ? fromUuidSync(use.abilityUuid) : null,
     victimActor: targetActor, victimToken: target.document ?? target,
     dealerActor: source?.actor ?? null, dealerToken: source?.document ?? source ?? null,
   };

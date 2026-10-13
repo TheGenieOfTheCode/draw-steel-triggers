@@ -791,12 +791,12 @@ export function parseTrigger(text, options = {}) {
   return lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text);
 }
 
-const DAMAGE_TYPE_CHANGE = /\b(?:change (?:the (?:ability|strike)['’]s|its|that|the) damage type to|make that damage) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b(?!,? (?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b)/i;
+const DAMAGE_TYPE_CHANGE = /\b(?:(?:change (?:the (?:ability|strike)['’]s|its|that|the) damage type to|make that damage) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b(?!,? (?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b)|(?:change it to|can deal) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic) damage instead\b)/i;
 
 function damageTypeLayer(result, effectText) {
   const m = String(effectText ?? "").match(DAMAGE_TYPE_CHANGE);
   if (!m) return result;
-  return { ...result, clauses: result.clauses.map((c) => (c.event === "DEALS_DAMAGE" ? { ...c, damageTypeChange: m[1].toLowerCase() } : c)) };
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "DEALS_DAMAGE" || c.event === "USES_ABILITY" ? { ...c, damageTypeChange: (m[1] ?? m[2]).toLowerCase() } : c)) };
 }
 
 function resistedLayer(result, effectText) {

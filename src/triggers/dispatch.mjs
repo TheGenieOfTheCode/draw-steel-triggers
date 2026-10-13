@@ -392,9 +392,9 @@ export function fmMatches(clause, ctx) {
 }
 
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
+  if (clause.damageBonus || clause.damageTypeChange) return false;
   switch (event) {
     case "DEALS_DAMAGE":
-      if (clause.damageBonus || clause.damageTypeChange) return false;
       if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (clause.victimType && ctx.victimActor && ctx.victimActor.type !== clause.victimType) return false;
@@ -473,6 +473,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (ctx.preMove ? !clause.fmMod : (clause.fmBefore || clause.fmMod)) return false;
       if (ctx.resisted && !clause.evenIfResisted) return false;
       if (!fmMatches(clause, ctx)) return false;
+      if (clause.abilityDsid && ctx.ability?.system?._dsid !== clause.abilityDsid) return false;
       if (event === "FORCE_MOVED") return true;
       if (clause.victimScope && ctx.victimActor
         && !scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null)) return false;
