@@ -8,7 +8,7 @@ import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown } from "./feature-triggers.mjs";
-import { markVictim } from "./line-effects.mjs";
+import { markVictim, markDealer } from "./line-effects.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 
@@ -688,6 +688,14 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
     }
     matches = matches.filter((m) => !m.clause?.markVictim);
   }
+  const dealerMarks = matches.filter((m) => m.clause?.markDealer);
+  for (const m of dealerMarks) {
+    const sourceId = m.item.getFlag?.(MODULE_ID, "derived")?.sourceId;
+    const source = m.item.feature ?? (sourceId ? m.actor?.items?.get(sourceId) : null) ?? m.item;
+    markDealer(m.actor, eventContext.dealerActor ?? null, m.clause.markDealer, source)
+      .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.dealerActor?.name}`, err));
+  }
+  if (dealerMarks.length) matches = matches.filter((m) => !m.clause?.markDealer);
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
   }

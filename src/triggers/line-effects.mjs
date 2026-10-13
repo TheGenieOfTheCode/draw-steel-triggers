@@ -1,4 +1,44 @@
-import { MODULE_ID, dbg } from "../util.mjs";
+import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
+
+const turnKey = (round, turn) => `${round}:${turn}`;
+const sceneActors = () => new Set((canvas.scene?.tokens ?? []).map((t) => t.actor).filter(Boolean));
+
+export async function markDealer(owner, dealer, spec, source) {
+  if (!owner || !dealer || dealer === owner || !spec?.effect) return;
+  const name = spec.effect;
+  const exclusive = spec.exclusiveBelowLevel != null && (Number(owner.system?.level) || 0) < spec.exclusiveBelowLevel;
+  for (const actor of sceneActors().add(dealer)) {
+    const stale = actor.effects.filter((e) => {
+      const f = e.getFlag(MODULE_ID, "dealerMark");
+      return f?.ownerUuid === owner.uuid && f.name === name && (exclusive || actor === dealer);
+    }).map((e) => e.id);
+    if (stale.length) await actor.deleteEmbeddedDocuments("ActiveEffect", stale).catch(() => {});
+  }
+  const template = source?.effects?.find((e) => e.name === name)?.toObject() ?? { name, img: source?.img ?? null };
+  const { _id, ...data } = template;
+  const combat = game.combat;
+  const at = combat?.started ? turnKey(combat.round, combat.turn) : null;
+  await dealer.createEmbeddedDocuments("ActiveEffect", [{
+    ...data, transfer: false, disabled: false, origin: source?.uuid ?? owner.uuid,
+    flags: { ...(data.flags ?? {}), [MODULE_ID]: { ...(data.flags?.[MODULE_ID] ?? {}), dealerMark: { ownerUuid: owner.uuid, name, at } } },
+  }]);
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.LineEffect.Applied", { name: dealer.name, effect: name, source: source?.name ?? "" }));
+  dbg(`${source?.name}: ${dealer.name} carries ${name} from ${owner.name}${exclusive ? " (replacing earlier marks)" : ""}`);
+}
+
+Hooks.on("combatTurnChange", (combat, previous) => {
+  if (!isPrimaryGM() || !previous?.combatantId) return;
+  const owner = combat.combatants.get(previous.combatantId)?.actor;
+  if (!owner) return;
+  const ending = turnKey(previous.round, previous.turn);
+  for (const actor of sceneActors()) {
+    const done = actor.effects.filter((e) => {
+      const f = e.getFlag(MODULE_ID, "dealerMark");
+      return f?.ownerUuid === owner.uuid && f.at !== ending;
+    }).map((e) => e.id);
+    if (done.length) actor.deleteEmbeddedDocuments("ActiveEffect", done).catch(() => {});
+  }
+});
 
 const VICTIM_MARKS = {
   insubstantial: { key: "Insubstantial", img: "icons/creatures/magical/spirit-undead-ghost-blue.webp", expiry: "turnEnd" },

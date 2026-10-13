@@ -265,6 +265,12 @@ const CURATED_LINES = [
 
   [/^Boren$/, /hybrid form/, { trigger: "You use your Aspect of the Wild ability", note: "Revisit with Enhanced: the Hybrid Form choice" }],
   [/^Allow Me to Introduce/, /first turn/, { trigger: "You start your turn", clause: { firstTurn: true } }],
+  [/^Revenger['’]s Wrap$/, /until another creature damages you/, { clause: { markDealer: { effect: "Revenger’s Wrap", exclusiveBelowLevel: 5 } } }],
+  [/^Revenger['’]s Wrap$/, /\bEach creature who damages you is marked for revenge/, { clause: { markDealer: { effect: "Revenger’s Wrap" } } }],
+  [/^Revenger['’]s Wrap$/, /damage a creature marked for revenge/, { clause: {
+    effects: [{ on: "victim", has: true, kind: "name", value: "Revenger’s Wrap", by: "self" }] } }],
+  [/^Bloodbound Band$/, /any other bonded creature takes damage/, { clause: { scope: "ALLY",
+    effects: [{ on: "subject", has: true, kind: "name", value: "Bonded", by: "anyone" }] } }],
   [/^Foesense Lenses$/, /creature whose senses you are using/, { clause: { effects: [{ on: "victim", has: true, kind: "name", value: "Foesense", by: "self" }] } }],
   [/^Chaos Incarnate$/, /first becomes aware of you in combat/, { trigger: "A creature starts their turn", clause: { scope: "ANY", firstTurn: true,
     qualifiers: ["an elemental, or a creature whose abilities deal acid, cold, corruption, fire, lightning, poison, or sonic damage", "if they have strong potency"] } }],
@@ -342,6 +348,12 @@ const CURATED_LINES = [
     effects: [{ on: "through", has: true, kind: "name", value: "Insubstantial", by: "self" }] } }],
 ];
 
+const SENTENCE_LINES = [
+  [/^Revenger['’]s Wrap$/, /\b(?:any|each) creature who damages you is marked for revenge\b/i, { trigger: "A creature damages you" }],
+];
+
+const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
+
 const curatedLine = (name, sentence) => CURATED_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
 
 const LIST_LEAD =/\b(?:spend (\d+) ([\w’'-]+(?: resource)?) to )?(?:take|use) one of the following (free )?triggered actions?\b/i;
@@ -383,6 +395,11 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
     else sentences.forEach((sentence, index) => {
       const free = /\bfree triggered action\b/i.test(sentence);
       const spends = free || /\btriggered action\b/i.test(sentence);
+      const synth = sentenceLine(name, sentence);
+      if (synth) {
+        found.push({ index, sentence, trigger: synth.trigger, effect: sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "), action: null, synth: true });
+        return;
+      }
       if (!spends && !WHEN.test(sentence)) return;
       if (gains.has(sentence) || REFERS_BACK.test(sentence)) return;
       const body = sentence.replace(LABEL, "");
@@ -407,7 +424,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
     found.forEach((f, i) => {
       const next = found[i + 1]?.index ?? sentences.length;
       const effect = [f.effect, ...sentences.slice(f.index + 1, next)].join(" ").replace(/\s+/g, " ").trim();
-      if (!f.action && !MECHANICS.test(effect)) return;
+      if (!f.action && !f.synth && !MECHANICS.test(effect)) return;
       
       const restated = plainWords(f.trigger).replace(/^you /, "");
       const byYou = /^you\b/.test(plainWords(f.trigger).replace(/^(?:additionally|also|then) /, ""));

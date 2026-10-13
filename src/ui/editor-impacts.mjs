@@ -255,6 +255,16 @@ export const IMPACTS = [
     read: (c, v) => { c.markVictim = v.mark || "insubstantial"; },
   },
   {
+    id: "markDealer", icon: "fa-solid fa-crosshairs",
+    keys: ["markDealer"],
+    supports: (c) => c.event === "TAKES_DAMAGE",
+    has: (c) => !!c.markDealer,
+    add: (c) => { c.markDealer = { effect: "" }; },
+    summary: (c) => L("markDealer.Summary", { effect: c.markDealer.effect || "?" }),
+    fields: (c) => [{ name: "effect", label: L("markDealer.Effect"), type: "text", value: c.markDealer.effect ?? "" }],
+    read: (c, v) => { c.markDealer = { ...c.markDealer, effect: String(v.effect ?? "").trim() }; },
+  },
+  {
     id: "turn", icon: "fa-solid fa-hourglass-half",
     keys: ["turnLock", "bonusTurn", "manualTurn", "squadTurn"],
     supports: (c) => c.event === "TURN_START" || c.event === "TURN_END",

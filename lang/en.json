@@ -498,6 +498,12 @@
           "insubstantial": "Insubstantial to the owner",
           "Hint": "Marks the creature that took the damage, on its own whenever the trigger matches."
         },
+        "markDealer": {
+          "Label": "Mark Whoever Dealt It",
+          "Effect": "Effect from the item",
+          "Summary": "Marks them with {effect}",
+          "Hint": "Copies this effect from the trigger's item onto the creature that dealt the damage, until the end of the owner's next turn."
+        },
         "turn": {
           "Label": "Take the Turn",
           "Summary": "Takes the turn",
