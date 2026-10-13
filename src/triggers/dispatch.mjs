@@ -379,7 +379,7 @@ export function fmMatches(clause, ctx) {
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
   switch (event) {
     case "DEALS_DAMAGE":
-      if (clause.damageBonus) return false;
+      if (clause.damageBonus || clause.damageTypeChange) return false;
       if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;

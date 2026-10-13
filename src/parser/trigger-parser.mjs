@@ -586,6 +586,7 @@ const CLAUSE_FLAGS = [
   { id: "fallSafe",          from: "effect",  when: (c) => c.fallSafe, rx: /\b(?:safely catch|neither of you takes damage)\b[^.]*/i },
   { id: "damageBonus",      from: "effect",  when: (c) => c.damageBonus, rx: /\bgains? a \+ ?\d+ damage bonus\b/i },
   { id: "damageMin",        from: "trigger", when: (c) => c.damageMin != null, rx: /\b\d+ or more (?:rolled )?damage\b|\bmore than \d+ (?:rolled )?damage\b/i },
+  { id: "damageTypeChange", from: "effect",  when: (c) => c.damageTypeChange, get rx() { return DAMAGE_TYPE_CHANGE; } },
   { id: "flankedByDealer",   from: "trigger", when: (c) => c.flankedByDealer,
     rx: /\bwhile (?:a second|another) creature is flanking (?:you|the [\w'’-]+)\b/i },
   { id: "rangeOn",           from: "trigger", when: (c) => c.rangeOn === "dealer",
@@ -782,7 +783,15 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
 }
 
 export function parseTrigger(text, options = {}) {
-  return lineOfEffectLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), text);
+  return lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text);
+}
+
+const DAMAGE_TYPE_CHANGE = /\b(?:change (?:the (?:ability|strike)['’]s|its|that|the) damage type to|make that damage) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b(?!,? (?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b)/i;
+
+function damageTypeLayer(result, effectText) {
+  const m = String(effectText ?? "").match(DAMAGE_TYPE_CHANGE);
+  if (!m) return result;
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "DEALS_DAMAGE" ? { ...c, damageTypeChange: m[1].toLowerCase() } : c)) };
 }
 
 function resistedLayer(result, effectText) {

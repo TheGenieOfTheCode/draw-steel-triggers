@@ -1,6 +1,6 @@
 import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities } from "./registry.mjs";
-import { triggersLive } from "./dispatch.mjs";
+import { triggersLive, usedAbilityMatches } from "./dispatch.mjs";
 import { addDamagePill } from "./bespoke.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
@@ -43,6 +43,20 @@ export function damageBonusFor(actor, attackerToken, targetToken, message = null
   return out;
 }
 
+export function damageTypesFor(actor, ability) {
+  if (!actor || !ability || !triggersLive()) return [];
+  const out = [];
+  for (const entry of getTriggeredAbilities(actor)) {
+    if (entry.item.system?.restricted) continue;
+    if (entry.parse?.confidence !== "high" && entry.parse?.source !== "manual") continue;
+    for (const c of entry.parse?.clauses ?? []) {
+      if (!c.damageTypeChange || !usedAbilityMatches(c, ability, actor)) continue;
+      out.push({ name: entry.item.name, type: c.damageTypeChange });
+    }
+  }
+  return out;
+}
+
 const _done = new Set();
 
 async function _pillTargets(message) {
@@ -65,6 +79,12 @@ async function _pillTargets(message) {
       _done.add(key);
       dbg(`${b.name}: +${b.amount} damage to ${target.name} on ${ability.name}`);
       await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label: b.name, src: actor.name, source: "trigger" });
+    }
+    for (const d of damageTypesFor(actor, ability)) {
+      const key = `${message.id}:${t.tokenUuid}:${d.name}:type`;
+      if (_done.has(key)) continue;
+      _done.add(key);
+      await addDamagePill(message, t.tokenUuid, { kind: "type", value: d.type, label: d.name, src: actor.name, source: "trigger", enabled: false });
     }
   }
   if (_done.size > 400) _done.clear();

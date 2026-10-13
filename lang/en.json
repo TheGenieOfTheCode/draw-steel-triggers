@@ -484,6 +484,12 @@
           "Summary": "+{n} damage",
           "Hint": "Adds this much damage on its own whenever the trigger matches, without asking."
         },
+        "damageType": {
+          "Label": "Change the Damage Type",
+          "Type": "Damage type",
+          "Summary": "Damage can become {type}",
+          "Hint": "Adds a switched-off damage type pill to each target of the triggering ability; turn it on to deal that type instead."
+        },
         "markVictim": {
           "Label": "Mark the Victim",
           "Mark": "Mark",

@@ -234,6 +234,17 @@ export const IMPACTS = [
     read: (c, v) => { c.damageBonus = num(v.amount, 1); },
   },
   {
+    id: "damageType", icon: "fa-solid fa-fire",
+    keys: ["damageTypeChange"],
+    supports: (c) => c.event === "DEALS_DAMAGE",
+    has: (c) => !!c.damageTypeChange,
+    add: (c) => { c.damageTypeChange = "fire"; },
+    summary: (c) => L("damageType.Summary", { type: ds.CONFIG.damageTypes?.[c.damageTypeChange]?.label ?? c.damageTypeChange }),
+    fields: (c) => [{ name: "type", label: L("damageType.Type"), type: "select",
+      options: "acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic".split("|").map((t) => opt(t, ds.CONFIG.damageTypes?.[t]?.label ?? t, c.damageTypeChange)) }],
+    read: (c, v) => { c.damageTypeChange = v.type || "fire"; },
+  },
+  {
     id: "markVictim", icon: "fa-solid fa-ghost",
     keys: ["markVictim"],
     supports: (c) => c.event === "DEALS_DAMAGE",
