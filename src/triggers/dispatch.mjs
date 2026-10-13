@@ -8,7 +8,7 @@ import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown, featureLineSpent } from "./feature-triggers.mjs";
-import { markVictim, markDealer } from "./line-effects.mjs";
+import { markVictim, markDealer, dealDamageCard } from "./line-effects.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 
@@ -410,6 +410,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "TAKES_DAMAGE":
       if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
       if (clause.reducedByImmunity && !ctx.immunityReduced) return false;
+      if (clause.damageSource?.length && !clause.damageSource.includes(ctx.damageSource)) return false;
       if (clause.fromFalling && !ctx.fromFalling) return false;
       if (clause.fromForcedMovement && !ctx.fromForcedMovement) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
@@ -503,6 +504,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.firstTurn && !ctx.firstTurn) return false;
     
     case "TURN_END": {
+      if (clause.resourceBelow != null && !(Number(ownerActor.system?.hero?.primary?.value) < clause.resourceBelow)) return false;
       if (clause.captainOnly && !isSquadCaptain(ownerActor)) {
         dbg(`${ownerActor.name} is not a squad captain, skipped on ${event}`);
         return false;
@@ -732,6 +734,12 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
       .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.dealerActor?.name}`, err));
   }
   if (dealerMarks.length) matches = matches.filter((m) => !m.clause?.markDealer);
+  const damaging = matches.filter((m) => m.clause?.dealDamage);
+  for (const m of damaging) {
+    dealDamageCard(m.actor, m.clause.dealDamage, m.item.featureLine?.itemName ?? m.item.name)
+      .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not post its damage`, err));
+  }
+  if (damaging.length) matches = matches.filter((m) => !m.clause?.dealDamage);
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
   }

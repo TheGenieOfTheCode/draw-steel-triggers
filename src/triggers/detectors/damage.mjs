@@ -13,6 +13,8 @@ let _pendingStaminaLoss = false;
 
 let _dealer = null;
 
+let _source = null;
+
 const _typeFor = new Map();
 
 function _dealerFromMessage(message) {
@@ -33,6 +35,7 @@ Hooks.once("ready", () => {
     const li = button?.closest?.("[data-message-id]");
     const message = li ? game.messages.get(li.dataset.messageId) : null;
     _dealer = _dealerFromMessage(message);
+    _source = message?.getFlag(MODULE_ID, "damageSource") ?? null;
     if (_dealer) {
       const part = button.closest?.("[data-message-part]")?.dataset.messagePart ?? "";
       _dealer.surges = Number(message.getFlag(MODULE_ID, "surgeRolls")?.[`${part}:${button.dataset.index}`]) || 0;
@@ -42,6 +45,7 @@ Hooks.once("ready", () => {
       return await wrapped(event);
     } finally {
       _dealer = null;
+      _source = null;
     }
   }, "WRAPPER");
 
@@ -61,9 +65,10 @@ Hooks.once("ready", () => {
   }, "WRAPPER");
 
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
+    if (_source && !options?.dsSource) options = { ...options, dsSource: _source };
     _pendingDamageType  = options?.type ?? null;
     if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
-      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced,
+      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced, source: options?.dsSource ?? null,
     });
     damage = _autoAdjust(this.parent, damage, options);
     _pendingStaminaLoss = !!options?.staminaLoss;
@@ -189,6 +194,7 @@ function _tryHoldDamage(model, damage, options) {
   if (options?.type) damageOptions.type = options.type;
   if (options?.dsctFall) damageOptions.dsctFall = true;
   if (options?.dsctForced) damageOptions.dsctForced = true;
+  if (options?.dsSource) damageOptions.dsSource = options.dsSource;
   if (options?.ignoredImmunities?.length) damageOptions.ignoredImmunities = [...options.ignoredImmunities];
   if (options?.dsbl) damageOptions.dsbl = foundry.utils.deepClone(options.dsbl);
 
@@ -362,6 +368,8 @@ Hooks.on("preUpdateActor", (actor, changed, options) => {
   const prev = actor.system.stamina;
   if (!prev) return;
   options.dsTriggersPrev = { value: prev.value, temporary: prev.temporary ?? 0, winded: prev.winded ?? 0 };
+  const source = _typeFor.get(actor.uuid)?.source ?? _source;
+  if (source) options.dsTriggersSource = source;
 });
 
 Hooks.on("updateActor", (actor, changed, options) => {
@@ -396,7 +404,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
       eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null,
         surgeSpend: _dealer?.surges || null, rollMods: rollModsOf(_dealer?.message, token ?? actor),
-        immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced,
+        immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? null,
         victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
     });
 
