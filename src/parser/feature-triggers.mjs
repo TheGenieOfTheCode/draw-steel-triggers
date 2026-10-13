@@ -8,7 +8,11 @@ export function enricherText(inner, label) {
   if (label) return label;
   const [cmd, ...words] = inner.replace(/^[/]/, "").trim().split(/\s+/);
   const args = words.filter((w) => !w.includes("="));
-  if (cmd === "apply") return args[0] ?? "";
+  if (cmd === "apply") {
+    if (/^(?=.*[A-Z])[A-Za-z0-9]{16}$/.test(args[0] ?? "")) return "";
+    const end = args[1] ?? words.find((w) => w.startsWith("end="))?.slice(4);
+    return `${args[0] ?? ""}${end === "save" ? " (save ends)" : end === "turn" ? " (EoT)" : ""}`;
+  }
   if (cmd === "damage") return `${args.join(" ")} damage`;
   if (cmd === "gain") return `gain ${args.join(" ")}`;
   if (cmd === "surge") return `gain ${args[0] ?? 1} surge${args[0] === "1" ? "" : "s"}`;
@@ -262,6 +266,8 @@ const CURATED_LINES = [
   [/^Boren$/, /hybrid form/, { trigger: "You use your Aspect of the Wild ability", note: "Revisit with Enhanced: the Hybrid Form choice" }],
   [/^Allow Me to Introduce/, /first turn/, { trigger: "You start your turn", clause: { firstTurn: true } }],
   [/^Foesense Lenses$/, /creature whose senses you are using/, { clause: { effects: [{ on: "victim", has: true, kind: "name", value: "Foesense", by: "self" }] } }],
+  [/^Chaos Incarnate$/, /first becomes aware of you in combat/, { trigger: "A creature starts their turn", clause: { scope: "ANY", firstTurn: true,
+    qualifiers: ["an elemental, or a creature whose abilities deal acid, cold, corruption, fire, lightning, poison, or sonic damage", "if they have strong potency"] } }],
   [/^Volant$/, /winded or reduces them to 0 Stamina/, { trigger: "The self deals damage to a creature", clause: { damageOutcome: ["winded", "zero"] } }],
   [/^Elemental Buffer$/, /damage immunity/, { trigger: "You take acid, cold, corruption, fire, lightning, poison, or sonic damage", clause: { reducedByImmunity: true } }],
   [/^Master of Reels$/, /2 or more squares away/, { trigger: "You deal damage to a creature", clause: { rangeMin: 2, notForceMoved: true } }],
