@@ -71,9 +71,9 @@ function _tierCandidates(subjectActor, tokenDoc, rollerActor) {
       && (m.clause?.tierFilter?.length ?? 0) > 0);
 }
 
-function _rollerTierCandidates(rollerActor, rollerToken, ability) {
+function _rollerTierCandidates(rollerActor, rollerToken, ability, usedTargets = []) {
   const signature = (ability?.system?.category ?? "") === "signature";
-  return collectTriggerMatches("POWER_ROLL_RESULT", rollerActor, rollerToken)
+  return collectTriggerMatches("POWER_ROLL_RESULT", rollerActor, rollerToken, null, { ability, usedTargets })
     .filter((m) => !m.malice
       && (m.parse?.confidence === "high" || m.parse?.source === "manual")
       && (m.clause?.tierFilter?.length ?? 0) > 0
@@ -81,6 +81,11 @@ function _rollerTierCandidates(rollerActor, rollerToken, ability) {
       && (!m.clause?.signatureOnly || signature)
       && (!m.clause?.abilityDsid || ability?.system?._dsid === m.clause.abilityDsid));
 }
+
+const _targetActors = (targets) => (targets ?? []).map((t) => {
+  const doc = t.tokenUuid ? fromUuidSync(t.tokenUuid) : null;
+  return doc?.actor ?? (t.actorUuid ? fromUuidSync(t.actorUuid) : null);
+}).filter(Boolean);
 
 function _rollerToken(message, rollerActor) {
   const doc = message.speaker?.scene && message.speaker?.token
@@ -96,7 +101,7 @@ function _rollerTier(message, targets) {
 
 function _addRollerMatches({ message, matches, seen, targets, rollerActor, ability, queued = null }) {
   const rollerToken = _rollerToken(message, rollerActor);
-  const candidates = _rollerTierCandidates(rollerActor, rollerToken, ability);
+  const candidates = _rollerTierCandidates(rollerActor, rollerToken, ability, _targetActors(targets));
   if (!candidates.length) return false;
   const tier = _rollerTier(message, targets);
   for (const m of candidates) {

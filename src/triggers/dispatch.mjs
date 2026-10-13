@@ -7,7 +7,7 @@ import { malicePill, sendMaliceCard } from "./malice.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
-import { carriesEffect, carriesMark, labelKnown } from "./feature-triggers.mjs";
+import { carriesEffect, carriesMark, labelKnown, featureLineSpent } from "./feature-triggers.mjs";
 import { markVictim, markDealer } from "./line-effects.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
@@ -21,7 +21,9 @@ const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, ...CONDITION_PROMPTS, "USES_AB
 const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
 
 const FIXED_DISPOSITIONS = { FRIENDLY: "FRIENDLY", NEUTRAL: "NEUTRAL", HOSTILE: "HOSTILE", SECRET: "SECRET" };
-const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", ...Object.keys(FIXED_DISPOSITIONS)]);
+const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", "MENTOR", ...Object.keys(FIXED_DISPOSITIONS)]);
+
+const mentorOf = (actor) => actor?.system?.retainer?.mentor ?? actor?.system?.companion?.master ?? null;
 
 function groupMatches(kw, subjectActor) {
   if (subjectActor.system?.monster?.keywords?.has?.(kw)) return true;
@@ -49,6 +51,10 @@ export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor,
     case "ENEMY": return !isSelf && !sameSide;
     case "ANY": return true;
     case "GROUP": return !!clause.groupName && groupMatches(clause.groupName, subjectActor);
+    case "MENTOR": {
+      const mentor = mentorOf(ownerActor);
+      return !!mentor && (mentor === subjectActor || mentor.id === subjectActor.id);
+    }
     default: return false;
   }
 }
@@ -119,6 +125,9 @@ function rangeMatches(clause, item, ownerActor, ownerToken, subjectActor, subjec
   if (clause.rangeOn === "dealer") {
     subjectActor = ctx.dealerActor ?? null;
     subjectToken = tokenDoc(ctx.dealerToken);
+  } else if (clause.rangeOn === "victim") {
+    subjectActor = ctx.victimActor ?? null;
+    subjectToken = tokenDoc(ctx.victimToken);
   }
   if (!subjectActor || ownerActor === subjectActor) return true;
   if (!ownerToken || !subjectToken) return true;
@@ -216,7 +225,13 @@ const damageMinMet = (clause, ctx) => clause.damageMin == null || Number(ctx.tri
 
 const costMinMatches = (clause, ability) => clause.abilityCostMin == null || Number(ability?.system?.resource ?? 0) >= clause.abilityCostMin;
 
-const damageKeywordsMatch = (clause, ctx) => keywordsMatch(clause, ctx.ability) && costMinMatches(clause, ctx.ability);
+const damageKeywordsMatch = (clause, ctx) => keywordsMatch(clause, ctx.ability) && costMinMatches(clause, ctx.ability)
+  && (!clause.abilityDsid || !ctx.ability || (ctx.ability.system?._dsid ?? ctx.ability.dsid) === clause.abilityDsid)
+  && (!clause.abilityType || !ctx.ability || ctx.ability.system?.type === clause.abilityType);
+
+const grabbedBy = (held, grabber) => !!held?.statuses?.has("grabbed") && !!held.system?.statuses?.grabbed?.sources?.has?.(grabber?.uuid);
+
+const holdsAnyGrab = (owner) => (canvas.tokens?.placeables ?? []).some((t) => t.actor && t.actor !== owner && grabbedBy(t.actor, owner));
 
 export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length
@@ -382,6 +397,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.damageBonus || clause.damageTypeChange) return false;
       if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
+      if (clause.victimType && ctx.victimActor && ctx.victimActor.type !== clause.victimType) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
       if (clause.victimCondition && !ctx.victimActor?.statuses?.has(clause.victimCondition)) return false;
       if (clause.notForceMoved && forcesMovement(ctx.ability)) return false;
@@ -397,6 +413,8 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.fromFalling && !ctx.fromFalling) return false;
       if (clause.fromForcedMovement && !ctx.fromForcedMovement) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
+      if (clause.ownerGrabbing === "any" && !holdsAnyGrab(ownerActor)) return false;
+      if (clause.dealerNotGrabbed && ctx.dealerActor && grabbedBy(ctx.dealerActor, ownerActor)) return false;
       if (!clause.dealerScope) return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length);
       if (!ctx.dealerActor) return false;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
@@ -443,6 +461,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     }
     case "DIES":
       if (ctx.deathOffered && item?.featureLine?.defersDeath) return false;
+      if (clause.afterKey && !featureLineSpent(ownerActor, clause.afterKey, "encounter")) return false;
       if (clause.damageTypes?.length && ctx.damageType && !clause.damageTypes.includes(ctx.damageType)) return false;
       return !clause.lastMinion || lastMinionStanding(subjectActor, subjectToken);
     case "DYING":
@@ -467,6 +486,15 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return !clause.ownerGrabbing || holdsSmallerGrab(ownerActor);
     case "POWER_ROLL":
       return !ctx.ability || keywordsMatch(clause, ctx.ability);
+    case "MAKES_STRIKE":
+      if (clause.notForceMoved && forcesMovement(ctx.ability)) return false;
+      return !ctx.ability || keywordsMatch(clause, ctx.ability);
+    case "POWER_ROLL_RESULT":
+      if (!ctx.ability) return true;
+      if (!keywordsMatch(clause, ctx.ability)) return false;
+      if (clause.abilityType && ctx.ability.system?.type !== clause.abilityType) return false;
+      if (clause.abilityDsid && ctx.ability.system?._dsid !== clause.abilityDsid) return false;
+      return !clause.targetsOwner || !(ctx.usedTargets ?? []).length || ctx.usedTargets.some((t) => (t?.actor ?? t) === ownerActor);
     case "TURN_START":
       if (clause.firstTurn && !ctx.firstTurn) return false;
     
@@ -493,6 +521,10 @@ function statusMatches(clause, ownerActor, subjectActor) {
 }
 
 function organizationMatches(clause, subjectActor) {
+  if (clause.subjectKeywords?.length && subjectActor) {
+    const kw = subjectActor.system?.monster?.keywords;
+    if (!clause.subjectKeywords.some((k) => kw?.has?.(k) ?? kw?.includes?.(k))) return false;
+  }
   const excluded = clause.organization?.exclude;
   if (!excluded?.length || !subjectActor) return true;
   const org = subjectActor.system?.monster?.organization ?? (isMinionActor(subjectActor) ? "minion" : null);

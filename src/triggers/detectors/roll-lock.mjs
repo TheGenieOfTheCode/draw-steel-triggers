@@ -73,7 +73,7 @@ Hooks.once("setup", () => Hooks.on("ds.canRenderAbilityConfigurationDialog", (ap
 
   const rollerToken = rollerActor.getActiveTokens(true, true)[0] ?? null;
   if (hasRoll) add(_lockMatches("POWER_ROLL", rollerActor, rollerToken, rollerActor, ability, targetDocs), "POWER_ROLL");
-  if (strike) add(_lockMatches("MAKES_STRIKE", rollerActor, rollerToken, rollerActor, null, targetDocs), "MAKES_STRIKE");
+  if (strike) add(_lockMatches("MAKES_STRIKE", rollerActor, rollerToken, rollerActor, ability, targetDocs), "MAKES_STRIKE");
   const targetActors = new Set(targetPairs.map((p) => p.tokenDoc?.actor).filter(Boolean));
   const notAlsoTargeted = (m) => !(m.clause?.excludeSelfTarget && targetActors.has(m.actor));
   for (const { tokenDoc } of targetPairs) {

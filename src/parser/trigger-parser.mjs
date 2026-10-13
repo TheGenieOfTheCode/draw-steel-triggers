@@ -972,7 +972,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     if (TARGETING_EVENTS.has(entry.event) && /\bdeals? rolled damage\b/.test(lc)) entry.rolledDamage = true;
     const minDamage = (entry.event === "DEALS_DAMAGE" || entry.event === "TAKES_DAMAGE") && lc.match(MIN_DAMAGE);
     if (minDamage) entry.damageMin = minDamage[1] ? Number(minDamage[1]) : Number(minDamage[2]) + 1;
-    const strikeKind = TARGETING_EVENTS.has(entry.event) && !entry.abilityKeywords?.length && lc.match(/\b(melee|ranged) strike\b/);
+    const strikeKind = (TARGETING_EVENTS.has(entry.event) || entry.event === "MAKES_STRIKE") && !entry.abilityKeywords?.length && lc.match(/\b(melee|ranged) strike\b/);
     if (strikeKind) entry.abilityKeywords = [strikeKind[1]];
     if (TARGETING_EVENTS.has(entry.event) && /\bwhile (?:a second|another) creature is flanking (?:you|the self)\b/.test(lc)) entry.flankedByDealer = true;
     const dealerWithin = entry.event === "TAKES_DAMAGE" && lc.match(/^(?:an?|any) (?:creature|enemy|ally) within (?:(\d+) squares?|a number of squares equal to (?:your|the self['’]s) (might|agility|reason|intuition|presence) score)(?: of (?:you|the self))? deals? [\w, ]*damage to (?:you|the self)\b/);

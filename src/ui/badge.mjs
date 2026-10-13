@@ -34,8 +34,7 @@ const EVENT_MODES = {
   MAKES_STRIKE: "lock",
   POWER_ROLL: "lock",
 };
-const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY"]);
-
+const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", "MENTOR"]);
 
 const RESOLUTION_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 
@@ -156,7 +155,6 @@ function buildCoin(item) {
   });
   return coin;
 }
-
 
 function decoratePlayTrigger(element, item) {
   const text = element.querySelector("dd.trigger");

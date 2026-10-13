@@ -221,6 +221,8 @@ const CURATED = {
   "empowered-will": { once: "round" },
 };
 
+const RAMPAGING = { on: "owner", has: true, kind: "name", value: "Rampaging", by: "anyone" };
+
 const CURATED_LINES = [
   [/^Breath of Creation$/, /another Breath of Creation/, { drop: true }],
   [/^Camouflage Hunter$/, /./, { drop: true }],
@@ -263,7 +265,8 @@ const CURATED_LINES = [
   [/^Pack Harness$/, /activate this armor/, { kind: "outOfCombat" }],
   [/^Doomsight$/, /encounter begins/, { kind: "outOfCombat" }],
 
-  [/^Boren$/, /hybrid form/, { trigger: "You use your Aspect of the Wild ability", note: "Revisit with Enhanced: the Hybrid Form choice" }],
+  [/^Boren$/, /hybrid form/, { trigger: "You use your Aspect of the Wild ability", clause: { abilityDsid: "aspect-of-the-wild" }, level: 4,
+    note: "Revisit with Enhanced: the Hybrid Form choice" }],
   [/^Allow Me to Introduce/, /first turn/, { trigger: "You start your turn", clause: { firstTurn: true } }],
   [/^Revenger['’]s Wrap$/, /until another creature damages you/, { clause: { markDealer: { effect: "Revenger’s Wrap", exclusiveBelowLevel: 5 } } }],
   [/^Revenger['’]s Wrap$/, /\bEach creature who damages you is marked for revenge/, { clause: { markDealer: { effect: "Revenger’s Wrap" } } }],
@@ -346,6 +349,41 @@ const CURATED_LINES = [
   [/^The Mountain Does Not Move$/, /force moved/, { clause: { fmMod: { mode: "stability" } } }],
   [/^Ether-Fueled Vessel$/, /move through a creature who is insubstantial to you/, { clause: { throughMark: null,
     effects: [{ on: "through", has: true, kind: "name", value: "Insubstantial", by: "self" }] } }],
+
+  [/^Stonebreaker Flesh$/, /tier 1 outcome on a melee ability/, { clause: { rollerScoped: true, abilityKeywords: ["melee"], targetsOwner: true } }],
+  [/^Equal Billing$/, /succeeds on a saving throw/, { triggers: [["You make a saving throw", { saveSucceeds: true }],
+    ["An ally makes a saving throw", { saveSucceeds: true, effects: [{ on: "subject", has: true, kind: "name", value: "Scene Partner", by: "anyone" }] }]] }],
+  [/^Psionic (?:Conductor|Amplifier)$/, /voiceless talker/, { clause: { scope: "ALLY", subjectKeywords: ["voicelessTalker"] } }],
+  [/^Spiny$/, /grabs the animal/, { trigger: "An adjacent enemy grabs the self or uses a melee ability against the self" }],
+  [/^Lightweight$/, /attempts to force move you/, { trigger: "You are force moved", clause: { evenIfResisted: true } }],
+  [/^Can['’]t Take Hold$/, /magic or psionic ability/, { clause: { abilityKeywords: ["magic", "psionic"] } }],
+  [/^Primordial Strength$/, /damage an object with a weapon strike/, { clause: { victimType: "object", abilityKeywords: ["weapon", "strike"], abilityKeywordsAll: true } }],
+  [/^Last Stand$/, /reduced to 0 Stamina again/, { clause: { afterLine: "first" } }],
+  [/^Music of the Spheres$/, /whenever a creature within 10 squares makes a strike/, { clause: {
+    effects: [{ on: "owner", has: true, kind: "name", value: "Music of the Spheres", by: "anyone" }] } }],
+  [/^Warbanner of Wrath$/, /makes a melee strike/, { clause: { abilityKeywords: ["melee", "strike"], abilityKeywordsAll: true } }],
+  [/^Harlequin Gambit$/, /adjacent non-minion creature/, { clause: { range: 1, rangeOn: "victim" } }],
+  [/^Wildfire Pyre$/, /Pyre ability/, { clause: { abilityDsid: "pyre" } }],
+  [/^Kit Improvement - Level 6$/, /Summoner Strike ability/, { clause: { abilityDsid: "summoner-strike" } }],
+  [/^We['’]re In This Together$/, /have a creature grabbed/, { trigger: "You take damage", clause: { ownerGrabbing: "any", dealerNotGrabbed: true } }],
+  [/^Absorb Soul$/, /reduced to 0 Stamina within 10 squares/, { clause: { ownerLacks: "dazed" } }],
+  [/^Hot to Go$/, /fire damage for the first time/, { once: "round" }],
+
+  [/^(?:Foes Forever Frozen|Dive Bomb|Tear You to Ribbons|Electroshock|Infernal Apparition|Hit and Run|Cat and Mouse|Dripping Fangs|Slowing Spores|My, What Big Teeth You Have)$/,
+    /makes a strike against a creature while rampaging|makes a strike while rampaging/, { trigger: "The self makes a strike", clause: { selfRoll: true, effects: [RAMPAGING] } }],
+  [/^Foe Thresher$/, /strike that doesn['’]t impose forced movement/, { trigger: "The self makes a strike", clause: { selfRoll: true, notForceMoved: true, effects: [RAMPAGING] } }],
+  [/^Reaping Scythe$/, /while rampaging/, { clause: { effects: [RAMPAGING] } }],
+  [/^Rock Smasher$/, /stoned creature/, { trigger: "You deal damage to a creature", clause: { scope: "MENTOR",
+    effects: [RAMPAGING, { on: "victim", has: true, kind: "name", value: "Stoned", by: "anyone" }] } }],
+  [/^Immortal Rage$/, /while the boar is rampaging/, { triggers: [["The self deals damage", { effects: [RAMPAGING] }], ["You deal damage", { scope: "MENTOR", effects: [RAMPAGING] }]] }],
+  [/^Life Drinker$/, /while the spider is rampaging/, { triggers: [["The self deals damage", { abilityType: "maneuver", effects: [RAMPAGING] }],
+    ["You deal damage", { scope: "MENTOR", abilityType: "maneuver", effects: [RAMPAGING] }]] }],
+
+  [/^I['’]ve Read About This Place$/, /settlement/, { kind: "outOfCombat" }],
+  [/^Breath of Creation$/, /moves into the portal/, { kind: "outOfCombat" }],
+  [/^(?:Pocket Homunculus|Stone Walker|Stolen Face)$/, /./, { drop: true }],
+  [/^Infernal Contract/, /soul goes to Hell/, { drop: true }],
+  [/^Remember Your Oath$/, /make a saving throw/, { drop: true }],
 ];
 
 const SENTENCE_LINES = [
@@ -455,7 +493,9 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       if (curated.trigger || curated.triggers) parse.bespoke = "all";
       else if (curated.clause) parse.bespoke = Object.keys(curated.clause);
       if (curated.clause) {
-        parse.clauses = parse.clauses.map((c) => ({ ...c, ...curated.clause }));
+        const { afterLine, ...patch } = curated.clause;
+        if (afterLine === "first" && lines[0]) patch.afterKey = lines[0].key;
+        parse.clauses = parse.clauses.map((c) => ({ ...c, ...patch }));
         
         if (parse.clauses.every((c) => c.event !== "UNKNOWN" && c.scope !== "UNKNOWN")) parse.confidence = "high";
       }
@@ -463,7 +503,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const line = { key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
-        parse, tier, family: tier ? generateDSID(f.trigger) : null };
+        parse, tier: tier ?? (curated.level ? { min: curated.level, level: curated.level, resource: null } : null),
+        family: tier || curated.level ? generateDSID(f.trigger) : null };
       lines.push(line);
       previous = line;
       earlier = line;
