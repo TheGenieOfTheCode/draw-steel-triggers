@@ -51,7 +51,6 @@ const MECHANICS = /\b(?:damage|stamina|surges?|edges?|banes?|rolls?|tests?|squar
 const plainWords = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 
 const OUT_OF_COMBAT =/\b(respite|downtime|montage|negotiation|project|travel(?:ing)?|tests?\b|rest\b|between encounters|outside of combat|each day|a day|victor(?:y|ies)|hours?|minutes?|uninterrupted|craft(?:ing)?|deity)\b/i;
-const AUGMENT = /^(?:you|your companion|you or your companion) (?:use|uses|make|makes|take|takes|activate)s? (?:the |a |an |your |any )?(?:[\w'’ -]+ )?(?:ability|abilities|maneuver|main action|move action|action|strike|free strike|Judgment|Disengage|Charge|Knockback|Advance|Aid Attack|Hide|Search|Grab)\b(?! against you)/i;
 
 function cleanCondition(c) {
   let t = c.replace(/^additionally,?\s*/i, "").replace(/\s*\([^)]*\)/g, "");
@@ -215,9 +214,6 @@ export const defersDeath = (effect) => DEFERS_DEATH.test(String(effect ?? ""));
 export const marksSpace = (effect) => /\btheir space is difficult terrain\b/i.test(String(effect ?? ""));
 
 const CURATED = {
-  "escort-the-prisoners": { kind: "augment" },
-  "leading": { kind: "augment" },
-  "gloaming-wyrmscale-aura": { kind: "augment" },
   "empowered-will": { once: "round" },
 };
 
@@ -261,13 +257,12 @@ const CURATED_LINES = [
   [/^Leader Formation$/, /./, { later: "Summoner" }],
   [/^Rampage$/, /spends ferocity|gains 8 rampage/, { later: "Companion rampage" }],
 
-  [/^Caustic Alchemy$/, /./, { kind: "augment" }],
-  [/^Chimeric Manifestation$/, /./, { kind: "augment" }],
-  [/^Minion Chain$/, /./, { kind: "augment" }],
-  [/^Shifting Ring$/, /teleport/, { kind: "augment" }],
-  [/^Rampage$/, /increases their size/, { kind: "augment" }],
-  [/^Control the Elements$/, /./, { kind: "augment", note: "Summoner" }],
-  [/^Elemental Affinity$/, /./, { kind: "augment", note: "Summoner" }],
+  [/^Chimeric Manifestation$/, /./, { drop: true }],
+  [/^Minion Chain$/, /./, { later: "1.2" }],
+  [/^Shifting Ring$/, /teleport/, { later: "Combat Tools: teleports" }],
+  [/^Rampage$/, /increases their size/, { later: "1.2" }],
+  [/^Control the Elements$/, /./, { later: "1.2" }],
+  [/^Elemental Affinity$/, /./, { later: "1.2" }],
 
   [/^(?:Engrossing Monologue|Famous Relative|Formal Introductions|Grifter|Honor Among Thieves|Host Body|Hunted|Indebted|Fiery Ideal)$/, /./, { kind: "outOfCombat" }],
   [/^Pack Harness$/, /activate this armor/, { kind: "outOfCombat" }],
@@ -279,15 +274,41 @@ const CURATED_LINES = [
   [/^Revenger['’]s Wrap$/, /until another creature damages you/, { clause: { markDealer: { effect: "Revenger’s Wrap", exclusiveBelowLevel: 5 } } }],
   [/^Revenger['’]s Wrap$/, /\bEach creature who damages you is marked for revenge/, { clause: { markDealer: { effect: "Revenger’s Wrap" } } }],
   [/^Entropy Ward$/, /deals damage to you/, { clause: { markDealer: { effect: "Entropy Ward", ownEnd: true, noTriggered: true } } }],
-  [/(?:Growing Ferocity|kinetic Mastery)$/, /whenever you use a heroic ability, you gain 10 temporary Stamina/i, { kind: "trigger" }],
-  [/^Disciple of the Green$/, /take damage from an adjacent creature['’]s melee ability/, { kind: "trigger" }],
-  [/^Smoldering Step$/, /use a fire ability or are targeted by an ability that deals fire damage/, { kind: "trigger" }],
-  [/^Chaldorb$/, /whirlwind of sleet and ice/, { kind: "trigger" }],
-  [/^Thunderstruck$/, /deal lightning or sonic damage/, { kind: "trigger" }],
-  [/^Boren Growing Ferocity$/, /strike against a creature you have grabbed/, { kind: "trigger", clause: { targetGrabbedByOwner: true } }],
-  [/^Hellcharger Helm$/, /Charge main action while wearing this helmet/, { kind: "trigger" }],
-  [/^Pierce the Veil of Substance$/, /use a void ability/, { kind: "trigger" }],
-  [/^Acolyte of Earth$/, /Earth and Magic keywords/, { kind: "trigger" }],
+  [/^Boren Growing Ferocity$/, /strike against a creature you have grabbed/, { clause: { targetGrabbedByOwner: true } }],
+  [/^(?:Growing Ferocity|Strongest There Is|Metakinetic Mastery)$/, /use the Knockback maneuver, the forced movement distance gains/, { trigger: "You force move a target", clause: { abilityDsid: "knockback" } }],
+  [/^Psionic Martial Arts$/, /choose to slide the target instead of pushing/, { trigger: "You force move a target", clause: { abilityDsid: "knockback" } }],
+  [/^Following in the Footsteps$/, /take this ability in future/, { drop: true }],
+  [/^Silver Shield$/, /can['’]t spend wrath unless/, { drop: true }],
+  [/^Persistent Magic$/, /persistent ability/, { drop: true }],
+  [/^Improved Hands of the Maker$/, /create a mundane object/, { drop: true }],
+  [/^Disciple of the Green$/, /Advance move action, you can high jump/, { drop: true }],
+  [/^Unstoppable Force$/, /instead of a free strike/, { drop: true }],
+  [/^Friend!$/, /take the Disengage move action as part of that ability/, { drop: true }],
+  [/^Tactical Offensive$/, /instead of a melee free strike/, { drop: true }],
+  [/^Furniture Fighter$/, /improvised weapon/, { drop: true }],
+  [/^Lance of the Sundered Star$/, /you can fly as part of the charge/, { drop: true }],
+  [/^Flameshade Gloves$/, /place one hand upon a mundane object/, { drop: true }],
+  [/^Leading$/, /they can shift instead/, { drop: true }],
+  [/^Escort the Prisoners$/, /carry an adjacent restrained enemy/, { drop: true }],
+  [/^(?:Rampage|There For Each Other|Essence|Pack Harness|Rampant Shield|Horned Champion|Slake My Thirst in Blood)$/, /Feral Strike|The Pack Defends|call forth a minion|banish one copy|companion uses an ability|Charge main action|deinonychus is rampaging/, { later: "1.2" }],
+  [/^Look On My Work and Despair$/, /use your Judgment ability/, { later: "Combat Tools: Judgment rider" }],
+  [/^Psionic Martial Arts$/, /use Intuition instead of Might/, { later: "Combat Tools: ability override" }],
+  [/^(?:Vuken Growing Ferocity|Cryokinetic Mastery|Four-Armed Martial Arts|Everybody Move!)$/, /target one additional/, { later: "Extra targets for the ability in use" }],
+  [/^Psi Boost$/, /psi boost/, { later: "Combat Tools: psi boost picker" }],
+  [/^Inertial Fulcrum$/, /reduce damage dealt to you/, { later: "Triggered by your own ability" }],
+  [/^Burning Ash$/, /teleport away from or into a space/, { later: "Combat Tools: teleports" }],
+  [/^(?:Trained Assassin|Chaos Incarnate|Masterwork)$/, /surges? (?:that you can use only|per ferocity)|incorporates 1 or more surges/, { later: "Surges on the strike in progress" }],
+  [/^(?:Insight|Antihero)$/, /costs 1 fewer insight|spend 1 antihero token in place of/, { later: "Resource cost changes" }],
+  [/^Glowing Recovery$/, /Catch Breath/, { later: "Combat Tools: Catch Breath" }],
+  [/^(?:Vampire Scion|Ghoul or Vampire)$/, /melee free strike against an adjacent creature/, { later: "Free strike bite" }],
+  [/^(?:Blood Mage|Brittlebreaker)$/, /take damage equal to your level|take half as much total damage/, { later: "Optional self damage" }],
+  [/^Furious Charge$/, /number of squares you moved/, { later: "Squares moved during the charge" }],
+  [/^Disciple of the Green$/, /melee free strike as part of the Charge action/, { later: "Free strike inside an action" }],
+  [/^(?:Giant['’]s-Blood Flame|Icemaker Maul)$/, /ignited this way|in the ice field/, { later: "Treasure state" }],
+  [/^Thunderhead Bident$/, /each enemy adjacent to the target/, { later: "Burst around the target" }],
+  [/^Gloaming Wyrmscale Aura$/, /enemies is in the area/, { later: "Aura condition" }],
+  [/^Thief of Joy$/, /torque['’]s maneuver and the target creature is the same level/, { later: "Treasure resource" }],
+  [/^Molten Constrictor$/, /using the net and obtain a tier 3/, { later: "Post-roll entries aim at the roller" }],
   [/^Revenger['’]s Wrap$/, /damage a creature marked for revenge/, { clause: {
     effects: [{ on: "victim", has: true, kind: "name", value: "Revenger’s Wrap", by: "self" }] } }],
   [/^Bloodbound Band$/, /any other bonded creature takes damage/, { clause: { scope: "ALLY",
@@ -320,12 +341,11 @@ const CURATED_LINES = [
   [/^Strange Inheritance$/, /Wealth exceeds/, { kind: "outOfCombat" }],
   [/^Wyrding$/, /comes adjacent to the surface|create the seal/, { kind: "outOfCombat" }],
 
-  [/^Cryokinetic Mastery$/, /untyped damage with a psionic ability/, { kind: "augment", note: "Combat Tools" }],
-  [/^King['’]s Roar$/, /cause the shield to roar/, { kind: "augment" }],
-  [/^Kuran['’]zoi Prismscale$/, /^Additionally, (?:when|whenever) you capture a moment/, { kind: "augment" }],
-  [/^Paper Trappings$/, /paper thin|return to your true form/, { kind: "augment" }],
-  [/^Rex Scepter$/, /command using the scepter/, { kind: "augment" }],
-  [/^Sanctuary Horn$/, /teleported by this horn/, { kind: "augment" }],
+  [/^King['’]s Roar$/, /cause the shield to roar/, { drop: true }],
+  [/^Kuran['’]zoi Prismscale$/, /^Additionally, (?:when|whenever) you capture a moment/, { drop: true }],
+  [/^Paper Trappings$/, /paper thin|return to your true form/, { drop: true }],
+  [/^Rex Scepter$/, /command using the scepter/, { later: "1.2" }],
+  [/^Sanctuary Horn$/, /teleported by this horn/, { later: "1.2" }],
 
   [/^(?:Demon Slayer|Made of Teeth)$/, /physical contact/, { later: "Rules question: physical contact" }],
   [/^Lifebonded$/, /When they die/, { trigger: "The creature you are bound to dies", later: "Who you are bound to" }],
@@ -380,7 +400,7 @@ const CURATED_LINES = [
   [/^Last Stand$/, /reduced to 0 Stamina again/, { clause: { afterLine: "first" } }],
   [/^Music of the Spheres$/, /whenever a creature within 10 squares makes a strike/, { clause: { notSelf: true,
     effects: [{ on: "owner", has: true, kind: "name", value: "Music of the Spheres", by: "anyone" }] } }],
-  [/^Music of the Spheres$/, /you make a strike during that same period/, { kind: "trigger", clause: {
+  [/^Music of the Spheres$/, /you make a strike during that same period/, { clause: {
     effects: [{ on: "owner", has: true, kind: "name", value: "Music of the Spheres", by: "anyone" }] } }],
   [/^Warbanner of Wrath$/, /makes a melee strike/, { clause: { abilityKeywords: ["melee", "strike"], abilityKeywordsAll: true } }],
   [/^Harlequin Gambit$/, /adjacent non-minion creature/, { clause: { range: 1, rangeOn: "victim" } }],
@@ -502,7 +522,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const pick = curatedLine(name, f.sentence) ?? {};
       if (pick.drop) return;
       const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...pick };
-      const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger");
+      const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : "trigger");
       const once = curated.once ?? onceOf(f.sentence) ?? (/\buntil the end of the round\b/i.test(effect) ? "round" : null);
       const parseText = curated.trigger ?? (ownerName ? asOwner(f.trigger, ownerName) : f.trigger);
       let key = generateDSID(`${base} ${f.trigger.replace(/\b[MARIP]<(\w+)/g, "$1 potency")}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
