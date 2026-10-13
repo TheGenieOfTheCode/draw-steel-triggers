@@ -280,6 +280,7 @@ const CURATED_LINES = [
     qualifiers: ["an elemental, or a creature whose abilities deal acid, cold, corruption, fire, lightning, poison, or sonic damage", "if they have strong potency"] } }],
   [/^Volant$/, /winded or reduces them to 0 Stamina/, { trigger: "The self deals damage to a creature", clause: { damageOutcome: ["winded", "zero"] } }],
   [/^Elemental Buffer$/, /damage immunity/, { trigger: "You take acid, cold, corruption, fire, lightning, poison, or sonic damage", clause: { reducedByImmunity: true } }],
+  [/^Absorbing Scales$/, /damage immunity/, { clause: { reducedByImmunity: true } }],
   [/^Master of Reels$/, /2 or more squares away/, { trigger: "You deal damage to a creature", clause: { rangeMin: 2, notForceMoved: true } }],
   [/^Foes as Weapons$/, /grabbed/, { trigger: "You use your Melee Free Strike ability", clause: { ownerGrabbing: "sameOrSmaller" } }],
   [/^Ease Their Fall$/, /./, { trigger: "A creature within 2 squares would take damage", clause: { fromFalling: true, damageReduction: { base: 2, char: "reason" } } }],

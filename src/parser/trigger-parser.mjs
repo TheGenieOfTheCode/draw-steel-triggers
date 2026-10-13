@@ -66,7 +66,7 @@ export const DAMAGE_MOD_TEXT = [
   /\b(?:reduce[sd]?|decrease[sd]?|lower[sd]?) (?:the |that |this |any |incoming )?damage\b/i,
   /\btak(?:e|es|ing) no damage\b/i,
   /\bignores? (?:the |that |this )?damage\b/i,
-  /\b(?:damage )?immunity (?:\d+|equal to)\b/i,
+  /\b(?:damage )?immunity (?:\d+|equal to)\b(?![^.]*\b(?:until the end of|against the next)\b)/i,
 ];
 
 export function isDamageModifyingText(text) {
@@ -170,6 +170,7 @@ export const FM_MOD_TEXT = [
   [/\bslide (?:them|it|the target|that creature) instead\b/i, () => ({ mode: "slide" })],
   [/\bpull (?:them|it|the target|that creature) instead\b/i, () => ({ mode: "pull" })],
   [/\b(?:that|the) forced movement can be vertical\b/i, () => ({ mode: "vertical" })],
+  [/\bcan vertical (?:push|pull|slide) (?:them|it|the target|that creature)\b/i, () => ({ mode: "vertical" })],
   [new RegExp(`\\btakes? extra damage equal to your ${CHAR} score\\b`, "i"), (m) => ({ mode: "objectDamage", char: m[1].toLowerCase() })],
 ];
 
@@ -715,6 +716,7 @@ function normalizeTrigger(clean, ownerName) {
   normalized = normalized.replace(/^(a|an|one) ([\w -]+?)['’]s turn starts/i, "a $2 starts their turn");
   normalized = normalized.replace(/\b(you|they) pass through\b/gi, "$1 move through").replace(/\bpasses through\b/gi, "moves through");
   normalized = normalized.replace(/\benters (?:a|an|any|another) crea ?ture['’]s space\b/gi, "moves through a creature's space");
+  normalized = normalized.replace(/\b(you|they) make a power roll that imposes forced movement on (a|the|that) target\b/gi, "$1 force move $2 target");
   normalized = normalized.replace(/\bwinded or (?:are|is) dying\b/gi, "winded or dying");
   normalized = normalized.replace(/\b(deals?|takes?) or (deals?|takes?) ((?:[\w-]+ )*?damage)\b/i, "$1 $3, or $2 $3");
   normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero)( within \d+ squares?| within (?:distance|reach)| adjacent(?: to [\w'’ ]+?)?)? makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
