@@ -384,6 +384,7 @@ const CURATED_LINES = [
   [/^(?:Pocket Homunculus|Stone Walker|Stolen Face)$/, /./, { drop: true }],
   [/^Infernal Contract/, /soul goes to Hell/, { drop: true }],
   [/^Remember Your Oath$/, /make a saving throw/, { drop: true }],
+  [/^(?:Impressive Horns|Otherworldly Grace|Otherwordly Grace)$/, /succeed on a roll of 5 or higher/, { drop: true }],
 ];
 
 const SENTENCE_LINES = [

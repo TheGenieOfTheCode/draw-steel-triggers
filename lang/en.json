@@ -904,6 +904,8 @@
       "LinkTooltip": "Click to use this ability. Shift-click to share its description to chat.",
       "MissingAbility": "That ability no longer exists.",
       "TakesDamage": "Triggered by {name} taking {amount} damage.",
+      "SaveSucceeds": "Triggered by {name} succeeding on a saving throw.",
+      "SaveFails": "Triggered by {name} failing a saving throw.",
       "DealsDamage": "Triggered by {name} dealing {amount} damage to {target}.",
       "UsesAbility": "Triggered by {name} using {ability}.",
       "Dies": "Triggered by {name} dying.",

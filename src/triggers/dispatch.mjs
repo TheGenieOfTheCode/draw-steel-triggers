@@ -477,6 +477,10 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
         && !scopeMatches({ scope: clause.victimScope }, ownerActor, ownerDisposition, ctx.victimActor, ctx.victimToken?.disposition ?? null)) return false;
       return !clause.victimEndsAdjacent || endsAdjacent(clause.victimEndsAdjacent, ownerActor, subjectToken, ctx.victimToken, ownerDisposition);
     }
+    case "SAVING_THROW":
+      if (clause.saveSucceeds && !ctx.saveSucceeds) return false;
+      if (clause.saveAgainst && !(ctx.effectStatuses ?? []).includes(clause.saveAgainst)) return false;
+      return !(clause.saveFails && ctx.saveSucceeds);
     case "SPENDS_RECOVERY":
       return !clause.recoveryByOwner || ctx.recoveryBy === ownerActor.uuid;
     case "RESISTS_POTENCY":
