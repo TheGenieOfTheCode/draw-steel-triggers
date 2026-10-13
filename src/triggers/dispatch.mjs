@@ -715,7 +715,7 @@ const tokenUuidOf = (thing) => (thing?.document ?? thing)?.uuid ?? null;
 const ownTokenOf = (actor) => actor?.token ?? actor?.getActiveTokens?.(false, true)?.[0] ?? null;
 
 function aimOf(m, subjectToken, ctx) {
-  if (m.item.system?.distance?.type === "burst") return "";
+  if (m.item.system?.distance?.type === "burst" || m.item.getFlag?.("draw-steel-combat-tools", "areaFilter")?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
   if (/^(?:you|the self)\b/.test(effect)) return tokenUuidOf(ownTokenOf(m.actor));
   if (!/^(?:they|it|that (?:enemy|creature|ally|target)|the (?:enemy|creature|target|triggering creature))\b/.test(effect)) return null;
