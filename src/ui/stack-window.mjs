@@ -115,12 +115,26 @@ async function useWithTriggerContext(item, entry) {
   }
 }
 
-const _autoSubmit = new Set();
+const _stackUses = new Map();
+
+const DECISION_CONTROLS = "input:not([type=hidden]), select, textarea, range-picker, [data-action=placeTemplate]";
+
+function hasDecisions(app) {
+  if (app.options?.ability?.system?.power?.roll?.enabled) return true;
+  const footer = app.element?.querySelector("footer, .form-footer");
+  return [...(app.element?.querySelectorAll(DECISION_CONTROLS) ?? [])]
+    .some((el) => !footer?.contains(el) && !el.closest("[hidden]") && el.offsetParent !== null);
+}
 
 Hooks.on("renderAbilityConfigurationDialog", (app) => {
   const uuid = app.options?.ability?.uuid;
-  if (!uuid || !_autoSubmit.delete(uuid)) return;
-  setTimeout(() => app.element?.querySelector("button[type=submit]")?.click(), 100);
+  const use = uuid ? _stackUses.get(uuid) : null;
+  if (!use) return;
+  _stackUses.delete(uuid);
+  if (!use.auto && !getSetting("skipEmptyDialogs")) return;
+  setTimeout(() => {
+    if (app.rendered && !hasDecisions(app)) app.element.querySelector("button[type=submit]")?.click();
+  }, 150);
 });
 
 function autoUsable(entry) {
@@ -461,13 +475,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
   static async autoUse(entries) {
     if (!getSetting("autoUseTriggers")) return;
     for (const entry of entries.filter(autoUsable)) {
-      _autoSubmit.add(entry.itemUuid);
-      await StackWindow.#useEntry(entry).catch((err) => console.warn(`${MODULE_ID} | could not auto-use ${entry.itemName}`, err));
-      _autoSubmit.delete(entry.itemUuid);
+      await StackWindow.#useEntry(entry, { auto: true }).catch((err) => console.warn(`${MODULE_ID} | could not auto-use ${entry.itemName}`, err));
     }
   }
 
-  static async #useEntry(entry) {
+  static async #useEntry(entry, { auto = false } = {}) {
     if (entry.gain || (entry.featureLine && !entry.derived)) {
       resolveQueueEntry(entry.id, "used");
       return;
@@ -478,7 +490,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
       addRollBypass(item.uuid);
       watchUseCancellation(item.uuid);
-      await useWithTriggerContext(item, entry);
+      _stackUses.set(item.uuid, { auto });
+      try {
+        await useWithTriggerContext(item, entry);
+      } finally {
+        _stackUses.delete(item.uuid);
+      }
     }
   }
 

@@ -212,6 +212,10 @@
         "Name": "Forced Movement Interrupts",
         "Hint": "Hold forced movement before it starts while a trigger that can reduce, boost or redirect it, such as Lines of Force or Repel, waits for a decision."
       },
+      "SkipEmptyDialogs": {
+        "Name": "Skip Empty Ability Dialogs",
+        "Hint": "Using a trigger from the stack skips the ability's dialog when it has nothing to decide: no power roll, no resource to spend and no damage type to pick."
+      },
       "AutoUseTriggers": {
         "Name": "Use Free Triggers Automatically",
         "Hint": "Free triggered and no action triggers with no cost are used the moment they reach the stack. Triggered actions and once per round triggers still wait, except ones used the first time each round."
