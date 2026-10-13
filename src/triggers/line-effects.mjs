@@ -94,6 +94,42 @@ export async function pickStabilityShare(ownerName, max, sourceName) {
   return Number.isFinite(picked) ? picked : null;
 }
 
+export const ABILITY_BANE_KEY = `flags.${MODULE_ID}.abilityBanes`;
+
+const changesOf = (effect) => effect?.system?.changes ?? effect?.changes ?? [];
+const changesPath = (effect) => (Array.isArray(effect?.system?.changes) ? "system.changes" : "changes");
+
+export function abilityBanesOn(actor, dsid) {
+  if (!actor || !dsid) return 0;
+  return actor.effects.filter((e) => e.active && changesOf(e).some((c) => c.key === ABILITY_BANE_KEY && c.value === dsid)).length;
+}
+
+export async function baneAbility(target, ability, spec, source) {
+  const dsid = ability?.system?._dsid;
+  if (!target || !dsid || !spec?.effect) return;
+  const line = { key: ABILITY_BANE_KEY, value: dsid, type: "override", phase: "initial", priority: null };
+  const named = (list) => list.filter((c) => c.key === ABILITY_BANE_KEY)
+    .map((c) => target.items.find((i) => i.system?._dsid === c.value)?.name ?? c.value).join(", ");
+  const existing = target.effects.find((e) => e.name === spec.effect && changesOf(e).some((c) => c.key === ABILITY_BANE_KEY));
+  if (existing) {
+    const changes = changesOf(existing).map((c) => ({ ...c }));
+    if (changes.some((c) => c.key === ABILITY_BANE_KEY && c.value === dsid)) return;
+    changes.push(line);
+    await existing.update({ [changesPath(existing)]: changes,
+      description: game.i18n.format("DS_TRIGGERS.LineEffect.AbilityBaneDesc", { abilities: named(changes), source: source?.name ?? spec.effect }) });
+  } else {
+    const end = ds.CONFIG?.effectEnds?.encounter ? "encounter" : null;
+    await target.createEmbeddedDocuments("ActiveEffect", [{
+      name: spec.effect, img: source?.img ?? null, type: "base", transfer: false, disabled: false, origin: source?.uuid ?? null,
+      system: { changes: [line], ...(end ? { end: { type: end } } : {}) },
+      ...(end ? { duration: { expiry: ds.CONFIG.effectEnds.encounter.expiryEvent ?? null } } : {}),
+      description: game.i18n.format("DS_TRIGGERS.LineEffect.AbilityBaneDesc", { abilities: named([line]), source: source?.name ?? spec.effect }),
+    }]);
+  }
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.LineEffect.AbilityBane", { name: target.name, ability: ability.name, source: source?.name ?? spec.effect }));
+  dbg(`${source?.name}: ${target.name} takes a bane on ${ability.name} for the rest of the encounter`);
+}
+
 const amountFor = (owner, spec) => spec.amount === "negativeResource"
   ? Math.max(0, -(Number(owner?.system?.hero?.primary?.value) || 0))
   : Number(spec.amount) || 0;

@@ -350,7 +350,7 @@ const CURATED_LINES = [
   [/^Ether-Fueled Vessel$/, /move through a creature who is insubstantial to you/, { clause: { throughMark: null,
     effects: [{ on: "through", has: true, kind: "name", value: "Insubstantial", by: "self" }] } }],
 
-  [/^Stonebreaker Flesh$/, /tier 1 outcome on a melee ability/, { clause: { rollerScoped: true, abilityKeywords: ["melee"], targetsOwner: true } }],
+  [/^Stonebreaker Flesh$/, /tier 1 outcome on a melee ability/, { clause: { rollerScoped: true, abilityKeywords: ["melee"], targetsOwner: true, baneAbility: { effect: "Stonebreaker Flesh" } } }],
   [/^Equal Billing$/, /succeeds on a saving throw/, { triggers: [["You make a saving throw", { saveSucceeds: true }],
     ["An ally makes a saving throw", { saveSucceeds: true, effects: [{ on: "subject", has: true, kind: "name", value: "Scene Partner", by: "anyone" }] }]] }],
   [/^Psionic (?:Conductor|Amplifier)$/, /voiceless talker/, { clause: { scope: "ALLY", subjectKeywords: ["voicelessTalker"] } }],

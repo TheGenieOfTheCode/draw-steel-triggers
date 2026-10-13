@@ -2,6 +2,7 @@ import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds } from "../dispatch.mjs";
 import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
 import { changesTheStrike } from "../../parser/trigger-parser.mjs";
+import { baneAbility } from "../line-effects.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 const _handled = new Set();
@@ -153,6 +154,13 @@ function _pruneTierWatch() {
 }
 
 function _dispatchResolution(message, matches, ability, rollerActor) {
+  for (const m of matches.filter((x) => x.clause?.baneAbility)) {
+    const name = m.item.featureLine?.itemName ?? m.item.name;
+    const source = m.actor?.items?.find((i) => i.name === name) ?? m.item;
+    baneAbility(rollerActor, ability, m.clause.baneAbility, source).catch((err) => console.warn(`draw-steel-triggers | ${name} could not mark ${rollerActor?.name}`, err));
+  }
+  matches = matches.filter((x) => !x.clause?.baneAbility);
+  if (!matches.length) return;
   
   const bare = game.i18n.format("DS_TRIGGERS.Queue.ResolutionCardCause", {
     roller: rollerActor?.name ?? "", ability: ability.name,

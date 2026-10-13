@@ -963,6 +963,8 @@
       "Insubstantial": "Insubstantial to {owner}",
       "InsubstantialDesc": "{owner} can pass through this creature freely, and this creature can't make opportunity attacks against {owner}. From {source}.",
       "Applied": "{name} is {effect} ({source}).",
+      "AbilityBane": "{name} takes a bane on {ability} until the end of the encounter ({source}).",
+      "AbilityBaneDesc": "<p>A bane on the power roll of: {abilities}. From {source}, until the end of the encounter.</p>",
       "Stability": "Stability shared ({source})",
       "StabilityShared": "{owner} gives {n} stability to {ally} until the end of the round.",
       "StabilityPrompt": "How much of your stability does {owner} give?",
