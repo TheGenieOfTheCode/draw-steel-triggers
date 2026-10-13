@@ -295,6 +295,7 @@ function _onQueueAdd(entries) {
   _queue.push(...fresh);
   dbg("queue add", fresh);
   _broadcast();
+  Hooks.callAll("dst.queueAdded", fresh);
 }
 
 async function _onQueueResolve(id, outcome, userName) {

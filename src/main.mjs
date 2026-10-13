@@ -109,6 +109,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: false
   });
+  game.settings.register(MODULE_ID, "autoUseTriggers", {
+    name: "DS_TRIGGERS.Settings.AutoUseTriggers.Name",
+    hint: "DS_TRIGGERS.Settings.AutoUseTriggers.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false
+  });
   game.settings.register(MODULE_ID, "rollLock", {
     name: "DS_TRIGGERS.Settings.RollLock.Name",
     hint: "DS_TRIGGERS.Settings.RollLock.Hint",

@@ -1,4 +1,4 @@
-import { MODULE_ID } from "../util.mjs";
+import { MODULE_ID, getSetting } from "../util.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
@@ -113,6 +113,28 @@ async function useWithTriggerContext(item, entry) {
       for (const t of previous) t.setTarget(true, { user: game.user, releaseOthers: false });
     }
   }
+}
+
+const _autoSubmit = new Set();
+
+Hooks.on("renderAbilityConfigurationDialog", (app) => {
+  const uuid = app.options?.ability?.uuid;
+  if (!uuid || !_autoSubmit.delete(uuid)) return;
+  setTimeout(() => app.element?.querySelector("button[type=submit]")?.click(), 100);
+});
+
+function autoUsable(entry) {
+  if (entry.state !== "pending" || entry.kind || entry.choices?.length || entry.villain || entry.gain) return false;
+  const item = entry.itemUuid ? fromUuidSync(entry.itemUuid) : null;
+  if (!item) return false;
+  const line = entry.featureLine ?? null;
+  const action = line ? line.action ?? null : item.system?.type;
+  if (action && !["freeTriggered", "none"].includes(action)) return false;
+  const cost = line ? Number(line.resourceCost) || 0 : Number(item.system?.resource) || 0;
+  if (cost > 0 || Number(item.getFlag?.(MODULE_ID, "derived")?.epicCost) > 0 || item.getFlag?.(MODULE_ID, "malice")) return false;
+  const text = line?.sentence ?? item.system?.trigger ?? "";
+  const perRound = line?.once === "round" || /\bonce (?:per|each|a) round\b/i.test(text);
+  return !perRound || /\bthe first time each round\b/i.test(text);
 }
 
 export class StackWindow extends ds.applications.api.DSApplication {
@@ -436,6 +458,15 @@ export class StackWindow extends ds.applications.api.DSApplication {
     return true;
   }
 
+  static async autoUse(entries) {
+    if (!getSetting("autoUseTriggers")) return;
+    for (const entry of entries.filter(autoUsable)) {
+      _autoSubmit.add(entry.itemUuid);
+      await StackWindow.#useEntry(entry).catch((err) => console.warn(`${MODULE_ID} | could not auto-use ${entry.itemName}`, err));
+      _autoSubmit.delete(entry.itemUuid);
+    }
+  }
+
   static async #useEntry(entry) {
     if (entry.gain || (entry.featureLine && !entry.derived)) {
       resolveQueueEntry(entry.id, "used");
@@ -605,6 +636,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
 Hooks.on("dst.queueChanged", () => StackWindow.refresh());
 Hooks.on("dst.queueOpenRequested", () => StackWindow.open());
+Hooks.on("dst.queueAdded", (entries) => StackWindow.autoUse(entries));
 
 for (const hook of ["createCombat", "deleteCombat"]) Hooks.on(hook, () => StackWindow.refresh());
 Hooks.on("updateCombat", (combat, changed) => { if ("round" in changed || "active" in changed) StackWindow.refresh(); });
