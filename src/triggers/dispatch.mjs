@@ -8,7 +8,7 @@ import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown, featureLineSpent } from "./feature-triggers.mjs";
-import { markVictim, markDealer } from "./line-effects.mjs";
+import { markVictim, markDealer, triggersBlocked } from "./line-effects.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 
@@ -645,7 +645,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
     const fallen = actor.statuses?.has(defeated);
     if (fallen && (event !== "MOVES" || !lingeringEffect(actor))) continue;
     if (isActorSnoozed(actor)) continue;
-    const dazed = actor.statuses?.has("dazed") ?? false;
+    const dazed = (actor.statuses?.has("dazed") ?? false) || triggersBlocked(actor);
     const spent = isTriggeredActionSpent(actor);
     for (const entry of getTriggeredAbilities(actor)) {
       if (dazed && (entry.item.system.type === "triggered" || entry.item.system.type === "freeTriggered")) continue;

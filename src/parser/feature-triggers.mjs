@@ -271,6 +271,7 @@ const CURATED_LINES = [
   [/^Allow Me to Introduce/, /first turn/, { trigger: "You start your turn", clause: { firstTurn: true } }],
   [/^Revenger['’]s Wrap$/, /until another creature damages you/, { clause: { markDealer: { effect: "Revenger’s Wrap", exclusiveBelowLevel: 5 } } }],
   [/^Revenger['’]s Wrap$/, /\bEach creature who damages you is marked for revenge/, { clause: { markDealer: { effect: "Revenger’s Wrap" } } }],
+  [/^Entropy Ward$/, /deals damage to you/, { clause: { markDealer: { effect: "Entropy Ward", ownEnd: true, noTriggered: true } } }],
   [/^Revenger['’]s Wrap$/, /damage a creature marked for revenge/, { clause: {
     effects: [{ on: "victim", has: true, kind: "name", value: "Revenger’s Wrap", by: "self" }] } }],
   [/^Bloodbound Band$/, /any other bonded creature takes damage/, { clause: { scope: "ALLY",

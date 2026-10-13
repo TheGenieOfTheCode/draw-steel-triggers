@@ -20,7 +20,9 @@ export async function markDealer(owner, dealer, spec, source) {
   const at = combat?.started ? turnKey(combat.round, combat.turn) : null;
   await dealer.createEmbeddedDocuments("ActiveEffect", [{
     ...data, transfer: false, disabled: false, origin: source?.uuid ?? owner.uuid,
-    flags: { ...(data.flags ?? {}), [MODULE_ID]: { ...(data.flags?.[MODULE_ID] ?? {}), dealerMark: { ownerUuid: owner.uuid, name, at } } },
+    flags: { ...(data.flags ?? {}), [MODULE_ID]: { ...(data.flags?.[MODULE_ID] ?? {}), dealerMark: {
+      ownerUuid: owner.uuid, name, at, ...(spec.ownEnd ? { ownEnd: true } : {}), ...(spec.noTriggered ? { noTriggered: true } : {}),
+    } } },
   }]);
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.LineEffect.Applied", { name: dealer.name, effect: name, source: source?.name ?? "" }));
   dbg(`${source?.name}: ${dealer.name} carries ${name} from ${owner.name}${exclusive ? " (replacing earlier marks)" : ""}`);
@@ -34,11 +36,13 @@ Hooks.on("combatTurnChange", (combat, previous) => {
   for (const actor of sceneActors()) {
     const done = actor.effects.filter((e) => {
       const f = e.getFlag(MODULE_ID, "dealerMark");
-      return f?.ownerUuid === owner.uuid && f.at !== ending;
+      return f?.ownerUuid === owner.uuid && !f.ownEnd && f.at !== ending;
     }).map((e) => e.id);
     if (done.length) actor.deleteEmbeddedDocuments("ActiveEffect", done).catch(() => {});
   }
 });
+
+export const triggersBlocked = (actor) => !!actor?.effects?.some((e) => e.active && e.getFlag(MODULE_ID, "dealerMark")?.noTriggered);
 
 const VICTIM_MARKS = {
   insubstantial: { key: "Insubstantial", img: "icons/creatures/magical/spirit-undead-ghost-blue.webp", expiry: "turnEnd" },
