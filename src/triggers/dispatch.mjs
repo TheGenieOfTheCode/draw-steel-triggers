@@ -493,6 +493,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return !ctx.ability || keywordsMatch(clause, ctx.ability);
     case "MAKES_STRIKE":
       if (clause.notForceMoved && forcesMovement(ctx.ability)) return false;
+      if (clause.targetGrabbedByOwner && !targetActors(ctx).some((a) => grabbedBy(a, ownerActor))) return false;
       return !ctx.ability || keywordsMatch(clause, ctx.ability);
     case "POWER_ROLL_RESULT":
       if (!ctx.ability) return true;
@@ -717,9 +718,10 @@ const ownTokenOf = (actor) => actor?.token ?? actor?.getActiveTokens?.(false, tr
 function aimOf(m, subjectToken, ctx) {
   if (m.item.system?.distance?.type === "burst" || m.item.getFlag?.("draw-steel-combat-tools", "areaFilter")?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
-  if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)/.test(effect)) return "";
-  if (/^(?:you|the self)\b/.test(effect)) return tokenUuidOf(ownTokenOf(m.actor));
-  if (!/^(?:they|it|that (?:enemy|creature|ally|target)|the (?:enemy|creature|target|triggering creature))\b/.test(effect)) return null;
+  if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b/.test(effect)) return "";
+  const namesOther = /\b(?:that creature|the triggering creature|that enemy)\b/.test(effect);
+  if (/^(?:you|the self)\b/.test(effect) && !(namesOther && /^(?:you|the self) (?:can|may)\b/.test(effect))) return tokenUuidOf(ownTokenOf(m.actor));
+  if (!namesOther && !/^(?:they|it|that (?:enemy|creature|ally|target)|the (?:enemy|creature|target|triggering creature))\b/.test(effect)) return null;
   if (m.clause?.through && ctx.throughToken) return tokenUuidOf(ctx.throughToken);
   const subject = tokenUuidOf(subjectToken);
   if (subject && (subject !== tokenUuidOf(ownTokenOf(m.actor)) || m.clause?.scope !== "SELF")) return subject;
