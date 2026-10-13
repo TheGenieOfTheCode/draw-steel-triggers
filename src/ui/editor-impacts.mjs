@@ -175,7 +175,7 @@ export const IMPACTS = [
       const from = m.char ? "char" : "amount";
       return [
         { name: "mode", label: L("fmMod.Mode"), type: "select", rerender: true,
-          options: ["boost", "reduce", "redirect", "slide", "vertical", "objectDamage", "stability"].map((k) => opt(k, L(`fmMod.Mode_${k}`), m.mode)) },
+          options: ["boost", "reduce", "redirect", "slide", "pull", "vertical", "objectDamage", "stability"].map((k) => opt(k, L(`fmMod.Mode_${k}`), m.mode)) },
         ...(counted ? [
           { name: "from", label: L("FieldBy"), type: "select", rerender: true, options: [opt("amount", L("FieldAmount"), from), opt("char", L("FieldChar"), from)] },
           from === "char"

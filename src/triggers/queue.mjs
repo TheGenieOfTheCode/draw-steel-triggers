@@ -1153,8 +1153,8 @@ function _collectFmMods(usedEntries) {
     if (u.fmMode === "reduce" || u.fmMode === "boost") {
       const signed = { ...base, amount: u.fmMode === "reduce" ? -amount : amount };
       (out.redirect ? out.after : out.deltas).push(signed);
-    } else if (u.fmMode === "slide") {
-      out.movement ??= base;
+    } else if (u.fmMode === "slide" || u.fmMode === "pull") {
+      out.movement ??= { ...base, to: u.fmMode };
     } else if (u.fmMode === "vertical") {
       out.vertical ??= base;
     } else if (u.fmMode === "objectDamage") {

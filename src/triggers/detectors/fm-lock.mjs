@@ -33,6 +33,8 @@ function _modAmount(mod, actor) {
   return Math.max(0, Number(actor?.system?.characteristics?.[mod.char]?.value ?? 0));
 }
 
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+
 function _applyPassive(ctx, m) {
   const mod = m.clause.fmMod;
   const n = _modAmount(mod, m.actor);
@@ -43,9 +45,9 @@ function _applyPassive(ctx, m) {
   } else if (mod.mode === "objectDamage" && n > 0) {
     ctx.bonusObjectDmg = (Number(ctx.bonusObjectDmg) || 0) + n;
     tell(game.i18n.format("DS_TRIGGERS.Queue.FmObjectDamage", { n }));
-  } else if (mod.mode === "slide" && fmTypeOf(ctx.type) === "push") {
-    ctx.type = String(ctx.type).replace(/push/i, (w) => (w[0] === "P" ? "Slide" : "slide"));
-    tell(game.i18n.localize("DS_TRIGGERS.Queue.FmToSlide"));
+  } else if ((mod.mode === "slide" || mod.mode === "pull") && fmTypeOf(ctx.type) === "push") {
+    ctx.type = String(ctx.type).replace(/push/i, (w) => (w[0] === "P" ? cap(mod.mode) : mod.mode));
+    tell(game.i18n.localize(mod.mode === "pull" ? "DS_TRIGGERS.Queue.FmToPull" : "DS_TRIGGERS.Queue.FmToSlide"));
   }
 }
 
@@ -209,11 +211,11 @@ async function _onResumeFm(fmId, mods) {
   const toSlide = !!mods?.movement && fmTypeOf(pending.type) === "push";
   for (const c of [toSlide ? mods.movement : null, mods?.vertical].filter(Boolean)) {
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmChange", {
-      modName: c.modName, change: game.i18n.localize(c === mods.vertical ? "DS_TRIGGERS.Queue.FmToVertical" : "DS_TRIGGERS.Queue.FmToSlide"),
+      modName: c.modName, change: game.i18n.localize(c === mods.vertical ? "DS_TRIGGERS.Queue.FmToVertical" : c.to === "pull" ? "DS_TRIGGERS.Queue.FmToPull" : "DS_TRIGGERS.Queue.FmToSlide"),
     }));
   }
   const shapes = [
-    ...(toSlide ? [{ ...mods.movement, amount: 0, movement: "slide" }] : []),
+    ...(toSlide ? [{ ...mods.movement, amount: 0, movement: mods.movement.to ?? "slide" }] : []),
     ...(mods?.vertical ? [{ ...mods.vertical, amount: 0, vertical: true }] : []),
   ];
 
@@ -257,7 +259,7 @@ async function _onResumeFm(fmId, mods) {
   }
   pending.resume({
     distance,
-    ...(toSlide ? { type: String(pending.type).replace(/push/i, (w) => (w[0] === "P" ? "Slide" : "slide")) } : {}),
+    ...(toSlide ? { type: String(pending.type).replace(/push/i, (w) => (w[0] === "P" ? cap(mods.movement.to) : mods.movement.to)) } : {}),
     ...(mods?.vertical ? { verticalHeight: distance } : {}),
     ...(mods?.objectDamage ? { bonusObjectDmg: pending.bonusObjectDmg + mods.objectDamage } : {}),
   });

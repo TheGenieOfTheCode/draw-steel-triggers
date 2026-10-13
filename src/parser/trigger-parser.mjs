@@ -168,6 +168,7 @@ export const FM_MOD_TEXT = [
   [new RegExp(`\\bforced movement distance gains a bonus equal to your ${CHAR} score\\b`, "i"), (m) => ({ mode: "boost", char: m[1].toLowerCase() })],
   [/\bgains? a \+(\d+) bonus to the forced movement distance\b/i, (m) => ({ mode: "boost", amount: Number(m[1]) })],
   [/\bslide (?:them|it|the target|that creature) instead\b/i, () => ({ mode: "slide" })],
+  [/\bpull (?:them|it|the target|that creature) instead\b/i, () => ({ mode: "pull" })],
   [/\b(?:that|the) forced movement can be vertical\b/i, () => ({ mode: "vertical" })],
   [new RegExp(`\\btakes? extra damage equal to your ${CHAR} score\\b`, "i"), (m) => ({ mode: "objectDamage", char: m[1].toLowerCase() })],
 ];

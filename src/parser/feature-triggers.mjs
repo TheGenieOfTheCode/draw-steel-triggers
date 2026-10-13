@@ -234,7 +234,6 @@ const CURATED_LINES = [
   [/^Evil Revealed$/, /./, { later: "Seeing through disguises" }],
   [/^Saint['’]s Vigilance$/, /./, { later: "Combat Tools: finding hidden creatures" }],
   [/Blade of the Luxurious Fop/, /opportunity attack/, { later: "Opportunity attacks" }],
-  [/^Boren$/, /use forced movement to push/, { later: "Forced movement interrupt" }],
   [/Chain of the Sea and Sky/, /feet are not touching/, { later: "Combat Tools: off the ground" }],
   [/^Chosen One$/, /destiny points/, { later: "Destiny points" }],
   [/^Corrupted Mentor$/, /Corrupt Spirit/, { later: "Combat Tools: ability automation" }],
