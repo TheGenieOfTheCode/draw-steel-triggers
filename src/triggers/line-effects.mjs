@@ -129,27 +129,3 @@ export async function baneAbility(target, ability, spec, source) {
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.LineEffect.AbilityBane", { name: target.name, ability: ability.name, source: source?.name ?? spec.effect }));
   dbg(`${source?.name}: ${target.name} takes a bane on ${ability.name} for the rest of the encounter`);
 }
-
-const amountFor = (owner, spec) => spec.amount === "negativeResource"
-  ? Math.max(0, -(Number(owner?.system?.hero?.primary?.value) || 0))
-  : Number(spec.amount) || 0;
-
-export async function dealDamageCard(owner, spec, sourceName) {
-  const amount = amountFor(owner, spec);
-  if (!owner || !(amount > 0)) return null;
-  const type = spec.type ?? "";
-  const roll = new ds.rolls.DamageRoll(String(amount), {}, {
-    type, types: type ? [type] : [], isHeal: false, ignoredImmunities: [], flavor: ds.CONFIG.damageTypes?.[type]?.label,
-  });
-  await roll.evaluate();
-  const token = owner.getActiveTokens?.(false, true)?.[0] ?? null;
-  dbg(`${sourceName}: ${owner.name} takes ${amount} damage (card)`);
-  return ChatMessage.implementation.create({
-    title: sourceName,
-    rolls: roll.isDeterministic ? [] : [roll],
-    type: "standard",
-    speaker: ChatMessage.implementation.getSpeaker({ actor: owner, token }),
-    "system.parts": [{ rolls: [roll], flavor: sourceName, type: "roll" }],
-    flags: { core: { canPopout: true }, [MODULE_ID]: { damageSource: spec.source ?? null, damageFor: owner.uuid } },
-  });
-}

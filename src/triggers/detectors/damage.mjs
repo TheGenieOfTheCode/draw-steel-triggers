@@ -17,6 +17,8 @@ let _source = null;
 
 const _typeFor = new Map();
 
+const _lineSource = (ability) => ability?.getFlag?.(MODULE_ID, "derived")?.lineKey ?? null;
+
 function _dealerFromMessage(message) {
   if (!message) return null;
   const speaker = message.speaker ?? {};
@@ -35,7 +37,7 @@ Hooks.once("ready", () => {
     const li = button?.closest?.("[data-message-id]");
     const message = li ? game.messages.get(li.dataset.messageId) : null;
     _dealer = _dealerFromMessage(message);
-    _source = message?.getFlag(MODULE_ID, "damageSource") ?? null;
+    _source = message?.getFlag(MODULE_ID, "damageSource") ?? _lineSource(_dealer?.ability);
     if (_dealer) {
       const part = button.closest?.("[data-message-part]")?.dataset.messagePart ?? "";
       _dealer.surges = Number(message.getFlag(MODULE_ID, "surgeRolls")?.[`${part}:${button.dataset.index}`]) || 0;
@@ -312,6 +314,7 @@ Hooks.on("updateChatMessage", (message) => {
 
   const keyFor = (operationId, r) =>
     `${message.id}:${operationId}:${r.target?.tokenUuid ?? r.target?.actorUuid ?? ""}`;
+  const damageSource = message.getFlag(MODULE_ID, "damageSource") ?? _lineSource(dealer.ability);
 
   for (const [operationId, record] of Object.entries(applications)) {
     
@@ -327,6 +330,20 @@ Hooks.on("updateChatMessage", (message) => {
 
       const doc = victimUuid ? fromUuidSync(victimUuid) : null;
       const victim = doc?.actor ?? doc ?? null;
+      if (victim && victim === dealer.actor && damageSource) {
+        dbg(`target damage recorded: ${victim.name} took ${r.amount} from their own ${damageSource}`);
+        dispatchTriggerEvent({
+          event: "TAKES_DAMAGE",
+          subjectActor: victim,
+          subjectToken: doc instanceof TokenDocument ? doc : null,
+          causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: victim.name, amount: r.amount }),
+          triggerDamage: Number(r.amount),
+          eventContext: { damageType: r.damageType ?? null, ability: dealer.ability, damageSource },
+          filter: (m) => !!m.clause?.damageSource?.length,
+          gains: false,
+        });
+        continue;
+      }
       if (!victim || victim === dealer.actor) {
         dbg(`skipped a damage record on ${message.id}: victim ${victimUuid || "unnamed"} is the dealer or could not be resolved`);
         continue;
@@ -352,7 +369,7 @@ Hooks.on("updateChatMessage", (message) => {
           name: dealer.actor.name, target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability,
+        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability, damageSource,
           surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc),
           victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
       });

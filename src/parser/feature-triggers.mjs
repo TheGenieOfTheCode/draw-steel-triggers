@@ -370,10 +370,9 @@ const CURATED_LINES = [
   [/^We['’]re In This Together$/, /have a creature grabbed/, { trigger: "You take damage", clause: { ownerGrabbing: "any", dealerNotGrabbed: true } }],
   [/^Absorb Soul$/, /reduced to 0 Stamina within 10 squares/, { clause: { ownerLacks: "dazed" } }],
   [/^Hot to Go$/, /fire damage for the first time/, { once: "round" }],
-  [/^Clarity and Strain$/, /damage for each negative point/, { clause: { resourceBelow: 0,
-    dealDamage: { amount: "negativeResource", source: "negativeClarity" } } }],
+  [/^Clarity and Strain$/, /damage for each negative point/, { clause: { resourceBelow: 0 } }],
   [/^Cascading Strain$/, /strained effect or from having negative clarity/, { trigger: "You take damage",
-    clause: { damageSource: ["strained", "negativeClarity"] } }],
+    clause: { damageSource: ["strained", "clarity-and-strain-you-end-your-turn"] } }],
 
   [/^(?:Foes Forever Frozen|Dive Bomb|Tear You to Ribbons|Electroshock|Infernal Apparition|Hit and Run|Cat and Mouse|Dripping Fangs|Slowing Spores|My, What Big Teeth You Have)$/,
     /makes a strike against a creature while rampaging|makes a strike while rampaging/, { trigger: "The self makes a strike", clause: { selfRoll: true, effects: [RAMPAGING] } }],

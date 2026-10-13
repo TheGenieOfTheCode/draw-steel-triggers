@@ -8,7 +8,7 @@ import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown, featureLineSpent } from "./feature-triggers.mjs";
-import { markVictim, markDealer, dealDamageCard } from "./line-effects.mjs";
+import { markVictim, markDealer } from "./line-effects.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 
@@ -416,7 +416,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
       if (clause.ownerGrabbing === "any" && !holdsAnyGrab(ownerActor)) return false;
       if (clause.dealerNotGrabbed && ctx.dealerActor && grabbedBy(ctx.dealerActor, ownerActor)) return false;
-      if (!clause.dealerScope) return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length);
+      if (!clause.dealerScope) return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length || clause.damageSource?.length);
       if (!ctx.dealerActor) return false;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "TARGETED_BY_ABILITY":
@@ -750,12 +750,6 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
       .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.dealerActor?.name}`, err));
   }
   if (dealerMarks.length) matches = matches.filter((m) => !m.clause?.markDealer);
-  const damaging = matches.filter((m) => m.clause?.dealDamage);
-  for (const m of damaging) {
-    dealDamageCard(m.actor, m.clause.dealDamage, m.item.featureLine?.itemName ?? m.item.name)
-      .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not post its damage`, err));
-  }
-  if (damaging.length) matches = matches.filter((m) => !m.clause?.dealDamage);
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
   }
