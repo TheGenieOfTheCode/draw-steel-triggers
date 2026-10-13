@@ -369,7 +369,9 @@ const CURATED_LINES = [
   [/^Can['’]t Take Hold$/, /magic or psionic ability/, { clause: { abilityKeywords: ["magic", "psionic"] } }],
   [/^Primordial Strength$/, /damage an object with a weapon strike/, { clause: { victimType: "object", abilityKeywords: ["weapon", "strike"], abilityKeywordsAll: true } }],
   [/^Last Stand$/, /reduced to 0 Stamina again/, { clause: { afterLine: "first" } }],
-  [/^Music of the Spheres$/, /whenever a creature within 10 squares makes a strike/, { clause: {
+  [/^Music of the Spheres$/, /whenever a creature within 10 squares makes a strike/, { clause: { notSelf: true,
+    effects: [{ on: "owner", has: true, kind: "name", value: "Music of the Spheres", by: "anyone" }] } }],
+  [/^Music of the Spheres$/, /you make a strike during that same period/, { kind: "trigger", clause: {
     effects: [{ on: "owner", has: true, kind: "name", value: "Music of the Spheres", by: "anyone" }] } }],
   [/^Warbanner of Wrath$/, /makes a melee strike/, { clause: { abilityKeywords: ["melee", "strike"], abilityKeywordsAll: true } }],
   [/^Harlequin Gambit$/, /adjacent non-minion creature/, { clause: { range: 1, rangeOn: "victim" } }],
@@ -404,6 +406,7 @@ const CURATED_LINES = [
 const SENTENCE_LINES = [
   [/^Revenger['’]s Wrap$/, /\b(?:any|each) creature who damages you is marked for revenge\b/i, { trigger: "A creature damages you" }],
   [/^Clarity and Strain$/, /\bat the end of each of your turns, you take 1 damage for each negative point\b/i, { trigger: "You end your turn" }],
+  [/^Music of the Spheres$/, /^As a main action, you sing or play a note\b/i, { trigger: "", action: "main" }],
 ];
 
 const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
@@ -451,7 +454,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const spends = free || /\btriggered action\b/i.test(sentence);
       const synth = sentenceLine(name, sentence);
       if (synth) {
-        found.push({ index, sentence, trigger: synth.trigger, effect: sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "), action: null, synth: true });
+        found.push({ index, sentence, trigger: synth.trigger, effect: sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "), action: synth.action ?? null, synth: true });
         return;
       }
       if (!spends && !WHEN.test(sentence)) return;
