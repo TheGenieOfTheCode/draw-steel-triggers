@@ -56,11 +56,21 @@ function _anyApplied(message) {
   return Object.values(state.applications ?? {}).some((a) => a && a.status !== "undone");
 }
 
-function _tierMatchesClause(clause, tier) {
+function _isCritical(message) {
+  const part = message?.system?.parts?.contents?.find((p) => p.type === "abilityResult");
+  const roll = (part?.rolls ?? []).find((r) => r?.constructor?.name === "PowerRoll");
+  if (!roll) return false;
+  return roll.isCritical ?? (Number(roll.dice?.[0]?.total) >= (Number(roll.options?.criticalThreshold) || 19));
+}
+
+function _tierMatchesClause(clause, tier, message = null) {
   const filter = clause?.tierFilter;
+  if (clause?.critical) return _isCritical(message) && (!filter?.length || filter.includes(Number(tier)));
   if (!filter?.length) return false;
   return tier != null && filter.includes(Number(tier));
 }
+
+const _watchesResult = (clause) => (clause?.tierFilter?.length ?? 0) > 0 || !!clause?.critical;
 
 const _rollerClause = (clause) => clause?.targetScoped === true || clause?.rollerScoped === true;
 
@@ -76,7 +86,7 @@ function _rollerTierCandidates(rollerActor, rollerToken, ability, usedTargets = 
   return collectTriggerMatches("POWER_ROLL_RESULT", rollerActor, rollerToken, null, { ability, usedTargets })
     .filter((m) => !m.malice
       && (m.parse?.confidence === "high" || m.parse?.source === "manual")
-      && (m.clause?.tierFilter?.length ?? 0) > 0
+      && _watchesResult(m.clause)
       && _rollerClause(m.clause)
       && (!m.clause?.signatureOnly || signature)
       && (!m.clause?.abilityDsid || ability?.system?._dsid === m.clause.abilityDsid));
@@ -105,7 +115,7 @@ function _addRollerMatches({ message, matches, seen, targets, rollerActor, abili
   if (!candidates.length) return false;
   const tier = _rollerTier(message, targets);
   for (const m of candidates) {
-    if (!_tierMatchesClause(m.clause, tier)) continue;
+    if (!_tierMatchesClause(m.clause, tier, message)) continue;
     if (seen.has(m.item.uuid) || queued?.has(m.item.uuid)) continue;
     seen.add(m.item.uuid);
     m._subjectTargetKey = null;

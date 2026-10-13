@@ -843,6 +843,11 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       
       if (entry.event === "POWER_ROLL_RESULT" && entry.scope === "SELF" && /^(?:you|the self) (?:obtains?|scores?|rolls?|gets?)\b/.test(lc)) entry.rollerScoped = true;
     }
+    if (entry.event === "POWER_ROLL_RESULT" && /\bscores? a critical hit\b/.test(lc)) {
+      Object.assign(entry, { critical: true, postRoll: true, abilityType: "main" });
+      if (entry.scope === "SELF") entry.rollerScoped = true;
+      if (/\bwith a melee free strike\b/.test(lc)) entry.abilityDsid = "melee-free-strike";
+    }
     
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
     const notTypes = lc.match(NOT_DAMAGE_TYPES);

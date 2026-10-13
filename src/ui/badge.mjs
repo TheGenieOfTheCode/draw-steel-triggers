@@ -60,7 +60,7 @@ export function parseAutomationLevel(parse, { manual = false, malice = false } =
   let detected = 0;
   for (const clause of parse.clauses) {
     const mode = clause.turnLock ? "turn"
-      : clause.postRoll && (RESOLUTION_EVENTS.has(clause.event) || (clause.event === "POWER_ROLL_RESULT" && (clause.tierFilter?.length ?? 0) > 0))
+      : clause.postRoll && (RESOLUTION_EVENTS.has(clause.event) || (clause.event === "POWER_ROLL_RESULT" && ((clause.tierFilter?.length ?? 0) > 0 || !!clause.critical)))
         ? (changesTheStrike(clause) || getSetting("holdInertTriggers") ? "resolution" : "prompt")
         : EVENT_MODES[clause.event];
     const scopeOk = BASE_SCOPES.has(clause.scope) || malice;
