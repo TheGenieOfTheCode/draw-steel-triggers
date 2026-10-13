@@ -784,6 +784,7 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
 }
 
 export function parseTrigger(text, options = {}) {
+  text = String(text ?? "").replace(/\b[MARIP]<(\w+)/g, "$1 potency");
   return lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text);
 }
 

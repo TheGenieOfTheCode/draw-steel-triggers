@@ -16,7 +16,7 @@ export function enricherText(inner, label) {
   if (cmd === "damage") return `${args.join(" ")} damage`;
   if (cmd === "gain") return `gain ${args.join(" ")}`;
   if (cmd === "surge") return `gain ${args[0] ?? 1} surge${args[0] === "1" ? "" : "s"}`;
-  if (cmd === "potency") return `${args[1] ?? ""} potency`;
+  if (cmd === "potency") return /^[MARIP]$/i.test(args[0] ?? "") && args[1] ? `${args[0].toUpperCase()}<${args[1]}` : `${args[1] ?? ""} potency`;
   if (cmd === "heal") return `${args[0] ?? ""} ${args.includes("temp") || /temporary/.test(inner) ? "temporary " : ""}Stamina`;
   return args.join(" ") || cmd;
 }
@@ -24,7 +24,7 @@ export function enricherText(inner, label) {
 const LI = "\u0001";
 
 function blocksOf(html) {
-  let text = String(html ?? "").replace(/\[\[([^\]]*)\]\](?:\{([^}]*)\})?/g, (m, inner, label) => enricherText(inner, label))
+  let text = String(html ?? "").replace(/\[\[([^\]]*)\]\](?:\{([^}]*)\})?/g, (m, inner, label) => enricherText(inner, label).replace(/</g, "&lt;"))
     .replace(/@\w+\[[^\]]*\](?:\{([^}]*)\})?/g, (m, label) => label ?? "");
   text = text.replace(/<\/(p|li|h\d|tr|div)>|<br\s*\/?>/gi, "\n").replace(/<li[^>]*>/gi, `\n${LI}`).replace(/<[^>]+>/g, "");
   return decode(text).split(/\n+/).map((b) => b.replace(/\bdamage damage\b/g, "damage").replace(/\s+/g, " ").trim()).filter(Boolean);
@@ -422,7 +422,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : !f.action && AUGMENT.test(f.trigger) ? "augment" : "trigger");
       const once = curated.once ?? onceOf(f.sentence) ?? (/\buntil the end of the round\b/i.test(effect) ? "round" : null);
       const parseText = curated.trigger ?? (ownerName ? asOwner(f.trigger, ownerName) : f.trigger);
-      let key = generateDSID(`${base} ${f.trigger}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
+      let key = generateDSID(`${base} ${f.trigger.replace(/\b[MARIP]<(\w+)/g, "$1 potency")}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
       for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
       const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
