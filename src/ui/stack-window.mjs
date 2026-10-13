@@ -148,7 +148,7 @@ function autoUsable(entry) {
   if (cost > 0 || Number(item.getFlag?.(MODULE_ID, "derived")?.epicCost) > 0 || item.getFlag?.(MODULE_ID, "malice")) return false;
   const text = line?.sentence ?? item.system?.trigger ?? "";
   const perRound = line?.once === "round" || /\bonce (?:per|each|a) round\b/i.test(text);
-  return !perRound || /\bthe first time each round\b/i.test(text);
+  return !perRound || /\bfirst time (?:each|in (?:any|a|each)) (?:combat )?round\b/i.test(text);
 }
 
 export class StackWindow extends ds.applications.api.DSApplication {
