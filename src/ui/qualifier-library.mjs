@@ -153,6 +153,7 @@ export const QUALIFIERS = [
     select("victimEndsAdjacent", () => ["self", "ally"], FORCED),
     check("entersSpace", ["MOVES"]),
     check("evenIfResisted", ["FORCE_MOVED"]),
+    check("fmPowerRoll", ["FORCE_MOVES"]),
   ] },
 
   { id: "acted", group: "time", icon: "fa-solid fa-hourglass-start", rules: [

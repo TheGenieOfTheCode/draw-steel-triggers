@@ -412,6 +412,7 @@ export const carriesVictimMark = (actor, owner, label) => !!actor?.effects?.some
 });
 
 export function fmMatches(clause, ctx) {
+  if (clause.fmPowerRoll && ctx.fromPowerRoll === false) return false;
   if (clause.fmType && ctx.fmType && ![].concat(clause.fmType).includes(ctx.fmType)) return false;
   if (!clause.abilityKeywords?.length) return true;
   const kw = new Set((ctx.keywords ?? []).map((k) => String(k).toLowerCase()));

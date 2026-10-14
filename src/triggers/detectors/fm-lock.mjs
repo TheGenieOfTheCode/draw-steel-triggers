@@ -68,9 +68,13 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   const targetActor = target?.actor;
   if (!targetActor) return;
 
-  const use = ctx.messageId ? game.messages.get(ctx.messageId)?.system?.parts?.contents?.find((p) => p.type === "abilityUse") : null;
+  const parts = ctx.messageId ? game.messages.get(ctx.messageId)?.system?.parts?.contents ?? [] : [];
+  const use = parts.find((p) => p.type === "abilityUse") ?? null;
+  
+  const fromPowerRoll = ctx.origin ? ctx.origin === "powerRoll"
+    : parts.some((p) => (p.rolls ?? []).some((r) => r?.constructor?.name === "PowerRoll"));
   const eventContext = {
-    preMove: true, fmType: fmTypeOf(ctx.type), keywords: ctx.keywords ?? [],
+    preMove: true, fmType: fmTypeOf(ctx.type), keywords: ctx.keywords ?? [], fromPowerRoll,
     ability: use?.abilityUuid ? fromUuidSync(use.abilityUuid) : null,
     victimActor: targetActor, victimToken: target.document ?? target,
     dealerActor: source?.actor ?? null, dealerToken: source?.document ?? source ?? null,

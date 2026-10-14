@@ -1380,6 +1380,7 @@
           "through": "Passes through another creature's space, once for each",
           "arrives": "Ends a move adjacent to this creature, and was not there already",
           "victimEndsAdjacent": "The moved creature ends adjacent to",
+          "fmPowerRoll": "The movement comes from a power roll",
           "entersSpace": "Enters the square this creature died in, once",
           "evenIfResisted": "Counts even when stability stops the movement"
         },
@@ -1388,6 +1389,7 @@
           "through": "moves through",
           "arrives": "moves adjacent",
           "victimEndsAdjacent": "ends next to {v}",
+          "fmPowerRoll": "from a power roll",
           "entersSpace": "enters this space",
           "evenIfResisted": "even if resisted"
         }

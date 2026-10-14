@@ -794,7 +794,12 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
 
 export function parseTrigger(text, options = {}) {
   text = String(text ?? "").replace(/\b[MARIP]<(\w+)/g, "$1 potency");
-  return lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text);
+  return powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text);
+}
+
+function powerRollFmLayer(result, text) {
+  if (!/\bmakes? a power roll that imposes forced movement\b/i.test(text)) return result;
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "FORCE_MOVES" ? { ...c, fmPowerRoll: true } : c)) };
 }
 
 const DAMAGE_TYPE_CHANGE = /\b(?:(?:change (?:the (?:ability|strike)['’]s|its|that|the) damage type to|make that damage) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b(?!,? (?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b)|(?:change it to|can deal) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic) damage instead\b)/i;
