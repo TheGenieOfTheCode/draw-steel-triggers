@@ -49,6 +49,11 @@
       <p class="hint">{{feature.actionHint}}</p>
     </div>
     <div class="form-group">
+      <label>{{feature.labels.neverAuto}}</label>
+      <div class="form-fields"><input type="checkbox" data-feature-field="neverAutoUse" {{#if feature.neverAutoUse}}checked{{/if}}></div>
+      <p class="hint">{{feature.neverAutoHint}}</p>
+    </div>
+    <div class="form-group">
       <label>{{feature.labels.once}}</label>
       <div class="form-fields">
         <select data-feature-field="once">

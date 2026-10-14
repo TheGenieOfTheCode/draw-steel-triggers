@@ -20,8 +20,12 @@ function rollModSummary(mod) {
   if (mod?.banes) parts.push(E(mod.banes === 2 ? "RollModDoubleBane" : "RollModBane"));
   if (mod?.bonus) parts.push(E("RollModBonus", { n: `${mod.bonus > 0 ? "+" : ""}${mod.bonus}` }));
   if (mod?.tierShift) parts.push(E(mod.tierShift > 0 ? "RollModTierUp" : "RollModTierDown"));
+  if (mod?.negateBane) parts.push(E("RollModNegateBane"));
   return parts.join(", ") || L("RollNothing");
 }
+
+const isDiceBonus = (b) => typeof b === "string" && /\d*d\d/i.test(b);
+const monsterKeywordLabel = (k) => game.i18n.localize(ds.CONFIG.monsters?.keywords?.[k]?.label ?? k);
 
 const amountOf = (src) => src?.char ? charLabel(src.char) : String(src?.amount ?? 0);
 
@@ -121,11 +125,11 @@ export const IMPACTS = [
     summary: (c) => rollModSummary(c.rollMod),
     fields: (c) => {
       const m = c.rollMod ?? {};
-      const dice = m.edges ? `edges${m.edges}` : m.banes ? `banes${m.banes}` : "";
+      const dice = m.negateBane ? "negate" : m.edges ? `edges${m.edges}` : m.banes ? `banes${m.banes}` : "";
       return [
         { name: "dice", label: L("rollMod.Dice"), type: "select", options: [
           opt("", L("RollNothing"), dice), opt("edges1", E("RollModEdge"), dice), opt("edges2", E("RollModDoubleEdge"), dice),
-          opt("banes1", E("RollModBane"), dice), opt("banes2", E("RollModDoubleBane"), dice)] },
+          opt("banes1", E("RollModBane"), dice), opt("banes2", E("RollModDoubleBane"), dice), opt("negate", E("RollModNegateBane"), dice)] },
         { name: "bonus", label: L("rollMod.Bonus"), type: "number", value: m.bonus ?? 0, min: -99 },
         { name: "tier", label: L("rollMod.Tier"), type: "select", options: [
           opt("0", L("RollNothing"), m.tierShift ?? 0), opt("1", E("RollModTierUp"), m.tierShift), opt("-1", E("RollModTierDown"), m.tierShift)] },
@@ -136,6 +140,7 @@ export const IMPACTS = [
       const mod = {};
       const [, kind, n] = String(v.dice ?? "").match(/^(edges|banes)(\d)$/) ?? [];
       if (kind) mod[kind] = Number(n);
+      if (v.dice === "negate") mod.negateBane = true;
       const bonus = Math.trunc(Number(v.bonus) || 0);
       if (bonus) mod.bonus = bonus;
       if (Number(v.tier)) mod.tierShift = Math.sign(Number(v.tier));
@@ -228,25 +233,40 @@ export const IMPACTS = [
   },
   {
     id: "damageBonus", icon: "fa-solid fa-burst",
-    keys: ["damageBonus"],
+    keys: ["damageBonus", "damageBonusType", "damageBonusVs"],
     supports: (c) => ["DEALS_DAMAGE", "MAKES_STRIKE", "USES_ABILITY"].includes(c.event),
     has: (c) => c.damageBonus != null,
     add: (c) => { c.damageBonus = 1; },
-    summary: (c) => L(c.optional ? "damageBonus.SummaryOptional" : "damageBonus.Summary", { n: c.damageBonus === "highest" ? L("damageBonus.Highest")
-      : typeof c.damageBonus === "string" ? charLabel(c.damageBonus) : c.damageBonus }),
+    summary: (c) => {
+      const n = c.damageBonus === "highest" ? L("damageBonus.Highest") : isDiceBonus(c.damageBonus) ? c.damageBonus
+        : typeof c.damageBonus === "string" ? charLabel(c.damageBonus) : c.damageBonus;
+      const type = c.damageBonusType ? ` ${game.i18n.localize(ds.CONFIG.damageTypes?.[c.damageBonusType]?.label ?? c.damageBonusType)}` : "";
+      const vs = c.damageBonusVs?.keyword ? L("damageBonus.Vs", { n: c.damageBonusVs.amount, keyword: monsterKeywordLabel(c.damageBonusVs.keyword) }) : "";
+      return L(c.optional ? "damageBonus.SummaryOptional" : "damageBonus.Summary", { n: `${n}${type}` }) + vs;
+    },
     fields: (c) => {
       const b = c.damageBonus;
-      const from = b === "highest" ? "highest" : typeof b === "string" ? "char" : "amount";
+      const from = b === "highest" ? "highest" : isDiceBonus(b) ? "dice" : typeof b === "string" ? "char" : "amount";
       return [
         { name: "from", label: L("FieldBy"), type: "select", rerender: true,
-          options: [opt("amount", L("FieldAmount"), from), opt("highest", L("damageBonus.Highest"), from), opt("char", L("FieldChar"), from)] },
+          options: [opt("amount", L("FieldAmount"), from), opt("dice", L("damageBonus.Dice"), from), opt("highest", L("damageBonus.Highest"), from), opt("char", L("FieldChar"), from)] },
         ...(from === "amount" ? [{ name: "amount", label: L("FieldAmount"), type: "number", value: Number(b) || 1 }]
+          : from === "dice" ? [{ name: "dice", label: L("damageBonus.Dice"), type: "text", value: b }]
           : from === "char" ? [{ name: "char", label: L("FieldChar"), type: "select", options: charOptions().map((o) => opt(o.value, o.label, b)) }] : []),
+        { name: "type", label: L("damageBonus.Type"), hint: L("damageBonus.TypeHint"), type: "select",
+          options: [opt("", L("damageBonus.SameType"), c.damageBonusType ?? ""), ...Object.entries(ds.CONFIG.damageTypes ?? {}).map(([k, v]) => opt(k, game.i18n.localize(v.label ?? k), c.damageBonusType))] },
+        { name: "vsKeyword", label: L("damageBonus.VsKeyword"), hint: L("damageBonus.VsHint"), type: "select", rerender: true,
+          options: [opt("", L("damageBonus.VsNone"), c.damageBonusVs?.keyword ?? ""), ...Object.keys(ds.CONFIG.monsters?.keywords ?? {}).map((k) => opt(k, monsterKeywordLabel(k), c.damageBonusVs?.keyword))] },
+        ...(c.damageBonusVs?.keyword ? [{ name: "vsAmount", label: L("damageBonus.VsAmount"), type: "number", value: c.damageBonusVs.amount ?? 1 }] : []),
         { name: "optional", label: L("damageBonus.Optional"), hint: L("damageBonus.OptionalHint"), type: "checkbox", checked: !!c.optional },
       ];
     },
     read: (c, v) => {
-      c.damageBonus = v.from === "highest" ? "highest" : v.from === "char" ? (v.char || charOptions()[0]?.value || "might") : num(v.amount, 1);
+      c.damageBonus = v.from === "highest" ? "highest" : v.from === "char" ? (v.char || charOptions()[0]?.value || "might")
+        : v.from === "dice" ? (isDiceBonus(String(v.dice ?? "").trim()) ? String(v.dice).trim() : "1d6") : num(v.amount, 1);
+      if (v.type) c.damageBonusType = v.type; else delete c.damageBonusType;
+      if (v.vsKeyword) c.damageBonusVs = { keyword: v.vsKeyword, amount: num(v.vsAmount ?? c.damageBonusVs?.amount ?? 1, 1) };
+      else delete c.damageBonusVs;
       if (v.optional) c.optional = true; else delete c.optional;
     },
   },

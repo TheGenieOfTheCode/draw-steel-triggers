@@ -26,9 +26,9 @@ const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_A
 
 const mentorOf = (actor) => actor?.system?.retainer?.mentor ?? actor?.system?.companion?.master ?? null;
 
-function groupMatches(kw, subjectActor) {
-  if (subjectActor.system?.monster?.keywords?.has?.(kw)) return true;
-  const name = subjectActor.name.toLowerCase();
+export function groupMatches(kw, subjectActor) {
+  if (subjectActor?.system?.monster?.keywords?.has?.(kw)) return true;
+  const name = String(subjectActor?.name ?? "").toLowerCase();
   if (name.includes(kw.toLowerCase())) return true;
   const kwLabel = ds.CONFIG.monsters?.keywords?.[kw]?.label;
   return !!kwLabel && name.includes(game.i18n.localize(kwLabel).toLowerCase());
@@ -234,12 +234,25 @@ const grabbedBy = (held, grabber) => !!held?.statuses?.has("grabbed") && !!held.
 
 const holdsAnyGrab = (owner) => (canvas.tokens?.placeables ?? []).some((t) => t.actor && t.actor !== owner && grabbedBy(t.actor, owner));
 
+const FREE_STRIKES = new Set(["melee-free-strike", "ranged-free-strike"]);
+const kitsOf = (owner) => (owner?.items ?? []).filter((i) => i.type === "kit");
+const isKitAbility = (used, owner) => {
+  const parentId = used?.getFlag?.("draw-steel", "advancement.parentId");
+  return !!parentId && kitsOf(owner).some((k) => k.id === parentId);
+};
+const ownerKitWeapons = (owner) => kitsOf(owner).some((k) => (k.system?.equipment?.weapon?.size ?? 0) > 0);
+
 export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length && !clause.abilityDealsDamage
     && clause.abilityCostMax == null && clause.abilityCostMin == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
 
   if (clause.abilityDealsDamage && !abilityDealsDamage(used)) return false;
   const sys = used.system ?? {};
+  if (clause.kitAbility || clause.freeStrike) {
+    const kit = clause.kitAbility && isKitAbility(used, owner);
+    const strike = clause.freeStrike && FREE_STRIKES.has(sys._dsid) && ownerKitWeapons(owner);
+    if (!kit && !strike) return false;
+  }
   if (clause.abilityDsid && (sys._dsid ?? used.dsid) !== clause.abilityDsid) return false;
   if (clause.abilityType === "triggered") {
     if (sys.type !== "triggered" && sys.type !== "freeTriggered") return false;
@@ -519,9 +532,17 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       return keywordsMatch(clause, ctx.ability);
     case "USES_ABILITY":
       if (clause.ownerInAbilityRange && !ownerInRangeOf(ctx.ability, ownerActor, subjectToken)) return false;
+      if (clause.alliesTargeted) {
+        const targets = (ctx.usedTargets ?? []).map(tokenDoc).filter(Boolean);
+        if (targets.some((t) => t.actor === ownerActor)) return false;
+        const side = tokenDoc(subjectToken)?.disposition;
+        if (targets.filter((t) => t.actor !== subjectActor && t.disposition === side).length < clause.alliesTargeted) return false;
+      }
       return !clause.ownerGrabbing || holdsSmallerGrab(ownerActor);
     case "POWER_ROLL":
-      return !ctx.ability || keywordsMatch(clause, ctx.ability);
+      if (!ctx.ability) return true;
+      if (clause.kitAbility || clause.freeStrike || clause.abilityCategory) return usedAbilityMatches(clause, ctx.ability, ownerActor);
+      return keywordsMatch(clause, ctx.ability);
     case "MAKES_STRIKE":
       if (clause.notForceMoved && forcesMovement(ctx.ability)) return false;
       if (clause.targetGrabbedByOwner && !targetActors(ctx).some((a) => grabbedBy(a, ownerActor))) return false;
@@ -670,6 +691,7 @@ function rollHasMatches(clause, ctx) {
 export function collectTriggerMatches(event, subjectActor = null, subjectToken = null, usedAbility = null, usedContext = {}) {
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   const subjectDisposition = subjectToken?.disposition ?? null;
+  if (usedAbility && !usedContext.ability) usedContext = { ...usedContext, ability: usedAbility };
   const matches = [];
 
   const candidates = candidateEntries().sort((a, b) => (b.actor === subjectActor) - (a.actor === subjectActor));
@@ -750,6 +772,13 @@ const tokenUuidOf = (thing) => (thing?.document ?? thing)?.uuid ?? null;
 const ownTokenOf = (actor) => actor?.token ?? actor?.getActiveTokens?.(false, true)?.[0] ?? null;
 
 function aimOf(m, subjectToken, ctx) {
+  if (m.clause?.aim === "none") return "";
+  if (m.clause?.aim === "self") return tokenUuidOf(ownTokenOf(m.actor));
+  if (m.clause?.aim === "dealer") return ctx.dealerToken ? tokenUuidOf(ctx.dealerToken) : "";
+  if (m.clause?.aim === "grabbed") {
+    const held = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.actor !== m.actor && grabbedBy(t.actor, m.actor));
+    return held.length === 1 ? tokenUuidOf(held[0]) : "";
+  }
   if (m.item.system?.distance?.type === "burst" || m.item.getFlag?.("draw-steel-combat-tools", "areaFilter")?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
   if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b|\bon you or (?:another|one) (?:creature|ally)\b/.test(effect)) return "";
@@ -773,7 +802,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
   if (filter) matches = matches.filter(filter);
   
-  const markNow = (m) => autoApplies({ mandatory: matchMandatory(m) });
+  const markNow = (m) => autoApplies({ mandatory: matchMandatory(m), line: m.item?.featureLine });
   const queuedMarks = [];
   const marking = matches.filter((m) => m.clause?.markVictim);
   if (marking.length) {
@@ -818,7 +847,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   }
   const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m) || automated(m)));
   if (prompts.length) {
-    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
+    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null });
     matches = matches.filter((m) => !prompts.includes(m));
   }
 

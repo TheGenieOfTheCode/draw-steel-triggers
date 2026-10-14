@@ -7,7 +7,7 @@ import { autoApplies } from "../auto-use.mjs";
 
 const OPTIONAL = /\b(?:you|they) (?:can|may)(?!['’]t)\b/i;
 const passiveLine = (m) => !!m.item.featureLine && !m.item.featureLine.action && !OPTIONAL.test(m.item.featureLine.effect ?? "");
-const autoPassive = (m) => passiveLine(m) && autoApplies({ mandatory: true });
+const autoPassive = (m) => passiveLine(m) && autoApplies({ mandatory: true, line: m.item.featureLine });
 
 let _pendingDamageType = null;
 
@@ -106,6 +106,11 @@ function _autoAdjust(actor, damage, options) {
         ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonusOffered", { name: b.name, n: b.amount }));
         continue;
       }
+      if (b.type && b.type !== (options?.type || "untyped")) {
+        setTimeout(() => actor.system.takeDamage(b.amount, { type: b.type, dstBypass: true }), 0);
+        ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonus", { name: b.name, n: `${b.amount} ${ds.CONFIG.damageTypes?.[b.type]?.label ?? b.type}` }));
+        continue;
+      }
       out += b.amount;
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonus", { name: b.name, n: b.amount }));
     }
@@ -134,7 +139,8 @@ function _noteAbsorbed(actor, damage, options) {
 }
 
 function _holdMatches(actor, token, damageType, ctx = {}) {
-  const dealt = _dealer && _dealer.actor !== actor ? { rollMods: rollModsOf(_dealer.message, token ?? actor), surgeSpend: _dealer.surges || null } : {};
+  const dealt = _dealer && _dealer.actor !== actor ? { rollMods: rollModsOf(_dealer.message, token ?? actor), surgeSpend: _dealer.surges || null,
+    dealerActor: _dealer.actor, dealerToken: _dealer.token ?? null } : {};
   let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, { ...dealt, ...ctx }).filter((m) =>
     !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual")
     && !(m.clause.damageReduction && autoPassive(m)));

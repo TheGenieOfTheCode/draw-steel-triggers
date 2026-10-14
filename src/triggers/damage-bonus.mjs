@@ -1,6 +1,6 @@
 import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities } from "./registry.mjs";
-import { triggersLive, usedAbilityMatches, abilityDamageTypes, dealsRolledDamage, effectsMatch, footprintGap, isMinionActor } from "./dispatch.mjs";
+import { triggersLive, usedAbilityMatches, abilityDamageTypes, dealsRolledDamage, effectsMatch, footprintGap, isMinionActor, groupMatches } from "./dispatch.mjs";
 import { addDamagePill } from "./bespoke.mjs";
 import { autoApplies } from "./auto-use.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
@@ -29,9 +29,18 @@ export function highGroundOf(message) {
 const CHARS = ["might", "agility", "reason", "intuition", "presence"];
 const charValue = (actor, c) => Number(actor?.system?.characteristics?.[c]?.value) || 0;
 
+const isDice = (bonus) => typeof bonus === "string" && /\d*d\d/i.test(bonus);
+
 export function bonusAmount(actor, bonus) {
   if (bonus === "highest") return Math.max(0, ...CHARS.map((c) => charValue(actor, c)));
   if (CHARS.includes(bonus)) return Math.max(0, charValue(actor, bonus));
+  if (isDice(bonus)) {
+    const m = String(bonus).replace(/\s+/g, "").match(/^(\d*)d(\d+)([+-]\d+)?$/i);
+    if (!m) return 0;
+    let total = Number(m[3] ?? 0);
+    for (let i = 0; i < (Number(m[1]) || 1); i++) total += Math.floor(CONFIG.Dice.randomUniform() * Number(m[2])) + 1;
+    return Math.max(0, total);
+  }
   return Number(bonus) || 0;
 }
 
@@ -59,16 +68,20 @@ export function damageBonusFor(actor, attackerToken, targetToken, message = null
     if (entry.parse?.confidence !== "high" && entry.parse?.source !== "manual") continue;
     for (const c of entry.parse?.clauses ?? []) {
       if (c.damageBonus == null) continue;
-      const amount = bonusAmount(actor, c.damageBonus);
-      if (!(amount > 0)) continue;
       if (c.highGround && !(pills ? pills.has(key) : hasHighGround(token, targetToken))) continue;
       if (ability && !usedAbilityMatches(c, ability, actor)) continue;
       if (c.rolledDamage && !dealsRolledDamage(ability)) continue;
+      if (c.victimType && victim && victim.type !== c.victimType) continue;
+      if (c.damageTypes?.length && ability && ![...abilityDamageTypes(ability)].some((t) => c.damageTypes.includes(t))) continue;
       if (c.victimOrganization?.length && !c.victimOrganization.includes(orgOf(victim))) continue;
       if (c.alsoMinionNear && !otherMinionInReach(token, targetToken, ability)) continue;
       if (c.effects?.length && !effectsMatch(c, actor, disposition, actor, { victimActor: victim, victimToken: targetToken?.document ?? targetToken })) continue;
-      out.push({ name: entry.item.name, amount, optional: !!c.optional, item: entry.item, actor: entry.actor ?? actor,
-        perRound: entry.item.featureLine?.once === "round", auto: autoApplies({ mandatory: !c.optional, perRound: entry.item.featureLine?.once === "round" }) });
+      const vs = c.damageBonusVs?.keyword && victim && groupMatches(c.damageBonusVs.keyword, victim);
+      const formula = vs ? c.damageBonusVs.amount : c.damageBonus;
+      const amount = bonusAmount(actor, formula);
+      if (!(amount > 0)) continue;
+      out.push({ name: entry.item.name, amount, type: c.damageBonusType ?? null, dice: isDice(formula) ? formula : null, optional: !!c.optional, item: entry.item, actor: entry.actor ?? actor,
+        perRound: entry.item.featureLine?.once === "round", auto: autoApplies({ mandatory: !c.optional, perRound: entry.item.featureLine?.once === "round", line: entry.item.featureLine }) });
     }
   }
   return out;
@@ -112,12 +125,21 @@ async function _pillTargets(message) {
       const key = `${message.id}:${t.tokenUuid}:${b.name}`;
       if (_done.has(key)) continue;
       _done.add(key);
-      dbg(`${b.name}: +${b.amount} damage to ${target.name} on ${ability.name}${b.auto ? "" : " (on the stack)"}`);
-      await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label: b.name, src: actor.name, source: "trigger", dstTarget: t.tokenUuid,
-        ...(b.auto ? {} : { enabled: false }) });
-      
+      const dealt = abilityDamageTypes(ability);
+      const extra = !!b.type && !(dealt.size === 1 && dealt.has(b.type));
+      const label = b.dice ? `${b.name} (${b.dice})` : b.name;
+      dbg(`${b.name}: +${b.amount}${b.type ? ` ${b.type}` : ""} damage to ${target.name} on ${ability.name}${extra ? " as its own row" : ""}${b.auto ? "" : " (on the stack)"}`);
+      if (extra) {
+        const api = game.modules.get(DSCT_ID)?.active ? game.modules.get(DSCT_ID).api?.extraDamage : null;
+        if (!api?.add) continue;
+        await api.add(message, { targetUuid: t.tokenUuid, id: label, amount: b.amount, type: b.type, label, enabled: b.auto });
+      } else {
+        await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label, src: actor.name, source: "trigger", dstTarget: t.tokenUuid,
+          ...(b.auto ? {} : { enabled: false }) });
+      }
+
       if (!b.auto) enqueuePromptEntries([{ item: b.item, actor: b.actor, _subjectTokenUuid: t.tokenUuid,
-        _pill: { messageId: message.id, targetUuid: t.tokenUuid, label: b.name },
+        _pill: { messageId: message.id, targetUuid: t.tokenUuid, label, extra },
         _causeLabel: game.i18n.format("DS_TRIGGERS.Queue.BonusCause", { name: b.name, n: b.amount, target: target.name }) }],
       { event: "DEALS_DAMAGE", causeLabel: "", sourceMessageId: message.id });
     }

@@ -29,7 +29,7 @@ Hooks.on("dsct.preFall", (ctx) => {
   if (!matches.length) return;
 
   const optional = (m) => !!m.item.featureLine?.action || OPTIONAL.test(m.item.featureLine?.effect ?? m.item.system?.effect ?? "")
-    || !m.item.featureLine || !autoApplies({ mandatory: true });
+    || !m.item.featureLine || !autoApplies({ mandatory: true, line: m.item.featureLine });
   for (const m of matches.filter((x) => !optional(x))) {
     const { reduction } = effectOf(m);
     if (!reduction) continue;

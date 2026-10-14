@@ -9,7 +9,7 @@ import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares, flankingAllyOf } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
-import { pickHarmonizeTarget, setDamagePillEnabled } from "./bespoke.mjs";
+import { pickHarmonizeTarget, setDamagePillEnabled, addTarget } from "./bespoke.mjs";
 import { lineMandatory } from "./auto-use.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
@@ -299,11 +299,36 @@ function _onQueueAdd(entries) {
   Hooks.callAll("dst.queueAdded", fresh);
 }
 
-async function _enableBonusPill({ messageId, targetUuid, label }) {
+async function _enableBonusPill({ messageId, targetUuid, label, extra }) {
   const message = game.messages.get(messageId);
   if (!message) return;
+  if (extra) {
+    await game.modules.get("draw-steel-combat-tools")?.api?.extraDamage?.setEnabled?.(message, { targetUuid, id: label, enabled: true });
+    return;
+  }
   await setDamagePillEnabled(message, targetUuid, label, true);
   await game.modules.get("draw-steel-combat-tools")?.api?.damagePills?.setEnabled?.(message, { targetUuid, label, enabled: true });
+}
+
+async function _addOwnerAsTarget(entry) {
+  const message = game.messages.get(entry.sourceMessageId);
+  const owner = await fromUuid(entry.ownerActorUuid).catch(() => null);
+  const actor = owner?.actor ?? owner;
+  const token = actor?.getActiveTokens?.(false, true)?.[0] ?? null;
+  if (!message || !token) return;
+  if (message.getFlag("draw-steel-target-damage", "state") && await addTarget(message, token)) {
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.AddedAsTarget", { name: token.name, ability: entry.causeLabel || entry.itemName }));
+    return;
+  }
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.TargetByHand", { name: token.name }));
+}
+
+async function _expendEffect(ownerUuid, name) {
+  const owner = await fromUuid(ownerUuid).catch(() => null);
+  const actor = owner?.actor ?? owner;
+  const want = String(name).toLowerCase();
+  const effect = actor?.effects?.find((e) => String(e.name ?? "").toLowerCase() === want);
+  if (effect) await effect.delete().catch((err) => console.warn(`${MODULE_ID} | could not expend ${name} on ${actor.name}`, err));
 }
 
 async function _applyQueuedMark({ kind, ownerUuid, otherUuid, spec, sourceName, sourceUuid }) {
@@ -364,8 +389,13 @@ async function _onQueueResolve(id, outcome, userName) {
   }
 
   
-  if (outcome === "used" && entry.itemUuid && Number.isFinite(entry.triggerDamage)) {
-    _triggerDamageUses.set(entry.itemUuid, { amount: entry.triggerDamage, at: Date.now() });
+  if (outcome === "used" && entry.expend) await _expendEffect(entry.ownerActorUuid, entry.expend);
+  if (outcome === "used" && entry.addSelfTarget) await _addOwnerAsTarget(entry);
+  if (outcome === "used" && entry.itemUuid && (Number.isFinite(entry.triggerDamage) || entry.eventSubjectUuid || entry.expend)) {
+    const subject = entry.eventSubjectUuid ? fromUuidSync(entry.eventSubjectUuid)?.actor ?? null : null;
+    const level = Number(subject?.system?.level ?? subject?.system?.details?.level) || 0;
+    _triggerDamageUses.set(entry.itemUuid, { amount: Number.isFinite(entry.triggerDamage) ? entry.triggerDamage : null,
+      type: entry.triggerDamageType ?? null, level: subject ? level || 1 : null, expended: entry.expend ?? null, at: Date.now() });
   }
 
   
@@ -688,7 +718,7 @@ async function _applyRollModOverride(hold, u) {
   const baseBanes = existing?.banes != null ? Number(existing.banes) : Number(roll.options?.banes ?? 0);
   const baseBonuses = existing?.bonuses != null ? Number(existing.bonuses) : Number(roll.options?.bonuses ?? 0);
   const edges = Math.min(2, baseEdges + (u.rollMod.edges ?? 0));
-  const banes = Math.min(2, baseBanes + (u.rollMod.banes ?? 0));
+  const banes = Math.max(0, Math.min(2, baseBanes + (u.rollMod.banes ?? 0) - (u.rollMod.negateBane && baseBanes > 0 ? 1 : 0)));
   const bonuses = baseBonuses + (u.rollMod.bonus ?? 0);
 
   const net0 = Number(roll.options?.edges ?? 0) - Number(roll.options?.banes ?? 0);
@@ -1229,6 +1259,7 @@ function _collectRollMods(usedEntries) {
       banes: u.rollMod.banes ?? 0,
       bonus: u.rollMod.bonus ?? 0,
       tierShift: u.rollMod.tierShift ?? 0,
+      negateBane: !!u.rollMod.negateBane,
       scopeTokenUuid: u.rollMod.perTarget ? (u.subjectTokenUuid ?? u.subjectTokenUuids?.[0] ?? null) : null,
     });
   }
@@ -1339,8 +1370,12 @@ Hooks.on("createChatMessage", (message) => {
   const triggerDamage = _triggerDamageUses.get(abilityUse.abilityUuid);
   if (triggerDamage) {
     _triggerDamageUses.delete(abilityUse.abilityUuid);
-    message.setFlag("draw-steel-combat-tools", "triggerDamage", triggerDamage.amount).catch(() => {});
-    dbg(`stamped ${triggerDamage.amount} triggering damage onto ${message.id}`);
+    const ct = "flags.draw-steel-combat-tools";
+    message.update({ ...(triggerDamage.amount != null ? { [`${ct}.triggerDamage`]: triggerDamage.amount } : {}),
+      ...(triggerDamage.type ? { [`${ct}.triggerDamageType`]: triggerDamage.type } : {}),
+      ...(triggerDamage.level != null ? { [`${ct}.triggerLevel`]: triggerDamage.level } : {}),
+      ...(triggerDamage.expended ? { [`${ct}.triggerExpended`]: triggerDamage.expended } : {}) }).catch(() => {});
+    dbg(`stamped the trigger context onto ${message.id}`, triggerDamage);
   }
   for (const [uuid, rec] of _triggerDamageUses) {
     if (now - rec.at > 120000) _triggerDamageUses.delete(uuid);
@@ -1402,6 +1437,7 @@ function _rollModLabel(m) {
   else if (m.edges === 1) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModEdge"));
   if (m.bonus) parts.push(game.i18n.format("DS_TRIGGERS.Editor.RollModBonus", { n: `${m.bonus > 0 ? "+" : ""}${m.bonus}` }));
   if (m.tierShift) parts.push(game.i18n.localize(m.tierShift > 0 ? "DS_TRIGGERS.Editor.RollModTierUp" : "DS_TRIGGERS.Editor.RollModTierDown"));
+  if (m.negateBane && !m.edges) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModNegateBane"));
   return parts.join(" + ");
 }
 
@@ -1433,6 +1469,15 @@ function _applyRollMods(app, mods) {
   for (const m of mods) {
     let asPills = false;
     const scope = _pillScope(app, m.scopeTokenUuid);
+    if (m.negateBane) {
+      const pillBanes = (app._dsctSources ?? []).filter((p) => p.kind === "bane" && p.enabled !== false && (p.scope === "global" || p.scope === scope))
+        .reduce((n, p) => n + (Number(p.amount) || 0), 0);
+      if (!(pillBanes || modifiers?.banes)) {
+        ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.NoBaneToNegate", { modName: m.modName }));
+        continue;
+      }
+      m.edges = 1;
+    }
     if (addPill) {
       const specs = [];
       if (m.edges) specs.push({ kind: "edge", amount: m.edges });
@@ -1589,6 +1634,7 @@ function _pendingForMe(entries) {
 
 export function canActOn(entry) {
   if (game.user.isGM) return true;
+  if (entry.featureLine?.director) return false;
   const owner = fromUuidSync(entry.ownerActorUuid);
   return !!owner && owner.testUserPermission(game.user, "OWNER");
 }
@@ -1657,7 +1703,7 @@ export function releaseHeld(resumeId) {
   asPrimaryGM("releaseHeld", resumeId);
 }
 
-export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage = null, subjectTokenUuid = null, sourceMessageId = null }) {
+export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage = null, subjectTokenUuid = null, sourceMessageId = null, damageType = null }) {
   const promptId = foundry.utils.randomID();
   const entries = matches.map((m) => ({
     id: foundry.utils.randomID(),
@@ -1675,9 +1721,13 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     resume: null,
     promptId,
     triggerDamage,
+    triggerDamageType: damageType,
+    expend: m.clause?.expendEffect ?? null,
+    addSelfTarget: !!m.clause?.addSelfTarget,
+    eventSubjectUuid: subjectTokenUuid,
     subjectTokenUuid: m._subjectTokenUuid ?? subjectTokenUuid,
     sourceMessageId,
-    playerSide: m.actor.hasPlayerOwner ?? false,
+    playerSide: (m.actor.hasPlayerOwner ?? false) && !m.item?.featureLine?.director,
     gain: m._gain ?? null,
     pill: m._pill ?? null,
     mark: m._mark ?? null,
@@ -1706,6 +1756,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     subjectTokenUuid: heldDamage.tokenUuid ?? null,
     defersDeath: !!m.defersDeath,
     halfDamage: m.clause?.halfDamage ?? false,
+    expend: m.clause?.expendEffect ?? null,
     damageReduction: m.clause?.damageReduction ?? null,
     damageRedirect: m.clause?.damageRedirect ?? null,
     redirectRange: m.clause?.redirectRange ?? null,

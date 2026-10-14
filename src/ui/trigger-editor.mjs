@@ -816,6 +816,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (field("name")) this._line.customName = field("name").value.trim() || null;
       if (field("enabled")) this._line.enabled = field("enabled").checked;
       if (field("action")) this._line.action = field("action").value || null;
+      if (field("neverAutoUse")) this._line.neverAutoUse = field("neverAutoUse").checked;
       if (field("once")) this._line.once = field("once").value || null;
       if (field("tierLevel") || field("tierMin")) {
         const level = Math.max(0, Math.floor(Number(field("tierLevel")?.value) || 0));
@@ -949,10 +950,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         value, label: F(key), selected: (line.action ?? "") === value,
       })),
       actionHint: F("ActionHint"),
+      neverAutoUse: !!line.neverAutoUse,
+      neverAutoHint: F("NeverAutoHint"),
       onceOptions: [["round", "OnceRound"], ["turn", "OnceTurn"], ["encounter", "OnceEncounter"], ["", "OnceNone"]].map(([value, key]) => ({
         value, label: F(key), selected: (line.once ?? "") === value,
       })),
-      labels: { name: F("Name"), enabled: F("Enabled"), action: F("Action"), once: F("Once"), ignore: F("Ignore"),
+      labels: { name: F("Name"), enabled: F("Enabled"), action: F("Action"), once: F("Once"), ignore: F("Ignore"), neverAuto: F("NeverAuto"),
         prereq: F("Prereq"), tierLevel: F("PrereqLevel"), tierMin: F("PrereqResource", { resource: this._resourceLabel() }) },
       tierLevel: line.tier?.level ?? "",
       tierMin: line.tier?.min || "",
@@ -1002,7 +1005,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       const line = this._line;
       await this.item.update({ [`flags.${MODULE_ID}.featureLines.${line.key}`]: {
         clauses: this._exportClauses(), enabled: !!line.enabled, action: line.action ?? null, once: line.once ?? null,
-        name: line.customName ?? null,
+        name: line.customName ?? null, neverAutoUse: !!line.neverAutoUse,
         ...(line.tierEdited ? { tier: line.tier ? { level: line.tier.level ?? null, min: line.tier.min ?? 0 } : null } : {}),
       } });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this._shownName() }));

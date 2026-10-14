@@ -100,7 +100,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   const baseType = ctx.type;
   const passiveApplied = [];
   
-  const applyNow = (m) => passive(m) && (!getSetting("fmInterrupts") || autoApplies({ mandatory: true }));
+  const applyNow = (m) => passive(m) && (!getSetting("fmInterrupts") || autoApplies({ mandatory: true, line: m.item.featureLine }));
   for (const m of found.filter(applyNow)) _applyPassive(ctx, m, passiveApplied);
 
   if (!getSetting("fmInterrupts")) return;

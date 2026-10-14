@@ -45,7 +45,7 @@ export async function setDamagePillEnabled(message, targetUuid, label, enabled) 
   await message.setFlag(MODULE_ID, PILL_FLAG, next);
 }
 
-async function addTarget(message, tokenDoc) {
+export async function addTarget(message, tokenDoc) {
   const state = message.getFlag(DSTD_ID, "state") ?? {};
   const targets = [...(state.targets ?? [])];
   const uuid = tokenDoc.uuid;

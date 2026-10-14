@@ -5,6 +5,7 @@ import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from "./snooze.mjs";
 import { runBespokeUse } from "../triggers/bespoke.mjs";
+import { maliceValue } from "../triggers/malice.mjs";
 
 const STACK_WIDTH = 500;
 const CTLIB_ID = "draw-steel-ctlib";
@@ -145,9 +146,10 @@ function autoUsable(entry) {
   const item = entry.itemUuid ? fromUuidSync(entry.itemUuid) : null;
   if (!item) return false;
   const line = entry.featureLine ?? null;
+  if (line?.neverAutoUse) return false;
   const action = line ? line.action ?? null : item.system?.type;
   if (action && !["freeTriggered", "none"].includes(action)) return false;
-  const cost = line ? Number(line.resourceCost) || 0 : Number(item.system?.resource) || 0;
+  const cost = line ? (Number(line.resourceCost) || 0) + (Number(line.maliceCost) || 0) : Number(item.system?.resource) || 0;
   if (cost > 0 || Number(item.getFlag?.(MODULE_ID, "derived")?.epicCost) > 0 || item.getFlag?.(MODULE_ID, "malice")) return false;
   if (level === "mandatory" && !lineMandatory(line)) return false;
   const text = line?.sentence ?? item.system?.trigger ?? "";
@@ -288,7 +290,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
         const sys = item?.system;
 
         let costBadge = null;
-        if (Number.isFinite(sys?.resource) && sys.resource > 0) {
+        if (e.featureLine?.maliceCost) costBadge = { malice: true, label: game.i18n.format("DS_TRIGGERS.Queue.CostMalice", { n: e.featureLine.maliceCost }) };
+        else if (Number.isFinite(sys?.resource) && sys.resource > 0) {
           const malice = ownerDoc?.type !== "hero" && ownerDoc?.type !== "character";
           costBadge = {
             malice,
@@ -484,6 +487,15 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static async #useEntry(entry, { auto = false } = {}) {
+    const maliceCost = Number(entry.featureLine?.maliceCost) || 0;
+    if (maliceCost) {
+      const held = maliceValue();
+      if (held < maliceCost) {
+        ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.NotEnoughMalice", { n: maliceCost, have: held, name: entry.itemName }));
+        return;
+      }
+      await game.settings.set("draw-steel", "malice", { ...game.settings.get("draw-steel", "malice"), value: held - maliceCost });
+    }
     if (entry.gain || entry.pill || (entry.featureLine && !entry.derived)) {
       resolveQueueEntry(entry.id, "used");
       return;

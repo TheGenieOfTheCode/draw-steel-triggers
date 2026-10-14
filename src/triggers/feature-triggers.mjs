@@ -191,6 +191,7 @@ export function effectiveFeatureLine(item, line, index = 0, count = 1) {
   else if (line.manual.length) out.parse = { ...line.parse, confidence: "low" };
   if (saved.once !== undefined) out.once = saved.once;
   if (saved.action !== undefined) out.action = saved.action;
+  if (saved.neverAutoUse !== undefined) out.neverAutoUse = !!saved.neverAutoUse;
   if (saved.tier !== undefined) {
     const t = saved.tier;
     out.tier = t && (t.level || t.min) ? { level: Number(t.level) || null, min: Number(t.min) || 0,
@@ -254,7 +255,8 @@ function lineProxy(item, line) {
     },
     getFlag: (scope, key) => (scope === MODULE_ID && ["malice", "manual", "trigger"].includes(key) ? undefined : item.getFlag(scope, key)),
     feature: item,
-    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), resourcePath: linePool(item.actor, line), exclusive: line.exclusive ?? null },
+    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), resourcePath: linePool(item.actor, line), exclusive: line.exclusive ?? null,
+      neverAutoUse: !!line.neverAutoUse, director: !!line.director, maliceCost: Number(line.maliceCost) || 0 },
   };
 }
 

@@ -15,9 +15,11 @@ export function matchMandatory(m) {
   return lineMandatory(m?.item?.featureLine) && !(Number(m.item.featureLine.resourceCost) > 0);
 }
 
-export function autoApplies({ mandatory, costless = true, perRound = false }) {
+export const neverAuto = (line) => !!line?.neverAutoUse;
+
+export function autoApplies({ mandatory, costless = true, perRound = false, line = null }) {
   const level = autoUseLevel();
-  if (!costless || level === "none") return false;
+  if (!costless || level === "none" || neverAuto(line)) return false;
   if (mandatory) return true;
   return level === "all" && !perRound;
 }
