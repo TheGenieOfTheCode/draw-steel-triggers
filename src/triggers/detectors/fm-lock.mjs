@@ -9,11 +9,17 @@ const DSTD_ID = "draw-steel-target-damage";
 const OPTIONAL = /\b(?:you|they) (?:can|may)\b/i;
 
 const _pendingFm = new Map();
+const _resolvedOnCard = new Map();
+const lineId = (m) => `${m.item.uuid}#${m.item.featureLine?.key ?? ""}`;
+const cardKey = (messageId, targetUuid) => `${messageId}|${targetUuid}`;
 
 function _pruneFm() {
   const now = Date.now();
   for (const [id, rec] of _pendingFm) {
     if (now - rec.at > 300000) _pendingFm.delete(id);
+  }
+  for (const [k, rec] of _resolvedOnCard) {
+    if (now - rec.at > 1800000) _resolvedOnCard.delete(k);
   }
 }
 
@@ -35,18 +41,21 @@ function _modAmount(mod, actor) {
 
 const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
-function _applyPassive(ctx, m) {
+function _applyPassive(ctx, m, applied) {
   const mod = m.clause.fmMod;
   const n = _modAmount(mod, m.actor);
   const tell = (change) => ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmChange", { modName: m.item.name, change }));
   if ((mod.mode === "boost" || mod.mode === "reduce") && n > 0) {
-    ctx.distance = Math.max(0, (Number(ctx.distance) || 0) + (mod.mode === "reduce" ? -n : n));
+    const before = Number(ctx.distance) || 0;
+    ctx.distance = Math.max(0, before + (mod.mode === "reduce" ? -n : n));
+    applied.push({ amount: ctx.distance - before, modName: m.item.name, ownerActorUuid: m.actor?.uuid ?? null, ownerName: m.actor?.name ?? "" });
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmDelta", { modName: m.item.name, amount: `${mod.mode === "reduce" ? "-" : "+"}${n}` }));
   } else if (mod.mode === "objectDamage" && n > 0) {
     ctx.bonusObjectDmg = (Number(ctx.bonusObjectDmg) || 0) + n;
     tell(game.i18n.format("DS_TRIGGERS.Queue.FmObjectDamage", { n }));
   } else if ((mod.mode === "slide" || mod.mode === "pull") && fmTypeOf(ctx.type) === "push") {
     ctx.type = String(ctx.type).replace(/push/i, (w) => (w[0] === "P" ? cap(mod.mode) : mod.mode));
+    applied.push({ amount: 0, movement: mod.mode, modName: m.item.name, ownerActorUuid: m.actor?.uuid ?? null, ownerName: m.actor?.name ?? "" });
     tell(game.i18n.localize(mod.mode === "pull" ? "DS_TRIGGERS.Queue.FmToPull" : "DS_TRIGGERS.Queue.FmToSlide"));
   }
 }
@@ -67,10 +76,13 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   };
   const found = [];
   const seen = new Set();
+  
+  const done = ctx.messageId ? _resolvedOnCard.get(cardKey(ctx.messageId, (target.document ?? target)?.uuid))?.ids : null;
   const add = (list, causeKey, causeName) => {
     for (const m of list) {
-      if (seen.has(m.item.uuid)) continue;
-      seen.add(m.item.uuid);
+      const id = lineId(m);
+      if (seen.has(id) || done?.has(id)) continue;
+      seen.add(id);
       m._causeLabel = game.i18n.format(`DS_TRIGGERS.Queue.${causeKey}`, { name: causeName });
       found.push(m);
     }
@@ -79,7 +91,10 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   if (source?.actor && source.actor !== targetActor) {
     add(_fmMatches("FORCE_MOVES", source.actor, source.document ?? source, eventContext), "FmCauseMover", source.name);
   }
-  for (const m of found.filter(passive)) _applyPassive(ctx, m);
+  const baseDistance = Number(ctx.distance) || 0;
+  const baseType = ctx.type;
+  const passiveApplied = [];
+  for (const m of found.filter(passive)) _applyPassive(ctx, m, passiveApplied);
 
   if (!getSetting("fmInterrupts")) return;
   const matches = found.filter((m) => !passive(m));
@@ -88,6 +103,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
     m._fmMode = mod.mode;
     m._fmChar = mod.char ?? null;
     m._fmAmount = mod.amount ?? null;
+    m._fmPerSurge = mod.perSurge ?? null;
   }
   if (!matches.length) return;
 
@@ -98,8 +114,10 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
     origTargetUuid: (target.document ?? target)?.uuid ?? null,
     sourceTokenId: source?.id ?? null, at: Date.now(),
     messageId: ctx.messageId ?? null,
+    baseDistance, baseType, passiveApplied,
+    lineIds: found.map(lineId),
     moveBase: {
-      movement: String(ctx.type ?? "push").toLowerCase(),
+      movement: String(baseType ?? "push").toLowerCase(),
       vertical: (Number(ctx.verticalHeight) || 0) !== 0,
       verticalDistance: "",
       fallReduction: Number(ctx.fallReduction) || 0,
@@ -223,14 +241,22 @@ async function _onResumeFm(fmId, mods) {
 
   if ((deltas.length || shapes.length) && pending.messageId && game.modules.get(DSTD_ID)?.active
     && game.messages.get(pending.messageId)) {
+    
+    const passives = pending.passiveApplied ?? [];
+    const passiveShapes = passives.filter((d) => d.movement && !toSlide);
     const payload = {
       messageId: pending.messageId,
       origTargetUuid: pending.origTargetUuid,
-      distance: pending.distance,
+      distance: pending.baseDistance ?? pending.distance,
       moveBase: pending.moveBase,
-      deltas: [..._deltaPayload(deltas), ..._deltaPayload(shapes).map((d, i) => ({ ...d, movement: shapes[i].movement ?? null, vertical: !!shapes[i].vertical }))],
+      deltas: [
+        ..._deltaPayload(passives.filter((d) => d.amount)),
+        ..._deltaPayload(deltas),
+        ..._deltaPayload([...passiveShapes, ...shapes]).map((d, i) => { const sh = [...passiveShapes, ...shapes][i]; return { ...d, movement: sh.movement ?? null, vertical: !!sh.vertical }; }),
+      ],
       counter: null,
     };
+    _resolvedOnCard.set(cardKey(pending.messageId, pending.origTargetUuid), { ids: new Set(pending.lineIds ?? []), at: Date.now() });
     if (distance <= 0) {
       const reduceDelta = deltas.find((d) => d.amount < 0);
       const srcTok = pending.sourceTokenId ? canvas.tokens.get(pending.sourceTokenId) : null;
