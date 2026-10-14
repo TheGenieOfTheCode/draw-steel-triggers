@@ -650,8 +650,10 @@
             "melee strike"
           ],
           "abilityKeywords": [
-            "melee"
-          ]
+            "melee",
+            "strike"
+          ],
+          "abilityKeywordsAll": true
         }
       ]
     }
@@ -1954,8 +1956,10 @@
           ],
           "postRoll": true,
           "abilityKeywords": [
-            "melee"
-          ]
+            "melee",
+            "strike"
+          ],
+          "abilityKeywordsAll": true
         }
       ]
     }
@@ -2666,8 +2670,10 @@
             "ranged strike"
           ],
           "abilityKeywords": [
-            "ranged"
-          ]
+            "ranged",
+            "strike"
+          ],
+          "abilityKeywordsAll": true
         }
       ]
     }
@@ -2690,8 +2696,10 @@
             "ranged strike"
           ],
           "abilityKeywords": [
-            "ranged"
-          ]
+            "ranged",
+            "strike"
+          ],
+          "abilityKeywordsAll": true
         }
       ]
     }
@@ -3574,8 +3582,10 @@
             "ranged strike"
           ],
           "abilityKeywords": [
-            "ranged"
-          ]
+            "ranged",
+            "strike"
+          ],
+          "abilityKeywordsAll": true
         }
       ]
     }

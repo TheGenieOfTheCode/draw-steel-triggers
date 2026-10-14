@@ -5,6 +5,7 @@ export const SPECIAL_CASES = {
   "your-fears-become-manifest": { clauses: [{ event: "ROUND_START", scope: "ANY" }] },
   "stinging-departure":         { clauses: [{ event: "GRAB_ENDS", scope: "SELF", asSource: true }] },
   "blood-for-blood":            { clauses: [{ event: "CONDITION_GAIN", scope: "ALLY", qualifiers: ["bleeding", "by the target"], condition: "bleeding" }] },
+  "aeolyxria-blood-for-blood": { clauses: [{ event: "CONDITION_GAIN", scope: "ALLY", qualifiers: ["bleeding", "by the target"], condition: "bleeding" }] },
   "wasnt-aiming-for-you":       { clauses: [{ event: "POWER_ROLL_RESULT", scope: "SELF", qualifiers: ["tier 1", "signature ability"], tierFilter: [1], postRoll: true, signatureOnly: true, rollerScoped: true }] },
   "brain-drain":                { clauses: [{ event: "RESISTS_POTENCY", scope: "GRABBED_CREATURE" }] },
   "still-your-tongue":          { clauses: [{ event: "NARRATIVE", scope: "ANY" }] },
@@ -39,7 +40,7 @@ export function generateDSID(name) {
 export const DAMAGE_MODIFYING = new Set([
   "adaptability", "armor-of-corpses", "armor-of-the-ancients", "break-armor", "buss-buffer",
   "dissipate", "field-collapse", "in-all-this-confusion", "inertial-absorption", "inertial-shield",
-  "instant-retaliation", "meat-shield", "mind-requital", "night-watch", "parry",
+  "instant-retaliation", "meat-shield", "mind-requital", "night-watch", "parry", "blackguard-parry",
   "precognitive-shift", "psionic-retribution", "repel", "resist-the-unnatural",
   "shadow-veil", "shield-block", "skin-like-castle-walls", "skitter", "stalkers-afterimage", "striking-afterimage", "synaptic-anchor",
   "unearthly-reflexes", "withdraw", "zephyr-feint",
@@ -1010,7 +1011,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     const minDamage = (entry.event === "DEALS_DAMAGE" || entry.event === "TAKES_DAMAGE") && lc.match(MIN_DAMAGE);
     if (minDamage) entry.damageMin = minDamage[1] ? Number(minDamage[1]) : Number(minDamage[2]) + 1;
     const strikeKind = (TARGETING_EVENTS.has(entry.event) || entry.event === "MAKES_STRIKE") && !entry.abilityKeywords?.length && lc.match(/\b(melee|ranged) strike\b/);
-    if (strikeKind) entry.abilityKeywords = [strikeKind[1]];
+    if (strikeKind) Object.assign(entry, { abilityKeywords: [strikeKind[1], "strike"], abilityKeywordsAll: true });
     else if (entry.event === "DEALS_DAMAGE" && !entry.abilityKeywords?.length && /\bwith a strike\b/.test(lc)) entry.abilityKeywords = ["strike"];
     if (TARGETING_EVENTS.has(entry.event) && /\bwhile (?:a second|another) creature is flanking (?:you|the self)\b/.test(lc)) entry.flankedByDealer = true;
     const dealerWithin = entry.event === "TAKES_DAMAGE" && lc.match(/^(?:an?|any) (?:creature|enemy|ally) within (?:(\d+) squares?|a number of squares equal to (?:your|the self['’]s) (might|agility|reason|intuition|presence) score)(?: of (?:you|the self))? deals? [\w, ]*damage to (?:you|the self)\b/);
