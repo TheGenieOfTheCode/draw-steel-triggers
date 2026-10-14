@@ -23,8 +23,16 @@ export const featureSnoozeId = (key) => `feature:${key}`;
 
 const resourceOf = (actor) => actor?.items?.find((i) => i.type === "class")?.system?.primary ?? null;
 
+let _ignoredMemo = { raw: null, list: [] };
 export function ignoredList() {
   const raw = String(getSetting("featureIgnore") ?? "");
+  if (_ignoredMemo.raw === raw) return _ignoredMemo.list.map((e) => ({ ...e }));
+  const list = _parseIgnored(raw);
+  _ignoredMemo = { raw, list };
+  return list.map((e) => ({ ...e }));
+}
+
+function _parseIgnored(raw) {
   try {
     const list = JSON.parse(raw);
     if (Array.isArray(list)) return list.filter((e) => e?.dsid).map((e) => ({ dsid: String(e.dsid).toLowerCase(), name: e.name || e.dsid, line: e.line ? String(e.line) : null }));
@@ -67,10 +75,21 @@ export function abilityEffectLive(item) {
 const APPLY_LABEL = /\[\[\/apply\s[^\]]*\]\]\{([^}]+)\}/g;
 const CT_KEYS = { judged: "judgement", marked: "mark" };
 
+const _labelsByHtml = new Map();
+const appliedLabels = (ability) => {
+  const html = abilityEffectHTML(ability);
+  let labels = _labelsByHtml.get(html);
+  if (!labels) {
+    labels = new Set([...html.matchAll(APPLY_LABEL)].map((m) => m[1].trim().toLowerCase()));
+    if (_labelsByHtml.size > 2000) _labelsByHtml.clear();
+    _labelsByHtml.set(html, labels);
+  }
+  return labels;
+};
+
 export function labelSources(owner, label) {
   const want = String(label ?? "").toLowerCase();
-  return (owner?.items ?? []).filter((i) => i.type === "ability"
-    && [...abilityEffectHTML(i).matchAll(APPLY_LABEL)].some((m) => m[1].trim().toLowerCase() === want));
+  return (owner?.items ?? []).filter((i) => i.type === "ability" && appliedLabels(i).has(want));
 }
 
 export const labelKnown = (owner, label) => !!CT_KEYS[String(label ?? "").toLowerCase()] || labelSources(owner, label).length > 0;
@@ -113,11 +132,19 @@ export function itemFeatureLines(item, { withIgnored = false } = {}) {
   return ignored.size ? lines.filter((l) => !ignored.has(l.key)) : lines;
 }
 
+const _benefitsByPool = new Map();
 function grantedBenefits(item) {
   const advancements = item.system?.advancements;
-  return [...(advancements?.contents ?? Object.values(advancements ?? {}))].filter((a) => a.type === "itemGrant")
-    .flatMap((a) => a.pool ?? []).map((p) => (p?.uuid ? fromUuidSync(p.uuid, { strict: false }) : null))
-    .filter((d) => d?.name && d.type !== "ability").map((d) => d.name);
+  const pool = [...(advancements?.contents ?? Object.values(advancements ?? {}))].filter((a) => a.type === "itemGrant").flatMap((a) => a.pool ?? []);
+  const key = pool.map((p) => p?.uuid ?? "").join("|");
+  if (_benefitsByPool.has(key)) return _benefitsByPool.get(key);
+  const docs = pool.map((p) => (p?.uuid ? fromUuidSync(p.uuid, { strict: false }) : null));
+  const names = docs.filter((d) => d?.name && d.type !== "ability").map((d) => d.name);
+  if (docs.every(Boolean)) {
+    if (_benefitsByPool.size > 2000) _benefitsByPool.clear();
+    _benefitsByPool.set(key, names);
+  }
+  return names;
 }
 
 export function coveredBy(item) {

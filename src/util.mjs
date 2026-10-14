@@ -1,7 +1,14 @@
 export const MODULE_ID = "draw-steel-triggers";
 
+const _settingCache = new Map();
+const _clearSettingCache = () => _settingCache.clear();
+for (const hook of ["updateSetting", "createSetting", "deleteSetting", "clientSettingChanged"]) Hooks.on(hook, _clearSettingCache);
+
 export function getSetting(key) {
-  return game.settings.get(MODULE_ID, key);
+  if (_settingCache.has(key)) return _settingCache.get(key);
+  const value = game.settings.get(MODULE_ID, key);
+  if (value === null || typeof value !== "object") _settingCache.set(key, value);
+  return value;
 }
 
 export function dbg(...args) {
