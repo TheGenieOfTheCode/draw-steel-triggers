@@ -1,4 +1,5 @@
 import { MODULE_ID, getSetting } from "../util.mjs";
+import { autoUseLevel, lineMandatory } from "../triggers/auto-use.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
@@ -138,6 +139,8 @@ Hooks.on("renderAbilityConfigurationDialog", (app) => {
 });
 
 function autoUsable(entry) {
+  const level = autoUseLevel();
+  if (level === "none") return false;
   if (entry.state !== "pending" || entry.kind || entry.choices?.length || entry.villain || entry.gain) return false;
   const item = entry.itemUuid ? fromUuidSync(entry.itemUuid) : null;
   if (!item) return false;
@@ -146,6 +149,7 @@ function autoUsable(entry) {
   if (action && !["freeTriggered", "none"].includes(action)) return false;
   const cost = line ? Number(line.resourceCost) || 0 : Number(item.system?.resource) || 0;
   if (cost > 0 || Number(item.getFlag?.(MODULE_ID, "derived")?.epicCost) > 0 || item.getFlag?.(MODULE_ID, "malice")) return false;
+  if (level === "mandatory" && !lineMandatory(line)) return false;
   const text = line?.sentence ?? item.system?.trigger ?? "";
   const perRound = line?.once === "round" || /\bonce (?:per|each|a) round\b/i.test(text);
   return !perRound || /\bfirst time (?:each|in (?:any|a|each)) (?:combat )?round\b/i.test(text);
@@ -473,14 +477,14 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static async autoUse(entries) {
-    if (!getSetting("autoUseTriggers")) return;
+    if (autoUseLevel() === "none") return;
     for (const entry of entries.filter(autoUsable)) {
       await StackWindow.#useEntry(entry, { auto: true }).catch((err) => console.warn(`${MODULE_ID} | could not auto-use ${entry.itemName}`, err));
     }
   }
 
   static async #useEntry(entry, { auto = false } = {}) {
-    if (entry.gain || (entry.featureLine && !entry.derived)) {
+    if (entry.gain || entry.pill || (entry.featureLine && !entry.derived)) {
       resolveQueueEntry(entry.id, "used");
       return;
     }

@@ -20,7 +20,7 @@ const Q = (k, data) => data
 
 const FLAG_TO_QUALIFIER = {
   damageTypes: "damage", edgeRequired: "roll", excludeSelfTarget: "ability", effectName: "which", zone: "zone", targetsOwner: "ability",
-  victimNotSelf: "creatureIs", sourceScope: "hasEffect", rolledDamage: "ability", organization: "creatureIs", tauntedByOwner: "hasEffect",
+  victimNotSelf: "creatureIs", sourceScope: "hasEffect", rolledDamage: "ability", abilityDealsDamage: "ability", organization: "creatureIs", tauntedByOwner: "hasEffect",
   ownerLacks: "hasEffect", ownerEffect: "hasEffect", through: "movement", entersSpace: "movement", lineOfEffect: "lineOfEffect",
   victimNotMentor: "creatureIs", fmType: "movement", victimEndsAdjacent: "movement", firstTurn: "acted", damageOutcome: "damage",
   reducedByImmunity: "damage", notForceMoved: "ability", ownerGrabbing: "grabbing", fromFalling: "damage", victimCondition: "hasEffect",

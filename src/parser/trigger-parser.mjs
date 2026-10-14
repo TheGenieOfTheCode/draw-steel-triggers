@@ -555,6 +555,7 @@ const CLAUSE_FLAGS = [
   { id: "sourceScope",       from: "trigger", when: (c) => c.sourceScope,
     rx: /\b(?:an?|any|one) (?:[\w-]+ )*?(?:enemy|ally) grabs\b/i },
   { id: "rolledDamage",      from: "trigger", when: (c) => c.rolledDamage, rx: /\bdeals? rolled damage\b/i },
+  { id: "abilityDealsDamage", from: "trigger", when: (c) => c.abilityDealsDamage, rx: /\bdamage-dealing\b|\bthat deals? damage\b/i },
   { id: "tauntedByOwner",    from: "trigger", when: (c) => c.tauntedByOwner,
     rx: /\b(?:the [\w'’-]+ has|you have) taunted\b|\btaunted by (?:the [\w'’-]+|you)\b/i },
   { id: "ownerLacks",        from: "trigger", when: (c) => c.ownerLacks, rx: /\b(?:you are|the [\w'’-]+ is) not \w+/i },
@@ -999,6 +1000,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       if (/\bother than (?:their|its|your|the self['’]s) mentor\b/.test(lc)) entry.victimNotMentor = true;
     }
     if ((TARGETING_EVENTS.has(entry.event) || entry.event === "DEALS_DAMAGE") && /\bdeals? rolled damage\b/.test(lc)) entry.rolledDamage = true;
+    if ((TARGETING_EVENTS.has(entry.event) || entry.event === "USES_ABILITY") && !entry.rolledDamage
+      && /\bdamage-dealing\b|\b(?:abilit(?:y|ies)|strikes?) that deals? damage\b/.test(lc)) entry.abilityDealsDamage = true;
     const minDamage = (entry.event === "DEALS_DAMAGE" || entry.event === "TAKES_DAMAGE") && lc.match(MIN_DAMAGE);
     if (minDamage) entry.damageMin = minDamage[1] ? Number(minDamage[1]) : Number(minDamage[2]) + 1;
     const strikeKind = (TARGETING_EVENTS.has(entry.event) || entry.event === "MAKES_STRIKE") && !entry.abilityKeywords?.length && lc.match(/\b(melee|ranged) strike\b/);

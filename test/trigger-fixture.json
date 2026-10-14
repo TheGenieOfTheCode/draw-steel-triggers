@@ -2513,6 +2513,7 @@
           "event": "TARGETED_BY_STRIKE",
           "scope": "SELF",
           "qualifiers": [],
+          "abilityDealsDamage": true,
           "targetedHalf": true
         }
       ]

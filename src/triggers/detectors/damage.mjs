@@ -3,9 +3,11 @@ import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor } from "../queu
 import { deferDeathApi } from "../../compat/death-tracker.mjs";
 import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
 import { damageBonusFor } from "../damage-bonus.mjs";
+import { autoApplies } from "../auto-use.mjs";
 
-const OPTIONAL = /\b(?:you|they) (?:can|may)\b/i;
+const OPTIONAL = /\b(?:you|they) (?:can|may)(?!['’]t)\b/i;
 const passiveLine = (m) => !!m.item.featureLine && !m.item.featureLine.action && !OPTIONAL.test(m.item.featureLine.effect ?? "");
+const autoPassive = (m) => passiveLine(m) && autoApplies({ mandatory: true });
 
 let _pendingDamageType = null;
 
@@ -91,7 +93,7 @@ function _autoAdjust(actor, damage, options) {
   let out = damage;
   if (options?.dsctForced) {
     for (const m of collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, { fromForcedMovement: true })) {
-      if (!m.clause.fromForcedMovement || !m.clause.damageReduction || !passiveLine(m)) continue;
+      if (!m.clause.fromForcedMovement || !m.clause.damageReduction || !autoPassive(m)) continue;
       const n = m.clause.damageReduction === "level" ? levelOf(m.actor) : Number(m.clause.damageReduction) || 0;
       if (!(n > 0)) continue;
       out = Math.max(0, out - n);
@@ -100,7 +102,7 @@ function _autoAdjust(actor, damage, options) {
   }
   if (_dealer?.actor && _dealer.ability && _dealer.actor !== actor && token) {
     for (const b of damageBonusFor(_dealer.actor, _dealer.token, token, _dealer.message, _dealer.ability)) {
-      if (b.optional) {
+      if (!b.auto) {
         ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonusOffered", { name: b.name, n: b.amount }));
         continue;
       }
@@ -135,7 +137,7 @@ function _holdMatches(actor, token, damageType, ctx = {}) {
   const dealt = _dealer && _dealer.actor !== actor ? { rollMods: rollModsOf(_dealer.message, token ?? actor), surgeSpend: _dealer.surges || null } : {};
   let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, { ...dealt, ...ctx }).filter((m) =>
     !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual")
-    && !(m.clause.damageReduction && passiveLine(m)));
+    && !(m.clause.damageReduction && autoPassive(m)));
   if (damageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType));
   return matches;
 }

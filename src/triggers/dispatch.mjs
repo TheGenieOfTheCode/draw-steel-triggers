@@ -9,13 +9,14 @@ import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown, featureLineSpent } from "./feature-triggers.mjs";
 import { markVictim, markDealer, triggersBlocked } from "./line-effects.mjs";
+import { autoApplies, matchMandatory } from "./auto-use.mjs";
 
 const DAMAGE_PROMPTS = new Set(["TAKES_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING", "DEALS_DAMAGE", "STAMINA_BELOW"]);
 
 const EVENT_ALIASES = { WINDED: ["WINDED_OR_DYING"], DYING: ["WINDED_OR_DYING"] };
 export const eventHits = (clauseEvent, event) => clauseEvent === event || !!EVENT_ALIASES[event]?.includes(clauseEvent);
 
-const OPTIONAL = /\b(?:you|they|it|the [\w'’-]+) (?:can|may)\b/i;
+const OPTIONAL = /\b(?:you|they|it|the [\w'’-]+) (?:can|may)(?!['’]t)\b/i;
 const CONDITION_PROMPTS = new Set(["CONDITION_GAIN", "EFFECT_ENDS", "GRAB_ENDS"]);
 const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, ...CONDITION_PROMPTS, "USES_ABILITY"]);
 const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
@@ -234,9 +235,10 @@ const grabbedBy = (held, grabber) => !!held?.statuses?.has("grabbed") && !!held.
 const holdsAnyGrab = (owner) => (canvas.tokens?.placeables ?? []).some((t) => t.actor && t.actor !== owner && grabbedBy(t.actor, owner));
 
 export function usedAbilityMatches(clause, used, owner, context = {}) {
-  if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length
+  if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length && !clause.abilityDealsDamage
     && clause.abilityCostMax == null && clause.abilityCostMin == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
 
+  if (clause.abilityDealsDamage && !abilityDealsDamage(used)) return false;
   const sys = used.system ?? {};
   if (clause.abilityDsid && (sys._dsid ?? used.dsid) !== clause.abilityDsid) return false;
   if (clause.abilityType === "triggered") {
@@ -286,6 +288,14 @@ export const hasPotency = (ability) => (ability?.system?.power?.effects?.content
 
 export const dealsRolledDamage = (ability) => !!ability?.system?.power?.roll?.enabled
   && (ability.system.power?.effects?.contents ?? []).some((e) => e.type === "damage");
+
+export function abilityDealsDamage(ability) {
+  if (!ability) return false;
+  if (dealsRolledDamage(ability)) return true;
+  if ([...(ability.system?.effects ?? [])].some((e) => e?.type === "dsct.flatDamage")) return true;
+  const text = [ability.system?.effect?.before, ability.system?.effect?.after, ability.system?.description?.value].join(" ");
+  return /\[\[\/damage\b|@Damage\[/i.test(text);
+}
 
 export function abilityDamageTypes(ability) {
   const out = new Set();
@@ -440,6 +450,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "TARGETED_BY_ABILITY":
     case "TARGETED_BY_STRIKE":
       if (clause.rolledDamage && ctx.ability && !dealsRolledDamage(ctx.ability)) return false;
+      if (clause.abilityDealsDamage && ctx.ability && !abilityDealsDamage(ctx.ability)) return false;
       if (ctx.ability && !keywordsMatch(clause, ctx.ability)) return false;
       if (clause.flankedByDealer && !flankedBy(ctx.dealerToken, subjectToken)) return false;
       if (!clause.dealerScope || !ctx.dealerActor) return true;
@@ -760,10 +771,18 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
 
   let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
   if (filter) matches = matches.filter(filter);
+  
+  const markNow = (m) => autoApplies({ mandatory: matchMandatory(m) });
+  const queuedMarks = [];
   const marking = matches.filter((m) => m.clause?.markVictim);
   if (marking.length) {
     for (const m of marking) {
-      markVictim(m.actor, eventContext.victimActor ?? null, m.clause.markVictim, m.item.featureLine?.itemName ?? m.item.name)
+      const sourceName = m.item.featureLine?.itemName ?? m.item.name;
+      if (!markNow(m)) {
+        if (eventContext.victimActor) queuedMarks.push(Object.assign(m, { _mark: { kind: "victim", ownerUuid: m.actor.uuid, otherUuid: eventContext.victimActor.uuid, spec: m.clause.markVictim, sourceName } }));
+        continue;
+      }
+      markVictim(m.actor, eventContext.victimActor ?? null, m.clause.markVictim, sourceName)
         .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.victimActor?.name}`, err));
     }
     matches = matches.filter((m) => !m.clause?.markVictim);
@@ -772,10 +791,15 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   for (const m of dealerMarks) {
     const sourceId = m.item.getFlag?.(MODULE_ID, "derived")?.sourceId;
     const source = m.item.feature ?? (sourceId ? m.actor?.items?.get(sourceId) : null) ?? m.item;
+    if (!markNow(m)) {
+      if (eventContext.dealerActor) queuedMarks.push(Object.assign(m, { _mark: { kind: "dealer", ownerUuid: m.actor.uuid, otherUuid: eventContext.dealerActor.uuid, spec: m.clause.markDealer, sourceUuid: source?.uuid ?? null } }));
+      continue;
+    }
     markDealer(m.actor, eventContext.dealerActor ?? null, m.clause.markDealer, source)
       .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.dealerActor?.name}`, err));
   }
   if (dealerMarks.length) matches = matches.filter((m) => !m.clause?.markDealer);
+  if (queuedMarks.length) enqueuePromptEntries(queuedMarks, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
   }

@@ -9,11 +9,12 @@ import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares, flankingAllyOf } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
-import { pickHarmonizeTarget } from "./bespoke.mjs";
+import { pickHarmonizeTarget, setDamagePillEnabled } from "./bespoke.mjs";
+import { lineMandatory } from "./auto-use.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
 import { joinSquad, noteSquadUse } from "./squad-groups.mjs";
-import { pickStabilityShare, pickSurgeSpend, shareStability } from "./line-effects.mjs";
+import { pickStabilityShare, pickSurgeSpend, shareStability, markVictim, markDealer } from "./line-effects.mjs";
 
 let socket = null;
 
@@ -138,11 +139,11 @@ function _onUseCancelled(itemUuid) {
   if (touched) _broadcast();
 }
 
-export async function _postDeclineRecord(ownerActorUuid, ownerName, itemName) {
+export async function _postDeclineRecord(ownerActorUuid, ownerName, itemName, mandatory = false) {
   const owner = await fromUuid(ownerActorUuid).catch(() => null);
   const recipients = game.users.filter((u) => u.isGM || (owner && owner.testUserPermission(u, "OWNER"))).map((u) => u.id);
   const esc = foundry.utils.escapeHTML;
-  const sentence = game.i18n.format("DS_TRIGGERS.Queue.DeclineRecord", { owner: esc(ownerName), ability: `<strong>${esc(itemName)}</strong>` });
+  const sentence = game.i18n.format(mandatory ? "DS_TRIGGERS.Queue.DeclineRecordMandatory" : "DS_TRIGGERS.Queue.DeclineRecord", { owner: esc(ownerName), ability: `<strong>${esc(itemName)}</strong>` });
   postSystemCard({
     title: game.i18n.localize("DS_TRIGGERS.Queue.DeclineTitle"),
     flavor: null,
@@ -298,6 +299,25 @@ function _onQueueAdd(entries) {
   Hooks.callAll("dst.queueAdded", fresh);
 }
 
+async function _enableBonusPill({ messageId, targetUuid, label }) {
+  const message = game.messages.get(messageId);
+  if (!message) return;
+  await setDamagePillEnabled(message, targetUuid, label, true);
+  await game.modules.get("draw-steel-combat-tools")?.api?.damagePills?.setEnabled?.(message, { targetUuid, label, enabled: true });
+}
+
+async function _applyQueuedMark({ kind, ownerUuid, otherUuid, spec, sourceName, sourceUuid }) {
+  const owner = await fromUuid(ownerUuid).catch(() => null);
+  const other = await fromUuid(otherUuid).catch(() => null);
+  if (!owner || !other) return;
+  try {
+    if (kind === "victim") await markVictim(owner, other, spec, sourceName);
+    else await markDealer(owner, other, spec, sourceUuid ? await fromUuid(sourceUuid).catch(() => null) : null);
+  } catch (err) {
+    console.warn(`${MODULE_ID} | a mark from the stack could not be applied to ${other.name}`, err);
+  }
+}
+
 async function _onQueueResolve(id, outcome, userName) {
   if (!isPrimaryGM()) return;
   const entry = _queue.find((e) => e.id === id);
@@ -309,6 +329,8 @@ async function _onQueueResolve(id, outcome, userName) {
       && q.featureLine?.exclusive === entry.featureLine.exclusive)) _onQueueResolve(other.id, "dismissed");
   }
   if (outcome === "used") entry.usedAt = Date.now();
+  if (outcome === "used" && entry.pill) await _enableBonusPill(entry.pill);
+  if (outcome === "used" && entry.mark) await _applyQueuedMark(entry.mark);
   if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
   if (outcome === "used" && entry.defersDeath) {
     const run = fromUuid(entry.heldDamage?.deathActorUuid ?? entry.heldDamage?.actorUuid ?? "")
@@ -361,7 +383,7 @@ async function _onQueueResolve(id, outcome, userName) {
 
   if (entry.gain) resolveStackGain(entry, outcome);
 
-  if (outcome === "declined" && !entry.villain && !entry.gain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName);
+  if (outcome === "declined" && !entry.villain && !entry.gain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName, lineMandatory(entry.featureLine));
 
   if (entry.resumeId) {
     const stillLocked = _queue.some((e) => e.resumeId === entry.resumeId && e.state === "pending");
@@ -1657,6 +1679,8 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     sourceMessageId,
     playerSide: m.actor.hasPlayerOwner ?? false,
     gain: m._gain ?? null,
+    pill: m._pill ?? null,
+    mark: m._mark ?? null,
   }));
   asPrimaryGM("queueAdd", entries);
 }

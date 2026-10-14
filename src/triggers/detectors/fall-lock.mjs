@@ -1,8 +1,9 @@
 import { batchedNotice } from "../../util.mjs";
 import { collectTriggerMatches, triggersLive } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket } from "../queue.mjs";
+import { autoApplies } from "../auto-use.mjs";
 
-const OPTIONAL = /\b(?:you|they) (?:can|may)\b/i;
+const OPTIONAL = /\b(?:you|they) (?:can|may)(?!['’]t)\b/i;
 const _pendingFalls = new Map();
 
 const jumpDistance = (actor) => {
@@ -28,7 +29,7 @@ Hooks.on("dsct.preFall", (ctx) => {
   if (!matches.length) return;
 
   const optional = (m) => !!m.item.featureLine?.action || OPTIONAL.test(m.item.featureLine?.effect ?? m.item.system?.effect ?? "")
-    || !m.item.featureLine;
+    || !m.item.featureLine || !autoApplies({ mandatory: true });
   for (const m of matches.filter((x) => !optional(x))) {
     const { reduction } = effectOf(m);
     if (!reduction) continue;

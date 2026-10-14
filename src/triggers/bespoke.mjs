@@ -37,6 +37,14 @@ export async function addDamagePill(message, targetUuid, pill) {
   await message.setFlag(MODULE_ID, PILL_FLAG, [...existing, { targetUuid, pill }]);
 }
 
+export async function setDamagePillEnabled(message, targetUuid, label, enabled) {
+  const flag = message.getFlag(MODULE_ID, PILL_FLAG);
+  if (!Array.isArray(flag)) return;
+  const next = flag.map((e) => (e.targetUuid === targetUuid && e.pill?.label === label
+    ? { ...e, pill: enabled ? Object.fromEntries(Object.entries(e.pill).filter(([k]) => k !== "enabled")) : { ...e.pill, enabled: false } } : e));
+  await message.setFlag(MODULE_ID, PILL_FLAG, next);
+}
+
 async function addTarget(message, tokenDoc) {
   const state = message.getFlag(DSTD_ID, "state") ?? {};
   const targets = [...(state.targets ?? [])];

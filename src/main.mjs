@@ -117,6 +117,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "autoUseMandatory", {
+    name: "DS_TRIGGERS.Settings.AutoUseMandatory.Name",
+    hint: "DS_TRIGGERS.Settings.AutoUseMandatory.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "autoUseTriggers", {
     name: "DS_TRIGGERS.Settings.AutoUseTriggers.Name",
     hint: "DS_TRIGGERS.Settings.AutoUseTriggers.Hint",
@@ -345,7 +353,7 @@ const SETTING_HEADERS = {
 };
 
 const HEADER_FALLBACK = { Resources: ["rosterGains"] };
-const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks"];
+const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers"];
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];

@@ -2,11 +2,12 @@ import { getSetting, dbg, isPrimaryGM, batchedNotice } from "../../util.mjs";
 import { collectTriggerMatches, dispatchTriggerEvent, footprintGap, triggersLive } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
+import { autoApplies } from "../auto-use.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
 
-const OPTIONAL = /\b(?:you|they) (?:can|may)\b/i;
+const OPTIONAL = /\b(?:you|they) (?:can|may)(?!['’]t)\b/i;
 
 const _pendingFm = new Map();
 const _resolvedOnCard = new Map();
@@ -94,10 +95,12 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   const baseDistance = Number(ctx.distance) || 0;
   const baseType = ctx.type;
   const passiveApplied = [];
-  for (const m of found.filter(passive)) _applyPassive(ctx, m, passiveApplied);
+  
+  const applyNow = (m) => passive(m) && (!getSetting("fmInterrupts") || autoApplies({ mandatory: true }));
+  for (const m of found.filter(applyNow)) _applyPassive(ctx, m, passiveApplied);
 
   if (!getSetting("fmInterrupts")) return;
-  const matches = found.filter((m) => !passive(m));
+  const matches = found.filter((m) => !applyNow(m));
   for (const m of matches) {
     const mod = m.clause.fmMod;
     m._fmMode = mod.mode;

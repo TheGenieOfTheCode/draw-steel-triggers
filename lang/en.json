@@ -216,9 +216,13 @@
         "Name": "Skip Empty Ability Dialogs",
         "Hint": "Using a trigger from the stack skips the ability's dialog when it has nothing to decide: no power roll, no resource to spend and no damage type to pick."
       },
+      "AutoUseMandatory": {
+        "Name": "Automatically Use Mandatory Costless Triggers",
+        "Hint": "Triggers that always happen and cost nothing apply on their own: forced movement and fall changes, damage bonuses, marks. Off: they wait on the Trigger Stack like any other."
+      },
       "AutoUseTriggers": {
-        "Name": "Use Free Triggers Automatically",
-        "Hint": "Free triggered and no action triggers with no cost are used the moment they reach the stack. Triggered actions and once per round triggers still wait, except ones used the first time each round."
+        "Name": "Automatically Use All Costless Triggers",
+        "Hint": "Also uses optional triggers that cost nothing the moment they reach the stack. Needs the setting above. Triggered actions and once per round triggers still wait."
       },
       "StackDecisionTimer": {
         "Name": "Stack Decision Timer",
@@ -695,6 +699,7 @@
       "DamageReduced": "{name}: damage reduced by {n}.",
       "DamageBonus": "{name}: +{n} damage.",
       "DamageBonusOffered": "{name} could add +{n} damage. Add it by hand if you use it.",
+      "BonusCause": "{name} could add +{n} damage to {target}",
       "HeldDamageIgnoresImmunity": "Ignores {types} immunity",
       "FallHeld": "{name}'s fall is held while triggered abilities are decided. See the Trigger Stack.",
       "FallHeldMany": "Falls for {names} are held while triggered abilities are decided. See the Trigger Stack.",
@@ -772,6 +777,7 @@
       "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
       "RollReleased": "The triggers are decided. {name} continues.",
       "DeclineRecord": "{owner} declined to use {ability}.",
+      "DeclineRecordMandatory": "{owner} declined {ability}, a mandatory trigger.",
       "DeclineTitle": "Trigger Declined",
       "SquadTurnRefusedTitle": "Squad Turn Not Taken",
       "FmRedirectSameTarget": "{modName}: {name} stays the target, taking the extra distance.",
@@ -1250,6 +1256,7 @@
           "targetsOwner": "Targets this creature",
           "excludeSelfTarget": "Does not also target this creature",
           "rolledDamage": "Its damage comes from a power roll",
+          "abilityDealsDamage": "It deals damage (power roll, damage button or damage link)",
           "notForceMoved": "Does not force move",
           "abilityDsid": "A specific ability"
         },
@@ -1268,6 +1275,7 @@
           "targetsOwner": "targets this creature",
           "excludeSelfTarget": "not also targeting this creature",
           "rolledDamage": "rolled damage",
+          "abilityDealsDamage": "deals damage",
           "notForceMoved": "no forced movement",
           "abilityDsid": "{v}"
         }

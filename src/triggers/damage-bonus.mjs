@@ -2,6 +2,8 @@ import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities } from "./registry.mjs";
 import { triggersLive, usedAbilityMatches, abilityDamageTypes, dealsRolledDamage, effectsMatch, footprintGap, isMinionActor } from "./dispatch.mjs";
 import { addDamagePill } from "./bespoke.mjs";
+import { autoApplies } from "./auto-use.mjs";
+import { enqueuePromptEntries } from "./queue.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
@@ -65,7 +67,8 @@ export function damageBonusFor(actor, attackerToken, targetToken, message = null
       if (c.victimOrganization?.length && !c.victimOrganization.includes(orgOf(victim))) continue;
       if (c.alsoMinionNear && !otherMinionInReach(token, targetToken, ability)) continue;
       if (c.effects?.length && !effectsMatch(c, actor, disposition, actor, { victimActor: victim, victimToken: targetToken?.document ?? targetToken })) continue;
-      out.push({ name: entry.item.name, amount, optional: !!c.optional });
+      out.push({ name: entry.item.name, amount, optional: !!c.optional, item: entry.item, actor: entry.actor ?? actor,
+        perRound: entry.item.featureLine?.once === "round", auto: autoApplies({ mandatory: !c.optional, perRound: entry.item.featureLine?.once === "round" }) });
     }
   }
   return out;
@@ -109,8 +112,14 @@ async function _pillTargets(message) {
       const key = `${message.id}:${t.tokenUuid}:${b.name}`;
       if (_done.has(key)) continue;
       _done.add(key);
-      dbg(`${b.name}: +${b.amount} damage to ${target.name} on ${ability.name}${b.optional ? " (offered)" : ""}`);
-      await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label: b.name, src: actor.name, source: "trigger", ...(b.optional ? { enabled: false } : {}) });
+      dbg(`${b.name}: +${b.amount} damage to ${target.name} on ${ability.name}${b.auto ? "" : " (on the stack)"}`);
+      await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label: b.name, src: actor.name, source: "trigger", dstTarget: t.tokenUuid,
+        ...(b.auto ? {} : { enabled: false }) });
+      
+      if (!b.auto) enqueuePromptEntries([{ item: b.item, actor: b.actor, _subjectTokenUuid: t.tokenUuid,
+        _pill: { messageId: message.id, targetUuid: t.tokenUuid, label: b.name },
+        _causeLabel: game.i18n.format("DS_TRIGGERS.Queue.BonusCause", { name: b.name, n: b.amount, target: target.name }) }],
+      { event: "DEALS_DAMAGE", causeLabel: "", sourceMessageId: message.id });
     }
     for (const d of damageTypesFor(actor, ability)) {
       const key = `${message.id}:${t.tokenUuid}:${d.name}:type`;
