@@ -354,6 +354,7 @@ const SETTING_HEADERS = {
 
 const HEADER_FALLBACK = { Resources: ["rosterGains"] };
 const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers"];
+const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory" };
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
@@ -369,6 +370,17 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
     el.insertAdjacentElement("beforebegin", h);
   }
   for (const key of SUB_SETTINGS) groupOf(key)?.classList.add("dst-sub-setting");
+  for (const [childKey, parentKey] of Object.entries(SUB_PARENTS)) {
+    const parent = root.querySelector(`[name="${MODULE_ID}.${parentKey}"]`);
+    const child = root.querySelector(`[name="${MODULE_ID}.${childKey}"]`);
+    if (!parent || !child) continue;
+    const sync = () => {
+      child.disabled = !parent.checked;
+      groupOf(childKey)?.classList.toggle("dst-setting-off", !parent.checked);
+    };
+    parent.addEventListener("change", sync);
+    sync();
+  }
 });
 
 registerSnoozeHooks();

@@ -100,7 +100,7 @@
       },
       "PillDamageEditor": {
         "Name": "Pill Damage Editor",
-        "Hint": "Replaces the Draw Steel Target Damage edit damage dialog with the modifier pill window: named pills with effect tooltips, halves, doubles, custom deltas, and surge spending for hero sourced damage. Turn off to use the original editor."
+        "Hint": "Replaces Draw Steel Target Damage's edit damage dialog with the pill window, where halves, doubles, custom amounts and surges each show as a named pill. Turn off to use the original editor."
       },
       "ResolutionHolds": {
         "Name": "Post-Roll Resolution Holds",
@@ -214,11 +214,11 @@
       },
       "SkipEmptyDialogs": {
         "Name": "Skip Empty Ability Dialogs",
-        "Hint": "Using a trigger from the stack skips the ability's dialog when it has nothing to decide: no power roll, no resource to spend and no damage type to pick."
+        "Hint": "Using a trigger from the stack skips the ability's dialog when it has no power roll, no resource to spend and no damage type to pick."
       },
       "AutoUseMandatory": {
         "Name": "Automatically Use Mandatory Costless Triggers",
-        "Hint": "Triggers that always happen and cost nothing apply on their own: forced movement and fall changes, damage bonuses, marks. Off: they wait on the Trigger Stack like any other."
+        "Hint": "Triggers that always happen and cost nothing, such as damage bonuses and changes to forced movement or falls, apply on their own. When off, they wait on the Trigger Stack like any other."
       },
       "AutoUseTriggers": {
         "Name": "Automatically Use All Costless Triggers",
