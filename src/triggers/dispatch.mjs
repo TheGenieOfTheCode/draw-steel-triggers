@@ -287,6 +287,23 @@ export const hasPotency = (ability) => (ability?.system?.power?.effects?.content
 export const dealsRolledDamage = (ability) => !!ability?.system?.power?.roll?.enabled
   && (ability.system.power?.effects?.contents ?? []).some((e) => e.type === "damage");
 
+export function abilityDamageTypes(ability) {
+  const out = new Set();
+  for (const e of ability?.system?.power?.effects?.contents ?? []) {
+    if (e.type !== "damage") continue;
+    for (const n of [1, 2, 3]) {
+      const tier = e.damage?.[`tier${n}`];
+      if (!tier) continue;
+      const types = [...(tier.types ?? [])];
+      if (types.length) types.forEach((t) => out.add(t)); else out.add("untyped");
+    }
+  }
+  return out;
+}
+
+const damageTypeMatches = (clause, ctx) => !clause.damageTypes?.length || ctx.damageType == null
+  || clause.damageTypes.includes(ctx.damageType || "untyped");
+
 export function isMinionActor(actor) {
   return actor?.system?.isMinion ?? actor?.system?.monster?.organization === "minion";
 }
@@ -392,10 +409,11 @@ export function fmMatches(clause, ctx) {
 }
 
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
-  if (clause.damageBonus || clause.damageTypeChange) return false;
+  if (clause.damageBonus || clause.damageTypeChange || clause.damageTypeChoices?.length) return false;
   switch (event) {
     case "DEALS_DAMAGE":
-      if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
+      if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx) || !damageTypeMatches(clause, ctx)) return false;
+      if (clause.rolledDamage && !dealsRolledDamage(ctx.ability)) return false;
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (clause.victimType && ctx.victimActor && ctx.victimActor.type !== clause.victimType) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
@@ -408,7 +426,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.wouldLeave === "dying" && ctx.wouldDying === false) return false;
       return (!clause.fromFalling || !!ctx.fromFalling) && (!clause.fromForcedMovement || !!ctx.fromForcedMovement);
     case "TAKES_DAMAGE":
-      if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx)) return false;
+      if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx) || !damageTypeMatches(clause, ctx)) return false;
       if (clause.reducedByImmunity && !ctx.immunityReduced) return false;
       if (clause.damageSource?.length && !clause.damageSource.includes(ctx.damageSource)) return false;
       if (clause.fromFalling && !ctx.fromFalling) return false;
@@ -497,6 +515,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.targetGrabbedByOwner && !targetActors(ctx).some((a) => grabbedBy(a, ownerActor))) return false;
       return !ctx.ability || keywordsMatch(clause, ctx.ability);
     case "POWER_ROLL_RESULT":
+      if (clause.testOnly && !ctx.isTest) return false;
       if (!ctx.ability) return true;
       if (!keywordsMatch(clause, ctx.ability)) return false;
       if (clause.abilityType && ctx.ability.system?.type !== clause.abilityType) return false;
@@ -534,9 +553,11 @@ function organizationMatches(clause, subjectActor) {
     if (!clause.subjectKeywords.some((k) => kw?.has?.(k) ?? kw?.includes?.(k))) return false;
   }
   const excluded = clause.organization?.exclude;
-  if (!excluded?.length || !subjectActor) return true;
+  const included = clause.organization?.include;
+  if ((!excluded?.length && !included?.length) || !subjectActor) return true;
   const org = subjectActor.system?.monster?.organization ?? (isMinionActor(subjectActor) ? "minion" : null);
-  return !excluded.includes(org);
+  if (included?.length && !included.includes(org)) return false;
+  return !excluded?.includes(org);
 }
 
 const targetActors = (ctx) => (ctx.usedTargets ?? []).map((t) => t?.actor ?? fromUuidSync(t?.uuid ?? t)?.actor ?? null).filter(Boolean);
@@ -582,7 +603,7 @@ function appliersOf(holder, spec) {
   return out;
 }
 
-function effectsMatch(clause, ownerActor, ownerDisposition, subjectActor, ctx = {}) {
+export function effectsMatch(clause, ownerActor, ownerDisposition, subjectActor, ctx = {}) {
   for (const spec of clause.effects ?? []) {
     if (!spec?.value) continue;
     const holder = effectHolder(spec.on, ownerActor, subjectActor, ctx);
@@ -719,13 +740,14 @@ const ownTokenOf = (actor) => actor?.token ?? actor?.getActiveTokens?.(false, tr
 function aimOf(m, subjectToken, ctx) {
   if (m.item.system?.distance?.type === "burst" || m.item.getFlag?.("draw-steel-combat-tools", "areaFilter")?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
-  if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b/.test(effect)) return "";
-  const namesOther = /\b(?:that creature|the triggering creature|that enemy)\b/.test(effect);
+  if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b|\bon you or (?:another|one) (?:creature|ally)\b/.test(effect)) return "";
+  const namesOther = /\b(?:that creature|the triggering creature|that enemy|that target|the target)\b/.test(effect);
   if (/^(?:you|the self)\b/.test(effect) && !(namesOther && /^(?:you|the self) (?:can|may)\b/.test(effect))) return tokenUuidOf(ownTokenOf(m.actor));
   if (!namesOther && !/^(?:they|it|that (?:enemy|creature|ally|target)|the (?:enemy|creature|target|triggering creature))\b/.test(effect)) return null;
   if (m.clause?.through && ctx.throughToken) return tokenUuidOf(ctx.throughToken);
   const subject = tokenUuidOf(subjectToken);
   if (subject && (subject !== tokenUuidOf(ownTokenOf(m.actor)) || m.clause?.scope !== "SELF")) return subject;
+  if (ctx.victimToken) return tokenUuidOf(ctx.victimToken);
   if (ctx.dealerToken) return tokenUuidOf(ctx.dealerToken);
   const source = ctx.sourceActorUuids?.map((uuid) => fromUuidSync(uuid)).find(Boolean);
   return source ? tokenUuidOf(ownTokenOf(source)) ?? "" : "";

@@ -13,7 +13,7 @@ import { pickHarmonizeTarget } from "./bespoke.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
 import { joinSquad, noteSquadUse } from "./squad-groups.mjs";
-import { pickStabilityShare, shareStability } from "./line-effects.mjs";
+import { pickStabilityShare, pickSurgeSpend, shareStability } from "./line-effects.mjs";
 
 let socket = null;
 
@@ -331,6 +331,7 @@ async function _onQueueResolve(id, outcome, userName) {
     if (striker) Hooks.callAll("dst.targetedHalfUsed", { abilityUuid: entry.resume.itemUuid, targetActorUuid: striker.uuid, sourceActorUuid: entry.ownerActorUuid, modName: entry.itemName });
   }
   if (outcome === "used" && entry.fmMode === "stability") await _shareStabilityOnUse(entry);
+  if (outcome === "used" && entry.fmPerSurge) await _spendSurgesOnUse(entry);
   dbg(`queue resolve ${id} -> ${outcome}`);
 
   
@@ -380,6 +381,7 @@ async function _onQueueResolve(id, outcome, userName) {
             itemName: e.itemName, usedAt: e.usedAt,
             redirect: e.redirect ?? null, redirectPool: e.redirectPool ?? null, rollMod: e.rollMod ?? null,
             fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null, fmAmount: e.fmAmount ?? null,
+            fmPerSurge: e.fmPerSurge ?? null, fmSurges: e.fmSurges ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
             subjectTokenUuids: e.subjectTokenUuids ?? null,
             villain: e.villain ?? null,
@@ -1036,6 +1038,27 @@ function _fmSpendUsed(itemUuid) {
 }
 
 const _onPickStabilityShare = (ownerName, max, sourceName) => pickStabilityShare(ownerName, max, sourceName);
+const _onPickSurgeSpend = (ownerName, max, sourceName) => pickSurgeSpend(ownerName, max, sourceName);
+
+async function _spendSurgesOnUse(entry) {
+  const owner = fromUuidSync(entry.ownerActorUuid);
+  const have = Math.max(0, Math.floor(Number(owner?.system?.hero?.surges) || 0));
+  const max = Math.min(Number(entry.fmPerSurge) || 0, have);
+  entry.fmSurges = 0;
+  if (!owner) return;
+  if (!max) {
+    ui.notifications.warn(game.i18n.format("DS_TRIGGERS.LineEffect.SurgeNone", { owner: owner.name }));
+    return;
+  }
+  const pickUser = _pickUserFor(entry.ownerActorUuid);
+  const n = pickUser && !pickUser.isSelf
+    ? await socket.executeAsUser("pickSurgeSpend", pickUser.id, owner.name, max, entry.itemName).catch(() => null)
+    : await pickSurgeSpend(owner.name, max, entry.itemName);
+  if (!n) return;
+  await owner.update({ "system.hero.surges": have - n });
+  entry.fmSurges = n;
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.LineEffect.SurgeSpent", { owner: owner.name, n, source: entry.itemName }));
+}
 
 async function _shareStabilityOnUse(entry) {
   const owner = fromUuidSync(entry.ownerActorUuid);
@@ -1060,6 +1083,7 @@ function _applyFmRunning(entry) {
   const amount = _fmAmount(entry);
   held.fmTrail = [...(held.fmTrail ?? []), {
     itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid ?? null, fmChar: entry.fmChar ?? null, fmAmount: entry.fmAmount ?? null,
+    fmPerSurge: entry.fmPerSurge ?? null, fmSurges: entry.fmSurges ?? null,
     modName: entry.itemName, ownerName: entry.ownerName ?? "", mode: entry.fmMode,
     amount: entry.fmMode === "reduce" ? -amount : entry.fmMode === "boost" ? amount : 0,
   }];
@@ -1141,6 +1165,7 @@ function _fmAmount(entry) {
   if (entry?.fmAmount != null) return Number(entry.fmAmount) || 0;
   const owner = entry?.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
   const amount = Math.max(0, Number(owner?.system?.characteristics?.[entry?.fmChar]?.value ?? 0));
+  if (entry?.fmPerSurge) return amount * (Number(entry.fmSurges) || 0);
   return (amount && _fmSpendUsed(entry.itemUuid)) ? amount * 2 : amount;
 }
 
@@ -1569,6 +1594,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmMode: m._fmMode ?? null,
     fmChar: m._fmChar ?? null,
     fmAmount: m._fmAmount ?? null,
+    fmPerSurge: m._fmPerSurge ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     subjectTokenUuids: m._subjectTokenUuids ?? null,
     villain: m._villain ?? null,
@@ -1861,6 +1887,7 @@ Hooks.once("socketlib.ready", () => {
   socket.register("pickRedirectTarget", _onPickRedirectTarget);
   socket.register("pickDamageRedirect", _onPickDamageRedirect);
   socket.register("pickStabilityShare", _onPickStabilityShare);
+  socket.register("pickSurgeSpend", _onPickSurgeSpend);
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
   socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
   socket.register("queueSyncRequest", _onQueueSyncRequest);

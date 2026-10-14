@@ -165,7 +165,11 @@ const FM_MOD_ABILITIES = {
 
 const CHAR = "(might|agility|reason|intuition|presence)";
 export const FM_MOD_TEXT = [
+  [new RegExp(`\\bspend up to (\\d+) surges?\\b[^.]*\\.\\s*for each surge spent, the forced movement distance gains a bonus equal to your ${CHAR} score\\b`, "i"),
+    (m) => ({ mode: "boost", char: m[2].toLowerCase(), perSurge: Number(m[1]) })],
   [new RegExp(`\\bforced movement distance gains a bonus equal to your ${CHAR} score\\b`, "i"), (m) => ({ mode: "boost", char: m[1].toLowerCase() })],
+  [/\bforced movement distance gains a \+(\d+) bonus\b/i, (m) => ({ mode: "boost", amount: Number(m[1]) })],
+  [/\breduce the forced movement distance by (\d+)\b/i, (m) => ({ mode: "reduce", amount: Number(m[1]) })],
   [/\bgains? a \+(\d+) bonus to the forced movement distance\b/i, (m) => ({ mode: "boost", amount: Number(m[1]) })],
   [/\bslide (?:them|it|the target|that creature) instead\b/i, () => ({ mode: "slide" })],
   [/\bpull (?:them|it|the target|that creature) instead\b/i, () => ({ mode: "pull" })],
@@ -402,7 +406,7 @@ function keywordRx() {
     _keywordKey = key;
     const k = words.length ? words.map((w) => `[${w[0].toUpperCase()}${w[0].toLowerCase()}]${w.slice(1)}`).join("|") : "(?!)";
     const notName = String.raw`(?<!\b(?!(?:The|A|An|Any|Your|Their|Its|Each|You|Use)\b)[A-Z][\w'’]* )`;
-    _keywordRx = new RegExp(String.raw`${notName}\b((?:${k})(?:(?:,? or |,? and |, )(?:${k}))*) (?:keywords?|abilit(?:y|ies))\b`);
+    _keywordRx = new RegExp(String.raw`${notName}\b((?:${k})(?:(?:,? or |,? and |, )(?:${k}))*) (?:(?:signature|heroic) )?(?:keywords?|abilit(?:y|ies))\b`);
   }
   return _keywordRx;
 }
@@ -561,8 +565,8 @@ const CLAUSE_FLAGS = [
   { id: "entersSpace",       from: "trigger", when: (c) => c.entersSpace, rx: /\benters? this space\b/i },
   { id: "lineOfEffect",      from: "trigger", when: (c) => c.lineOfEffect, rx: LINE_OF_EFFECT },
   { id: "victimNotMentor",   from: "trigger", when: (c) => c.victimNotMentor, rx: /\bother than (?:their|its|your) mentor\b/i },
-  { id: "organization",      from: "trigger", when: (c) => c.organization?.exclude?.length,
-    rx: /\bnon-(?:minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (?:minion|leader|solo|elite)\b/i },
+  { id: "organization",      from: "trigger", when: (c) => c.organization?.exclude?.length || c.organization?.include?.length,
+    rx: /\bnon-(?:minion|leader|solo|elite)\b|\bwho (?:isn['’]t|is not) an? (?:minion|leader|solo|elite)\b|\b(?:enemy |ally )?minion\b/i },
   { id: "fmType",            from: "trigger", when: (c) => c.fmType, rx: /\b(?:push|pull|slide)(?:e?s)?\b/i },
   { id: "victimEndsAdjacent", from: "trigger", when: (c) => c.victimEndsAdjacent,
     rx: /\b(?:end[\w ]*? )?adjacent to (?:you|one of (?:your|their) allies)\b/i },
@@ -717,6 +721,7 @@ function normalizeTrigger(clean, ownerName) {
   normalized = normalized.replace(/\b(you|they) pass through\b/gi, "$1 move through").replace(/\bpasses through\b/gi, "moves through");
   normalized = normalized.replace(/\benters (?:a|an|any|another) crea ?ture['’]s space\b/gi, "moves through a creature's space");
   normalized = normalized.replace(/\b(you|they) make a power roll that imposes forced movement on (a|the|that) target\b/gi, "$1 force move $2 target");
+  normalized = normalized.replace(/\b(you|they) make a strike that deals ((?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic) )?damage\b/gi, (m, who, type) => `${who} deal ${type ?? ""}damage with a strike`);
   normalized = normalized.replace(/\bwinded or (?:are|is) dying\b/gi, "winded or dying");
   normalized = normalized.replace(/\b(deals?|takes?) or (deals?|takes?) ((?:[\w-]+ )*?damage)\b/i, "$1 $3, or $2 $3");
   normalized = normalized.replace(/\b(?:a|an|any|one) (?:creature|enemy|hero)( within \d+ squares?| within (?:distance|reach)| adjacent(?: to [\w'’ ]+?)?)? makes? a (melee |ranged )?strike against ([\w'’ -]+?)(?=[.,]| while| using| with| that|$)/gi,
@@ -793,10 +798,21 @@ export function parseTrigger(text, options = {}) {
 
 const DAMAGE_TYPE_CHANGE = /\b(?:(?:change (?:the (?:ability|strike)['’]s|its|that|the) damage type to|make that damage) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b(?!,? (?:or )?(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b)|(?:change it to|can deal) (acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic) damage instead\b)/i;
 
+const TYPE_WORDS = "acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic";
+const DAMAGE_TYPE_LIST = new RegExp(String.raw`\b(?:change (?:the (?:ability|strike)['’]s|its|that|the) damage type to|can deal) ((?:${TYPE_WORDS})(?:,? (?:or )?(?:${TYPE_WORDS}))+) damage\b`, "i");
+const DAMAGE_TYPE_CHOSEN = /\bdeal (?:damage of )?(?:the|your) chosen (?:damage )?type\b/i;
+
 function damageTypeLayer(result, effectText) {
-  const m = String(effectText ?? "").match(DAMAGE_TYPE_CHANGE);
-  if (!m) return result;
-  return { ...result, clauses: result.clauses.map((c) => (c.event === "DEALS_DAMAGE" || c.event === "USES_ABILITY" ? { ...c, damageTypeChange: (m[1] ?? m[2]).toLowerCase() } : c)) };
+  const text = String(effectText ?? "");
+  const m = text.match(DAMAGE_TYPE_CHANGE);
+  let patch = m ? { damageTypeChange: (m[1] ?? m[2]).toLowerCase() } : null;
+  if (!patch) {
+    const list = text.match(DAMAGE_TYPE_LIST);
+    if (list && (/^change/i.test(list[0]) || /\binstead\b/i.test(text))) patch = { damageTypeChoices: [...new Set(list[1].toLowerCase().split(/,? or |, /).filter(Boolean))] };
+    else if (DAMAGE_TYPE_CHOSEN.test(text) && /\binstead\b/i.test(text)) patch = { damageTypeChoices: TYPE_WORDS.split("|") };
+  }
+  if (!patch) return result;
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "DEALS_DAMAGE" || c.event === "USES_ABILITY" ? { ...c, ...patch } : c)) };
 }
 
 function resistedLayer(result, effectText) {
@@ -862,7 +878,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       entry.damageTypes = DAMAGE_TYPES.filter((t) => !notTypes[0].includes(t));
       entry.qualifiers = entry.qualifiers.filter((q) => !notTypes[0].includes(q));
     }
-    else if (dmgTypes && /damage/.test(lc)) entry.damageTypes = [...new Set(dmgTypes)];
+    else if (dmgTypes && /damage/.test(lc)) entry.damageTypes = [...new Set([...dmgTypes, ...(/\buntyped\b/.test(lc) ? ["untyped"] : [])])];
+    else if (/\buntyped damage\b/.test(lc)) entry.damageTypes = ["untyped"];
     const using = clause.match(/\busing (?:their |its |the )?([A-Z][\w' ]*?)(?=[.,]|$| (?:ability|maneuver|action))/);
     if (using) entry.abilityDsid = generateDSID(using[1]);
 
@@ -981,11 +998,12 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       if (side) entry.throughScope = side.toUpperCase();
       if (/\bother than (?:their|its|your|the self['’]s) mentor\b/.test(lc)) entry.victimNotMentor = true;
     }
-    if (TARGETING_EVENTS.has(entry.event) && /\bdeals? rolled damage\b/.test(lc)) entry.rolledDamage = true;
+    if ((TARGETING_EVENTS.has(entry.event) || entry.event === "DEALS_DAMAGE") && /\bdeals? rolled damage\b/.test(lc)) entry.rolledDamage = true;
     const minDamage = (entry.event === "DEALS_DAMAGE" || entry.event === "TAKES_DAMAGE") && lc.match(MIN_DAMAGE);
     if (minDamage) entry.damageMin = minDamage[1] ? Number(minDamage[1]) : Number(minDamage[2]) + 1;
     const strikeKind = (TARGETING_EVENTS.has(entry.event) || entry.event === "MAKES_STRIKE") && !entry.abilityKeywords?.length && lc.match(/\b(melee|ranged) strike\b/);
     if (strikeKind) entry.abilityKeywords = [strikeKind[1]];
+    else if (entry.event === "DEALS_DAMAGE" && !entry.abilityKeywords?.length && /\bwith a strike\b/.test(lc)) entry.abilityKeywords = ["strike"];
     if (TARGETING_EVENTS.has(entry.event) && /\bwhile (?:a second|another) creature is flanking (?:you|the self)\b/.test(lc)) entry.flankedByDealer = true;
     const dealerWithin = entry.event === "TAKES_DAMAGE" && lc.match(/^(?:an?|any) (?:creature|enemy|ally) within (?:(\d+) squares?|a number of squares equal to (?:your|the self['’]s) (might|agility|reason|intuition|presence) score)(?: of (?:you|the self))? deals? [\w, ]*damage to (?:you|the self)\b/);
     if (dealerWithin) {

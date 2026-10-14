@@ -5107,7 +5107,8 @@
           "scope": "TARGET",
           "qualifiers": [
             "while hidden"
-          ]
+          ],
+          "rolledDamage": true
         }
       ]
     }
@@ -5985,6 +5986,9 @@
           "qualifiers": [],
           "damageOutcome": [
             "zero"
+          ],
+          "abilityKeywords": [
+            "strike"
           ]
         }
       ]

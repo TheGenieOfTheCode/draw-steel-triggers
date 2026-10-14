@@ -1,6 +1,6 @@
 import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities } from "./registry.mjs";
-import { triggersLive, usedAbilityMatches } from "./dispatch.mjs";
+import { triggersLive, usedAbilityMatches, abilityDamageTypes, dealsRolledDamage, effectsMatch, footprintGap, isMinionActor } from "./dispatch.mjs";
 import { addDamagePill } from "./bespoke.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
@@ -24,20 +24,48 @@ export function highGroundOf(message) {
     .filter(([, pills]) => (pills ?? []).some((p) => p.reason === "High Ground" && p.enabled !== false)).map(([k]) => k));
 }
 
-export function damageBonusFor(actor, attackerToken, targetToken, message = null) {
+const CHARS = ["might", "agility", "reason", "intuition", "presence"];
+const charValue = (actor, c) => Number(actor?.system?.characteristics?.[c]?.value) || 0;
+
+export function bonusAmount(actor, bonus) {
+  if (bonus === "highest") return Math.max(0, ...CHARS.map((c) => charValue(actor, c)));
+  if (CHARS.includes(bonus)) return Math.max(0, charValue(actor, bonus));
+  return Number(bonus) || 0;
+}
+
+const orgOf = (actor) => actor?.system?.monster?.organization ?? (isMinionActor(actor) ? "minion" : null);
+
+function otherMinionInReach(attacker, target, ability) {
+  const a = attacker?.document ?? attacker;
+  const t = target?.document ?? target;
+  if (!a?.parent) return false;
+  const reach = Math.max(1, Number(ability?.system?.distance?.primary) || 1);
+  return a.parent.tokens.some((d) => d !== t && d !== a && d.actor && isMinionActor(d.actor) && !d.actor.statuses?.has?.("dead")
+    && footprintGap(a, d) < reach * canvas.grid.distance);
+}
+
+export function damageBonusFor(actor, attackerToken, targetToken, message = null, ability = null) {
   if (!actor || !triggersLive()) return [];
   const token = attackerToken ?? actor.getActiveTokens?.(true, true)?.[0] ?? null;
   const pills = highGroundOf(message);
   const key = pillKey((targetToken?.document ?? targetToken)?.uuid);
+  const victim = (targetToken?.document ?? targetToken)?.actor ?? null;
+  const disposition = (token?.document ?? token)?.disposition ?? null;
   const out = [];
   for (const entry of getTriggeredAbilities(actor)) {
     if (entry.item.system?.restricted) continue;
     if (entry.parse?.confidence !== "high" && entry.parse?.source !== "manual") continue;
     for (const c of entry.parse?.clauses ?? []) {
-      const amount = Number(c.damageBonus) || 0;
+      if (c.damageBonus == null) continue;
+      const amount = bonusAmount(actor, c.damageBonus);
       if (!(amount > 0)) continue;
       if (c.highGround && !(pills ? pills.has(key) : hasHighGround(token, targetToken))) continue;
-      out.push({ name: entry.item.name, amount });
+      if (ability && !usedAbilityMatches(c, ability, actor)) continue;
+      if (c.rolledDamage && !dealsRolledDamage(ability)) continue;
+      if (c.victimOrganization?.length && !c.victimOrganization.includes(orgOf(victim))) continue;
+      if (c.alsoMinionNear && !otherMinionInReach(token, targetToken, ability)) continue;
+      if (c.effects?.length && !effectsMatch(c, actor, disposition, actor, { victimActor: victim, victimToken: targetToken?.document ?? targetToken })) continue;
+      out.push({ name: entry.item.name, amount, optional: !!c.optional });
     }
   }
   return out;
@@ -50,8 +78,12 @@ export function damageTypesFor(actor, ability) {
     if (entry.item.system?.restricted) continue;
     if (entry.parse?.confidence !== "high" && entry.parse?.source !== "manual") continue;
     for (const c of entry.parse?.clauses ?? []) {
-      if (!c.damageTypeChange || !usedAbilityMatches(c, ability, actor)) continue;
-      out.push({ name: entry.item.name, type: c.damageTypeChange });
+      const types = c.damageTypeChange ? [c.damageTypeChange] : c.damageTypeChoices ?? [];
+      if (!types.length || !usedAbilityMatches(c, ability, actor)) continue;
+      const dealt = abilityDamageTypes(ability);
+      if (!dealt.size) continue;
+      if (c.damageTypes?.length && !c.damageTypes.some((t) => dealt.has(t))) continue;
+      for (const type of types) if (!(dealt.size === 1 && dealt.has(type))) out.push({ name: entry.item.name, type });
     }
   }
   return out;
@@ -73,12 +105,12 @@ async function _pillTargets(message) {
   for (const t of targets) {
     const target = t.tokenUuid ? fromUuidSync(t.tokenUuid) : null;
     if (!target || target.actor === actor) continue;
-    for (const b of damageBonusFor(actor, attacker, target, message)) {
+    for (const b of damageBonusFor(actor, attacker, target, message, ability)) {
       const key = `${message.id}:${t.tokenUuid}:${b.name}`;
       if (_done.has(key)) continue;
       _done.add(key);
-      dbg(`${b.name}: +${b.amount} damage to ${target.name} on ${ability.name}`);
-      await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label: b.name, src: actor.name, source: "trigger" });
+      dbg(`${b.name}: +${b.amount} damage to ${target.name} on ${ability.name}${b.optional ? " (offered)" : ""}`);
+      await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label: b.name, src: actor.name, source: "trigger", ...(b.optional ? { enabled: false } : {}) });
     }
     for (const d of damageTypesFor(actor, ability)) {
       const key = `${message.id}:${t.tokenUuid}:${d.name}:type`;

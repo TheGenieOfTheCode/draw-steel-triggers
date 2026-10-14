@@ -99,7 +99,11 @@ function _autoAdjust(actor, damage, options) {
     }
   }
   if (_dealer?.actor && _dealer.ability && _dealer.actor !== actor && token) {
-    for (const b of damageBonusFor(_dealer.actor, _dealer.token, token, _dealer.message)) {
+    for (const b of damageBonusFor(_dealer.actor, _dealer.token, token, _dealer.message, _dealer.ability)) {
+      if (b.optional) {
+        ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonusOffered", { name: b.name, n: b.amount }));
+        continue;
+      }
       out += b.amount;
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonus", { name: b.name, n: b.amount }));
     }

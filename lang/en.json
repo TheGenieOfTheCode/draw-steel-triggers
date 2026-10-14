@@ -462,6 +462,8 @@
           "Mode_vertical": "The movement can be vertical",
           "Mode_objectDamage": "Extra damage on hitting an object",
           "Mode_stability": "Share stability with the target",
+          "PerSurge": "Per surge, up to",
+          "PerSurgeHint": "0 applies it once. Above 0, the owner spends up to this many surges and the change counts once for each.",
           "boost": "+{n} distance",
           "reduce": "-{n} distance",
           "redirect": "The owner moves it ({n})",
@@ -492,6 +494,10 @@
         "damageBonus": {
           "Label": "Damage Bonus",
           "Summary": "+{n} damage",
+          "SummaryOptional": "+{n} damage, if you turn it on",
+          "Highest": "Highest characteristic",
+          "Optional": "Offer it",
+          "OptionalHint": "The damage card shows it switched off, for the player to turn on.",
           "Hint": "Adds this much damage on its own whenever the trigger matches, without asking."
         },
         "damageType": {
@@ -688,6 +694,7 @@
       "FmObjectDamage": "+{n} damage if the creature hits an object",
       "DamageReduced": "{name}: damage reduced by {n}.",
       "DamageBonus": "{name}: +{n} damage.",
+      "DamageBonusOffered": "{name} could add +{n} damage. Add it by hand if you use it.",
       "HeldDamageIgnoresImmunity": "Ignores {types} immunity",
       "FallHeld": "{name}'s fall is held while triggered abilities are decided. See the Trigger Stack.",
       "FallHeldMany": "Falls for {names} are held while triggered abilities are decided. See the Trigger Stack.",
@@ -886,6 +893,11 @@
       "Tier": "Needs {n} {resource} at some point this turn. A higher row with the same trigger replaces this one.",
       "TierLevel": "Needs {n} {resource} at some point this turn, from level {level}. A higher row with the same trigger replaces this one.",
       "LevelOnly": "From level {level}.",
+      "Prereq": "Prerequisites",
+      "PrereqLevel": "Level at least",
+      "PrereqResource": "{resource} this turn at least",
+      "PrereqResourceFallback": "Heroic resource",
+      "PrereqHint": "Leave at 0 for no requirement. The resource counts the most the hero held at any point this turn.",
       "Covered": "{name} is its own triggered ability and already handles this, so this line starts off.",
       "ManualWhy": "Reminder only: Triggers cannot check {why}.",
       "WidgetCovered": "Off: {name} already handles this trigger.",
@@ -978,7 +990,12 @@
       "StabilityPrompt": "How much of your stability does {owner} give?",
       "StabilityAmount": "Stability",
       "StabilityConfirm": "Share",
-      "StabilityNone": "{owner} has no stability to share."
+      "StabilityNone": "{owner} has no stability to share.",
+      "SurgePrompt": "How many surges does {owner} spend?",
+      "SurgeAmount": "Surges",
+      "SurgeConfirm": "Spend",
+      "SurgeNone": "{owner} has no surges to spend.",
+      "SurgeSpent": "{owner} spends {n} surges on {source}."
     },
     "Qualifier": {
       "WindowTitle": "Qualifier",

@@ -817,6 +817,15 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (field("enabled")) this._line.enabled = field("enabled").checked;
       if (field("action")) this._line.action = field("action").value || null;
       if (field("once")) this._line.once = field("once").value || null;
+      if (field("tierLevel") || field("tierMin")) {
+        const level = Math.max(0, Math.floor(Number(field("tierLevel")?.value) || 0));
+        const min = Math.max(0, Math.floor(Number(field("tierMin")?.value) || 0));
+        const before = this._line.tier ?? null;
+        if ((before?.level || 0) !== level || (before?.min || 0) !== min) {
+          this._line.tier = level || min ? { ...(before ?? {}), level: level || null, min } : null;
+          this._line.tierEdited = true;
+        }
+      }
     } else if (this._line) {
       const enabled = el.querySelector('input[data-gain-field="enabled"]');
       const amount = el.querySelector('input[data-gain-field="amount"]');
@@ -943,8 +952,17 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       onceOptions: [["round", "OnceRound"], ["turn", "OnceTurn"], ["encounter", "OnceEncounter"], ["", "OnceNone"]].map(([value, key]) => ({
         value, label: F(key), selected: (line.once ?? "") === value,
       })),
-      labels: { name: F("Name"), enabled: F("Enabled"), action: F("Action"), once: F("Once"), ignore: F("Ignore") },
+      labels: { name: F("Name"), enabled: F("Enabled"), action: F("Action"), once: F("Once"), ignore: F("Ignore"),
+        prereq: F("Prereq"), tierLevel: F("PrereqLevel"), tierMin: F("PrereqResource", { resource: this._resourceLabel() }) },
+      tierLevel: line.tier?.level ?? "",
+      tierMin: line.tier?.min || "",
+      prereqHint: F("PrereqHint"),
     };
+  }
+
+  _resourceLabel() {
+    const name = this.item.actor?.items?.find((i) => i.type === "class")?.system?.primary;
+    return name ? String(name) : game.i18n.localize("DS_TRIGGERS.Feature.PrereqResourceFallback");
   }
 
   _shownName() {
@@ -985,6 +1003,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       await this.item.update({ [`flags.${MODULE_ID}.featureLines.${line.key}`]: {
         clauses: this._exportClauses(), enabled: !!line.enabled, action: line.action ?? null, once: line.once ?? null,
         name: line.customName ?? null,
+        ...(line.tierEdited ? { tier: line.tier ? { level: line.tier.level ?? null, min: line.tier.min ?? 0 } : null } : {}),
       } });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this._shownName() }));
       this.close();

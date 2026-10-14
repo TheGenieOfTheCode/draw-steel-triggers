@@ -85,17 +85,27 @@ export async function shareStability(owner, ally, amount, sourceName, img) {
   return n;
 }
 
-export async function pickStabilityShare(ownerName, max, sourceName) {
+async function pickAmount({ title, prompt, label, confirm, max }) {
   const options = Array.from({ length: max + 1 }, (_, i) => `<option value="${i}"${i === max ? " selected" : ""}>${i}</option>`).join("");
   const picked = await foundry.applications.api.DialogV2.prompt({
-    window: { title: sourceName },
-    content: `<p>${foundry.utils.escapeHTML(game.i18n.format("DS_TRIGGERS.LineEffect.StabilityPrompt", { owner: ownerName }))}</p>
-      <div class="form-group"><label>${game.i18n.localize("DS_TRIGGERS.LineEffect.StabilityAmount")}</label>
+    window: { title },
+    content: `<p>${foundry.utils.escapeHTML(prompt)}</p>
+      <div class="form-group"><label>${label}</label>
       <div class="form-fields"><select name="amount">${options}</select></div></div>`,
-    ok: { label: game.i18n.localize("DS_TRIGGERS.LineEffect.StabilityConfirm"), callback: (event, button) => Number(button.form.elements.amount.value) },
+    ok: { label: confirm, callback: (event, button) => Number(button.form.elements.amount.value) },
     rejectClose: false,
   }).catch(() => null);
   return Number.isFinite(picked) ? picked : null;
+}
+
+export function pickStabilityShare(ownerName, max, sourceName) {
+  return pickAmount({ title: sourceName, max, prompt: game.i18n.format("DS_TRIGGERS.LineEffect.StabilityPrompt", { owner: ownerName }),
+    label: game.i18n.localize("DS_TRIGGERS.LineEffect.StabilityAmount"), confirm: game.i18n.localize("DS_TRIGGERS.LineEffect.StabilityConfirm") });
+}
+
+export function pickSurgeSpend(ownerName, max, sourceName) {
+  return pickAmount({ title: sourceName, max, prompt: game.i18n.format("DS_TRIGGERS.LineEffect.SurgePrompt", { owner: ownerName }),
+    label: game.i18n.localize("DS_TRIGGERS.LineEffect.SurgeAmount"), confirm: game.i18n.localize("DS_TRIGGERS.LineEffect.SurgeConfirm") });
 }
 
 export const ABILITY_BANE_KEY = `flags.${MODULE_ID}.abilityBanes`;

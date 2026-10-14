@@ -56,6 +56,18 @@
         </select>
       </div>
     </div>
+    <fieldset class="dst-prereq">
+      <legend>{{feature.labels.prereq}}</legend>
+      <div class="form-group">
+        <label>{{feature.labels.tierLevel}}</label>
+        <div class="form-fields"><input type="number" min="0" step="1" data-feature-field="tierLevel" value="{{feature.tierLevel}}" placeholder="0"></div>
+      </div>
+      <div class="form-group">
+        <label>{{feature.labels.tierMin}}</label>
+        <div class="form-fields"><input type="number" min="0" step="1" data-feature-field="tierMin" value="{{feature.tierMin}}" placeholder="0"></div>
+      </div>
+      <p class="hint">{{feature.prereqHint}}</p>
+    </fieldset>
     {{#if feature.canIgnore}}
     <button type="button" class="dst-editor-ignore" data-action="ignoreFeature" data-tooltip="{{feature.ignoreHint}}"><i class="fa-solid fa-ban" inert></i> {{feature.labels.ignore}}</button>
     {{/if}}

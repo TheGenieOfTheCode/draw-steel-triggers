@@ -181,6 +181,7 @@ export const IMPACTS = [
           from === "char"
             ? { name: "char", label: L("FieldChar"), type: "select", options: charOptions().map((o) => opt(o.value, o.label, m.char)) }
             : { name: "amount", label: L("FieldAmount"), type: "number", value: m.amount ?? 1 },
+          ...(m.mode === "boost" || m.mode === "reduce" ? [{ name: "perSurge", label: L("fmMod.PerSurge"), hint: L("fmMod.PerSurgeHint"), type: "number", value: m.perSurge ?? 0 }] : []),
         ] : []),
       ];
     },
@@ -190,6 +191,8 @@ export const IMPACTS = [
         if (v.from === "char") mod.char = v.char || c.fmMod?.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0];
         else mod.amount = num(v.amount ?? c.fmMod?.amount ?? 1);
       }
+      const perSurge = num(v.perSurge ?? c.fmMod?.perSurge ?? 0);
+      if ((mod.mode === "boost" || mod.mode === "reduce") && perSurge > 0) mod.perSurge = perSurge;
       c.fmMod = mod;
     },
   },
@@ -226,12 +229,26 @@ export const IMPACTS = [
   {
     id: "damageBonus", icon: "fa-solid fa-burst",
     keys: ["damageBonus"],
-    supports: (c) => c.event === "DEALS_DAMAGE",
+    supports: (c) => ["DEALS_DAMAGE", "MAKES_STRIKE", "USES_ABILITY"].includes(c.event),
     has: (c) => c.damageBonus != null,
     add: (c) => { c.damageBonus = 1; },
-    summary: (c) => L("damageBonus.Summary", { n: c.damageBonus }),
-    fields: (c) => [{ name: "amount", label: L("FieldAmount"), type: "number", value: c.damageBonus }],
-    read: (c, v) => { c.damageBonus = num(v.amount, 1); },
+    summary: (c) => L(c.optional ? "damageBonus.SummaryOptional" : "damageBonus.Summary", { n: c.damageBonus === "highest" ? L("damageBonus.Highest")
+      : typeof c.damageBonus === "string" ? charLabel(c.damageBonus) : c.damageBonus }),
+    fields: (c) => {
+      const b = c.damageBonus;
+      const from = b === "highest" ? "highest" : typeof b === "string" ? "char" : "amount";
+      return [
+        { name: "from", label: L("FieldBy"), type: "select", rerender: true,
+          options: [opt("amount", L("FieldAmount"), from), opt("highest", L("damageBonus.Highest"), from), opt("char", L("FieldChar"), from)] },
+        ...(from === "amount" ? [{ name: "amount", label: L("FieldAmount"), type: "number", value: Number(b) || 1 }]
+          : from === "char" ? [{ name: "char", label: L("FieldChar"), type: "select", options: charOptions().map((o) => opt(o.value, o.label, b)) }] : []),
+        { name: "optional", label: L("damageBonus.Optional"), hint: L("damageBonus.OptionalHint"), type: "checkbox", checked: !!c.optional },
+      ];
+    },
+    read: (c, v) => {
+      c.damageBonus = v.from === "highest" ? "highest" : v.from === "char" ? (v.char || charOptions()[0]?.value || "might") : num(v.amount, 1);
+      if (v.optional) c.optional = true; else delete c.optional;
+    },
   },
   {
     id: "damageType", icon: "fa-solid fa-fire",
