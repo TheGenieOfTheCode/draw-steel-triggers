@@ -1,5 +1,8 @@
 {
   "DS_TRIGGERS": {
+    "Sheet": {
+      "MaliceActions": "Malice Actions"
+    },
     "Gain": {
       "Gained": "{name} gained {amount} {resource}",
       "Undo": "Undo",

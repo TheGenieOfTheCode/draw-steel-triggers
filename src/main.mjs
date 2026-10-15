@@ -38,6 +38,7 @@ import "./triggers/detectors/strained-damage.mjs";
 import "./triggers/detectors/saves.mjs";
 import "./triggers/ability-banes.mjs";
 import "./ui/feature-card.mjs";
+import "./ui/malice-section.mjs";
 import "./ui/derived-chat-links.mjs";
 import "./triggers/derived-names.mjs";
 import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
