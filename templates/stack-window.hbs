@@ -155,6 +155,11 @@
     </button>
     {{/if}}
   </div>
+  {{#if roster.any}}
+  <input type="search" class="dst-roster-search" placeholder="{{labels.rosterSearch}}" aria-label="{{labels.rosterSearch}}"
+         data-tooltip="{{labels.rosterSearchHint}}" autocomplete="off" spellcheck="false">
+  <p class="dst-roster-nomatch" hidden>{{labels.rosterNoMatch}}</p>
+  {{/if}}
 
   <div class="dst-roster-scroll">
   {{#unless roster.any}}
@@ -169,12 +174,13 @@
     </summary>
 
     {{#each flat}}
-    <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}">
+    <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}"
+         data-search-name="{{searchName}}" data-search-trigger="{{searchTrigger}}" data-search-effect="{{searchEffect}}">
       <div class="dst-roster-line">
         <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}"{{#if noEmbed}} style="visibility: hidden" tabindex="-1"{{/if}}>
           <i class="fa-solid fa-angle-right"></i>
         </button>
-        <span class="dst-roster-name">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</span>
+        <a class="dst-roster-name" data-action="openOwner" data-uuid="{{openUuid}}" data-tooltip="{{@root.labels.openItem}}">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</a>
         {{#if costBadge}}
         <span class="dst-roster-cost{{#if costBadge.malice}} dst-roster-cost--malice{{/if}}">
           {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}
@@ -192,20 +198,25 @@
     {{/each}}
 
     {{#each groups}}
-    <details class="dst-roster-group" open>
+    <details class="dst-roster-group{{#if actorSnoozed}} is-snoozed{{/if}}" open>
       <summary class="dst-roster-owner">
         <i class="fa-solid fa-angle-right dst-roster-caret"></i>
         <img src="{{img}}" alt="">
         <span>{{name}}</span>
-        {{#if snoozedCount}}<i class="fa-solid fa-bell-slash dst-roster-muted" data-tooltip="{{@root.labels.groupMuted}}"></i>{{/if}}
+        {{#if snoozedCount}}{{#unless actorSnoozed}}<i class="fa-solid fa-bell-slash dst-roster-muted" data-tooltip="{{@root.labels.groupMuted}}"></i>{{/unless}}{{/if}}
+        <button type="button" class="dst-roster-snooze" data-action="snoozeActor" data-actor-uuid="{{actorUuid}}" data-name="{{name}}"
+                data-tooltip="{{#if actorSnoozed}}{{actorSnoozeLabel}}{{else}}{{@root.labels.snoozeActorTooltip}}{{/if}}">
+          <i class="fa-solid {{#if actorSnoozed}}fa-bell-slash{{else}}fa-bell{{/if}}"></i>
+        </button>
       </summary>
       {{#each abilities}}
-      <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}">
+      <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}"
+           data-search-name="{{searchName}}" data-search-trigger="{{searchTrigger}}" data-search-effect="{{searchEffect}}">
         <div class="dst-roster-line">
           <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}"{{#if noEmbed}} style="visibility: hidden" tabindex="-1"{{/if}}>
             <i class="fa-solid fa-angle-right"></i>
           </button>
-          <span class="dst-roster-name">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</span>
+          <a class="dst-roster-name" data-action="openOwner" data-uuid="{{openUuid}}" data-tooltip="{{@root.labels.openItem}}">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</a>
           {{#if costBadge}}
           <span class="dst-roster-cost{{#if costBadge.malice}} dst-roster-cost--malice{{/if}}">
             {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}

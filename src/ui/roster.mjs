@@ -1,5 +1,7 @@
-import { getTriggeredAbilities, isMaliceAbility } from "../triggers/registry.mjs";
-import { snoozeFor } from "./snooze.mjs";
+import { getTriggeredAbilities, isMaliceAbility, triggerEffectText } from "../triggers/registry.mjs";
+import { candidateEntries } from "../triggers/dispatch.mjs";
+import { sourceOf, isDerived } from "../triggers/derived.mjs";
+import { snoozeFor, actorSnoozeFor } from "./snooze.mjs";
 import { heroGainLines, gainsActive, gainSnoozeId, lineText } from "../triggers/resource-gains.mjs";
 import { MODULE_ID } from "../util.mjs";
 
@@ -21,23 +23,35 @@ function _cost(actor, item) {
   };
 }
 
+const _plain = (s) => String(s ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+
+function _effectOf(item) {
+  if (item.featureLine?.effect) return item.featureLine.effect;
+  try { return triggerEffectText(item); } catch { return ""; }
+}
+
 function _row(actor, entry) {
   const item = entry.item;
   const dsid = item.system?._dsid ?? item.dsid ?? null;
   const snooze = snoozeFor(actor, dsid);
   const resource = item.system?.resource;
+  const trigger = item.system?.trigger ?? "";
   return {
     costBadge: _cost(actor, item),
     cost: Number.isFinite(resource) ? resource : 0,
     uuid: item.uuid,
+    openUuid: (isDerived(item) ? sourceOf(item) : null)?.uuid ?? item.uuid,
     dsid,
     name: item.name,
-    trigger: item.system?.trigger ?? "",
+    trigger,
     free: !!entry.free,
     noEmbed: !!entry.featureLine,
     snoozed: !!snooze,
     snoozeLabel: snooze?.label ?? "",
     actorUuid: actor.uuid,
+    searchName: `${item.name} ${actor.name}`.toLowerCase(),
+    searchTrigger: _plain(trigger),
+    searchEffect: _plain(_effectOf(item)),
   };
 }
 
@@ -55,32 +69,35 @@ function _split(actor) {
 }
 
 function _group(actor, abilities) {
+  const whole = actorSnoozeFor(actor);
   return {
     actorUuid: actor.uuid,
     name: actor.name,
     img: actor.img,
     abilities,
     snoozedCount: abilities.filter((a) => a.snoozed).length,
+    actorSnoozed: !!whole,
+    actorSnoozeLabel: whole?.label ?? "",
   };
 }
 
-function _combatActors() {
-  const combat = game.combat;
-  if (!combat?.started) return { monsters: [], heroes: [] };
-
+function _checkedActors() {
   const monsters = new Map();
   const heroes = new Map();
-  for (const combatant of combat.combatants) {
-    const actor = combatant.actor;
-    if (!actor || combatant.isDefeated) continue;
+  const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
+  const combat = game.combat;
+  for (const { actor } of candidateEntries()) {
+    if (!actor || actor.statuses?.has(defeated)) continue;
+    if (combat?.combatants.some((c) => c.actor === actor && c.isDefeated)) continue;
     const bucket = actor.hasPlayerOwner ? heroes : monsters;
-    if (!bucket.has(actor.id)) bucket.set(actor.id, actor);
+    if (!bucket.has(actor.uuid)) bucket.set(actor.uuid, actor);
   }
 
   
+  const heroIds = new Set([...heroes.values()].map((a) => a.id));
   for (const actor of game.actors) {
-    if (!_isCompanionOrRetainer(actor) || heroes.has(actor.id) || monsters.has(actor.id)) continue;
-    if (_mentorOf(actor) && heroes.has(_mentorOf(actor).id)) heroes.set(actor.id, actor);
+    if (!_isCompanionOrRetainer(actor) || heroes.has(actor.uuid) || monsters.has(actor.uuid)) continue;
+    if (_mentorOf(actor) && heroIds.has(_mentorOf(actor).id)) heroes.set(actor.uuid, actor);
   }
 
   return { monsters: [...monsters.values()], heroes: [...heroes.values()] };
@@ -105,8 +122,9 @@ function _gainGroup(actor) {
       const snooze = snoozeFor(actor, dsid);
       return {
         costBadge: { malice: false, label: `+${line.amount}` },
-        cost: 0, uuid: item.uuid, dsid, name: line.name, trigger: lineText(line), free: false, noEmbed: true,
+        cost: 0, uuid: item.uuid, openUuid: item.uuid, dsid, name: line.name, trigger: lineText(line), free: false, noEmbed: true,
         snoozed: !!snooze, snoozeLabel: snooze?.label ?? "", actorUuid: actor.uuid,
+        searchName: `${line.name} ${actor.name}`.toLowerCase(), searchTrigger: _plain(lineText(line)), searchEffect: "",
       };
     })
     .sort(_byName);
@@ -128,7 +146,7 @@ export function buildRoster() {
   }).filter(Boolean);
 
   if (game.user.isGM) {
-    const { monsters, heroes } = _combatActors();
+    const { monsters, heroes } = _checkedActors();
     const monsterGroups = collect(monsters);
     const heroGroups = collect(heroes);
 

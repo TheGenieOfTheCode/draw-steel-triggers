@@ -1284,8 +1284,13 @@ button.dst-ignore-add:focus-visible {
 .dst-roster-group[open] > .dst-roster-owner .dst-roster-caret { transform: rotate(90deg); }
 .dst-roster-muted { opacity: var(--dst-dim-6, 0.6); font-size: var(--font-size-11); }
 
+.dst-roster-search { flex: 0 0 auto; width: 100%; height: 26px; margin: 0 0 6px; font-size: var(--font-size-12); }
+.dst-roster-nomatch { font-size: var(--font-size-12); opacity: var(--dst-dim-7, 0.7); margin: 0 0 4px; }
+.dst-roster-group.is-snoozed > .dst-roster-owner > :is(img, span) { opacity: var(--dst-dim-45, 0.45); }
 .dst-roster-row { padding: 2px 0 2px 20px; }
 .dst-roster-row.is-snoozed { opacity: var(--dst-dim-45, 0.45); }
+a.dst-roster-name { cursor: pointer; color: inherit; }
+a.dst-roster-name:hover { text-decoration: underline; text-shadow: none; }
 .dst-roster-line { display: flex; align-items: center; gap: 4px; }
 .dst-roster-name { flex: 1; min-width: 0; font-size: var(--font-size-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dst-roster-free { font-size: var(--font-size-10); opacity: var(--dst-dim-7, 0.7); }

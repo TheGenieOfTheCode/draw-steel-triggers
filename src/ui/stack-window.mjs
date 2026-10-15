@@ -3,7 +3,7 @@ import { autoUseLevel, lineMandatory } from "../triggers/auto-use.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
-import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze } from "./snooze.mjs";
+import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor } from "./snooze.mjs";
 import { runBespokeUse } from "../triggers/bespoke.mjs";
 import { maliceValue } from "../triggers/malice.mjs";
 
@@ -174,6 +174,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       applyHeldNow: StackWindow.#onApplyHeldNow,
       openOwner: StackWindow.#onOpenOwner,
       snoozeTrigger: StackWindow.#onSnoozeTrigger,
+      snoozeActor: StackWindow.#onSnoozeActor,
       snoozeAll: StackWindow.#onSnoozeAll,
       toggleRosterEmbed: StackWindow.#onToggleRosterEmbed,
       toggleRoster: StackWindow.#onToggleRoster,
@@ -268,6 +269,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
         rosterEmptyPlayer: L("RosterEmptyPlayer"),
         snoozeTooltip: L("SnoozeTooltip"),
         snoozeAllTooltip: L("SnoozeAllTooltip"),
+        snoozeActorTooltip: L("SnoozeActorTooltip"),
+        rosterSearch: L("RosterSearch"),
+        rosterSearchHint: L("RosterSearchHint"),
+        rosterNoMatch: L("RosterNoMatch"),
+        openItem: L("RosterOpenItem"),
         groupMuted: L("GroupMuted"),
         area: L("Area"), areaTooltip: L("AreaTooltip"),
         reaperReason: L("ReaperReason"), reaperQuoteBy: L("ReaperQuoteBy"), reaperMemorial: L("ReaperMemorial"), reaperMaybe: L("ReaperMaybe"),
@@ -413,6 +419,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
       const button = this.element.querySelector(`.dst-roster-expand[data-ability-uuid=${JSON.stringify(uuid)}]`);
       if (host) StackWindow.#openRosterEmbed(host, button?.querySelector("i"), uuid);
       else this._rosterEmbeds.delete(uuid);
+    }
+    const search = this.element.querySelector(".dst-roster-search");
+    if (search) {
+      search.value = this._rosterQuery ?? "";
+      search.addEventListener("input", () => { this._rosterQuery = search.value; this._filterRoster(); });
+      this._filterRoster();
     }
     this._fitRoster();
 
@@ -572,6 +584,45 @@ export class StackWindow extends ds.applications.api.DSApplication {
     doc?.sheet?.render(true);
   }
 
+  static async #onSnoozeActor(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+    const { actorUuid, name } = target.dataset;
+    const actor = actorUuid ? fromUuidSync(actorUuid) : null;
+    if (!actor) return;
+    const existing = actorSnoozeFor(actor);
+    if (existing) await clearSnooze(actor, existing.key);
+    else {
+      const choice = await promptSnooze(name);
+      if (!choice) return;
+      await setSnooze(actor, { actorUuid, ownerUuid: actorUuid, ...choice });
+    }
+    this.render();
+  }
+
+  
+  _filterRoster() {
+    const root = this.element?.querySelector(".dst-roster");
+    if (!root) return;
+    const terms = [...String(this._rosterQuery ?? "").matchAll(/['‘’]([^'‘’]*)['‘’]?|["“”]([^"“”]*)["“”]?|(\S+)/g)]
+      .map((m) => (m[1] != null ? ["trigger", m[1]] : m[2] != null ? ["effect", m[2]] : ["name", m[3]]))
+      .map(([k, v]) => [k, v.trim().toLowerCase()]).filter(([, v]) => v);
+    const field = { name: "searchName", trigger: "searchTrigger", effect: "searchEffect" };
+    let shown = 0;
+    for (const row of root.querySelectorAll(".dst-roster-row")) {
+      const ok = terms.every(([k, v]) => (row.dataset[field[k]] ?? "").includes(v));
+      row.hidden = !ok;
+      if (ok) shown++;
+    }
+    for (const box of root.querySelectorAll(".dst-roster-group, .dst-roster-section")) {
+      const any = !!box.querySelector(".dst-roster-row:not([hidden])");
+      box.hidden = !!terms.length && !any;
+      if (terms.length && any) box.open = true;
+    }
+    const none = root.querySelector(".dst-roster-nomatch");
+    if (none) none.hidden = !terms.length || shown > 0;
+  }
+
   static async #onSnoozeTrigger(_event, target) {
     const { dsid, actorUuid, name } = target.dataset;
     const actor = actorUuid ? fromUuidSync(actorUuid) : null;
@@ -674,6 +725,7 @@ Hooks.on("dst.queueAdded", (entries) => StackWindow.autoUse(entries));
 for (const hook of ["createCombat", "deleteCombat"]) Hooks.on(hook, () => StackWindow.refresh());
 Hooks.on("updateCombat", (combat, changed) => { if ("round" in changed || "active" in changed) StackWindow.refresh(); });
 Hooks.on("createCombatant", () => StackWindow.refresh());
+for (const hook of ["createToken", "deleteToken"]) Hooks.on(hook, (doc) => { if (doc.parent === canvas?.scene) StackWindow.refresh(); });
 Hooks.on("deleteCombatant", () => StackWindow.refresh());
 Hooks.on("updateCombatant", (_combatant, changed) => { if ("defeated" in changed) StackWindow.refresh(); });
 

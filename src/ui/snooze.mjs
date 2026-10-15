@@ -65,6 +65,16 @@ export const isSnoozedForAudience = (actor, dsid) => !!snoozeFor(actor, dsid);
 
 export const isActorSnoozed = (actor) => !!snoozeFor(actor, null);
 
+export function actorSnoozeFor(actor) {
+  if (!actor?.uuid) return null;
+  const key = _key(actor.uuid, ANY);
+  for (const user of snoozeAudience(actor)) {
+    const entry = _stored(user)[key];
+    if (entry && !_expired(entry)) return { key, ...entry };
+  }
+  return null;
+}
+
 export async function setSnooze(actor, { actorUuid = null, dsid = null, until = null, event = null, label = "", ownerUuid = null } = {}) {
   const key = _key(actorUuid, dsid);
   const entry = {
