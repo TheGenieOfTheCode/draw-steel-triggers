@@ -202,12 +202,18 @@ export function useDuration(sentence, effect, html) {
   return firstDuration(head) ?? firstDuration(blocksOf(html).join(" ")) ?? { until: "encounter" };
 }
 
+const ZONE_EVENT = /^ZONE_/;
+export function zoneOnly(parse) {
+  const events = (parse?.clauses ?? []).flatMap((c) => (c.events?.length ? c.events : [c.event]));
+  return events.length > 0 && events.every((e) => ZONE_EVENT.test(e ?? ""));
+}
+
 export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false, distance = null } = {}) {
   const aura = distance?.type === "aura" ? Number(distance.primary) || null : null;
   return featureTriggerLines(html, { dsid, name, ownerName, ability: true }).map((l) => {
     const area = AREA.test(l.trigger);
     const watch = SELF_DESCRIPTION.test(l.trigger) ? "self"
-      : area && !aura ? "parked"
+      : (area && !aura) || zoneOnly(l.parse) ? "parked"
         : appliesEffects && !area ? (NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active")
           : "used";
     const mark = l.trigger.match(MARKED);
@@ -671,7 +677,9 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       }
       if (curated.damageModifying === false) parse.damageModifying = false;
       if (!curated.note && !curated.later && parse.clauses.length > 1 && parse.clauses.some((c) => c.scope === "COMPANION")) curated.note = "Companion half: Later";
-      const line = { key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
+      const zoneLater = !ability && !curated.later && kind === "trigger" && zoneOnly(parse);
+      if (zoneLater) curated.later = "Zones";
+      const line = { key, sentence: f.sentence, action: f.action, kind: zoneLater ? "later" : kind, once, trigger: f.trigger, effect, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
         ...(curated.neverAutoUse ? { neverAutoUse: true } : {}), ...((curated.countdown ?? victoryCountdown(effect)) ? { countdown: curated.countdown ?? victoryCountdown(effect) } : {}), ...(curated.director ? { director: true } : {}),

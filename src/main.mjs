@@ -36,6 +36,7 @@ import "./triggers/detectors/hero-events.mjs";
 import "./triggers/detectors/fall-lock.mjs";
 import "./triggers/detectors/strained-damage.mjs";
 import "./triggers/detectors/saves.mjs";
+import "./triggers/detectors/minion-deaths.mjs";
 import "./triggers/ability-banes.mjs";
 import "./ui/feature-card.mjs";
 import "./ui/malice-section.mjs";

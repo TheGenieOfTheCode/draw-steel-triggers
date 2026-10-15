@@ -252,6 +252,18 @@ function _groupPending(field, id) {
   return _queue.some((e) => e.state === "pending" && _choiceIds(e, field).includes(id));
 }
 
+const SQUAD_SETTLE_MS = 1000;
+const _squadAutoTimers = new Map();
+
+function _deferSquadAuto(batch) {
+  clearTimeout(_squadAutoTimers.get(batch));
+  _squadAutoTimers.set(batch, setTimeout(() => {
+    _squadAutoTimers.delete(batch);
+    const ready = _queue.filter((q) => q.squadBatch === batch && q.state === "pending");
+    if (ready.length) Hooks.callAll("dst.queueAdded", ready);
+  }, SQUAD_SETTLE_MS));
+}
+
 function _onQueueAdd(entries) {
   if (!isPrimaryGM()) return;
 
@@ -260,6 +272,7 @@ function _onQueueAdd(entries) {
   for (const e of entries) {
     if (joinSquad(e, [..._queue, ...fresh])) {
       merged = true;
+      if (e.squadBatch) _deferSquadAuto(e.squadBatch);
       continue;
     }
     const family = _mergeFamily(e);
@@ -297,7 +310,9 @@ function _onQueueAdd(entries) {
   _queue.push(...fresh);
   dbg("queue add", fresh);
   _broadcast();
-  Hooks.callAll("dst.queueAdded", fresh);
+  const now = fresh.filter((e) => !e.squadBatch);
+  if (now.length) Hooks.callAll("dst.queueAdded", now);
+  for (const e of fresh) if (e.squadBatch) _deferSquadAuto(e.squadBatch);
 }
 
 async function _enableBonusPill({ messageId, targetUuid, label, extra }) {
@@ -1802,7 +1817,7 @@ export function releaseHeld(resumeId) {
   asPrimaryGM("releaseHeld", resumeId);
 }
 
-export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage = null, subjectTokenUuid = null, sourceMessageId = null, damageType = null }) {
+export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage = null, subjectTokenUuid = null, sourceMessageId = null, damageType = null, squadBatch = null }) {
   const promptId = foundry.utils.randomID();
   const entries = matches.map((m) => ({
     id: foundry.utils.randomID(),
@@ -1830,6 +1845,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     gain: m._gain ?? null,
     pill: m._pill ?? null,
     mark: m._mark ?? null,
+    ...(squadBatch ? { squadBatch } : {}),
   }));
   asPrimaryGM("queueAdd", entries);
 }

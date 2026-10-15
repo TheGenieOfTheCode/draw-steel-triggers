@@ -729,7 +729,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
 
   for (const { actor, disposition, token } of candidates) {
     const fallen = actor.statuses?.has(defeated);
-    if (fallen && (event !== "MOVES" || !lingeringEffect(actor))) continue;
+    const ownDeath = event === "DIES" && !!subjectActor && (actor === subjectActor || actor.uuid === subjectActor.uuid);
+    if (fallen && !ownDeath && (event !== "MOVES" || !lingeringEffect(actor))) continue;
     if (isActorSnoozed(actor)) continue;
     const dazed = (actor.statuses?.has("dazed") ?? false) || triggersBlocked(actor);
     const spent = isTriggeredActionSpent(actor);
@@ -758,7 +759,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
-        eventHits(c.event, event) &&(!fallen || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
+        eventHits(c.event, event) && (!fallen || ownDeath || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
         && rollHasMatches(c, usedContext)
@@ -888,7 +889,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   }
   const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m) || automated(m)));
   if (prompts.length) {
-    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null });
+    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null, squadBatch: eventContext.squadDeath ?? null });
     matches = matches.filter((m) => !prompts.includes(m));
   }
 
