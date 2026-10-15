@@ -23,6 +23,7 @@ import "./triggers/detectors/ability-use.mjs";
 import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
+import "./triggers/countdowns.mjs";
 import { ownsResourceGain, canUndoResourceGain, undoResourceGain } from "./triggers/resource-gains.mjs";
 import "./ui/line-widgets.mjs";
 import "./ui/ignore-pills.mjs";

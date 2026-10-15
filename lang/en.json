@@ -890,6 +890,21 @@
         "other": "{n}th"
       }
     },
+    "Countdown": {
+      "Name": "Countdown",
+      "Ready": "Ready to use",
+      "Left": "Ready again after {n} more {resource}",
+      "Unknown": "Countdown",
+      "Resource": {
+        "victories": "Victories",
+        "heroic": "Heroic Resource",
+        "epic": "Epic Resource",
+        "surges": "Surges",
+        "renown": "Renown",
+        "wealth": "Wealth",
+        "xp": "XP"
+      }
+    },
     "Feature": {
       "Legend": "Feature Trigger",
       "Name": "Name",
@@ -920,6 +935,14 @@
       "PrereqResource": "{resource} this turn at least",
       "PrereqResourceFallback": "Heroic resource",
       "PrereqHint": "Leave at 0 for no requirement. The resource counts the most the hero held at any point this turn.",
+      "Countdown": "Countdown",
+      "CountdownHint": "Once used, the line waits until the countdown reaches 0. Leave the start at 0 for no countdown. The ability shows what is left.",
+      "CountdownStart": "Starts at",
+      "CountdownResource": "Counts down when gaining",
+      "CountdownBy": "Each gain counts",
+      "CountdownFixed": "A fixed step",
+      "CountdownAmount": "The amount gained",
+      "CountdownStep": "Step",
       "Covered": "{name} is its own triggered ability and already handles this, so this line starts off.",
       "ManualWhy": "Reminder only: Triggers cannot check {why}.",
       "WidgetCovered": "Off: {name} already handles this trigger.",

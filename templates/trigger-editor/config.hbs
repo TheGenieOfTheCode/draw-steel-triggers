@@ -73,6 +73,26 @@
       </div>
       <p class="hint">{{feature.prereqHint}}</p>
     </fieldset>
+    <fieldset class="dst-prereq">
+      <legend>{{feature.countdown.legend}}</legend>
+      <div class="form-group">
+        <label>{{feature.countdown.labels.start}}</label>
+        <div class="form-fields"><input type="number" min="0" step="1" data-feature-field="countdownStart" value="{{feature.countdown.start}}" placeholder="0"></div>
+      </div>
+      <div class="form-group">
+        <label>{{feature.countdown.labels.resource}}</label>
+        <div class="form-fields"><select data-feature-field="countdownResource">{{#each feature.countdown.resources}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></div>
+      </div>
+      <div class="form-group">
+        <label>{{feature.countdown.labels.by}}</label>
+        <div class="form-fields"><select data-feature-field="countdownBy">{{#each feature.countdown.byOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></div>
+      </div>
+      <div class="form-group">
+        <label>{{feature.countdown.labels.step}}</label>
+        <div class="form-fields"><input type="number" min="1" step="1" data-feature-field="countdownStep" value="{{feature.countdown.step}}"></div>
+      </div>
+      <p class="hint">{{feature.countdown.hint}}</p>
+    </fieldset>
     {{#if feature.canIgnore}}
     <button type="button" class="dst-editor-ignore" data-action="ignoreFeature" data-tooltip="{{feature.ignoreHint}}"><i class="fa-solid fa-ban" inert></i> {{feature.labels.ignore}}</button>
     {{/if}}

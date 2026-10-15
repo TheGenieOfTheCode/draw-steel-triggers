@@ -1882,3 +1882,6 @@ li.dst-malice-hidden .dst-card-pill--malice { border-style: dashed; }
 .dst-malice-pick-name { font-weight: bold; }
 .dst-malice-pick-source { font-size: 0.9em; font-style: italic; }
 .dst-malice-pick .dst-card-pill { margin-left: auto; }
+
+.dst-countdown { font-weight: 600; }
+.dst-countdown.is-ready { font-weight: normal; opacity: 0.8; }

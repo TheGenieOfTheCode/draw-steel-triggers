@@ -6,6 +6,7 @@ import { tierText, ignoreFeature, itemFeatureLines } from "../triggers/feature-t
 import { defersDeath } from "../parser/feature-triggers.mjs";
 import { derivedInfo } from "../triggers/derived.mjs";
 import { isConsumable } from "../triggers/consumables.mjs";
+import { COUNTDOWN_RESOURCES } from "../triggers/countdowns.mjs";
 import { QUALIFIERS, qualifierById, hasQualifier, writeSettings, clearQualifier } from "./qualifier-library.mjs";
 import { QualifierPicker, optionLabel, conditionLabel } from "./qualifier-picker.mjs";
 import { IMPACTS, impactById, impactLabel, impactHint, moveImpact, pruneImpacts, removeImpact } from "./editor-impacts.mjs";
@@ -818,6 +819,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (field("action")) this._line.action = field("action").value || null;
       if (field("neverAutoUse")) this._line.neverAutoUse = field("neverAutoUse").checked;
       if (field("once")) this._line.once = field("once").value || null;
+      if (field("countdownStart")) {
+        const start = Math.max(0, Math.floor(Number(field("countdownStart").value) || 0));
+        const next = start ? { start, resource: field("countdownResource")?.value || "victories", by: field("countdownBy")?.value === "amount" ? "amount" : "fixed",
+          step: Math.max(1, Math.floor(Number(field("countdownStep")?.value) || 1)) } : null;
+        if (JSON.stringify(next) !== JSON.stringify(this._line.countdown ?? null)) { this._line.countdown = next; this._line.countdownEdited = true; }
+      }
       if (field("tierLevel") || field("tierMin")) {
         const level = Math.max(0, Math.floor(Number(field("tierLevel")?.value) || 0));
         const min = Math.max(0, Math.floor(Number(field("tierMin")?.value) || 0));
@@ -960,6 +967,12 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       tierLevel: line.tier?.level ?? "",
       tierMin: line.tier?.min || "",
       prereqHint: F("PrereqHint"),
+      countdown: {
+        legend: F("Countdown"), hint: F("CountdownHint"), start: line.countdown?.start || "", step: line.countdown?.step ?? 1,
+        labels: { start: F("CountdownStart"), resource: F("CountdownResource"), by: F("CountdownBy"), step: F("CountdownStep") },
+        resources: Object.entries(COUNTDOWN_RESOURCES).map(([value, r]) => ({ value, label: game.i18n.localize(r.label), selected: (line.countdown?.resource ?? "victories") === value })),
+        byOptions: [["fixed", "CountdownFixed"], ["amount", "CountdownAmount"]].map(([value, key]) => ({ value, label: F(key), selected: (line.countdown?.by ?? "fixed") === value })),
+      },
     };
   }
 
@@ -1007,6 +1020,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         clauses: this._exportClauses(), enabled: !!line.enabled, action: line.action ?? null, once: line.once ?? null,
         name: line.customName ?? null, neverAutoUse: !!line.neverAutoUse,
         ...(line.tierEdited ? { tier: line.tier ? { level: line.tier.level ?? null, min: line.tier.min ?? 0 } : null } : {}),
+        ...(line.countdownEdited ? { countdown: line.countdown ?? { start: 0 } } : {}),
       } });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this._shownName() }));
       this.close();

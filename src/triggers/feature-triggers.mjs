@@ -3,6 +3,7 @@ import { MODULE_ID, getSetting } from "../util.mjs";
 import { derivedFor, derivedParse, derivedOnce, derivedActive, isDerived } from "./derived.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
+import { countdownLeft } from "./countdowns.mjs";
 
 export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
 export const FEATURE_ITEM_TYPES =new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
@@ -192,6 +193,7 @@ export function effectiveFeatureLine(item, line, index = 0, count = 1) {
   if (saved.once !== undefined) out.once = saved.once;
   if (saved.action !== undefined) out.action = saved.action;
   if (saved.neverAutoUse !== undefined) out.neverAutoUse = !!saved.neverAutoUse;
+  if (saved.countdown !== undefined) out.countdown = saved.countdown?.start ? saved.countdown : null;
   if (saved.tier !== undefined) {
     const t = saved.tier;
     out.tier = t && (t.level || t.min) ? { level: Number(t.level) || null, min: Number(t.min) || 0,
@@ -256,7 +258,7 @@ function lineProxy(item, line) {
     getFlag: (scope, key) => (scope === MODULE_ID && ["malice", "manual", "trigger"].includes(key) ? undefined : item.getFlag(scope, key)),
     feature: item,
     featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), resourcePath: linePool(item.actor, line), exclusive: line.exclusive ?? null,
-      neverAutoUse: !!line.neverAutoUse, director: !!line.director, maliceCost: Number(line.maliceCost) || 0 },
+      neverAutoUse: !!line.neverAutoUse, director: !!line.director, maliceCost: Number(line.maliceCost) || 0, countdown: line.countdown ?? null },
   };
 }
 
@@ -349,6 +351,7 @@ export function featureTriggerEntries(actor) {
       seen.add(line.key);
       if (line.watch === "parked") continue;
       if (line.watch && !abilityLineLive(item, line)) continue;
+      if (line.countdown && countdownLeft(actor, line.key) > 0) continue;
       const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null } : {};
       const derived = derivedActive() ? derivedFor(actor, item.id, line.key) : null;
       if (derived) {

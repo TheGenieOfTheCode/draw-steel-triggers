@@ -30,6 +30,12 @@ function blocksOf(html) {
   return decode(text).split(/\n+/).map((b) => b.replace(/\bdamage damage\b/g, "damage").replace(/\s+/g, " ").trim()).filter(Boolean);
 }
 
+const VICTORY_COUNTDOWN = /\bcan['’]t use (?:it|this (?:benefit|perk|ability|feature)) again until you earn (\d+) or more Victories(?! or finish)/i;
+const victoryCountdown = (effect) => {
+  const m = String(effect ?? "").match(VICTORY_COUNTDOWN);
+  return m ? { start: Number(m[1]), resource: "victories", by: "amount", step: 1 } : null;
+};
+
 const sentencesOf = (block) => block.split(/(?<=[.!?])\s+(?=[A-Z])/);
 
 const PARKED = [/^color-cloak/];
@@ -583,7 +589,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const line = { key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
-        ...(curated.neverAutoUse ? { neverAutoUse: true } : {}), ...(curated.director ? { director: true } : {}),
+        ...(curated.neverAutoUse ? { neverAutoUse: true } : {}), ...((curated.countdown ?? victoryCountdown(effect)) ? { countdown: curated.countdown ?? victoryCountdown(effect) } : {}), ...(curated.director ? { director: true } : {}),
         ...(curated.maliceCost ? { maliceCost: curated.maliceCost } : {}),
         parse, tier: tier ?? (curated.level ? { min: curated.level, level: curated.level, resource: null } : null),
         family: tier || curated.level ? generateDSID(f.trigger) : null };

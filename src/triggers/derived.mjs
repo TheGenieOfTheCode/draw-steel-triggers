@@ -141,6 +141,10 @@ function specFor(source, line, useMacro = null) {
   const effects = {
     after00000000000: { _id: "after00000000000", type: "base", name: "", img: null, sort: 1, before: false, description: effectHTML(source, line, useMacro) },
   };
+  if (line.countdown?.start) {
+    effects.countdown0000000 = { _id: "countdown0000000", type: "base", name: game.i18n.localize("DS_TRIGGERS.Countdown.Name"), img: null, sort: 2, before: false,
+      description: `<p>@TriggerCountdown[${line.key}]</p>` };
+  }
   if (prereqs.length) {
     const label = game.i18n.localize(`DS_TRIGGERS.Card.${prereqs.length > 1 ? "Prerequisites" : "Prerequisite"}`);
     effects.before0000000000 = { _id: "before0000000000", type: "base", name: label, img: null, sort: 0, before: true,

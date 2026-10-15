@@ -4,6 +4,7 @@ import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } fro
 import { cardContent, facesIn, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { postFeatureCard } from "../ui/feature-card.mjs";
 import { noteFeatureLineUse } from "./feature-triggers.mjs";
+import { startCountdown } from "./countdowns.mjs";
 import { setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
@@ -509,6 +510,10 @@ async function _onQueueResolve(id, outcome, userName) {
 }
 
 function _useFeatureLine(entry) {
+  if (entry.featureLine?.countdown?.start) {
+    const holder = fromUuidSync(entry.ownerActorUuid);
+    startCountdown(holder?.actor ?? holder, entry.featureLine.key, entry.featureLine.countdown).catch((err) => console.warn(`${MODULE_ID} | could not start a countdown`, err));
+  }
   if (entry.derived) {
     const owner = fromUuidSync(entry.ownerActorUuid);
     if (owner) noteFeatureLineUse(owner, entry.featureLine.key);
