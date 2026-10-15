@@ -821,7 +821,7 @@ function aimOf(m, subjectToken, ctx) {
     const held = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.actor !== m.actor && grabbedBy(t.actor, m.actor));
     return held.length === 1 ? tokenUuidOf(held[0]) : "";
   }
-  if (m.item.system?.distance?.type === "burst" || m.item.getFlag?.("draw-steel-combat-tools", "areaFilter")?.carriers) return "";
+  if (m.item.system?.distance?.type === "burst" || m.item.flags?.["draw-steel-combat-tools"]?.areaFilter?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
   if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b|\bon you or (?:another|one) (?:creature|ally)\b/.test(effect)) return "";
   const namesOther = /\b(?:that creature|the triggering creature|that enemy|that target|the target)\b/.test(effect);

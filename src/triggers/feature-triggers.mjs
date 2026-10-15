@@ -101,7 +101,7 @@ export function carriesMark(actor, owner, label) {
   const origins = new Set(labelSources(owner, label).map((i) => i.uuid));
   const ctKey = CT_KEYS[String(label).toLowerCase()];
   return !!actor.effects?.some((e) => e.active
-    && (origins.has(e.origin) || (!!ctKey && e.getFlag?.("draw-steel-combat-tools", ctKey)?.actorId === owner.id)));
+    && (origins.has(e.origin) || (!!ctKey && e.flags?.["draw-steel-combat-tools"]?.[ctKey]?.actorId === owner.id)));
 }
 
 export function abilityLineLive(item, line) {
