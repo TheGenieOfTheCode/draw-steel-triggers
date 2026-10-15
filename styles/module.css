@@ -415,6 +415,16 @@ button.dst-dstd-held-btn > i {
   color: var(--dst-gold-text, #d9a63f) !important;
 }
 
+button.dst-dstd-redirected-btn,
+button.dst-dstd-redirected-btn:disabled {
+  background: rgba(155, 109, 214, 0.2) !important;
+  border-color: #9b6dd6 !important;
+}
+
+button.dst-dstd-redirected-btn > i {
+  color: #9b6dd6 !important;
+}
+
 .dst-held-form {
   display: flex;
   flex-direction: column;

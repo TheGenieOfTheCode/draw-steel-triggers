@@ -348,6 +348,10 @@ async function _onQueueResolve(id, outcome, userName) {
   if (!isPrimaryGM()) return;
   const entry = _queue.find((e) => e.id === id);
   if (!entry || entry.state !== "pending") return;
+  if (entry.kind === "redirect") {
+    if (outcome !== "used") _settleRedirectEntry(id, null);
+    return;
+  }
   entry.state = outcome;
   if (outcome === "used") noteSquadUse(entry);
   if (outcome === "used" && entry.featureLine?.exclusive) {
@@ -482,6 +486,7 @@ async function _onQueueResolve(id, outcome, userName) {
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
       (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null,
         damageRedirect: entry.damageRedirect ?? null, redirectRange: entry.redirectRange ?? null, redirectFilter: entry.redirectFilter ?? null, unreducible: !!entry.unreducible });
+      if (entry.damageRedirect === "director") _queueRedirectEntry(entry, hold, hold.usedEntries.at(-1));
     }
   }
   for (const damageId of new Set(_choiceIds(entry, "damageId"))) {
@@ -849,12 +854,79 @@ async function _onPickDamageRedirect({ modName, tokenUuids = [], allowNone = fal
   return picked?.document?.uuid ?? (allowNone ? "none" : null);
 }
 
+const _swaps = new Map();
+const _swapWaiters = new Map();
+
+Hooks.on("dsct.teleswapped", ({ item, partner } = {}) => {
+  if (item?.uuid && partner?.document?.uuid) asPrimaryGM("teleswapped", item.uuid, partner.document.uuid);
+});
+
+function _onTeleswapped(itemUuid, partnerUuid) {
+  if (!isPrimaryGM()) return;
+  _swaps.set(itemUuid, { partnerUuid, at: Date.now() });
+  const entry = _queue.find((e) => e.kind === "redirect" && e.state === "pending" && e.itemUuid === itemUuid);
+  if (entry) _settleRedirectEntry(entry.id, partnerUuid);
+}
+
+const _swapsPlaces = (itemUuid) => (fromUuidSync(itemUuid)?.system?.effects?.contents ?? [])
+  .some((e) => e.type === "dsct.flatTeleport" && e.flatTeleport?.mode === "swap");
+
+function _queueRedirectEntry(entry, hold, u) {
+  const swaps = _swapsPlaces(entry.itemUuid);
+  const done = swaps ? _swaps.get(entry.itemUuid) : null;
+  if (done && done.at >= (entry.usedAt ?? 0) - 2000) {
+    u.redirectTo = done.partnerUuid;
+    return;
+  }
+  const victim = fromUuidSync(hold.actorUuid);
+  _queue.push({
+    id: foundry.utils.randomID(), kind: "redirect", state: "pending", createdAt: Date.now(),
+    damageId: entry.damageId, itemUuid: entry.itemUuid, itemName: entry.itemName, event: entry.event,
+    ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Queue.RedirectCause", { amount: hold.amount, name: victim?.name ?? "" }),
+    redirect: { modName: entry.itemName, swaps, candidates: _damageRedirectCandidates(hold, u).map((tok) => tok.document.uuid) },
+  });
+}
+
+function _settleRedirectEntry(id, picked) {
+  const entry = _queue.find((e) => e.id === id && e.kind === "redirect");
+  if (!entry || entry.state !== "pending") return;
+  const hold = _damageHolds.get(entry.damageId);
+  const u = hold?.usedEntries?.find((x) => x.itemUuid === entry.itemUuid && x.damageRedirect);
+  if (u) {
+    if (picked) u.redirectTo = picked;
+    else u.damageRedirect = null;
+  }
+  _queue = _queue.filter((e) => e !== entry);
+  _broadcast();
+  if (hold && !_groupPending("damageId", entry.damageId)) _completeDamageGroup(entry.damageId);
+}
+
+export async function chooseRedirectEntry(id, choice) {
+  const entry = getQueueMirror().find((e) => e.id === id && e.kind === "redirect");
+  if (!entry) return;
+  let picked = choice;
+  if (choice === "pick") {
+    const tokens = entry.redirect.candidates.map((uuid) => fromUuidSync(uuid)?.object).filter(Boolean);
+    if (!tokens.length) { ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.DamageRedirectNoneLeft", { modName: entry.redirect.modName })); return; }
+    picked = (await _runTriggerPicker(tokens, game.i18n.format("DS_TRIGGERS.Queue.DamageRedirectHint", { modName: entry.redirect.modName })))?.document?.uuid ?? null;
+    if (!picked) return;
+  }
+  asPrimaryGM("redirectChosen", id, picked);
+}
+
+function _onRedirectChosen(id, picked) {
+  if (!isPrimaryGM()) return;
+  _settleRedirectEntry(id, picked);
+}
+
 async function _redirectHeldDamage(hold, u) {
   const director = u.damageRedirect === "director";
   const pickUser = director ? primaryGM() : _pickUserFor(u.ownerActorUuid);
   const payload = { modName: u.itemName, tokenUuids: _damageRedirectCandidates(hold, u).map((t) => t.document.uuid), allowNone: director };
   const ownerToken = u.damageRedirect === "owner" ? fromUuidSync(u.ownerActorUuid)?.getActiveTokens?.(false, true)?.[0] ?? null : null;
-  const picked = ownerToken ? ownerToken.document.uuid
+  const picked = director && u.redirectTo ? u.redirectTo
+    : ownerToken ? ownerToken.document.uuid
     : pickUser && !pickUser.isSelf
       ? await socket.executeAsUser("pickDamageRedirect", pickUser.id, payload).catch(() => null)
       : await _onPickDamageRedirect(payload);
@@ -865,8 +937,8 @@ async function _redirectHeldDamage(hold, u) {
     ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.DamageRedirectSkipped", { modName: u.itemName }));
     return false;
   }
-  Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
   if (picked === "none") {
+    Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0, redirect: { modName: u.itemName, byHand: true } });
     postSystemCard({
       title: game.i18n.localize("DS_TRIGGERS.Queue.RedirectAfterHeader"),
       flavor: null,
@@ -877,15 +949,27 @@ async function _redirectHeldDamage(hold, u) {
     });
     return true;
   }
-  const target = (await fromUuid(picked).catch(() => null))?.actor ?? null;
-  if (!target) return true;
+  const tokenDoc = await fromUuid(picked).catch(() => null);
+  const target = tokenDoc?.actor ?? null;
+  if (!target) {
+    Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0, redirect: { modName: u.itemName, name: "" } });
+    return true;
+  }
+  const snap = () => ({ value: target.system.stamina.value, temporary: target.system.stamina.temporary ?? 0, max: target.system.stamina.max });
+  const before = snap();
   const options = { ...(hold.damageOptions ?? {}), ...(u.unreducible ? { ignoredImmunities: ["all"], dstBypass: true } : {}) };
   if (u.unreducible) _damageBypass.add(target.uuid);
+  _reportSquadHit(tokenDoc);
   try {
     await target.system.takeDamage(hold.amount, options);
   } finally {
     _damageBypass.delete(target.uuid);
   }
+  const token = tokenDoc.documentName === "Token" ? {
+    tokenUuid: tokenDoc.uuid, tokenId: tokenDoc.id, sceneId: tokenDoc.parent?.id ?? null, actorUuid: target.uuid, actorId: target.id,
+    name: tokenDoc.name ?? target.name, tokenImg: tokenDoc.texture?.src ?? null, actorImg: target.img ?? null, img: tokenDoc.texture?.src ?? target.img ?? null,
+  } : null;
+  Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0, redirect: { modName: u.itemName, name: target.name, actorUuid: target.uuid, token, amount: hold.amount, before, after: snap() } });
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RedirectApplied", { modName: u.itemName, newName: target.name, oldName: victim?.name ?? "" }));
   return true;
 }
@@ -960,8 +1044,14 @@ async function _settleDamageHold(hold) {
 
 const _squadWrites = new Map();
 
+const _reportSquadHit = (tokenDoc) => {
+  if (tokenDoc?.documentName !== "Token" || !tokenDoc.actor?.system?.isMinion) return;
+  game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("reportSquadDamage")?.(tokenDoc.id);
+};
+
 async function _applyHeldDamage(hold, amount) {
   if (!(amount > 0)) return;
+  _reportSquadHit(hold.tokenUuid ? fromUuidSync(hold.tokenUuid) : null);
   if (hold.squad) {
     const key = hold.squad.groupUuid;
     const run = (_squadWrites.get(key) ?? Promise.resolve()).then(async () => {
@@ -1968,6 +2058,8 @@ Hooks.once("socketlib.ready", () => {
   socket.register("applyHeldDamageNow", _onApplyHeldDamageNow);
   socket.register("releaseResolutionNow", _onReleaseResolutionNow);
   socket.register("useCancelled", _onUseCancelled);
+  socket.register("teleswapped", _onTeleswapped);
+  socket.register("redirectChosen", _onRedirectChosen);
   socket.register("pickRedirectSubject", _onPickRedirectSubject);
   socket.register("pickRedirectTarget", _onPickRedirectTarget);
   socket.register("pickDamageRedirect", _onPickDamageRedirect);

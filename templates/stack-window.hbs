@@ -132,6 +132,14 @@
         <button type="button" data-action="applyHeldNow" data-damage-ids="{{damageIdsJoined}}" data-tooltip="{{@root.labels.applyNowTooltip}}"><i class="fa-solid fa-heart-crack"></i> {{@root.labels.applyNow}}</button>
       </div>
       {{/if}}
+      {{#if isRedirect}}
+      <div class="dst-stack-held-detail">{{redirectHint}}</div>
+      <div class="dst-stack-buttons">
+        <button type="button" class="dst-stack-use" data-action="redirectPick" data-id="{{id}}"{{#unless @root.isGM}} disabled{{/unless}}><i class="fa-solid fa-crosshairs"></i> {{@root.labels.redirectPick}}</button>
+        <button type="button" data-action="redirectNone" data-id="{{id}}" data-tooltip="{{@root.labels.redirectNoneTooltip}}"{{#unless @root.isGM}} disabled{{/unless}}>{{@root.labels.redirectNone}}</button>
+        <button type="button" data-action="declineEntry" data-id="{{id}}" data-tooltip="{{@root.labels.redirectKeepTooltip}}"{{#unless @root.isGM}} disabled{{/unless}}>{{@root.labels.decline}}</button>
+      </div>
+      {{/if}}
       {{#if showReleaseResolution}}
       <div class="dst-stack-buttons">
         <button type="button" data-action="releaseResolutionNow" data-resolution-id="{{resolutionId}}" data-tooltip="{{@root.labels.releaseResolutionTooltip}}"><i class="fa-solid fa-play"></i> {{@root.labels.releaseResolution}}</button>

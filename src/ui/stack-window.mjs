@@ -1,6 +1,6 @@
 import { MODULE_ID, getSetting } from "../util.mjs";
 import { autoUseLevel, lineMandatory } from "../triggers/auto-use.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, chooseRedirectEntry, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor } from "./snooze.mjs";
@@ -172,6 +172,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
       releaseHeld: StackWindow.#onReleaseHeld,
       releaseResolutionNow: StackWindow.#onReleaseResolutionNow,
       applyHeldNow: StackWindow.#onApplyHeldNow,
+      redirectPick: StackWindow.#onRedirectPick,
+      redirectNone: StackWindow.#onRedirectNone,
       openOwner: StackWindow.#onOpenOwner,
       snoozeTrigger: StackWindow.#onSnoozeTrigger,
       snoozeActor: StackWindow.#onSnoozeActor,
@@ -259,6 +261,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         markUsedTooltip: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsedTooltip"),
         release: L("Release"), releaseTooltip: L("ReleaseTooltip"),
         applyNow: L("ApplyNow"), applyNowTooltip: L("ApplyNowTooltip"),
+        redirectPick: L("RedirectPickButton"), redirectNone: L("RedirectNoneButton"), redirectNoneTooltip: L("RedirectNoneTooltip"), redirectKeepTooltip: L("RedirectKeepTooltip"),
         releaseResolution: L("ReleaseResolution"), releaseResolutionTooltip: L("ReleaseResolutionTooltip"),
         gatedTooltip: L("PlayerPriorityTooltip"),
         showAbility: L("ShowAbility"),
@@ -359,12 +362,14 @@ export class StackWindow extends ds.applications.api.DSApplication {
           gated: isGated(e),
           
           
-          showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.state === "pending",
+          showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.kind !== "redirect" && e.state === "pending",
           showMarkUsed: !!e.villain && game.user.isGM && e.state === "pending",
           notYours: !canActOn(e),
           notYoursTooltip: game.i18n.format("DS_TRIGGERS.Queue.NotYoursTooltip", { owner: e.ownerName }),
           showRelease: isHeld && game.user.isGM,
           showApplyNow: isDamageHeld && game.user.isGM && e.state !== "resolving",
+          isRedirect: e.kind === "redirect" && e.state === "pending",
+          redirectHint: e.redirect ? game.i18n.format(e.redirect.swaps ? "DS_TRIGGERS.Queue.RedirectSwapHint" : "DS_TRIGGERS.Queue.RedirectPickHint", { modName: e.redirect.modName }) : null,
           showReleaseResolution: isResolutionHeld && game.user.isGM,
           isGrace: e.state === "grace",
           graceRemaining: e.graceUntil ? Math.max(0, Math.ceil((e.graceUntil - Date.now()) / 1000)) : null,
@@ -573,6 +578,14 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static #onApplyHeldNow(_event, target) {
     for (const id of (target.dataset.damageIds ?? "").split(",").filter(Boolean)) applyHeldDamageNow(id);
+  }
+
+  static #onRedirectPick(_event, target) {
+    chooseRedirectEntry(target.dataset.id, "pick");
+  }
+
+  static #onRedirectNone(_event, target) {
+    chooseRedirectEntry(target.dataset.id, "none");
   }
 
   static #onReleaseResolutionNow(_event, target) {

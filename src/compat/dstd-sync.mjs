@@ -87,7 +87,7 @@ Hooks.on("dst.damageHoldRegistered", () => {
   for (const message of game.messages.contents.slice(-10)) _markHeldRecords(message);
 });
 
-Hooks.on("dst.damageHoldResolved", async ({ hold, finalAmount }) => {
+Hooks.on("dst.damageHoldResolved", async ({ hold, finalAmount, redirect = null }) => {
   if (!_dstdActive() || !hold?.actorUuid) return;
   let found = null;
   if (hold.dstd) {
@@ -101,7 +101,10 @@ Hooks.on("dst.damageHoldResolved", async ({ hold, finalAmount }) => {
   const updated = foundry.utils.deepClone(entry);
   updated.dstHeld = false;
 
-  if (!(finalAmount > 0)) {
+  if (redirect) {
+    updated.dstRedirected = { name: redirect.name ?? "", modName: redirect.modName ?? "", byHand: !!redirect.byHand };
+    updated.after = updated.before;
+  } else if (!(finalAmount > 0)) {
     
     updated.status = "undone";
     updated.undoneByUserId = game.user.id;
@@ -126,12 +129,49 @@ Hooks.on("dst.damageHoldResolved", async ({ hold, finalAmount }) => {
     }
   }
 
+  const extra = redirect?.token?.tokenUuid ? _redirectedRow(message, entry, redirect) : {};
   dbg(`dstd sync: record ${message.id}:${opId} -> ${finalAmount}`);
   await message.update({
     [`flags.${DSTD_ID}.state.applications.${opId}`]: updated,
+    ...extra,
     [`flags.${DSTD_ID}.state.updatedAt`]: Date.now(),
   });
 });
+
+function _redirectedRow(message, entry, redirect) {
+  const state = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state`) ?? {};
+  const targets = [...(state.targets ?? [])];
+  if (!targets.some((t) => t.tokenUuid === redirect.token.tokenUuid)) targets.push(redirect.token);
+  const newOp = _dstdOperationId(redirect.token, entry.partId, entry.rollIndex);
+  noteTargetsChange(message.id, targets.map((t) => String(t.tokenUuid ?? t.actorUuid ?? "")));
+  const keyOf = (t) => String(t?.tokenUuid ?? t?.actorUuid ?? "").replace(/\./g, "__");
+  const oldKey = keyOf(entry.target), newKey = keyOf(redirect.token);
+  const oldHash = `-${_dstdHash(oldKey)}`, newHash = `-${_dstdHash(newKey)}`;
+  const moved = (k) => (k.endsWith(oldHash) ? k.slice(0, -oldHash.length) + newHash : null);
+  const copies = {};
+  if (state.tierOverrides?.[oldKey]) copies[`flags.${DSTD_ID}.state.tierOverrides.${newKey}`] = foundry.utils.deepClone(state.tierOverrides[oldKey]);
+  for (const [k, v] of Object.entries(state.damageOverrides ?? {})) {
+    const nk = moved(k);
+    if (nk && !(nk in state.damageOverrides)) copies[`flags.${DSTD_ID}.state.damageOverrides.${nk}`] = foundry.utils.deepClone(v);
+  }
+  const rollPills = message.flags?.["draw-steel-combat-tools"]?.rollPills?.targets?.[oldKey];
+  if (rollPills) copies[`flags.draw-steel-combat-tools.rollPills.targets.${newKey}`] = foundry.utils.deepClone(rollPills);
+  for (const [k, v] of Object.entries(message.flags?.[MODULE_ID]?.damagePills ?? {})) {
+    const nk = moved(k);
+    if (nk) copies[`flags.${MODULE_ID}.damagePills.${nk}`] = foundry.utils.deepClone(v);
+  }
+  return {
+    ...copies,
+    [`flags.${DSTD_ID}.state.targets`]: targets,
+    [`flags.${DSTD_ID}.state.applications.${newOp}`]: {
+      kind: "damage", status: "applied", target: redirect.token, partId: entry.partId, rollIndex: entry.rollIndex,
+      amount: redirect.amount, originalAmount: redirect.amount, halfDamage: false, damageType: entry.damageType ?? "", typeLabel: entry.typeLabel ?? "",
+      override: null, surgeSpend: null, before: redirect.before, after: redirect.after,
+      appliedByUserId: game.user.id, appliedByUserName: game.user.name, appliedAt: Date.now(),
+      dstRedirectedFrom: { name: entry.target?.name ?? "", modName: redirect.modName ?? "" },
+    },
+  };
+}
 
 const _pendingHalves = [];
 
@@ -284,6 +324,20 @@ function _patchMessageLabels(message, root) {
 
   for (const [opId, entry] of Object.entries(apps)) {
     if (entry?.status !== "applied") continue;
+    if (entry.dstRedirected) {
+      const r = entry.dstRedirected;
+      for (const btn of root.querySelectorAll(`button[data-dstd-action="applyDamage"][data-operation-id="${opId}"]`)) {
+        btn.classList.add("dst-dstd-held-btn", "dst-dstd-redirected-btn");
+        const icon = btn.querySelector("i");
+        if (icon && !icon.classList.contains("fa-shuffle")) icon.className = "fa-solid fa-shuffle";
+        const span = btn.querySelector("span");
+        const label = r.byHand ? game.i18n.localize("DS_TRIGGERS.Queue.DstdRedirectedByHand") : game.i18n.format("DS_TRIGGERS.Queue.DstdRedirected", { name: r.name });
+        if (span && span.textContent !== label) span.textContent = label;
+        if (r.modName) btn.dataset.tooltip = r.modName;
+      }
+      for (const undo of root.querySelectorAll(`button[data-dstd-action="undoDamage"][data-operation-id="${opId}"]`)) undo.disabled = true;
+      continue;
+    }
     if (entry.dstHeld) {
       for (const btn of root.querySelectorAll(`button[data-dstd-action="applyDamage"][data-operation-id="${opId}"]`)) {
         btn.classList.add("dst-dstd-held-btn");
