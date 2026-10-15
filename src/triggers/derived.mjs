@@ -182,10 +182,16 @@ async function syncActiveEffects(item, effects = []) {
   if (effects.length) await item.createEmbeddedDocuments("ActiveEffect", foundry.utils.deepClone(effects), { ...SYNC, keepId: true });
 }
 
+const htmlNorm = (s) => {
+  const t = document.createElement("template");
+  t.innerHTML = String(s ?? "");
+  return t.innerHTML;
+};
+
 const effectsMatch = (item, effects) => {
   const have = item._source.system?.effects ?? {};
   return Object.keys(have).length === Object.keys(effects).length
-    && Object.entries(effects).every(([key, e]) => have[key]?.description === e.description && have[key]?.name === e.name);
+    && Object.entries(effects).every(([key, e]) => htmlNorm(have[key]?.description) === htmlNorm(e.description) && have[key]?.name === e.name);
 };
 
 function specFor(source, line, useMacro = null, strikeMacro = null) {
