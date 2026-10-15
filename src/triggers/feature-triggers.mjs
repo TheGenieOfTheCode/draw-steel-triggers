@@ -157,7 +157,7 @@ export function coveredBy(item) {
   const dsid = item.system?._dsid;
   const advancements = item.system?.advancements;
   const grants = new Set([...(advancements?.contents ?? Object.values(advancements ?? {}))].filter((a) => a.type === "itemGrant")
-    .flatMap((a) => a.pool ?? []).map((p) => p.uuid).filter(Boolean));
+    .flatMap((a) => a.pool ?? []).flatMap((p) => [p.uuid, CONFIG.compendium.uuidRedirects?.[p.uuid]]).filter(Boolean));
   return actor.items.find((i) => i.type === "ability" && TRIGGERED.has(i.system?.type)
     && ((dsid && i.system?._dsid === dsid) || grants.has(i._stats?.compendiumSource))) ?? null;
 }
