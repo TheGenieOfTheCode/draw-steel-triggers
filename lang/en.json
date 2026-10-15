@@ -890,6 +890,11 @@
         "other": "{n}th"
       }
     },
+    "FreeStrike": {
+      "Macro": "Free Strike (Selected Token)",
+      "Title": "Which free strike?",
+      "None": "Select a token with a free strike first."
+    },
     "Countdown": {
       "Name": "Countdown",
       "Ready": "Ready to use",

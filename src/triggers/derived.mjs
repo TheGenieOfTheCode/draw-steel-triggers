@@ -34,7 +34,7 @@ export const sourceOf = (item) => {
   return d ? item.actor?.items?.get(d.sourceId) ?? null : null;
 };
 
-function effectHTML(source, line, useMacro = null) {
+function effectHTML(source, line, useMacro = null, strikeMacro = null) {
   let effect = esc(cap(line.effect ?? "").replace(/\bdamage damage\b/g, "damage"));
   const html = source.type === "ability" ? abilityEffectHTML(source) : source.system?.description?.value;
   const placed = [];
@@ -45,7 +45,59 @@ function effectHTML(source, line, useMacro = null) {
     if (at >= 0) effect = effect.slice(0, at) + hold(m[0]) + effect.slice(at + text.length);
   }
   if (useMacro) effect = effect.replace(THIS_ABILITY, (words) => hold(`@UUID[${useMacro.uuid}]{${words}}`));
+  effect = effect.replace(FREE_STRIKE, (words) => {
+    const link = freeStrikeLink(source.actor, words, strikeMacro);
+    return link ? hold(link) : words;
+  });
   return `<p>${effect.replace(/\u0000(\d+)\u0000/g, (_m, i) => placed[Number(i)])}</p>`;
+}
+
+const FREE_STRIKE = /\b(?:(melee|ranged) )?free strikes?\b/gi;
+
+function signatureDamageType(actor) {
+  for (const item of actor?.items ?? []) {
+    if (item.type !== "ability" || item.system?.category !== "signature") continue;
+    for (const e of item.system.power?.effects?.contents ?? Object.values(item.system.power?.effects ?? {})) {
+      const types = [...(e.damage?.tier1?.types ?? [])].filter((t) => t && t !== "untyped");
+      if (e.type === "damage") return types.length === 1 ? types[0] : "";
+    }
+  }
+  return "";
+}
+
+function freeStrikeLink(actor, words, macro) {
+  const value = Number(actor?.system?.monster?.freeStrike);
+  if (actor && actor.type !== "hero" && value > 0) {
+    const type = signatureDamageType(actor);
+    return `[[/damage ${value}*@scaling${type ? ` ${type}` : ""} scaling]]{${esc(actor.name)} ${words}}`;
+  }
+  return macro ? `@UUID[${macro.uuid}]{${words}}` : null;
+}
+
+const STRIKE_COMMAND = `const said = String(scope.kind ?? scope.event?.target?.closest?.("a")?.textContent ?? "").toLowerCase();
+const kind = /\\bmelee\\b/.test(said) ? "melee" : /\\branged\\b/.test(said) ? "ranged" : "";
+const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
+const strikes = (actor?.items ?? []).filter((i) => ["melee-free-strike", "ranged-free-strike"].includes(i.system?._dsid) && (!kind || i.system._dsid === kind + "-free-strike"));
+if (!strikes.length) return ui.notifications.warn(game.i18n.localize("DS_TRIGGERS.FreeStrike.None"));
+let pick = strikes[0];
+if (strikes.length > 1) {
+  const id = await foundry.applications.api.DialogV2.wait({ window: { title: game.i18n.localize("DS_TRIGGERS.FreeStrike.Title") },
+    buttons: strikes.map((i) => ({ action: i.id, label: i.name })), rejectClose: false }).catch(() => null);
+  pick = strikes.find((i) => i.id === id);
+  if (!pick) return;
+}
+return ds.helpers.macros.rollItemMacro(pick.uuid);`;
+
+async function ensureStrikeMacro(source, line) {
+  if (source.actor?.type !== "hero" || !String(line.effect ?? "").match(FREE_STRIKE)) return null;
+  let macro = game.macros.find((m) => m.getFlag(MODULE_ID, "freeStrike")) ?? null;
+  if (!macro && game.user.isGM) {
+    macro = await Macro.implementation.create({
+      name: game.i18n.localize("DS_TRIGGERS.FreeStrike.Macro"), type: "script", img: "icons/skills/melee/strike-sword-steel-yellow.webp",
+      command: STRIKE_COMMAND, ownership: { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED }, flags: { [MODULE_ID]: { freeStrike: true } },
+    });
+  } else if (macro && game.user.isGM && macro.command !== STRIKE_COMMAND) await macro.update({ command: STRIKE_COMMAND });
+  return macro;
 }
 
 const SCOPE_TARGETS = { SELF: { type: "self" }, ALLY: { type: "ally", value: 1 }, ENEMY: { type: "enemy", value: 1 },
@@ -136,10 +188,10 @@ const effectsMatch = (item, effects) => {
     && Object.entries(effects).every(([key, e]) => have[key]?.description === e.description && have[key]?.name === e.name);
 };
 
-function specFor(source, line, useMacro = null) {
+function specFor(source, line, useMacro = null, strikeMacro = null) {
   const prereqs = prerequisites(source, line.tier);
   const effects = {
-    after00000000000: { _id: "after00000000000", type: "base", name: "", img: null, sort: 1, before: false, description: effectHTML(source, line, useMacro) },
+    after00000000000: { _id: "after00000000000", type: "base", name: "", img: null, sort: 1, before: false, description: effectHTML(source, line, useMacro, strikeMacro) },
   };
   if (line.countdown?.start) {
     effects.countdown0000000 = { _id: "countdown0000000", type: "base", name: game.i18n.localize("DS_TRIGGERS.Countdown.Name"), img: null, sort: 2, before: false,
@@ -245,7 +297,7 @@ export async function syncActor(actor) {
       for (const line of itemEffectiveLines(item)) {
         if (!line.enabled || line.watch === "parked" || !levelMet(actor, line)) continue;
         const useMacro = item.type === "ability" && THIS_ABILITY.test(line.effect ?? "") ? await ensureUseMacro(item) : null;
-        want.set(`${item.id}|${line.key}`, specFor(item, line, useMacro));
+        want.set(`${item.id}|${line.key}`, specFor(item, line, useMacro, await ensureStrikeMacro(item, line)));
       }
     }
     const have = new Map();
@@ -316,7 +368,7 @@ export async function resyncDerived(item) {
   const line = source ? itemEffectiveLines(source).find((l) => l.key === d.lineKey) : null;
   if (!line) return false;
   const useMacro = source.type === "ability" && THIS_ABILITY.test(line.effect ?? "") ? await ensureUseMacro(source) : null;
-  const spec = specFor(source, line, useMacro);
+  const spec = specFor(source, line, useMacro, await ensureStrikeMacro(source, line));
   const DEL = foundry.data?.operators?.ForcedDeletion;
   await item.update({
     name: item.getFlag(MODULE_ID, NAME_FLAG) ?? spec.name, img: item.getFlag(MODULE_ID, IMG_FLAG) ?? spec.img, system: { ...spec.system, effects: effectsUpdate(item, spec.system.effects) },
