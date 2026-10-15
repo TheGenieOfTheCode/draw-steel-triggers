@@ -15,6 +15,7 @@ export function isTriggeredAbility(item) {
 const MALICE_ICON = "icons/magic/unholy/silhouette-robe-evil-power.webp";
 
 export function isMaliceAbility(item) {
+  if (isDerived(item)) return false;
   const flag = item?.getFlag(MODULE_ID, "malice");
   if (flag !== undefined) return !!flag;
   if (item?.system?.category === "maliceAncestry") return true;

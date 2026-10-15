@@ -2,7 +2,7 @@ import { parseTrigger, generateDSID } from "./trigger-parser.mjs";
 import { featureGainLines } from "./feature-lines.mjs";
 
 const decode = (s) => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-  .replace(/&#39;|&rsquo;/g, "’").replace(/&quot;/g, "\"").replace(/[ʼ‘]/g, "’");
+  .replace(/&#39;|&rsquo;/g, "’").replace(/&quot;/g, "\"").replace(/[ʼ‘]/g, "’").replace(/\b([Ww])hen ever\b/g, "$1henever");
 
 export function enricherText(inner, label) {
   if (label) return label;
@@ -106,7 +106,7 @@ function eventCondition(body) {
   return cut > 0 ? { condition: rest.slice(0, cut), effect: rest.slice(cut + 1).trim() } : null;
 }
 
-export function featureTriggerLines(html, { dsid = "", name = "", resource = null, ownerName = "", benefits = [] } = {}) {
+export function featureTriggerLines(html, { dsid = "", name = "", resource = null, ownerName = "", benefits = [], ability = false } = {}) {
   if (!html || PARKED.some((rx) => rx.test(dsid))) return [];
   const gains = resource ? new Set(featureGainLines(html, { resource }).map((l) => l.sentence)) : new Set();
   const base = dsid && dsid === generateDSID(name) ? dsid : `${dsid} ${name}`.trim();
@@ -114,8 +114,8 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   const keys = new Set();
   const skip = new Set(benefits.map((n) => plainWords(n)));
   const { rest, rows } = tierRows(html);
-  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip });
-  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip });
+  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip, ability });
+  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip, ability });
   for (const levels of [levelRows(rest), levelParagraphs(rest)]) {
     let next = 0;
     for (const line of lines) {
@@ -176,13 +176,46 @@ export function abilityEffectHTML(ability) {
     .map((e) => e.description ?? "").join("");
 }
 
-export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false } = {}) {
-  return featureTriggerLines(html, { dsid, name, ownerName }).map((l) => {
+const DURATIONS = [
+  [/\buntil the start of (?:your|its|their|his|her|the [\w'’ -]+?['’]s) next turn\b/i, "nextTurnStart"],
+  [/\buntil the end of (?:your|its|their|his|her|the [\w'’ -]+?['’]s) next turn\b/i, "nextTurnEnd"],
+  [/\buntil the end of (?:your|its|their|his|her|the [\w'’ -]+?['’]s) turn\b|\bacting this turn\b/i, "turn"],
+  [/\buntil the end of the (?:combat )?round\b/i, "round"],
+  [/\buntil the end of the encounter\b|\bfor the rest of the encounter\b/i, "encounter"],
+];
+const DYING_ENDS = /\bor (?:until )?(?:you are|you['’]re) dying\b/i;
+const USE_TARGET = /\bthe target\b|\b(?:a|each) target\b|\bunder this effect\b|\bstitched target\b/i;
+
+const TARGET_SUBJECT = /^(?:the|a|each|any) target\b(?! of\b)|\b(?:against|damages?) the target\b(?! of\b)|\bunder this effect\b|\bstitched target\b/i;
+
+function firstDuration(text) {
+  let best = null;
+  for (const [rx, until] of DURATIONS) {
+    const m = String(text ?? "").match(rx);
+    if (m && (!best || m.index < best.index)) best = { index: m.index, until };
+  }
+  return best ? { until: best.until, ...(DYING_ENDS.test(text) ? { dying: true } : {}) } : null;
+}
+
+export function useDuration(sentence, effect, html) {
+  const head = effect && sentence.includes(effect.slice(0, 24)) ? sentence.slice(0, sentence.indexOf(effect.slice(0, 24))) : sentence;
+  return firstDuration(head) ?? firstDuration(blocksOf(html).join(" ")) ?? { until: "encounter" };
+}
+
+export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false, distance = null } = {}) {
+  const aura = distance?.type === "aura" ? Number(distance.primary) || null : null;
+  return featureTriggerLines(html, { dsid, name, ownerName, ability: true }).map((l) => {
+    const area = AREA.test(l.trigger);
     const watch = SELF_DESCRIPTION.test(l.trigger) ? "self"
-      : AREA.test(l.trigger) || !appliesEffects ? "parked"
-        : NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active";
+      : area && !aura ? "parked"
+        : appliesEffects && !area ? (NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active")
+          : "used";
     const mark = l.trigger.match(MARKED);
-    return { ...l, watch, ...(mark ? { watchMark: (mark[1] ?? mark[2]).toLowerCase() } : {}) };
+    const watchMark = mark ? (mark[1] ?? mark[2]).toLowerCase() : null;
+    const inAura = !!aura && (area || USE_TARGET.test(l.trigger));
+    const used = watch === "used" ? { ...useDuration(l.sentence, l.effect, html),
+      ...(inAura ? { aura } : !watchMark && TARGET_SUBJECT.test(l.trigger) ? { target: true } : {}) } : null;
+    return { ...l, watch, ...(watchMark ? { watchMark } : {}), ...(used ? { used } : {}) };
   });
 }
 
@@ -470,6 +503,46 @@ const CURATED_LINES = [
   [/^(?:Impressive Horns|Otherworldly Grace|Otherwordly Grace)$/, /succeed on a roll of 5 or higher/, { drop: true }],
 ];
 
+const ABILITY_LINES = [
+  [/^Face the Storm$/, /deals rolled damage against any enemy taunted by you/i, { clause: { damageBonus: "2*might" } }],
+  [/^Corrupt Spirit$/, /damage-dealing heroic ability against a single target/i, { clause: { damageBonus: "highest", damageBonusType: "corruption", abilityTargetCount: 1, optional: true } }],
+  [/^(?:Elemental Ferocity|Snap, Crackle, Pop)$/, /damages you|takes damage from a melee ability/i, { clause: { aim: "dealer" } }],
+  [/^(?:Rout|Battle Plan|Extra Dimension)$/, /marked by you|shadow elf acting this turn/i, { clause: { aim: "victim" } }],
+  [/^Love Song$/, /take the damage instead of the target/i, { clause: { event: "WOULD_TAKE_DAMAGE", events: ["WOULD_TAKE_DAMAGE"], damageRedirect: "owner" } }],
+  [/^Power Ballad$/, /deal half the damage they took/i, { clause: { event: "TAKES_DAMAGE", events: ["TAKES_DAMAGE"], halfDamage: false, aim: "dealer" } }],
+  [/^Evolutionary Circuit$/, /non-minion voiceless talker takes damage/i, { clause: { scope: "GROUP", groupName: "voiceless talker", organization: { exclude: ["minion"] } } }],
+  
+  [/^Chronal Spike$/, /effect lets you make a free strike/i, { drop: true }],
+  [/^Out of the Way!$/, /when you slide the target/i, { drop: true }],
+  [/^Rebounding Storm$/, /would end this forced movement/i, { drop: true }],
+  [/^Force of Storms$/, /ends this forced movement/i, { drop: true }],
+  [/^Encore$/, /when you make the strike/i, { drop: true }],
+  [/^Hop To It$/, /when they land/i, { drop: true }],
+  [/^Bat Form$/, /return to their true form/i, { drop: true }],
+  [/^Flamebelcher$/, /when it is created/i, { drop: true }],
+  [/^Living Backpack$/, /effect ends/i, { drop: true }],
+  [/^Trinity of Trickery$/, /either duplicate takes damage/i, { drop: true }],
+  [/^Inertia Soak$/, /pushing an ally/i, { drop: true }],
+  [/^Reflector Field$/, /aura reflects an ability/i, { drop: true }],
+  [/^Ride Along$/, /regain your body/i, { drop: true }],
+  [/^Test Your Metal!$/, /uses Magnetomancy/i, { drop: true }],
+  [/^Echoes of Laughter$/, /gnoll is killed/i, { drop: true }],
+  [/^Shadow Stockade$/, /no longer restrained/i, { drop: true }],
+  [/^(?:Blackout|Bead of Hell|Shadow Stockade|Crag Burst|Iron Jaws|Armageddon|Convocation of Verdure)$/, /./, { later: "Placed areas" }],
+  [/^(?:Guest Star|Cavalry Call|Summon Source of Earth)$/, /./, { later: "Summoner" }],
+  [/^Ride Along$/, /companion takes damage/i, { later: "Companion" }],
+  [/^(?:Avalanche Rush|Inertia Soak)$/, /./, { later: "Movement inside an ability" }],
+  [/^Sticky Bomb$/, /bomb detonates/i, { later: "Timers" }],
+  [/^There Is No Space Between$/, /./, { later: "Portals" }],
+  [/^Phantom Pain$/, /./, { later: "Illusory double" }],
+  [/^Engulf$/, /./, { later: "Combat Tools: engulf" }],
+  [/^Mind Over Matter$/, /./, { later: "Forced movement in a chosen direction" }],
+  [/^Coat the Blade$/, /./, { later: "Surges on the strike in progress" }],
+  [/^Primordial Rage$/, /gain ferocity from taking damage/i, { later: "Ferocity gained from damage" }],
+  [/^Edict of Stillness$/, /./, { later: "Leaving an aura" }],
+  [/^Poison Blade$/, /./, { later: "Next-time riders" }],
+];
+
 const SENTENCE_LINES = [
   [/^Revenger['’]s Wrap$/, /\b(?:any|each) creature who damages you is marked for revenge\b/i, { trigger: "A creature damages you" }],
   [/^Clarity and Strain$/, /\bat the end of each of your turns, you take 1 damage for each negative point\b/i, { trigger: "You end your turn" }],
@@ -478,14 +551,15 @@ const SENTENCE_LINES = [
 
 const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
 
-const curatedLine = (name, sentence) => CURATED_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
+const curatedLine = (name, sentence, ability = false) => [...(ability ? ABILITY_LINES : []), ...CURATED_LINES]
+  .find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
 
 const LIST_LEAD =/\b(?:spend (\d+) ([\w’'-]+(?: resource)?) to )?(?:take|use) one of the following (free )?triggered actions?\b/i;
 const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
 
 const EFFECT_COST = /^(?:and )?(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
 
-function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set() }) {
+function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set(), ability = false }) {
   let lead = null;
   let leads = 0;
   let benefitsOf = null;
@@ -557,7 +631,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
         host.effect = `${host.effect} ${f.sentence}`.trim();
         return;
       }
-      const pick = curatedLine(name, f.sentence) ?? {};
+      const pick = curatedLine(name, f.sentence, ability) ?? {};
       if (pick.drop) return;
       const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...pick };
       const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : "trigger");

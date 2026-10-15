@@ -26,8 +26,15 @@ const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_A
 
 const mentorOf = (actor) => actor?.system?.retainer?.mentor ?? actor?.system?.companion?.master ?? null;
 
+const kwWords = (s) => String(s ?? "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z]+/).filter(Boolean).map((w) => w.replace(/s$/, ""));
+
 export function groupMatches(kw, subjectActor) {
-  if (subjectActor?.system?.monster?.keywords?.has?.(kw)) return true;
+  if (!kw) return false;
+  const keywords = subjectActor?.system?.monster?.keywords;
+  if (keywords?.has?.(kw)) return true;
+  
+  const want = kwWords(kw);
+  if (want.length && keywords && [...keywords].some((k) => { const have = kwWords(k); return want.every((w) => have.includes(w)); })) return true;
   const name = String(subjectActor?.name ?? "").toLowerCase();
   if (name.includes(kw.toLowerCase())) return true;
   const kwLabel = ds.CONFIG.monsters?.keywords?.[kw]?.label;
@@ -599,6 +606,16 @@ function watchedCreatures(subjectActor, ctx = {}) {
   return [subjectActor, ctx.victimActor, ...targetActors(ctx)].filter(Boolean);
 }
 
+function usedSubjectOk(entry, ownerToken, subjectActor, subjectToken, ctx) {
+  if (entry.useTargets?.length && !watchedCreatures(subjectActor, ctx).some((a) => entry.useTargets.includes(a.uuid))) return false;
+  if (entry.aura) {
+    const own = tokenDoc(ownerToken);
+    const subject = tokenDoc(subjectToken) ?? subjectActor?.getActiveTokens?.(false, true)?.[0] ?? null;
+    if (own && subject && own.parent === subject.parent && footprintGap(own, subject) >= entry.aura * canvas.grid.distance) return false;
+  }
+  return true;
+}
+
 const actorOf = (uuid) => {
   const doc = uuid ? fromUuidSync(uuid) : null;
   return doc?.documentName === "Actor" ? doc : doc?.actor ?? doc?.parent ?? null;
@@ -712,7 +729,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       
       
       if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
-      const malice = isMaliceAbility(entry.item);
+      
+      const malice = isMaliceAbility(entry.item) && !entry.featureLine;
       
       if (event === "USES_ABILITY" && usedAbility && actor === subjectActor) {
         if (entry.item === usedAbility || entry.item.uuid === usedAbility.uuid || entry.item.name === usedAbility.name) continue;
@@ -736,10 +754,11 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && ownerEffectMatches(c, actor, subjectActor, usedContext)
         && effectsMatch(c, actor, disposition, subjectActor, usedContext)
         && lineOfEffectMatches(c, actor, token, subjectActor, subjectToken, usedContext)
-        && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c, actor, disposition, subjectActor, subjectDisposition))
+        && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c.scope === "TARGET" && entry.watch ? { ...c, scope: "ANY" } : c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken, usedContext))));
       if (!clause) continue;
       if (entry.watch === "subject" && !entry.watchMark && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
+      if (entry.watch === "used" && !usedSubjectOk(entry, token, subjectActor, subjectToken, usedContext)) continue;
       
       if (!(malice && !takesTurn && event === "TURN_START") && !canAffordCost(actor, entry.item)) {
         dbg(`${actor.name} cannot afford ${entry.item.name} (costs ${entry.item.system.resource}, has ${resourceOf(actor)}), skipped on ${event}`);
@@ -775,6 +794,10 @@ function aimOf(m, subjectToken, ctx) {
   if (m.clause?.aim === "none") return "";
   if (m.clause?.aim === "self") return tokenUuidOf(ownTokenOf(m.actor));
   if (m.clause?.aim === "dealer") return ctx.dealerToken ? tokenUuidOf(ctx.dealerToken) : "";
+  if (m.clause?.aim === "victim") {
+    const victim = ctx.victimToken ?? (targetActors(ctx).length === 1 ? ownTokenOf(targetActors(ctx)[0]) : null);
+    return victim ? tokenUuidOf(victim) : "";
+  }
   if (m.clause?.aim === "grabbed") {
     const held = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.actor !== m.actor && grabbedBy(t.actor, m.actor));
     return held.length === 1 ? tokenUuidOf(held[0]) : "";

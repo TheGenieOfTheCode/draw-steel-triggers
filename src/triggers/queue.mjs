@@ -851,9 +851,11 @@ async function _redirectHeldDamage(hold, u) {
   const director = u.damageRedirect === "director";
   const pickUser = director ? primaryGM() : _pickUserFor(u.ownerActorUuid);
   const payload = { modName: u.itemName, tokenUuids: _damageRedirectCandidates(hold, u).map((t) => t.document.uuid), allowNone: director };
-  const picked = pickUser && !pickUser.isSelf
-    ? await socket.executeAsUser("pickDamageRedirect", pickUser.id, payload).catch(() => null)
-    : await _onPickDamageRedirect(payload);
+  const ownerToken = u.damageRedirect === "owner" ? fromUuidSync(u.ownerActorUuid)?.getActiveTokens?.(false, true)?.[0] ?? null : null;
+  const picked = ownerToken ? ownerToken.document.uuid
+    : pickUser && !pickUser.isSelf
+      ? await socket.executeAsUser("pickDamageRedirect", pickUser.id, payload).catch(() => null)
+      : await _onPickDamageRedirect(payload);
   const victim = await fromUuid(hold.actorUuid).catch(() => null);
   const typeLabel = hold.damageType ? game.i18n.localize(ds.CONFIG.damageTypes?.[hold.damageType]?.label ?? hold.damageType) : "";
   const amount = typeLabel ? `${hold.amount} ${typeLabel}` : String(hold.amount);

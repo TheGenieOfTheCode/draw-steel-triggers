@@ -706,6 +706,8 @@ function scopeOf(lc, event, owner) {
   if (/^the target\b/.test(affected)) return "TARGET";
   if (/companion/.test(affected)) return "COMPANION";
   if (/\bally\b|another hero|a hero\b|ally minion/.test(affected)) return "ALLY";
+  
+  if (words.includes("rival") && /^(?:a|an|any|each|one)(?: other)? rivals?\b/.test(affected)) return "GROUP";
   if (/\benemy\b|rival/.test(affected)) return "ENEMY";
   if (/^the /.test(affected) && (mentionsOwner || words.length === 0 || !/creature|object|target/.test(affected))) return "SELF";
   if (mentionsOwner && !/^(a|an|another|any) /.test(affected)) return "SELF";
@@ -977,7 +979,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       const by = fx.match(/\breduce (?:the )?(?:effective height|distance) of (?:the|your) fall by (?:(\d+) squares|a number of squares equal to your jump distance)/i);
       if (by) entry.fallReduction = by[1] ? Number(by[1]) : "jump";
     }
-    if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one) ([\w -]+?) (?:within|adjacent|is|takes|dies|starts|moves)/)?.[1];
+    if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one)(?: other)? ([\w -]+?) (?:within|adjacent|acting|is|takes|dies|starts|moves|uses|makes|deals|ends|enters)\b/)?.[1];
     if (!["USES_ABILITY", "DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY", "FORCE_MOVES", "TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "POWER_ROLL"].includes(entry.event)) {
       delete entry.abilityKeywords;
       delete entry.abilityKeywordsAll;

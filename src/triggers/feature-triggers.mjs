@@ -4,6 +4,7 @@ import { derivedFor, derivedParse, derivedOnce, derivedActive, isDerived } from 
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
 import { countdownLeft } from "./countdowns.mjs";
+import { useLive, useTargets } from "./ability-uses.mjs";
 
 export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
 export const FEATURE_ITEM_TYPES =new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
@@ -56,7 +57,7 @@ export const unignoreFeature = (id) => setIgnoredList(ignoredList().filter((e) =
 export const ignoredFeatures = () => new Set(ignoredList().filter((e) => !e.line).map((e) => e.dsid));
 export const ignoredLines = () => new Set(ignoredList().filter((e) => e.line).map((e) => e.line));
 
-export const isAbilitySource = (item) => item?.type === "ability" && !TRIGGERED.has(item.system?.type) && !isDerived(item) && !isMaliceAbility(item);
+export const isAbilitySource = (item) => item?.type === "ability" && !TRIGGERED.has(item.system?.type) && !isDerived(item);
 export const isLineSource = (item) => FEATURE_ITEM_TYPES.has(item?.type) || isAbilitySource(item);
 const appliesEffects = (item) => !!(item.effects?.some((e) => !e.transfer) || item.system?.power?.effects?.contents?.some((e) => e.type === "applied"));
 
@@ -116,6 +117,7 @@ export function itemFeatureLines(item, { withIgnored = false } = {}) {
   const resource = ability ? null : resourceOf(item.actor);
   const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
   const applies = ability && appliesEffects(item);
+  const malice = ability && isMaliceAbility(item);
   const ignored = withIgnored ? new Set() : ignoredLines();
   const benefits = ability ? [] : grantedBenefits(item);
   const benefitKey = benefits.join("|");
@@ -125,7 +127,8 @@ export function itemFeatureLines(item, { withIgnored = false } = {}) {
     return ignored.size ? cached.lines.filter((l) => !ignored.has(l.key)) : cached.lines;
   }
   const opts = { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName, benefits };
-  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies }).filter((l) => l.watch !== "self")
+  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies, distance: item.system?.distance })
+    .filter((l) => l.watch !== "self" && (!malice || l.watch === "used"))
     : featureTriggerLines(html, opts);
   const lines = found.filter((l) => l.kind === "trigger")
     .map((l) => ({ ...l, manual: MANUAL.filter(([rx]) => rx.test(l.sentence)).map(([, why]) => why) }));
@@ -350,9 +353,10 @@ export function featureTriggerEntries(actor) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);
       if (line.watch === "parked") continue;
-      if (line.watch && !abilityLineLive(item, line)) continue;
+      if (line.watch === "used" ? !useLive(item, line.used) : line.watch && !abilityLineLive(item, line)) continue;
       if (line.countdown && countdownLeft(actor, line.key) > 0) continue;
-      const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null } : {};
+      const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null,
+        ...(line.watch === "used" ? { useTargets: line.used?.target ? useTargets(item) : null, aura: line.used?.aura ?? null } : {}) } : {};
       const derived = derivedActive() ? derivedFor(actor, item.id, line.key) : null;
       if (derived) {
         const once = derivedOnce(derived);

@@ -32,6 +32,8 @@ const charValue = (actor, c) => Number(actor?.system?.characteristics?.[c]?.valu
 const isDice = (bonus) => typeof bonus === "string" && /\d*d\d/i.test(bonus);
 
 export function bonusAmount(actor, bonus) {
+  const times = String(bonus ?? "").match(/^(\d+)\s*\*\s*(\w+)$/);
+  if (times) return Number(times[1]) * bonusAmount(actor, times[2]);
   if (bonus === "highest") return Math.max(0, ...CHARS.map((c) => charValue(actor, c)));
   if (CHARS.includes(bonus)) return Math.max(0, charValue(actor, bonus));
   if (isDice(bonus)) {
@@ -72,6 +74,8 @@ export function damageBonusFor(actor, attackerToken, targetToken, message = null
       if (ability && !usedAbilityMatches(c, ability, actor)) continue;
       if (c.rolledDamage && !dealsRolledDamage(ability)) continue;
       if (c.victimType && victim && victim.type !== c.victimType) continue;
+      if (c.tauntedByOwner && !victim?.system?.statuses?.taunted?.sources?.has?.(actor.uuid)) continue;
+      if (entry.useTargets?.length && victim && !entry.useTargets.includes(victim.uuid)) continue;
       if (c.damageTypes?.length && ability && ![...abilityDamageTypes(ability)].some((t) => c.damageTypes.includes(t))) continue;
       if (c.victimOrganization?.length && !c.victimOrganization.includes(orgOf(victim))) continue;
       if (c.alsoMinionNear && !otherMinionInReach(token, targetToken, ability)) continue;

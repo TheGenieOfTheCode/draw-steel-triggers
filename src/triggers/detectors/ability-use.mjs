@@ -1,6 +1,8 @@
 import { dispatchTriggerEvent, triggersLive, hasPotency } from "../dispatch.mjs";
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { gainsActive } from "../resource-gains.mjs";
+import { itemFeatureLines } from "../feature-triggers.mjs";
+import { recordAbilityUse } from "../ability-uses.mjs";
 
 const ABILITY_PART = "abilityUse";
 
@@ -25,6 +27,12 @@ function _targetsOf(message) {
     .filter(Boolean);
 }
 
+function _rollTargetsOf(message) {
+  const part = message.system?.parts?.contents?.find((p) => p.type === "abilityResult");
+  return (part?.rolls ?? []).map((r) => r?.options?.target).filter(Boolean)
+    .map((uuid) => fromUuidSync(uuid, { strict: false })).filter(Boolean);
+}
+
 Hooks.on("createChatMessage", (message) => {
   if (!isPrimaryGM()) return;
   if (!getSetting("chatReminders") && !getSetting("damagePrompts") && !gainsActive()) return;
@@ -47,6 +55,10 @@ Hooks.on("createChatMessage", (message) => {
       name: used.actor.name, ability: used.item.name,
     }),
   });
+  if (itemFeatureLines(used.item).some((l) => l.watch === "used")) {
+    recordAbilityUse(used.actor, used.item, targets.length ? targets : _rollTargetsOf(message))
+      .catch((err) => console.warn(`draw-steel-triggers | could not record the use of ${used.item.name}`, err));
+  }
   if (!hasPotency(used.item)) return;
   for (const target of targets) {
     if (!target.actor || target.actor === used.actor) continue;
