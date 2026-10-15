@@ -8,7 +8,7 @@ import { startCountdown } from "./countdowns.mjs";
 import { setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
-import { footprintGap, abilityRangeSquares, flankingAllyOf } from "./dispatch.mjs";
+import { footprintGap, abilityRangeSquares, flankingAllyOf, groupMatches, isMinionActor } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
 import { pickHarmonizeTarget, setDamagePillEnabled, addTarget } from "./bespoke.mjs";
 import { lineMandatory } from "./auto-use.mjs";
@@ -481,7 +481,7 @@ async function _onQueueResolve(id, outcome, userName) {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
       (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null,
-        damageRedirect: entry.damageRedirect ?? null, redirectRange: entry.redirectRange ?? null, unreducible: !!entry.unreducible });
+        damageRedirect: entry.damageRedirect ?? null, redirectRange: entry.redirectRange ?? null, redirectFilter: entry.redirectFilter ?? null, unreducible: !!entry.unreducible });
     }
   }
   for (const damageId of new Set(_choiceIds(entry, "damageId"))) {
@@ -818,7 +818,9 @@ export function reductionAmount(cut, actor) {
 
 function _damageRedirectCandidates(hold, u) {
   const victim = hold.tokenUuid ? fromUuidSync(hold.tokenUuid) : null;
-  const tokens = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.document.uuid !== victim?.uuid && t.actor.uuid !== hold.actorUuid);
+  const f = u.redirectFilter;
+  const tokens = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.document.uuid !== victim?.uuid && t.actor.uuid !== hold.actorUuid
+    && (!f?.group || groupMatches(f.group, t.actor)) && (f?.minion == null || isMinionActor(t.actor) === f.minion));
   if (u.damageRedirect !== "pool") return tokens;
   const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
   const ownerToken = owner?.getActiveTokens?.(false, true)?.[0] ?? null;
@@ -1767,6 +1769,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     damageReduction: m.clause?.damageReduction ?? null,
     damageRedirect: m.clause?.damageRedirect ?? null,
     redirectRange: m.clause?.redirectRange ?? null,
+    redirectFilter: m.clause?.redirectFilter ?? null,
     unreducible: !!m.clause?.unreducible,
     playerSide: m.actor.hasPlayerOwner ?? false,
   }));

@@ -872,7 +872,10 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       if (entry.event === "POWER_ROLL_RESULT" && entry.scope === "SELF" && /^(?:you|the self) (?:obtains?|scores?|rolls?|gets?)\b/.test(lc)) entry.rollerScoped = true;
     }
     if (entry.event === "SAVING_THROW" && /\bsucceeds? on a saving throw\b/.test(lc)) entry.saveSucceeds = true;
-    if (entry.event === "SAVING_THROW" && /\bfails? a saving throw\b/.test(lc)) entry.saveFails = true;
+    if (entry.event === "SAVING_THROW" && /\bfails? (?:a|the) saving throw\b/.test(lc)) entry.saveFails = true;
+    if (/\bwhile (?:they are |you are )?winded\b(?! or dying)/.test(lc)) entry.whileWinded = true;
+    const beyond = lc.match(/\bmore than (\d+) squares away from (?:you|the self)\b/);
+    if (beyond && !entry.rangeMin) entry.rangeMin = Number(beyond[1]) + 1;
     const saveAgainst = entry.event === "SAVING_THROW" && lc.match(/\bsaving throw to end the (\w+) condition\b/);
     if (saveAgainst) entry.saveAgainst = saveAgainst[1];
     if (entry.event === "POWER_ROLL_RESULT" && /\bscores? a critical hit\b/.test(lc)) {

@@ -504,13 +504,22 @@ const CURATED_LINES = [
 ];
 
 const ABILITY_LINES = [
+  [/^Jaws of Death$/, /fails the saving throw while weakened this way/i, { clause: { saveOwnEffect: true, saveAgainst: "weakened", saveFails: true } }],
+  [/^Power Ballad$/, /deal half the damage they took/i, { damageModifying: false, clause: { event: "TAKES_DAMAGE", events: ["TAKES_DAMAGE"], halfDamage: false, aim: "dealer" } }],
+  [/^Saved in the Edit$/, /deal rolled damage to a creature or object, or enable a creature to spend a Recovery/i, { triggers: [
+    ["You deal rolled damage to a creature or object", { rolledDamage: true }],
+    ["A creature spends a Recovery", { scope: "ANY", recoveryByOwner: true }]] }],
+  [/^Evolutionary Circuit$/, /psionic strike made by a voiceless talker deals an extra 5 damage/i, { clause: { event: "MAKES_STRIKE", events: ["MAKES_STRIKE"], damageBonus: 5, abilityKeywords: ["psionic", "strike"], abilityKeywordsAll: true } }],
+  [/^Judgement$/, /damage a creature judged by you with a melee ability/i, { clause: { aim: "victim" } }],
+  [/^Trinity of Trickery$/, /is targeted by an ability/i, { later: "Summons: illusory duplicates" }],
   [/^Face the Storm$/, /deals rolled damage against any enemy taunted by you/i, { clause: { damageBonus: "2*might" } }],
   [/^Corrupt Spirit$/, /damage-dealing heroic ability against a single target/i, { clause: { damageBonus: "highest", damageBonusType: "corruption", abilityTargetCount: 1, optional: true } }],
   [/^(?:Elemental Ferocity|Snap, Crackle, Pop)$/, /damages you|takes damage from a melee ability/i, { clause: { aim: "dealer" } }],
   [/^(?:Rout|Battle Plan|Extra Dimension)$/, /marked by you|shadow elf acting this turn/i, { clause: { aim: "victim" } }],
   [/^Love Song$/, /take the damage instead of the target/i, { clause: { event: "WOULD_TAKE_DAMAGE", events: ["WOULD_TAKE_DAMAGE"], damageRedirect: "owner" } }],
-  [/^Power Ballad$/, /deal half the damage they took/i, { clause: { event: "TAKES_DAMAGE", events: ["TAKES_DAMAGE"], halfDamage: false, aim: "dealer" } }],
-  [/^Evolutionary Circuit$/, /non-minion voiceless talker takes damage/i, { clause: { scope: "GROUP", groupName: "voiceless talker", organization: { exclude: ["minion"] } } }],
+  [/^Evolutionary Circuit$/, /non-minion voiceless talker takes damage/i, { clause: { event: "WOULD_TAKE_DAMAGE", events: ["WOULD_TAKE_DAMAGE"],
+    scope: "GROUP", groupName: "voiceless talker", organization: { exclude: ["minion"] },
+    damageRedirect: "director", redirectFilter: { group: "voiceless talker", minion: true } } }],
   
   [/^Chronal Spike$/, /effect lets you make a free strike/i, { drop: true }],
   [/^Out of the Way!$/, /when you slide the target/i, { drop: true }],
@@ -547,6 +556,7 @@ const SENTENCE_LINES = [
   [/^Revenger['’]s Wrap$/, /\b(?:any|each) creature who damages you is marked for revenge\b/i, { trigger: "A creature damages you" }],
   [/^Clarity and Strain$/, /\bat the end of each of your turns, you take 1 damage for each negative point\b/i, { trigger: "You end your turn" }],
   [/^Music of the Spheres$/, /^As a main action, you sing or play a note\b/i, { trigger: "", action: "main" }],
+  [/^Evolutionary Circuit$/, /\bany psionic strike made by a voiceless talker deals an extra 5 damage\b/i, { trigger: "You make a psionic strike" }],
 ];
 
 const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
@@ -659,6 +669,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
         
         if (parse.clauses.every((c) => c.event !== "UNKNOWN" && c.scope !== "UNKNOWN")) parse.confidence = "high";
       }
+      if (curated.damageModifying === false) parse.damageModifying = false;
       if (!curated.note && !curated.later && parse.clauses.length > 1 && parse.clauses.some((c) => c.scope === "COMPANION")) curated.note = "Companion half: Later";
       const line = { key, sentence: f.sentence, action: f.action, kind, once, trigger: f.trigger, effect, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),

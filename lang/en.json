@@ -799,10 +799,15 @@
       "FmTrailTooltip": "{modName}, used by {owner}",
       "FmNow": "Now {n}",
       "RosterTitle": "Triggers on hand",
-      "RosterEmptyGM": "No combat running, so there is nothing to list. Start an encounter and the monsters' triggers appear here.",
+      "RosterEmptyGM": "Nothing is being checked right now. Start an encounter, or turn off combat only, and the creatures' triggers appear here.",
       "RosterEmptyPlayer": "No character assigned, so there is nothing to list. Ask your Director to assign one in User Configuration.",
       "SnoozeTooltip": "Stop offering this trigger for a while",
       "SnoozeAllTooltip": "Snooze every trigger for me",
+      "SnoozeActorTooltip": "Snooze every trigger this creature has",
+      "RosterSearch": "Filter triggers",
+      "RosterSearchHint": "Names, or 'trigger text' in single quotes, or \"effect text\" in double quotes",
+      "RosterNoMatch": "No trigger matches the filter.",
+      "RosterOpenItem": "Open the item",
       "GroupMuted": "Some of these are snoozed",
       "SectionMonsters": "Monsters",
       "SectionMalice": "Malice Actions",
@@ -894,6 +899,15 @@
       "Macro": "Free Strike (Selected Token)",
       "Title": "Which free strike?",
       "None": "Select a token with a free strike first."
+    },
+    "AbilityUse": {
+      "Description": "Draw Steel: Triggers watches this ability's triggers until {until}. Disable or delete this effect to stop them.",
+      "DescriptionDying": "Draw Steel: Triggers watches this ability's triggers until {until}, or until you are dying. Disable or delete this effect to stop them.",
+      "UntilEncounter": "the end of the encounter",
+      "UntilRound": "the end of the round",
+      "UntilTurn": "the end of this turn",
+      "UntilNextTurnStart": "the start of your next turn",
+      "UntilNextTurnEnd": "the end of your next turn"
     },
     "Countdown": {
       "Name": "Countdown",

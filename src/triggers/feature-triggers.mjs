@@ -353,10 +353,10 @@ export function featureTriggerEntries(actor) {
       if (seen.has(line.key)) continue;
       seen.add(line.key);
       if (line.watch === "parked") continue;
-      if (line.watch === "used" ? !useLive(item, line.used) : line.watch && !abilityLineLive(item, line)) continue;
+      if (line.watch === "used" ? !useLive(item) : line.watch && !abilityLineLive(item, line)) continue;
       if (line.countdown && countdownLeft(actor, line.key) > 0) continue;
       const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null,
-        ...(line.watch === "used" ? { useTargets: line.used?.target ? useTargets(item) : null, aura: line.used?.aura ?? null } : {}) } : {};
+        ...(line.watch === "used" ? { useTargets: line.used?.target ? useTargets(item) : null, aura: line.used?.aura ?? null, maliceLine: isMaliceAbility(item) } : {}) } : {};
       const derived = derivedActive() ? derivedFor(actor, item.id, line.key) : null;
       if (derived) {
         const once = derivedOnce(derived);

@@ -127,7 +127,7 @@ function reachOf(parse, effect = "") {
   return { distance, target };
 }
 
-const THIS_ABILITY = /(?<=\buses? )this ability\b/i;
+const THIS_ABILITY = /(?<=\buses? )this ability\b|\b(?:mark|judge) a new target\b/i;
 const useCommand = (source) => `ds.helpers.macros.rollItemMacro("${source.uuid}");`;
 
 async function ensureUseMacro(source) {

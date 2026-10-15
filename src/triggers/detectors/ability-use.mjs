@@ -55,8 +55,9 @@ Hooks.on("createChatMessage", (message) => {
       name: used.actor.name, ability: used.item.name,
     }),
   });
-  if (itemFeatureLines(used.item).some((l) => l.watch === "used")) {
-    recordAbilityUse(used.actor, used.item, targets.length ? targets : _rollTargetsOf(message))
+  const usedLine = itemFeatureLines(used.item).find((l) => l.watch === "used");
+  if (usedLine) {
+    recordAbilityUse(used.actor, used.item, targets.length ? targets : _rollTargetsOf(message), usedLine.used)
       .catch((err) => console.warn(`draw-steel-triggers | could not record the use of ${used.item.name}`, err));
   }
   if (!hasPotency(used.item)) return;

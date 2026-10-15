@@ -74,7 +74,7 @@ export const activeCombat = () => {
 
 export const triggersLive = () => !!activeCombat() || getSetting("combatOnly") === false;
 
-function candidateEntries() {
+export function candidateEntries() {
   const seen = new Set();
   const entries = [];
   
@@ -439,8 +439,17 @@ export function fmMatches(clause, ctx) {
   return clause.abilityKeywordsAll ? clause.abilityKeywords.every((k) => kw.has(k)) : clause.abilityKeywords.some((k) => kw.has(k));
 }
 
+const isWinded = (actor) => {
+  const st = actor?.system?.stamina;
+  return !!st && Number.isFinite(Number(st.winded)) && Number(st.value) <= Number(st.winded);
+};
+
+const lineSourceUuid = (item) => item?.feature?.uuid
+  ?? item?.actor?.items?.get?.(item?.getFlag?.(MODULE_ID, "derived")?.sourceId ?? "")?.uuid ?? item?.uuid ?? null;
+
 function eventContextMatches(clause, event, ownerActor, subjectActor, subjectToken, ctx, item = null, ownerDisposition = null) {
   if (clause.damageBonus || clause.damageTypeChange || clause.damageTypeChoices?.length) return false;
+  if (clause.whileWinded && !isWinded(subjectActor)) return false;
   switch (event) {
     case "DEALS_DAMAGE":
       if (!damageKeywordsMatch(clause, ctx) || !damageMinMet(clause, ctx) || !damageTypeMatches(clause, ctx)) return false;
@@ -532,6 +541,8 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
     case "SAVING_THROW":
       if (clause.saveSucceeds && !ctx.saveSucceeds) return false;
       if (clause.saveAgainst && !(ctx.effectStatuses ?? []).includes(clause.saveAgainst)) return false;
+      if (clause.saveOwnEffect && fromUuidSync(ctx.effectUuid ?? "", { strict: false })?.origin !== lineSourceUuid(item)) return false;
+      if (clause.rangeMin && !beyondRange(clause.rangeMin, ownTokenOf(ownerActor), subjectToken)) return false;
       return !(clause.saveFails && ctx.saveSucceeds);
     case "SPENDS_RECOVERY":
       return !clause.recoveryByOwner || ctx.recoveryBy === ownerActor.uuid;
@@ -713,6 +724,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
 
   const candidates = candidateEntries().sort((a, b) => (b.actor === subjectActor) - (a.actor === subjectActor));
   const maliceSeen = new Set();
+  const maliceLineSeen = new Set();
   const featureSeen = new Set();
 
   for (const { actor, disposition, token } of candidates) {
@@ -759,6 +771,12 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       if (!clause) continue;
       if (entry.watch === "subject" && !entry.watchMark && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
       if (entry.watch === "used" && !usedSubjectOk(entry, token, subjectActor, subjectToken, usedContext)) continue;
+      
+      if (entry.maliceLine && clause.scope !== "SELF") {
+        const key = entry.item.featureLine?.key ?? entry.item.name;
+        if (maliceLineSeen.has(key)) continue;
+        maliceLineSeen.add(key);
+      }
       
       if (!(malice && !takesTurn && event === "TURN_START") && !canAffordCost(actor, entry.item)) {
         dbg(`${actor.name} cannot afford ${entry.item.name} (costs ${entry.item.system.resource}, has ${resourceOf(actor)}), skipped on ${event}`);
