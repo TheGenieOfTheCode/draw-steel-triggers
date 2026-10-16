@@ -221,10 +221,10 @@ export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = ""
   return featureTriggerLines(html, { dsid, name, ownerName, ability: true }).map((l) => {
     const spendUsed = !!spendText && spendText.includes(flatText(l.sentence));
     const area = AREA.test(l.trigger);
-    const watch = SELF_DESCRIPTION.test(l.trigger) ? "self"
+    const watch = l.watch ?? (SELF_DESCRIPTION.test(l.trigger) ? "self"
       : (area && !aura) || zoneOnly(l.parse) ? "parked"
         : appliesEffects && !area ? (NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active")
-          : "used";
+          : "used");
     const mark = l.trigger.match(MARKED);
     const watchMark = mark ? (mark[1] ?? mark[2]).toLowerCase() : null;
     const inAura = !!aura && (area || USE_TARGET.test(l.trigger));
@@ -520,6 +520,7 @@ const CURATED_LINES = [
 
 const ABILITY_LINES = [
   [/^Jaws of Death$/, /fails the saving throw while weakened this way/i, { clause: { saveOwnEffect: true, saveAgainst: "weakened", saveFails: true } }],
+  [/^I Am Fire! I Am Death!$/, /adjacent enemy grabs the bloodlord/i, { watch: "used" }],
   [/^Power Ballad$/, /deal half the damage they took/i, { damageModifying: false, clause: { event: "TAKES_DAMAGE", events: ["TAKES_DAMAGE"], halfDamage: false, aim: "dealer" } }],
   [/^Saved in the Edit$/, /deal rolled damage to a creature or object, or enable a creature to spend a Recovery/i, { triggers: [
     ["You deal rolled damage to a creature or object", { rolledDamage: true }],
@@ -696,7 +697,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
         ...(curated.neverAutoUse ? { neverAutoUse: true } : {}), ...((curated.countdown ?? victoryCountdown(effect)) ? { countdown: curated.countdown ?? victoryCountdown(effect) } : {}), ...(curated.director ? { director: true } : {}),
-        ...(curated.maliceCost ? { maliceCost: curated.maliceCost } : {}),
+        ...(curated.maliceCost ? { maliceCost: curated.maliceCost } : {}), ...(curated.watch ? { watch: curated.watch } : {}),
         parse, tier: tier ?? (curated.level ? { min: curated.level, level: curated.level, resource: null } : null),
         family: tier || curated.level ? generateDSID(f.trigger) : null };
       lines.push(line);
