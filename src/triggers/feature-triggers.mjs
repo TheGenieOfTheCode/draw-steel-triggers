@@ -1,4 +1,4 @@
-import { featureTriggerLines, abilityTriggerLines, abilityEffectHTML, defersDeath, marksSpace } from "../parser/feature-triggers.mjs";
+import { featureTriggerLines, abilityTriggerLines, abilityEffectHTML, abilitySpendHTML, defersDeath, marksSpace } from "../parser/feature-triggers.mjs";
 import { MODULE_ID, getSetting } from "../util.mjs";
 import { derivedFor, derivedParse, derivedOnce, derivedActive, isDerived } from "./derived.mjs";
 import { isMaliceAbility } from "./registry.mjs";
@@ -127,7 +127,7 @@ export function itemFeatureLines(item, { withIgnored = false } = {}) {
     return ignored.size ? cached.lines.filter((l) => !ignored.has(l.key)) : cached.lines;
   }
   const opts = { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName, benefits };
-  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies, distance: item.system?.distance })
+  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies, distance: item.system?.distance, spendHtml: abilitySpendHTML(item) })
     .filter((l) => l.watch !== "self" && (!malice || l.watch === "used"))
     : featureTriggerLines(html, opts);
   const lines = found.filter((l) => l.kind === "trigger")
@@ -355,7 +355,7 @@ export function featureTriggerEntries(actor) {
       if (line.watch === "parked") continue;
       if (line.watch === "used" ? !useLive(item) : line.watch && !abilityLineLive(item, line)) continue;
       if (line.countdown && countdownLeft(actor, line.key) > 0) continue;
-      const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null,
+      const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null, spendUsed: !!line.spendUsed,
         ...(line.watch === "used" ? { useTargets: line.used?.target ? useTargets(item) : null, aura: line.used?.aura ?? null, maliceLine: isMaliceAbility(item) } : {}) } : {};
       const derived = derivedActive() ? derivedFor(actor, item.id, line.key) : null;
       if (derived) {

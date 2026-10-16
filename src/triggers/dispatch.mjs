@@ -686,6 +686,27 @@ function ownerEffectMatches(clause, ownerActor, subjectActor, ctx = {}) {
   return holders.some((a) => carriesMark(a, ownerActor, want.label));
 }
 
+function spendWasPaid(abilityUuid) {
+  if (!abilityUuid) return false;
+  const messages = game.messages.contents;
+  for (let i = messages.length - 1; i >= Math.max(0, messages.length - 50); i--) {
+    const use = messages[i].system?.parts?.contents?.find((p) => p.type === "abilityUse" && p.abilityUuid === abilityUuid);
+    if (!use) continue;
+    if (use.spendAmounts !== undefined) return Object.values(use.spendAmounts ?? {}).some((v) => Number(v) > 0);
+    return spentBeyondCost(messages[i], abilityUuid);
+  }
+  return false;
+}
+
+function spentBeyondCost(message, abilityUuid) {
+  const template = game.i18n.localize("DRAW_STEEL.Item.ability.ConfigureUse.SpentFlavor");
+  const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rx = new RegExp(escaped.replace("\\{value\\}", "(\\d+)").replace("\\{name\\}", ".+"));
+  const spent = Number(rx.exec(message.flavor ?? "")?.[1]);
+  if (!Number.isFinite(spent)) return false;
+  return spent > (Number(fromUuidSync(abilityUuid, { strict: false })?.system?.resource) || 0);
+}
+
 export const rollNeeds = (clause) => clause?.rollHas?.length ? clause.rollHas : clause?.edgeRequired ? ["edge"] : null;
 
 export function rollModsOf(message, target = null) {
@@ -772,6 +793,7 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       if (!clause) continue;
       if (entry.watch === "subject" && !entry.watchMark && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
       if (entry.watch === "used" && !usedSubjectOk(entry, token, subjectActor, subjectToken, usedContext)) continue;
+      if (entry.spendUsed && !spendWasPaid(entry.originUuid)) continue;
       
       if (entry.maliceLine && clause.scope !== "SELF") {
         const key = entry.item.featureLine?.key ?? entry.item.name;

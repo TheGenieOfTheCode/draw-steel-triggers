@@ -208,9 +208,18 @@ export function zoneOnly(parse) {
   return events.length > 0 && events.every((e) => ZONE_EVENT.test(e ?? ""));
 }
 
-export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false, distance = null } = {}) {
+export function abilitySpendHTML(ability) {
+  const effects = [...(ability?.system?.effects?.contents ?? Object.values(ability?.system?.effects ?? {}))];
+  return effects.filter((e) => e.type === "spend").map((e) => e.description ?? "").join("");
+}
+
+const flatText = (h) => decode(String(h ?? "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim().toLowerCase();
+
+export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false, distance = null, spendHtml = "" } = {}) {
   const aura = distance?.type === "aura" ? Number(distance.primary) || null : null;
+  const spendText = spendHtml ? flatText(spendHtml) : "";
   return featureTriggerLines(html, { dsid, name, ownerName, ability: true }).map((l) => {
+    const spendUsed = !!spendText && spendText.includes(flatText(l.sentence));
     const area = AREA.test(l.trigger);
     const watch = SELF_DESCRIPTION.test(l.trigger) ? "self"
       : (area && !aura) || zoneOnly(l.parse) ? "parked"
@@ -221,7 +230,7 @@ export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = ""
     const inAura = !!aura && (area || USE_TARGET.test(l.trigger));
     const used = watch === "used" ? { ...useDuration(l.sentence, l.effect, html),
       ...(inAura ? { aura } : !watchMark && TARGET_SUBJECT.test(l.trigger) ? { target: true } : {}) } : null;
-    return { ...l, watch, ...(watchMark ? { watchMark } : {}), ...(used ? { used } : {}) };
+    return { ...l, watch, ...(watchMark ? { watchMark } : {}), ...(used ? { used } : {}), ...(spendUsed ? { spendUsed } : {}) };
   });
 }
 
