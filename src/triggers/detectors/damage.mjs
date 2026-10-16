@@ -21,6 +21,16 @@ const _typeFor = new Map();
 
 const _lineSource = (ability) => ability?.getFlag?.(MODULE_ID, "derived")?.lineKey ?? null;
 
+function _dealerFromSource(source) {
+  if (!source) return null;
+  const token = source.tokenUuid ? fromUuidSync(source.tokenUuid, { strict: false }) : null;
+  const actor = token?.actor ?? (source.actorUuid ? fromUuidSync(source.actorUuid, { strict: false }) : null);
+  if (!actor?.items) return null;
+  const ability = (source.abilityUuid ? fromUuidSync(source.abilityUuid, { strict: false }) : null)
+    ?? (source.ability ? actor.items.find((i) => i.type === "ability" && i.name === source.ability) ?? null : null);
+  return { actor, token, ability, message: null, surges: 0 };
+}
+
 function _dealerFromMessage(message) {
   if (!message) return null;
   const speaker = message.speaker ?? {};
@@ -72,7 +82,7 @@ Hooks.once("ready", () => {
     if (_source && !options?.dsSource) options = { ...options, dsSource: _source };
     _pendingDamageType  = options?.type ?? null;
     if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
-      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced, source: options?.dsSource ?? null,
+      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced, source: options?.dsSource ?? null, flat: options?.dsbl?.source ?? null,
     });
     damage = _autoAdjust(this.parent, damage, options);
     _pendingStaminaLoss = !!options?.staminaLoss;
@@ -409,6 +419,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
   const record = _typeFor.get(actor.uuid) ?? null;
+  const dealer = _dealer ?? _dealerFromSource(record?.flat);
   const damageType = record?.type ?? null;
   _typeFor.delete(actor.uuid);
   const immunityReduced = !!damageType && (actor.system.calculateImmunityAndWeakness?.({ type: damageType, ignoredImmunities: record.ignored })?.immunity ?? 0) > 0;
@@ -431,23 +442,23 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
-      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null,
-        surgeSpend: _dealer?.surges || null, rollMods: rollModsOf(_dealer?.message, token ?? actor),
+      eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
+        surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
         immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? null,
         victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
     });
 
     
-    if (_dealer && _dealer.actor !== actor) {
+    if (dealer && dealer.actor !== actor) {
       dispatchTriggerEvent({
         event: "DEALS_DAMAGE",
-        subjectActor: _dealer.actor,
-        subjectToken: _dealer.token,
+        subjectActor: dealer.actor,
+        subjectToken: dealer.token,
         causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
-          name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
+          name: dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
-        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null, rollMods: rollModsOf(_dealer.message, token ?? actor), ability: _dealer.ability ?? null,
+        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: dealer.surges || null, rollMods: rollModsOf(dealer.message, token ?? actor), ability: dealer.ability ?? null,
           victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
       });
     }
