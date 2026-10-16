@@ -260,7 +260,7 @@ function lineProxy(item, line) {
     },
     getFlag: (scope, key) => (scope === MODULE_ID && ["malice", "manual", "trigger"].includes(key) ? undefined : item.getFlag(scope, key)),
     feature: item,
-    featureLine: { key: line.key, name: line.name, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), resourcePath: linePool(item.actor, line), exclusive: line.exclusive ?? null,
+    featureLine: { key: line.key, name: line.name, sourceDistance: item.system?.distance ?? null, sentence: line.sentence, trigger: line.trigger, effect: line.effect, flavor: line.flavor ?? "", tier: line.tier ?? null, action: line.action, once: line.once ?? null, itemName: item.name, defersDeath: defersDeath(line.effect), marksSpace: marksSpace(line.effect), resourceCost: lineCost(item.actor, line), resourcePath: linePool(item.actor, line), exclusive: line.exclusive ?? null,
       neverAutoUse: !!line.neverAutoUse, director: !!line.director, maliceCost: Number(line.maliceCost) || 0, countdown: line.countdown ?? null },
   };
 }

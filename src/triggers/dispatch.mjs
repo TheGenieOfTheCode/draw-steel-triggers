@@ -110,7 +110,9 @@ function clauseRangeSquares(clause, item, owner = item?.actor) {
   if (Number.isFinite(clause.range)) return clause.range > 0 ? clause.range : null;
   if (clause.range?.char) return Math.max(0, Number(owner?.system?.characteristics?.[clause.range.char]?.value) || 0) || null;
   if (clause.range?.ability) return ownAbilityRange(owner, clause.range.ability);
-  return abilityRangeSquares(item);
+  const own = abilityRangeSquares(item);
+  if (own != null || !clause.qualifiers?.some((q) => /\bwithin distance$/.test(q))) return own;
+  return abilityRangeSquares({ system: { distance: item?.featureLine?.sourceDistance } });
 }
 
 export function abilityRangeSquares(item) {
