@@ -227,14 +227,6 @@ Hooks.once("init", () => {
     default: true,
     onChange: (on) => onDerivedSetting(on),
   });
-  game.settings.register(MODULE_ID, "autoSpendConsumables", {
-    name: "DS_TRIGGERS.Settings.AutoSpendConsumables.Name",
-    hint: "DS_TRIGGERS.Settings.AutoSpendConsumables.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false,
-  });
   game.settings.register(MODULE_ID, "derivedChatLinks", {
     name: "DS_TRIGGERS.Settings.DerivedChatLinks.Name",
     hint: "DS_TRIGGERS.Settings.DerivedChatLinks.Hint",
@@ -242,6 +234,14 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true,
+  });
+  game.settings.register(MODULE_ID, "autoSpendConsumables", {
+    name: "DS_TRIGGERS.Settings.AutoSpendConsumables.Name",
+    hint: "DS_TRIGGERS.Settings.AutoSpendConsumables.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
   });
   game.settings.register(MODULE_ID, "featureShareCards", {
     name: "DS_TRIGGERS.Settings.FeatureShareCards.Name",
@@ -366,7 +366,7 @@ const SETTING_HEADERS = {
 
 const HEADER_FALLBACK = { Resources: ["rosterGains"] };
 const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers"];
-const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory" };
+const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers" };
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
