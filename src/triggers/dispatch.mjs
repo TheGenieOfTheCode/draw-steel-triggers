@@ -477,8 +477,9 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
       if (clause.ownerGrabbing === "any" && !holdsAnyGrab(ownerActor)) return false;
       if (clause.dealerNotGrabbed && ctx.dealerActor && grabbedBy(ctx.dealerActor, ownerActor)) return false;
-      if (!clause.dealerScope) return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length || clause.damageSource?.length);
+      if (!clause.dealerScope && clause.rangeOn !== "dealer") return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length || clause.damageSource?.length);
       if (!ctx.dealerActor) return false;
+      if (!clause.dealerScope) return true;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "TARGETED_BY_ABILITY":
     case "TARGETED_BY_STRIKE":
@@ -846,6 +847,8 @@ function aimOf(m, subjectToken, ctx) {
     const held = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.actor !== m.actor && grabbedBy(t.actor, m.actor));
     return held.length === 1 ? tokenUuidOf(held[0]) : "";
   }
+  if (!m.item.featureLine && ctx.dealerToken && (m.clause?.rangeOn === "dealer" || m.clause?.dealerScope)
+    && tokenUuidOf(subjectToken) === tokenUuidOf(ownTokenOf(m.actor)) && m.item.system?.target?.type !== "self") return tokenUuidOf(ctx.dealerToken);
   if (m.item.system?.distance?.type === "burst" || m.item.flags?.["draw-steel-combat-tools"]?.areaFilter?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
   if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b|\bon you or (?:another|one) (?:creature|ally)\b/.test(effect)) return "";
