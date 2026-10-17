@@ -1254,6 +1254,7 @@ button.dst-ignore-add:focus-visible {
 .dst-roster-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 2px; }
 
 .dst-stack-window .header-control[data-action="toggleRoster"].is-open { opacity: 1; color: var(--dst-gold-text, #d9a63f); }
+.dst-stack-window .header-control[data-action="clearStack"]:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 
 .dst-roster-section { margin-bottom: 6px; }
 .dst-roster-section-head {

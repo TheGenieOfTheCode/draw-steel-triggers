@@ -180,6 +180,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       snoozeAll: StackWindow.#onSnoozeAll,
       toggleRosterEmbed: StackWindow.#onToggleRosterEmbed,
       toggleRoster: StackWindow.#onToggleRoster,
+      clearStack: StackWindow.#onClearStack,
     },
   };
 
@@ -216,6 +217,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
   _getFrameButtons(options) {
     return [
       ...super._getFrameButtons(options),
+      ...(game.user.isGM ? [{
+        icon: "fa-solid fa-trash-can-xmark",
+        label: "DS_TRIGGERS.Queue.ClearStack",
+        action: "clearStack",
+      }] : []),
       {
         icon: "fa-solid fa-bell-slash",
         label: "DS_TRIGGERS.Queue.RosterToggle",
@@ -412,6 +418,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
     
     
     this.element.querySelector('.header-control[data-action="toggleRoster"]')?.classList.toggle("is-open", !!this._rosterOpen);
+    const clear = this.element.querySelector('.header-control[data-action="clearStack"]');
+    if (clear) clear.disabled = !getQueueMirror().some((e) => e.state === "pending");
     if (this._widthFor !== !!this._rosterOpen) {
       this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
       this._widthFor = !!this._rosterOpen;
@@ -565,6 +573,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static #onDismiss(_event, target) {
     resolveQueueEntry(target.dataset.id, "dismissed");
+  }
+
+  static async #onClearStack() {
+    if (!game.user.isGM) return;
+    for (const e of getQueueMirror().filter((q) => q.state === "pending")) await resolveQueueEntry(e.id, "dismissed");
   }
 
   static #onMarkVillainUsed(_event, target) {
