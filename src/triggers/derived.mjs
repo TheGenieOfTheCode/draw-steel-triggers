@@ -54,29 +54,17 @@ function effectHTML(source, line, useMacro = null, strikeMacro = null) {
 
 const FREE_STRIKE = /\b(?:(melee|ranged) )?free strikes?\b/gi;
 
-function signatureDamageType(actor) {
-  for (const item of actor?.items ?? []) {
-    if (item.type !== "ability" || item.system?.category !== "signature") continue;
-    for (const e of item.system.power?.effects?.contents ?? Object.values(item.system.power?.effects ?? {})) {
-      const types = [...(e.damage?.tier1?.types ?? [])].filter((t) => t && t !== "untyped");
-      if (e.type === "damage") return types.length === 1 ? types[0] : "";
-    }
-  }
-  return "";
-}
-
 function freeStrikeLink(actor, words, macro) {
-  const value = Number(actor?.system?.monster?.freeStrike);
-  if (actor && actor.type !== "hero" && value > 0) {
-    const type = signatureDamageType(actor);
-    return `[[/damage ${value}*@scaling${type ? ` ${type}` : ""} scaling]]{${esc(actor.name)} ${words}}`;
-  }
   return macro ? `@UUID[${macro.uuid}]{${words}}` : null;
 }
 
-const STRIKE_COMMAND = `const said = String(scope.kind ?? scope.event?.target?.closest?.("a")?.textContent ?? "").toLowerCase();
+const STRIKE_COMMAND = `const link = scope.event?.target?.closest?.("a");
+const said = String(scope.kind ?? link?.textContent ?? "").toLowerCase();
 const kind = /\\bmelee\\b/.test(said) ? "melee" : /\\branged\\b/.test(said) ? "ranged" : "";
-const actor = canvas.tokens.controlled[0]?.actor ?? game.user.character;
+const host = link?.parentElement?.closest?.("[data-uuid], [data-item-uuid]");
+const owned = host ? fromUuidSync(host.dataset.uuid ?? host.dataset.itemUuid) : null;
+const actor = (owned?.documentName === "Item" ? owned.actor : null) ?? canvas.tokens.controlled[0]?.actor ?? game.user.character;
+if (actor && actor.type !== "hero" && actor.system?.performFreeStrike) return actor.system.performFreeStrike();
 const strikes = (actor?.items ?? []).filter((i) => ["melee-free-strike", "ranged-free-strike"].includes(i.system?._dsid) && (!kind || i.system._dsid === kind + "-free-strike"));
 if (!strikes.length) return ui.notifications.warn(game.i18n.localize("DS_TRIGGERS.FreeStrike.None"));
 let pick = strikes[0];
@@ -89,7 +77,7 @@ if (strikes.length > 1) {
 return ds.helpers.macros.rollItemMacro(pick.uuid);`;
 
 async function ensureStrikeMacro(source, line) {
-  if (source.actor?.type !== "hero" || !String(line.effect ?? "").match(FREE_STRIKE)) return null;
+  if (!String(line.effect ?? "").match(FREE_STRIKE)) return null;
   let macro = game.macros.find((m) => m.getFlag(MODULE_ID, "freeStrike")) ?? null;
   if (!macro && game.user.isGM) {
     macro = await Macro.implementation.create({

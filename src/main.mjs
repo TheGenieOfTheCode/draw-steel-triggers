@@ -24,6 +24,7 @@ import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
 import "./triggers/countdowns.mjs";
+import "./triggers/free-strike.mjs";
 import { ownsResourceGain, canUndoResourceGain, undoResourceGain } from "./triggers/resource-gains.mjs";
 import "./ui/line-widgets.mjs";
 import "./ui/ignore-pills.mjs";
@@ -167,6 +168,14 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: false
+  });
+  game.settings.register(MODULE_ID, "freeStrikeCards", {
+    name: "DS_TRIGGERS.Settings.FreeStrikeCards.Name",
+    hint: "DS_TRIGGERS.Settings.FreeStrikeCards.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
   });
   game.settings.register(MODULE_ID, "damageInterrupts", {
     name: "DS_TRIGGERS.Settings.DamageInterrupts.Name",

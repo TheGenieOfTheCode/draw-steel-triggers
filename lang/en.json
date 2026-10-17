@@ -203,6 +203,10 @@
         "Name": "Condition Prompts",
         "Hint": "When a creature gains a condition, an effect on it ends, or a grab is broken, matching triggered abilities appear in the Trigger Stack with Use and Decline instead of a chat reminder."
       },
+      "FreeStrikeCards": {
+        "Name": "Free Strike Messages",
+        "Hint": "A monster's Free Strike posts its damage to chat as that monster, so it's applied from the chat message and triggers know who struck."
+      },
       "DamageInterrupts": {
         "Name": "Damage Interrupts",
         "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
