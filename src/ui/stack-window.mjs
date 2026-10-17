@@ -6,6 +6,7 @@ import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor } from "./snooze.mjs";
 import { runBespokeUse } from "../triggers/bespoke.mjs";
 import { maliceValue } from "../triggers/malice.mjs";
+import { squadBase } from "../triggers/squad-groups.mjs";
 
 const STACK_WIDTH = 500;
 const CTLIB_ID = "draw-steel-ctlib";
@@ -246,6 +247,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const shown = mergeSquadHolds(ordered, getQueueMirror());
     const isGated = (e) => !e.playerSide && !isHeldKind(e) && groupKey(e)
       && getQueueMirror().some((q) => !isHeldKind(q) && groupKey(q) === groupKey(e) && q.playerSide && q.state === "pending");
+    const awaitsChoosers = (e) => {
+      if (e.choices?.length || e.squadChooser) return false;
+      const base = squadBase(e);
+      return !!base && getQueueMirror().some((q) => q.state === "pending" && q.squadChooser === base);
+    };
     const embeds = await Promise.all(shown.map((e) => e.featureLine ? Promise.resolve(featureLinePreview(e.featureLine))
       : e.itemUuid
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
@@ -270,6 +276,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         redirectPick: L("RedirectPickButton"), redirectNone: L("RedirectNoneButton"), redirectNoneTooltip: L("RedirectNoneTooltip"), redirectKeepTooltip: L("RedirectKeepTooltip"),
         releaseResolution: L("ReleaseResolution"), releaseResolutionTooltip: L("ReleaseResolutionTooltip"),
         gatedTooltip: L("PlayerPriorityTooltip"),
+        squadWaitTooltip: L("SquadWaitTooltip"),
         showAbility: L("ShowAbility"),
         free: game.i18n.localize("DS_TRIGGERS.Reminder.Free"),
         noAction: game.i18n.localize("DS_TRIGGERS.Reminder.NoAction"),
@@ -365,7 +372,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
           reaperStatus: e.status === "picking"
             ? game.i18n.format("DS_TRIGGERS.Queue.ReaperPicking", { name: e.picker ?? game.i18n.localize("DS_TRIGGERS.Queue.ReaperSomeone") })
             : e.status === "impending" ? L("ReaperImpending") : null,
-          gated: isGated(e),
+          gated: isGated(e) || awaitsChoosers(e),
+          gate: awaitsChoosers(e) ? "squad" : isGated(e) ? "player" : null,
+          chooseLabel: e.squadChooser ? L("SquadChoose") : null,
+          chooseTip: e.squadChooser ? L("SquadChooseTooltip") : null,
           
           
           showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.kind !== "redirect" && e.state === "pending",
@@ -500,7 +510,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static #gated(event, target) {
     if (!target.classList.contains("dst-use-gated") || (game.user.isGM && event?.shiftKey)) return false;
-    ui.notifications.warn("DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
+    ui.notifications.warn(target.dataset.gate === "squad" ? "DS_TRIGGERS.Queue.SquadWaitWarn" : "DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
     return true;
   }
 
@@ -558,7 +568,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
       choice = picked ? byToken.get(picked.id)?.choice : null;
     }
     if (!choice) return;
-    await chooseQueueSubject(entry.id, choice.key);
+    const placed = await chooseQueueSubject(entry.id, choice.key);
+    if (placed?.joined || placed?.waiting) return;
     const { key, ...fields } = choice;
     const chosen = { ...entry, ...fields };
     delete chosen.choices;

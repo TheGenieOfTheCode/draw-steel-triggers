@@ -14,7 +14,7 @@ import { pickHarmonizeTarget, setDamagePillEnabled, addTarget } from "./bespoke.
 import { lineMandatory } from "./auto-use.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
-import { joinSquad, noteSquadUse } from "./squad-groups.mjs";
+import { joinSquad, noteSquadUse, squadBase, squadMember } from "./squad-groups.mjs";
 import { pickStabilityShare, pickSurgeSpend, shareStability, markVictim, markDealer } from "./line-effects.mjs";
 
 let socket = null;
@@ -264,12 +264,51 @@ function _deferSquadAuto(batch) {
   }, SQUAD_SETTLE_MS));
 }
 
+function _splitSquadChooser(e, fresh) {
+  const base = squadBase(e);
+  if (!base) return false;
+  const pool = [..._queue, ...fresh].filter((q) => q !== e && q.state === "pending");
+  const mine = (m) => m.ownerActorUuid === e.ownerActorUuid && m.itemUuid === e.itemUuid;
+  const chooser = pool.find((q) => q.squadChooser === base && mine(q));
+  if (chooser) {
+    if (!_choiceIds(chooser, "subjectTokenUuid").includes(e.subjectTokenUuid)) _addChoice(chooser, e);
+    return true;
+  }
+  const host = pool.find((q) => !q.squadChooser && !q.choices?.length && squadBase(q) === base && (mine(q) || q.squad?.some(mine)));
+  if (!host || !e.subjectTokenUuid || host.subjectTokenUuid === e.subjectTokenUuid) return false;
+  if (mine(host) && !host.squad?.length) {
+    _addChoice(host, e);
+    host.squadChooser = base;
+    return true;
+  }
+  const line = foundry.utils.deepClone(host);
+  Object.assign(line, { id: foundry.utils.randomID(), ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName, itemUuid: e.itemUuid, itemName: e.itemName, squadChooser: base });
+  delete line.squad;
+  delete line.squadBatch;
+  line.choices = [{ ..._asChoice(host), key: `${line.id}:0` }, { ..._asChoice(e), key: `${line.id}:1` }];
+  line.causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ChoiceCause", { count: line.choices.length });
+  if (mine(host)) {
+    const [next, ...rest] = host.squad;
+    Object.assign(host, { ownerActorUuid: next.ownerActorUuid, ownerName: next.ownerName, itemUuid: next.itemUuid });
+    host.squad = rest;
+  } else host.squad = host.squad.filter((m) => !mine(m));
+  if (!host.squad.length) delete host.squad;
+  const list = _queue.includes(host) ? _queue : fresh;
+  list.splice(list.indexOf(host), 0, line);
+  dbg(`squad: ${e.ownerName} sees a second creature and chooses on its own line`);
+  return true;
+}
+
 function _onQueueAdd(entries) {
   if (!isPrimaryGM()) return;
 
   const fresh = [];
   let merged = false;
   for (const e of entries) {
+    if (_splitSquadChooser(e, fresh)) {
+      merged = true;
+      continue;
+    }
     if (joinSquad(e, [..._queue, ...fresh])) {
       merged = true;
       if (e.squadBatch) _deferSquadAuto(e.squadBatch);
@@ -2059,10 +2098,24 @@ function _onQueueChoose(id, key) {
   const dropped = entry.choices.filter((c) => c !== chosen);
   _takeChoice(entry, chosen);
   dbg(`queue choose ${id}: ${entry.itemName} answers ${chosen.subjectTokenUuid}`);
+  let result = null;
+  const base = entry.squadChooser;
+  if (base) {
+    delete entry.squadChooser;
+    const group = _queue.find((q) => q !== entry && q.state === "pending" && !q.choices?.length && !q.squadChooser
+      && q.subjectTokenUuid === entry.subjectTokenUuid && squadBase(q) === base);
+    if (group) {
+      (group.squad ??= []).push(squadMember(entry));
+      _queue = _queue.filter((q) => q !== entry);
+      if (entry.damageId && _damageHolds.has(entry.damageId) && !_groupPending("damageId", entry.damageId)) _completeDamageGroup(entry.damageId);
+      result = { joined: group.id };
+    } else if (_queue.some((q) => q !== entry && q.state === "pending" && q.squadChooser === base)) result = { waiting: entry.id };
+  }
   for (const damageId of new Set(dropped.map((c) => c.damageId).filter(Boolean))) {
     if (damageId !== entry.damageId && _damageHolds.has(damageId) && !_groupPending("damageId", damageId)) _completeDamageGroup(damageId);
   }
   _broadcast();
+  return result;
 }
 
 export function pickTriggerSubject(tokens, hint) {
