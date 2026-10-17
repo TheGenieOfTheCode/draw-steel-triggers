@@ -69,7 +69,8 @@ export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor,
 
 export const activeCombat = () => {
   const active = game.scenes.active;
-  return game.combats.find((c) => c.started && (!c.scene || c.scene.id === active?.id)) ?? null;
+  const onScene = (c) => c?.started && (!c.scene || c.scene.id === active?.id);
+  return [game.combats.active, ...game.combats].find(onScene) ?? null;
 };
 
 export const triggersLive = () => !!activeCombat() || getSetting("combatOnly") === false;

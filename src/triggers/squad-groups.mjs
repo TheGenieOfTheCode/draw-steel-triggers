@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
-import { dispatchTriggerEvent, triggersLive } from "./dispatch.mjs";
+import { dispatchTriggerEvent, triggersLive, activeCombat } from "./dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
@@ -8,7 +8,7 @@ const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
 const FLAG = "squad";
 
-const groupOf = (actor) => game.combat?.combatants.find((c) => c.actor === actor)?.group?.id ?? null;
+const groupOf = (actor) => (activeCombat() ?? game.combat)?.combatants.find((c) => c.actor === actor)?.group?.id ?? null;
 const tokenIdOf = (actor) => actor?.token?.id ?? actor?.getActiveTokens?.(false, true)[0]?.id ?? null;
 
 function squadKey(e) {
