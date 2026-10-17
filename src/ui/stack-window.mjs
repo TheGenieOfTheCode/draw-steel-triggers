@@ -92,6 +92,31 @@ function mergeSquadHolds(entries, mirror) {
 const ROSTER_OPEN_WIDTH = 758;
 const DSCT_ID = "draw-steel-combat-tools";
 
+function useMessageRendered(itemUuid, timeoutMs = 1500, settleMs = 800) {
+  return new Promise((resolve) => {
+    let timer = null;
+    let rendered = null;
+    const finish = () => {
+      Hooks.off("renderChatMessageHTML", renderHook);
+      Hooks.off("updateChatMessage", updateHook);
+      clearTimeout(timer);
+      requestAnimationFrame(() => resolve());
+    };
+    const recorded = (message) => !!message.getFlag?.("draw-steel-target-damage", "state");
+    const renderHook = Hooks.on("renderChatMessageHTML", (message) => {
+      if (rendered || !message.system?.parts?.contents?.some((p) => p.type === "abilityUse" && p.abilityUuid === itemUuid)) return;
+      rendered = message.id;
+      if (recorded(message)) return finish();
+      clearTimeout(timer);
+      timer = setTimeout(finish, settleMs);
+    });
+    const updateHook = Hooks.on("updateChatMessage", (message) => {
+      if (message.id === rendered && recorded(message)) finish();
+    });
+    timer = setTimeout(finish, timeoutMs);
+  });
+}
+
 async function useWithTriggerContext(item, entry) {
   const subject = entry.subjectTokenUuid ? fromUuidSync(entry.subjectTokenUuid) : null;
   const token = subject?.object ?? (subject?.documentName === "Token" ? subject : null);
@@ -106,11 +131,14 @@ async function useWithTriggerContext(item, entry) {
     token.setTarget(true, { user: game.user, releaseOthers: true });
     game.modules.get(DSCT_ID)?.api?.allowOutOfRange?.(item.uuid);
   }
+  
+  const rendered = borrowed ? useMessageRendered(item.uuid) : null;
 
   try {
     await item.system.use();
     await runBespokeUse(item, entry);
   } finally {
+    if (rendered) await rendered;
     if (borrowed && retargetEpoch() === epoch) {
       for (const t of game.user.targets) t.setTarget(false, { user: game.user, releaseOthers: false });
       for (const t of previous) t.setTarget(true, { user: game.user, releaseOthers: false });
