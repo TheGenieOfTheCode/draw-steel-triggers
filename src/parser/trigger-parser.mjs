@@ -899,7 +899,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     
     const victim = entry.event === "DEALS_DAMAGE" && lc.match(/\b(?:deals? [\w, ]*damage to|damages?) (?:an?|any) (ally|enemy)\b/);
     if (victim) entry.victimScope = victim[1] === "ally" ? "ALLY" : "ENEMY";
-    const dealerSide = entry.event === "TAKES_DAMAGE" && lc.match(/\btakes? [\w, ]*damage from an? (ally|enemy)\b/);
+    const dealerSide = entry.event === "TAKES_DAMAGE" && (lc.match(/\btakes? [\w, ]*damage from an? (ally|enemy)\b/)
+      ?? lc.match(/^(?:an?|any|another) (?:adjacent )?(ally|enemy)\b[^.]*?\b(?:deals [\w, ]*damage to|damages) /));
     if (dealerSide) entry.dealerScope = dealerSide[1] === "ally" ? "ALLY" : "ENEMY";
     const from = entry.event === "TAKES_DAMAGE" && lc.match(/\btakes? [\w, ]*damage from (you|the [\w'’ -]+?)(?=[.,]|$| while| with| using)/);
     if (from && (/^(?:you|the self)$/.test(from[1]) || ownerWords(ownerName).some((w) => new RegExp(`\\b${w}\\b`).test(from[1])))) {
@@ -1019,10 +1020,11 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     if (strikeKind) Object.assign(entry, { abilityKeywords: [strikeKind[1], "strike"], abilityKeywordsAll: true });
     else if (entry.event === "DEALS_DAMAGE" && !entry.abilityKeywords?.length && /\bwith a strike\b/.test(lc)) entry.abilityKeywords = ["strike"];
     if (TARGETING_EVENTS.has(entry.event) && /\bwhile (?:a second|another) creature is flanking (?:you|the self)\b/.test(lc)) entry.flankedByDealer = true;
-    const dealerWithin = entry.event === "TAKES_DAMAGE" && lc.match(/^(?:an?|any) (?:creature|enemy|ally) within (?:(\d+) squares?|a number of squares equal to (?:your|the self['’]s) (might|agility|reason|intuition|presence) score)(?: of (?:you|the self))? deals? [\w, ]*damage to (?:you|the self)\b/);
-    if (dealerWithin) {
+    const dealerWithin = entry.event === "TAKES_DAMAGE" && lc.match(/^(?:an?|any) (adjacent )?(?:[\w-]+ )?(?:creature(?: or object)?|enemy|ally)(?: within (?:(\d+) squares?|distance|a number of squares equal to (?:your|the self['’]s) (might|agility|reason|intuition|presence) score)(?: of (?:you|the self))?)? (?:deals [\w, ]*damage to|damages) (you|the self|the [\w'’ -]+?)(?=[.,]|$| with| using| or)/);
+    const atOwner = dealerWithin && (/^(?:you|the self)$/.test(dealerWithin[4]) || ownerWords(ownerName).some((w) => new RegExp(`\\b${w}\\b`).test(dealerWithin[4])));
+    if (atOwner && (dealerWithin[1] || / within /.test(dealerWithin[0]))) {
       entry.rangeOn = "dealer";
-      if (dealerWithin[2]) entry.range = { char: dealerWithin[2] };
+      if (dealerWithin[3]) entry.range = { char: dealerWithin[3] };
     }
     const distanceOf = lc.match(/\bwithin distance of (?:your|the self['’]s) (?:(melee|ranged) (?:weapon )?free strike|([\w'’ -]+?) ability)\b/);
     if (distanceOf) entry.range = { ability: distanceOf[1] ? `${distanceOf[1]}-free-strike` : generateDSID(distanceOf[2]) };

@@ -350,7 +350,9 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "dealerScope": "ENEMY",
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -782,7 +784,9 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "dealerScope": "ENEMY",
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -1117,7 +1121,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -1408,7 +1413,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -1451,7 +1457,8 @@
             "within distance",
             "with a melee strike",
             "melee strike"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -1554,7 +1561,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -1596,7 +1604,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -2001,7 +2010,8 @@
           ],
           "abilityKeywords": [
             "melee"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -2025,7 +2035,8 @@
           ],
           "abilityKeywords": [
             "ranged"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -2087,7 +2098,8 @@
           "rollHas": [
             "edge",
             "surge"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -2224,7 +2236,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -2244,7 +2257,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -2339,6 +2353,7 @@
           "abilityKeywords": [
             "melee"
           ],
+          "rangeOn": "dealer",
           "range": 1
         }
       ]
@@ -2906,7 +2921,9 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "dealerScope": "ENEMY",
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -2926,7 +2943,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -2946,7 +2964,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -3071,7 +3090,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -3442,7 +3462,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -3462,7 +3483,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -3518,7 +3540,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -4389,7 +4412,8 @@
           "scope": "SELF",
           "qualifiers": [
             "within distance"
-          ]
+          ],
+          "rangeOn": "dealer"
         }
       ]
     }
@@ -4846,7 +4870,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -4864,7 +4889,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -4882,7 +4908,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -4900,7 +4927,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -4918,7 +4946,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -4965,7 +4994,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -4983,7 +5013,8 @@
         {
           "event": "TAKES_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": []
+          "qualifiers": [],
+          "dealerScope": "ALLY"
         }
       ]
     }
@@ -5651,6 +5682,7 @@
           "qualifiers": [
             "adjacent creature"
           ],
+          "rangeOn": "dealer",
           "range": 1
         }
       ]
