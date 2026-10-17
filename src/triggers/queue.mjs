@@ -1847,6 +1847,13 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     mark: m._mark ?? null,
     ...(squadBatch ? { squadBatch } : {}),
   }));
+  matches.forEach((m, i) => {
+    if (!(m._aimChoices?.length > 1)) return;
+    const e = entries[i];
+    e.subjectTokenUuid = m._aimChoices[0];
+    e.choices = m._aimChoices.map((aim, n) => ({ ..._asChoice(e), key: `${e.id}:${n}`, subjectTokenUuid: aim }));
+    e.causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ChoiceCause", { count: e.choices.length });
+  });
   asPrimaryGM("queueAdd", entries);
 }
 

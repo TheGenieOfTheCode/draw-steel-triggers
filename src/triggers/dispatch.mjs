@@ -864,12 +864,31 @@ function aimOf(m, subjectToken, ctx) {
   return source ? tokenUuidOf(ownTokenOf(source)) ?? "" : "";
 }
 
+function matchesForDealers(event, subjectActor, subjectToken, usedAbility, context) {
+  const merged = new Map();
+  for (const dealer of context.dealers) {
+    const ctx = { ...context, dealerActor: dealer.actor, dealerToken: dealer.token };
+    for (const m of collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, ctx)) {
+      let clauseKey = "";
+      try { clauseKey = JSON.stringify(m.clause ?? null); } catch { clauseKey = String(m.clause?.event ?? ""); }
+      const key = [m.actor.uuid, m.item.uuid ?? m.item.id, m.item.featureLine?.key ?? "", clauseKey].join("|");
+      const aim = aimOf(m, subjectToken, ctx);
+      const have = merged.get(key);
+      if (!have) merged.set(key, Object.assign(m, { _ctx: ctx, _dealerAims: [aim] }));
+      else if (!have._dealerAims.includes(aim)) have._dealerAims.push(aim);
+    }
+  }
+  return [...merged.values()];
+}
+
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {}, filter = null, gains = true }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
   if (gains) noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext, causeLabel });
 
-  let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
+  let matches = eventContext.dealers?.length > 1
+    ? matchesForDealers(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext })
+    : collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
   if (filter) matches = matches.filter(filter);
   
   const markNow = (m) => autoApplies({ mandatory: matchMandatory(m), line: m.item?.featureLine });
@@ -892,11 +911,13 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
     const sourceId = m.item.getFlag?.(MODULE_ID, "derived")?.sourceId;
     const source = m.item.feature ?? (sourceId ? m.actor?.items?.get(sourceId) : null) ?? m.item;
     if (!markNow(m)) {
-      if (eventContext.dealerActor) queuedMarks.push(Object.assign(m, { _mark: { kind: "dealer", ownerUuid: m.actor.uuid, otherUuid: eventContext.dealerActor.uuid, spec: m.clause.markDealer, sourceUuid: source?.uuid ?? null } }));
+      const dealerActor = (m._ctx ?? eventContext).dealerActor;
+      if (dealerActor) queuedMarks.push(Object.assign(m, { _mark: { kind: "dealer", ownerUuid: m.actor.uuid, otherUuid: dealerActor.uuid, spec: m.clause.markDealer, sourceUuid: source?.uuid ?? null } }));
       continue;
     }
-    markDealer(m.actor, eventContext.dealerActor ?? null, m.clause.markDealer, source)
-      .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.dealerActor?.name}`, err));
+    const dealerActor = (m._ctx ?? eventContext).dealerActor ?? null;
+    markDealer(m.actor, dealerActor, m.clause.markDealer, source)
+      .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${dealerActor?.name}`, err));
   }
   if (dealerMarks.length) matches = matches.filter((m) => !m.clause?.markDealer);
   if (queuedMarks.length) enqueuePromptEntries(queuedMarks, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
@@ -912,12 +933,14 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   const optionalLine = (m) => !!m.item.featureLine && (!!m.item.featureLine.action || OPTIONAL.test(m.item.featureLine.effect ?? ""));
   const automated = (m) => !!m.item.getFlag?.(MODULE_ID, "derived") && (m.item.system?.effects?.contents ?? []).some((e) => e.type !== "base");
   for (const m of matches) {
-    const aim = aimOf(m, subjectToken, eventContext);
+    const aim = aimOf(m, subjectToken, m._ctx ?? eventContext);
     if (aim !== null) m._subjectTokenUuid = aim;
+    const aims = (m._dealerAims ?? []).filter(Boolean);
+    if (aims.length > 1) m._aimChoices = aims;
   }
   const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m) || automated(m)));
   if (prompts.length) {
-    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null, squadBatch: eventContext.squadDeath ?? null });
+    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null, squadBatch: eventContext.squadDeath ?? eventContext.squadBatch ?? null });
     matches = matches.filter((m) => !prompts.includes(m));
   }
 
@@ -953,7 +976,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
       if (!a.malice) return 0;
       return (a.item.system.resource ?? 999) - (b.item.system.resource ?? 999);
     });
-    _sendReminderCard(group, { event, causeLabel, subjectActor, people: [subjectToken ?? subjectActor, ...Object.values(eventContext ?? {}), usedTargets ?? []] });
+    _sendReminderCard(group, { event, causeLabel, subjectActor, people: [subjectToken ?? subjectActor, ...Object.entries(eventContext ?? {}).map(([k, v]) => (k === "dealers" ? v.map((d) => d.token ?? d.actor) : v)), usedTargets ?? []] });
   }
 }
 

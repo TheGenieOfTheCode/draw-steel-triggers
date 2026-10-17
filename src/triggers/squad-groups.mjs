@@ -143,10 +143,10 @@ export function squadPills(message) {
   if (squad.bursts && squad.rolls) {
     return targets.filter((t) => t.tokenUuid).flatMap((t) => members(squad)
       .filter((m) => squad.bursts[m.tokenId]?.includes(t.tokenUuid) && squad.rolls[m.tokenId] != null)
-      .map((m) => ({ targetUuid: t.tokenUuid, pill: { kind: "delta", splitBase: true, value: squad.rolls[m.tokenId], ...(squad.formula ? { formula: squad.formula } : {}), label, src: m.name, srcTokenId: m.tokenId, source: "trigger" } })));
+      .map((m) => ({ targetUuid: t.tokenUuid, pill: { kind: "delta", splitBase: true, value: squad.rolls[m.tokenId], ...(squad.formula ? { formula: squad.formula } : {}), label, src: m.name, srcTokenId: m.tokenId, source: "trigger", dealer: true } })));
   }
   const pills = [
-    ...members(squad).map((m) => ({ kind: "delta", repeat: true, splitBase: true, value: null, label, src: m.name, srcTokenId: m.tokenId, source: "trigger" })),
+    ...members(squad).map((m) => ({ kind: "delta", repeat: true, splitBase: true, value: null, label, src: m.name, srcTokenId: m.tokenId, source: "trigger", dealer: true })),
   ];
   return targets.filter((t) => t.tokenUuid).flatMap((t) => pills.map((pill) => ({ targetUuid: t.tokenUuid, pill })));
 }

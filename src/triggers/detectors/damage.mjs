@@ -315,6 +315,18 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
 const DSTD_ID = "draw-steel-target-damage";
 const _seenApplications = new Set();
 
+function _dealersFromPills(r, victim) {
+  const ids = new Set((r?.override?.dstPills ?? [])
+    .filter((p) => p?.srcTokenId && (p.dstSquad || p.dealer) && p.enabled !== false)
+    .map((p) => p.srcTokenId));
+  return [...ids].map((id) => canvas.tokens?.get(id)?.document ?? null)
+    .filter((token) => token?.actor && token.actor !== victim)
+    .map((token) => ({ actor: token.actor, token }));
+}
+
+const _names = (dealers) => new Intl.ListFormat(game.i18n.lang, { type: "conjunction" })
+  .format([...new Set(dealers.map((d) => d.token?.name ?? d.actor.name))]);
+
 const _damageRecords = (record) => (Array.isArray(record?.records) ? record.records : [record])
   .filter((r) => r?.kind === "damage" && r?.status === "applied" && Number(r?.amount) > 0);
 
@@ -366,32 +378,38 @@ Hooks.on("updateChatMessage", (message) => {
         });
         continue;
       }
-      if (!victim || victim === dealer.actor) {
+      const pillDealers = _dealersFromPills(r, victim);
+      if (!victim || (!pillDealers.length && victim === dealer.actor)) {
         dbg(`skipped a damage record on ${message.id}: victim ${victimUuid || "unnamed"} is the dealer or could not be resolved`);
         continue;
       }
+      const dealers = pillDealers.length ? pillDealers : [{ actor: dealer.actor, token: dealer.token }];
+      const squadBatch = dealers.length > 1 ? foundry.utils.randomID() : null;
 
-      dbg(`target damage recorded: ${dealer.actor.name} dealt ${r.amount} to ${victim.name}`);
-      dispatchTriggerEvent({
-        event: "DEALS_DAMAGE",
-        subjectActor: dealer.actor,
-        subjectToken: dealer.token,
-        causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
-          name: dealer.actor.name, target: victim.name, amount: r.amount,
-        }),
-        triggerDamage: Number(r.amount),
-        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc), ability: dealer.ability,
-          victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
-      });
+      dbg(`target damage recorded: ${_names(dealers)} dealt ${r.amount} to ${victim.name}`);
+      for (const d of dealers) {
+        dispatchTriggerEvent({
+          event: "DEALS_DAMAGE",
+          subjectActor: d.actor,
+          subjectToken: d.token,
+          causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
+            name: d.token?.name ?? d.actor.name, target: victim.name, amount: r.amount,
+          }),
+          triggerDamage: Number(r.amount),
+          eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc), ability: dealer.ability,
+            victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded,
+            ...(squadBatch ? { squadBatch } : {}) },
+        });
+      }
       dispatchTriggerEvent({
         event: "TAKES_DAMAGE",
         subjectActor: victim,
         subjectToken: doc instanceof TokenDocument ? doc : null,
         causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
-          name: dealer.actor.name, target: victim.name, amount: r.amount,
+          name: _names(dealers), target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability, damageSource,
+        eventContext: { dealerOnly: true, dealerActor: dealers[0].actor, dealerToken: dealers[0].token, ...(dealers.length > 1 ? { dealers } : {}), damageType: r.damageType ?? null, ability: dealer.ability, damageSource,
           surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc),
           victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
       });
