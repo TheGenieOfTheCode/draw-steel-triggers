@@ -155,11 +155,11 @@
       },
       "DerivedChatLinks": {
         "Name": "Link Derived Triggers in Chat",
-        "Hint": "An ability's chat card shows each trigger that became its own ability as a link to it, instead of the trigger's full text. Abilities only."
+        "Hint": "An ability's chat message shows each trigger that became its own ability as a link to it, instead of the trigger's full text. Abilities only."
       },
       "FeatureShareCards": {
-        "Name": "Feature Cards on Share",
-        "Hint": "Share on a feature, perk, ancestry trait or complication posts a card shaped like an ability, with buttons for its gains, damage, conditions and rolls."
+        "Name": "Feature Messages on Share",
+        "Hint": "Share on a feature, perk, ancestry trait or complication posts a message shaped like an ability, with buttons for its gains, damage, conditions and rolls."
       },
       "BasicMalice": {
         "Name": "Add Basic Malice Features",
@@ -313,7 +313,7 @@
       "RedirectReflect": "Reflects back at the striker",
       "RedirectChooser": "A chosen creature becomes the target (manual pick)",
       "RedirectSwap": "Owner becomes the target and switches places",
-      "RedirectAfter": "Post-roll manual retarget card",
+      "RedirectAfter": "Post-roll manual retarget message",
       "EventGroupCommon": "Common",
       "EventGroupRare": "Rare",
       "EventGroupBespoke": "Bespoke",
@@ -509,10 +509,10 @@
           "SummaryOptional": "+{n} damage, if you turn it on",
           "Highest": "Highest characteristic",
           "Optional": "Offer it",
-          "OptionalHint": "The damage card shows it switched off, for the player to turn on.",
+          "OptionalHint": "The chat message shows it switched off, for the player to turn on.",
           "Dice": "Dice",
           "Type": "Damage Type",
-          "TypeHint": "A type other than the ability's own becomes its own damage row on the card, so immunities and weaknesses apply to it separately.",
+          "TypeHint": "A type other than the ability's own becomes its own damage row on the chat message, so immunities and weaknesses apply to it separately.",
           "SameType": "Same as the ability",
           "VsKeyword": "More Against",
           "VsHint": "Uses a different amount when the creature hit has this keyword.",
@@ -577,7 +577,7 @@
         "Unlink": "Unlink the effect text",
         "NothingToLink": "Add an impact first, then link words to it.",
         "enhanced": {
-          "Hint": "Added by Combat Tools' Enhanced Features: a button on the ability's chat card when it is used. Edit it on the ability's Impact tab in the item sheet."
+          "Hint": "Added by Combat Tools' Enhanced Features: a button on the ability's chat message when it is used. Edit it on the ability's Impact tab in the item sheet."
         }
       },
       "RangeMeasureDealer": "Measured to the attacker",
@@ -799,7 +799,7 @@
       "NoBaneToNegate": "{modName} has no bane to negate on this roll.",
       "NotEnoughMalice": "{name} costs {n} Malice and the Director has {have}.",
       "AddedAsTarget": "{name} is now a target too.",
-      "TargetByHand": "Add {name} to the targets by hand. This card has no target list to join.",
+      "TargetByHand": "Add {name} to the targets by hand. This message has no target list to join.",
       "RollReleased": "The triggers are decided. {name} continues.",
       "DeclineRecord": "{owner} declined to use {ability}.",
       "DeclineRecordMandatory": "{owner} declined {ability}, a mandatory trigger.",
@@ -832,7 +832,7 @@
       "DamageRedirectAsk": "Where does the damage go?",
       "RedirectCause": "{amount} damage to {name} waits for where it goes",
       "RedirectKeepTooltip": "Don't redirect: the damage stays with the creature it hit.",
-      "RedirectSwapHint": "Swap places with the button on the {modName} card, and the creature swapped in takes it. Or pick one here.",
+      "RedirectSwapHint": "Swap places with the button on the {modName} message, and the creature swapped in takes it. Or pick one here.",
       "RedirectPickHint": "Pick who takes it, or deal it by hand.",
       "RedirectPickButton": "Pick a Creature",
       "RedirectNoneButton": "No Target",
@@ -903,8 +903,8 @@
       "OnceEncounter": "1/encounter",
       "Apply": "Apply {status}",
       "Roll": "Roll {formula}",
-      "MenuTrigger": "Chat Card: Trigger",
-      "MenuFullDescription": "Chat Card: Full Description",
+      "MenuTrigger": "Chat Message: Trigger",
+      "MenuFullDescription": "Chat Message: Full Description",
       "Prerequisite": "Prerequisite",
       "Prerequisites": "Prerequisites",
       "PrereqLevel": "{ordinal} Level {cls}",
