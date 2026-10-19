@@ -650,6 +650,20 @@ async function _onMarkFmRowHeld(messageId, rowKey, held, applied = false) {
   else if (foundry.utils.getProperty(message, `${path}.dstHeld`)) await message.update({ [`${path}.-=dstHeld`]: null });
 }
 
+async function _clearStaleHeldFmRows() {
+  if (!isPrimaryGM() || _pendingFm.size) return;
+  for (const message of game.messages.contents) {
+    const fm = message.flags?.[DSCT_ID]?.dstdFmState ?? {};
+    const updates = {};
+    for (const [rowKey, row] of Object.entries(fm)) if (row?.dstHeld) updates[`flags.${DSCT_ID}.dstdFmState.${rowKey}.-=dstHeld`] = null;
+    if (!Object.keys(updates).length) continue;
+    dbg(`fm-lock: cleared a stale held forced movement row on ${message.id}`);
+    await message.update(updates).catch(() => {});
+  }
+}
+
+Hooks.once("ready", () => _clearStaleHeldFmRows());
+
 function _markHeldFmRows({ message, root }) {
   const fm = message.flags?.[DSCT_ID]?.dstdFmState ?? {};
   for (const row of root.querySelectorAll("[data-dsct-fm-key]")) {

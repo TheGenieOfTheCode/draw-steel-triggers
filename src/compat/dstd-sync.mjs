@@ -397,6 +397,34 @@ function _applyResolutionLock(message, root) {
   }
 }
 
+async function _clearStaleHeldDamage() {
+  if (!isPrimaryGM() || !_dstdActive() || getActiveDamageHolds().size) return;
+  for (const message of game.messages.contents) {
+    const apps = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state.applications`) ?? {};
+    const updates = {};
+    for (const [opId, entry] of Object.entries(apps)) {
+      if (!entry?.dstHeld) continue;
+      const path = `flags.${DSTD_ID}.state.applications.${opId}`;
+      updates[`${path}.dstHeld`] = false;
+      if (entry.status === "applied" && _snapshotsEqual(entry.before, entry.after)) {
+        Object.assign(updates, {
+          [`${path}.status`]: "undone",
+          [`${path}.undoneByUserId`]: game.user.id,
+          [`${path}.undoneByUserName`]: game.user.name,
+          [`${path}.undoneAt`]: Date.now(),
+          [`${path}.afterUndo`]: entry.before,
+        });
+      }
+    }
+    if (!Object.keys(updates).length) continue;
+    updates[`flags.${DSTD_ID}.state.updatedAt`] = Date.now();
+    dbg(`dstd sync: cleared stale held damage on ${message.id}`, updates);
+    await message.update(updates).catch(() => {});
+  }
+}
+
+Hooks.once("ready", () => _clearStaleHeldDamage());
+
 Hooks.once("ready", () => {
   const api = game.modules.get("draw-steel-combat-tools")?.api?.damagePills;
   if (!api || !_dstdActive()) return;
