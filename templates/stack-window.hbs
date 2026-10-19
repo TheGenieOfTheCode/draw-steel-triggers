@@ -95,6 +95,12 @@
           {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}
         </span>
         {{/if}}
+        {{#if snoozeId}}
+        <button type="button" class="dst-stack-snooze{{#if snoozed}} is-snoozed{{/if}}" data-action="snoozeEntry" data-id="{{id}}"
+                data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeEntryTooltip}}{{/if}}" aria-label="{{@root.labels.snoozeEntryTooltip}}">
+          <i class="fa-solid {{#if snoozed}}fa-bell-slash{{else}}fa-bell{{/if}}" inert></i>
+        </button>
+        {{/if}}
       </div>
       {{#if chips.length}}
       <div class="dst-chips">

@@ -842,6 +842,7 @@
       "RosterEmptyGM": "Nothing is being checked right now. Start an encounter, or turn off combat only, and the creatures' triggers appear here.",
       "RosterEmptyPlayer": "No character assigned, so there is nothing to list. Ask your Director to assign one in User Configuration.",
       "SnoozeTooltip": "Stop offering this trigger for a while",
+      "SnoozeEntryTooltip": "Snooze this trigger: it stays here, but won't be offered again for a while",
       "SnoozeAllTooltip": "Snooze every trigger for me",
       "SnoozeActorTooltip": "Snooze every trigger this creature has",
       "RosterSearch": "Filter triggers",

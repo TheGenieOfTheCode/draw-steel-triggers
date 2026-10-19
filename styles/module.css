@@ -669,6 +669,22 @@ button.dst-dstd-redirected-btn > i {
   gap: 8px;
 }
 
+.dst-stack .dst-stack-snooze {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
+  margin-left: auto;
+  padding: 0;
+  line-height: 1;
+  opacity: var(--dst-dim-7, 0.7);
+}
+
+.dst-stack .dst-stack-snooze:hover,
+.dst-stack .dst-stack-snooze.is-snoozed {
+  opacity: 1;
+}
+
 .dst-stack .dst-stack-icon {
   width: 22px;
   height: 22px;

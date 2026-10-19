@@ -8,6 +8,19 @@ import { runBespokeUse } from "../triggers/bespoke.mjs";
 import { maliceValue } from "../triggers/malice.mjs";
 import { squadBase } from "../triggers/squad-groups.mjs";
 import { impactChips } from "./stack-impacts.mjs";
+import { featureSnoozeId } from "../triggers/feature-triggers.mjs";
+import { gainSnoozeId } from "../triggers/resource-gains.mjs";
+
+const UNSNOOZABLE_KINDS = new Set(["held", "damageHeld", "resolutionHeld", "reaper", "redirect"]);
+
+function snoozeIdOf(entry) {
+  if (UNSNOOZABLE_KINDS.has(entry.kind) || entry.villain) return null;
+  if (entry.gain?.line) return gainSnoozeId({ key: entry.gain.line });
+  if (entry.lineKey) return featureSnoozeId(entry.lineKey);
+  return entry.itemUuid ? fromUuidSync(entry.itemUuid)?.system?._dsid ?? null : null;
+}
+
+const snoozeActorsOf = (entry) => [...new Set([entry.ownerActorUuid, ...(entry.squad ?? []).map((m) => m.ownerActorUuid)].filter(Boolean))];
 
 const STACK_WIDTH = 500;
 const CTLIB_ID = "draw-steel-ctlib";
@@ -296,6 +309,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       redirectNone: StackWindow.#onRedirectNone,
       openOwner: StackWindow.#onOpenOwner,
       snoozeTrigger: StackWindow.#onSnoozeTrigger,
+      snoozeEntry: StackWindow.#onSnoozeEntry,
       snoozeActor: StackWindow.#onSnoozeActor,
       snoozeAll: StackWindow.#onSnoozeAll,
       toggleRosterEmbed: StackWindow.#onToggleRosterEmbed,
@@ -407,6 +421,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         rosterEmptyGM: L("RosterEmptyGM"),
         rosterEmptyPlayer: L("RosterEmptyPlayer"),
         snoozeTooltip: L("SnoozeTooltip"),
+        snoozeEntryTooltip: L("SnoozeEntryTooltip"),
         snoozeAllTooltip: L("SnoozeAllTooltip"),
         snoozeActorTooltip: L("SnoozeActorTooltip"),
         rosterSearch: L("RosterSearch"),
@@ -511,6 +526,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
           showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.kind !== "redirect" && e.state === "pending",
           showMarkUsed: !!e.villain && game.user.isGM && e.state === "pending",
           notYours: !canActOn(e),
+          ...(() => {
+            const id = e.state === "pending" && canActOn(e) ? snoozeIdOf(e) : null;
+            const owner = id && e.ownerActorUuid ? fromUuidSync(e.ownerActorUuid) : null;
+            const snooze = owner ? snoozeFor(owner, id) : null;
+            return { snoozeId: owner ? id : null, snoozed: !!snooze, snoozeLabel: snooze?.label ?? "" };
+          })(),
           notYoursTooltip: game.i18n.format("DS_TRIGGERS.Queue.NotYoursTooltip", { owner: e.ownerName }),
           showRelease: isHeld && game.user.isGM,
           showApplyNow: isDamageHeld && game.user.isGM && e.state !== "resolving",
@@ -899,6 +920,25 @@ export class StackWindow extends ds.applications.api.DSApplication {
     }
     const none = root.querySelector(".dst-roster-nomatch");
     if (none) none.hidden = !terms.length || shown > 0;
+  }
+
+  static async #onSnoozeEntry(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+    const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
+    const id = entry ? snoozeIdOf(entry) : null;
+    if (!id || !canActOn(entry)) return;
+    const actors = snoozeActorsOf(entry).map((uuid) => fromUuidSync(uuid)).filter(Boolean);
+    const snoozed = actors.map((a) => [a, snoozeFor(a, id)]).filter(([, s]) => s);
+    if (snoozed.length) {
+      for (const [actor, s] of snoozed) await clearSnooze(actor, s.key);
+      this.render();
+      return;
+    }
+    const choice = await promptSnooze(entry.itemName);
+    if (!choice) return;
+    for (const actor of actors) await setSnooze(actor, { dsid: id, ownerUuid: actor.uuid, ...choice });
+    this.render();
   }
 
   static async #onSnoozeTrigger(_event, target) {
