@@ -1066,6 +1066,10 @@
       "GrabEnds": "Triggered by the grab on {name} ending.",
       "GrabEndsBy": "Triggered by {by}'s grab on {name} ending."
     },
+    "Spent": {
+      "EffectName": "Unspent Triggered Action",
+      "EffectHint": "This creature still has its triggered action this round. It switches off when one is used and comes back at the start of the next round."
+    },
     "Snooze": {
       "Button": "Snooze Triggers",
       "On": "Triggers snoozed for your actors.",
