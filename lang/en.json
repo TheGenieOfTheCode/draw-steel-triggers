@@ -191,6 +191,10 @@
         "Name": "Trigger Badges on Tokens",
         "Hint": "When a token gets a trigger, a badge pops up over it for a few seconds. Click it to open the Trigger Stack at that trigger."
       },
+      "BadgesFade": {
+        "Name": "Fade Trigger Badges",
+        "Hint": "Badges fade a few seconds after they appear. With this off, a badge stays on the token until its triggers are decided, counting down as they are."
+      },
       "BadgesInsteadOfStack": {
         "Name": "Badges Instead of Opening the Stack",
         "Hint": "Let the badge tell you about a new trigger instead of opening the Trigger Stack. Turn this off to have the stack open itself too."

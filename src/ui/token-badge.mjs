@@ -1,5 +1,6 @@
 import { MODULE_ID } from "../util.mjs";
 import { StackWindow, sideOf, tokenOfActor } from "./stack-window.mjs";
+import { getQueueMirror } from "../triggers/queue.mjs";
 
 const POP_MS = 260;
 const HOLD_MS = 4200;
@@ -13,6 +14,7 @@ let _known = null;
 let _layer = null;
 
 const enabled = () => game.settings.get(MODULE_ID, "tokenBadges") !== false;
+const fades = () => game.settings.get(MODULE_ID, "badgesFade") === true;
 const reducedMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const colourNumber = (css) => {
   try { return css ? Number(foundry.utils.Color.from(css)) : FALLBACK_COLOUR; } catch { return FALLBACK_COLOUR; }
@@ -56,8 +58,10 @@ function drawBadge(badge) {
 }
 
 function place(badge) {
+  if (!badge.token || badge.token.destroyed) badge.token = canvas.tokens?.get(badge.tokenId) ?? null;
   const t = badge.token;
   if (!t || t.destroyed) return false;
+  badge.container.visible = !!t.visible;
   badge.container.position.set(t.x + t.w - badge.radius * 0.35, t.y + badge.radius * 0.35);
   return true;
 }
@@ -95,7 +99,7 @@ function showBadge(token, entry, colour) {
   container.on("pointerdown", (event) => {
     event.stopPropagation();
     StackWindow.focus(badge.entryIds[0]);
-    removeBadge(badge);
+    if (fades()) removeBadge(badge);
   });
   const still = reducedMotion();
   badge.tick = () => {
@@ -115,7 +119,7 @@ function showBadge(token, entry, colour) {
     const pulse = still ? 1 : (age % PULSE_MS) / PULSE_MS;
     ring.alpha = still || age > HOLD_MS ? 0 : 1 - pulse;
     ring.scale.set(1 + pulse * 0.9);
-    const fading = age - POP_MS - HOLD_MS;
+    const fading = fades() ? age - POP_MS - HOLD_MS : 0;
     container.alpha = fading > 0 ? Math.max(0, 1 - fading / FADE_MS) : 1;
     if (fading >= FADE_MS) removeBadge(badge);
   };
@@ -129,11 +133,7 @@ function showBadge(token, entry, colour) {
 function onQueueChanged(mirror) {
   const entries = mirror ?? [];
   const pending = entries.filter((e) => e.state === "pending");
-  if (_known === null) {
-    _known = new Set(pending.map((e) => e.id));
-    return;
-  }
-  const fresh = pending.filter((e) => !_known.has(e.id));
+  const fresh = _known === null ? (fades() ? [] : pending) : pending.filter((e) => !_known.has(e.id));
   _known = new Set(pending.map((e) => e.id));
   for (const badge of [..._badges.values()]) {
     badge.entryIds = badge.entryIds.filter((id) => _known.has(id));
@@ -153,4 +153,9 @@ Hooks.on("dst.queueChanged", onQueueChanged);
 Hooks.on("canvasTearDown", () => {
   for (const badge of [..._badges.values()]) removeBadge(badge);
   _layer = null;
+});
+Hooks.on("canvasReady", () => {
+  if (fades()) return;
+  _known = null;
+  onQueueChanged(getQueueMirror());
 });

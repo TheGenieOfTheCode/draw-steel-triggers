@@ -154,6 +154,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true,
   });
+  game.settings.register(MODULE_ID, "badgesFade", {
+    name: "DS_TRIGGERS.Settings.BadgesFade.Name",
+    hint: "DS_TRIGGERS.Settings.BadgesFade.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
   game.settings.register(MODULE_ID, "badgesInsteadOfStack", {
     name: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Name",
     hint: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Hint",
@@ -390,8 +398,8 @@ const SETTING_HEADERS = {
 };
 
 const HEADER_FALLBACK = { Resources: ["rosterGains"] };
-const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers", "badgesInsteadOfStack"];
-const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers", badgesInsteadOfStack: "tokenBadges" };
+const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers", "badgesFade", "badgesInsteadOfStack"];
+const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers", badgesInsteadOfStack: "tokenBadges", badgesFade: "tokenBadges" };
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
