@@ -156,6 +156,12 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   if (ctx.noObstacleCollisionDamage) detailParts.push(game.i18n.localize("DS_TRIGGERS.Queue.FmDetailNoObstacleCollision"));
   if (ctx.fastMove) detailParts.push(game.i18n.localize("DS_TRIGGERS.Queue.FmDetailFastMove"));
 
+  if (ctx.messageId) {
+    const origKey = String((target.document ?? target)?.uuid ?? "").replace(/\./g, "__");
+    const rowKey = fmSubKey(ctx.fmKey ?? null, origKey, origKey, String(baseType ?? "push").toLowerCase());
+    _pendingFm.get(fmId).rowKey = rowKey;
+    asPrimaryGM("markFmRowHeld", ctx.messageId, rowKey, true);
+  }
   dbg(`fm lock: ${ctx.type} ${ctx.distance} on ${target.name} held by ${matches.length} triggers`);
   enqueueLockEntries(matches, {
     event: "FM_LOCK",
@@ -186,6 +192,7 @@ async function _onResumeFm(fmId, mods) {
   const pending = _pendingFm.get(fmId);
   if (!pending) return;
   _pendingFm.delete(fmId);
+  if (pending.messageId && pending.rowKey) await asPrimaryGM("markFmRowHeld", pending.messageId, pending.rowKey, false);
 
   const before = mods?.deltas ?? [];
   const after = mods?.after ?? [];
@@ -296,12 +303,15 @@ async function _onResumeFm(fmId, mods) {
     ui.notifications.warn(game.i18n.localize(reduced ? "DS_TRIGGERS.Queue.FmStoppedCounter" : "DS_TRIGGERS.Queue.FmStopped"));
     return;
   }
-  pending.resume({
+  const moved = pending.resume({
     distance,
     ...(toSlide ? { type: String(pending.type).replace(/push/i, (w) => (w[0] === "P" ? cap(mods.movement.to) : mods.movement.to)) } : {}),
     ...(mods?.vertical ? { verticalHeight: distance } : {}),
     ...(mods?.objectDamage ? { bonusObjectDmg: pending.bonusObjectDmg + mods.objectDamage } : {}),
   });
+  if (pending.messageId && pending.rowKey) {
+    Promise.resolve(moved).then(() => asPrimaryGM("markFmRowHeld", pending.messageId, pending.rowKey, false, true)).catch(() => {});
+  }
 }
 
 async function _onDriveFmRedirect(payload) {
@@ -627,5 +637,40 @@ Hooks.once("ready", () => {
   s?.register("driveFmRedirect", _onDriveFmRedirect);
   s?.register("applyFmRedirect", _onApplyFmRedirect);
   s?.register("applyFmDeltas", _onApplyFmDeltas);
+  s?.register("markFmRowHeld", _onMarkFmRowHeld);
 });
 
+async function _onMarkFmRowHeld(messageId, rowKey, held, applied = false) {
+  if (!isPrimaryGM()) return;
+  const message = game.messages.get(messageId);
+  if (!message || !rowKey) return;
+  const path = `flags.${DSCT_ID}.dstdFmState.${rowKey}`;
+  if (held) await message.update({ [`${path}.dstHeld`]: true });
+  else if (applied) await message.update({ [`${path}.applied`]: true, [`${path}.-=dstHeld`]: null });
+  else if (foundry.utils.getProperty(message, `${path}.dstHeld`)) await message.update({ [`${path}.-=dstHeld`]: null });
+}
+
+function _markHeldFmRows({ message, root }) {
+  const fm = message.flags?.[DSCT_ID]?.dstdFmState ?? {};
+  for (const row of root.querySelectorAll("[data-dsct-fm-key]")) {
+    const rowKey = row.dataset.dsctFmKey.slice(row.dataset.dsctFmKey.indexOf(":") + 1);
+    if (!fm[rowKey]?.dstHeld) continue;
+    const [apply, ...rest] = [...row.children].filter((c) => c.tagName === "BUTTON");
+    if (!apply) continue;
+    apply.disabled = true;
+    apply.classList.add("dst-dstd-held-btn");
+    const icon = apply.querySelector("i");
+    if (icon && !icon.classList.contains("fa-hourglass-half")) icon.className = "fa-solid fa-hourglass-half";
+    const span = apply.querySelector("span");
+    const label = game.i18n.localize("DS_TRIGGERS.Queue.DstdHeldLabel");
+    if (span && span.textContent !== label) span.textContent = label;
+    apply.dataset.tooltip = game.i18n.localize("DS_TRIGGERS.Queue.FmRowHeldTip");
+    for (const b of rest) b.disabled = true;
+  }
+}
+
+Hooks.once("setup", () => {
+  game.modules.get("draw-steel-ctlib")?.api?.registerPanelDecorator?.({
+    id: "triggers-held-fm", priority: 510, watch: "any", immediate: true, retry: [100, 400], decorate: _markHeldFmRows,
+  });
+});

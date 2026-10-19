@@ -809,6 +809,7 @@
       "Adjusted": "adjusted",
       "Half": "half",
       "DstdHeldLabel": "Triggers Pending",
+      "FmRowHeldTip": "Held on the Trigger Stack while triggered abilities are decided.",
       "WaitingOn": "waiting on {count} more triggers",
       "GraceCountdown": "Resumes in {seconds}s",
       "State": {
