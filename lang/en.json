@@ -623,6 +623,7 @@
       "ReaperSomeone": "Someone",
       "HeldDamageEach": "{entry} each",
       "ChooseTooltip": "This was triggered more than once. Pick which creature it answers, and it is used against them.",
+      "ChooseRandomTooltip": "Target Random",
       "ChoiceCause": "Triggered by {count} creatures. Choose one.",
       "Resolving": "being resolved",
       "Area": "Area",

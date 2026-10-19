@@ -285,6 +285,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     actions: {
       useEntry: StackWindow.#onUse,
       chooseSubject: StackWindow.#onChooseSubject,
+      chooseRandom: StackWindow.#onChooseRandom,
       declineEntry: StackWindow.#onDecline,
       dismissEntry: StackWindow.#onDismiss,
       markVillainUsed: StackWindow.#onMarkVillainUsed,
@@ -389,7 +390,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       rosterOpen: (this._rosterOpen ??= !shown.length),
       maliceChipURI: ctlib()?.resourceTokenURI?.("malice"),
       labels: {
-        use: L("Use"), choose: L("Choose"), chooseTooltip: L("ChooseTooltip"), decline: L("Decline"), dismiss: L("Dismiss"),
+        use: L("Use"), choose: L("Choose"), chooseTooltip: L("ChooseTooltip"), chooseRandomTooltip: L("ChooseRandomTooltip"), decline: L("Decline"), dismiss: L("Dismiss"),
         dismissTooltip: L("DismissTooltip"), empty: L("Empty"),
         markUsed: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsed"),
         markUsedTooltip: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsedTooltip"),
@@ -482,6 +483,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
           fmStopped: e.fmRunning === 0,
           isPending: e.state === "pending",
           isChoosing: !!e.choices?.length,
+          canRandom: new Set((e.choices ?? []).map((c) => c.subjectTokenUuid).filter(Boolean)).size > 1,
           choiceCauseHTML: e.choices?.length ? choiceCauseHTML(e) : null,
           isReaper: e.kind === "reaper",
           isArea: isDamageHeld && !!e.heldDamage?.squad?.areaCap,
@@ -784,7 +786,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   
-  static async #onChooseSubject(event, target) {
+  static async #onChooseSubject(event, target, { random = false } = {}) {
     const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
     if (!entry?.choices?.length || !canActOn(entry)) return;
     if (StackWindow.#gated(event, target)) return;
@@ -793,10 +795,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
       const token = c.subjectTokenUuid ? fromUuidSync(c.subjectTokenUuid)?.object : null;
       if (token && !byToken.has(token.id)) byToken.set(token.id, { token, choice: c });
     }
+    const options = [...byToken.values()];
     let choice = null;
-    if (byToken.size <= 1) choice = [...byToken.values()][0]?.choice ?? entry.choices[0];
+    if (options.length <= 1) choice = options[0]?.choice ?? entry.choices[0];
+    else if (random) choice = options[Math.floor(Math.random() * options.length)].choice;
     else {
-      const picked = await pickTriggerSubject([...byToken.values()].map((v) => v.token),
+      const picked = await pickTriggerSubject(options.map((v) => v.token),
         game.i18n.format("DS_TRIGGERS.Queue.PickChoice", { modName: entry.itemName }));
       choice = picked ? byToken.get(picked.id)?.choice : null;
     }
@@ -807,6 +811,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const chosen = { ...entry, ...fields };
     delete chosen.choices;
     await StackWindow.#useEntry(chosen);
+  }
+
+  static #onChooseRandom(event, target) {
+    return StackWindow.#onChooseSubject(event, target, { random: true });
   }
 
   static #onDecline(_event, target) {
