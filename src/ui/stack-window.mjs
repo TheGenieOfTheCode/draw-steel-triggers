@@ -50,24 +50,34 @@ function heldKeys(e) {
 }
 
 const holdingKeys = (e) => [e.resumeId && `r:${e.resumeId}`, e.resolutionId && `s:${e.resolutionId}`,
+  ...(e.choices ?? []).map((c) => c.resumeId && `r:${c.resumeId}`),
   ...[e.damageId, ...(e.choices ?? []).map((c) => c.damageId)].filter(Boolean).map((id) => `d:${id}`)].filter(Boolean);
 
 function arrangeHolds(entries, isLocked) {
   const blockOf = new Map();
   const blocks = [];
   const reapers = [];
-  const heads = entries.filter((e) => HELD_KINDS.has(e.kind)).map((held) => ({ held, holders: [], at: Infinity }));
-  for (const block of heads) for (const key of heldKeys(block.held)) blockOf.set(key, block);
+  const heads = entries.filter((e) => HELD_KINDS.has(e.kind)).map((held) => ({ helds: [held], holders: [], at: Infinity }));
+  for (const block of heads) for (const key of heldKeys(block.helds[0])) blockOf.set(key, block);
   entries.forEach((e, i) => {
     if (e.kind === "reaper") return reapers.push(e);
     if (HELD_KINDS.has(e.kind)) return;
-    const block = holdingKeys(e).map((k) => blockOf.get(k)).find(Boolean);
-    if (!block) return blocks.push({ holders: [e], at: i });
+    const hit = [...new Set(holdingKeys(e).map((k) => blockOf.get(k)).filter(Boolean))];
+    if (!hit.length) return blocks.push({ holders: [e], helds: [], at: i });
+    const [block, ...others] = hit;
+    for (const other of others) {
+      block.helds.push(...other.helds);
+      block.holders.push(...other.holders);
+      block.at = Math.min(block.at, other.at);
+      other.merged = true;
+      for (const held of other.helds) for (const key of heldKeys(held)) blockOf.set(key, block);
+    }
     block.holders.push(e);
     block.at = Math.min(block.at, i);
   });
   for (const block of heads) {
-    if (block.at === Infinity) block.at = entries.indexOf(block.held);
+    if (block.merged) continue;
+    if (block.at === Infinity) block.at = entries.indexOf(block.helds[0]);
     blocks.push(block);
   }
   const unlockedFirst = (list) => [...list.filter((e) => !isLocked(e)), ...list.filter(isLocked)];
@@ -75,18 +85,22 @@ function arrangeHolds(entries, isLocked) {
   const directorBlock = (b) => !b.holders.some((e) => e.playerSide);
   const ordered = blocks.sort((a, b) => (lockedBlock(a) - lockedBlock(b)) || (directorBlock(a) - directorBlock(b)) || (a.at - b.at));
   const roles = new Map();
+  const maybe = new Set();
   const list = [];
   for (const block of ordered) {
     const holders = unlockedFirst(block.holders);
     list.push(...holders);
-    if (!block.held) continue;
-    if (holders.length) {
+    if (holders.length && block.helds.length) {
+      const choosing = holders.some((h) => h.choices?.length > 1);
       holders.forEach((h) => roles.set(h.id, "holder"));
-      roles.set(block.held.id, "held");
+      for (const held of block.helds) {
+        roles.set(held.id, "held");
+        if (choosing) maybe.add(held.id);
+      }
     }
-    list.push(block.held);
+    list.push(...block.helds);
   }
-  return { list: [...list, ...reapers], roles };
+  return { list: [...list, ...reapers], roles, maybe };
 }
 
 export const tokenOfActor = (uuid) => {
@@ -358,7 +372,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       const base = squadBase(e);
       return !!base && getQueueMirror().some((q) => q.state === "pending" && q.squadChooser === base);
     };
-    const { list: shown, roles: holdRoles } = arrangeHolds(mergeSquadHolds(ordered, getQueueMirror()),
+    const { list: shown, roles: holdRoles, maybe: holdMaybe } = arrangeHolds(mergeSquadHolds(ordered, getQueueMirror()),
       (e) => e.state === "pending" && (isGated(e) || awaitsChoosers(e)));
     const embeds = await Promise.all(shown.map((e) => e.featureLine ? Promise.resolve(featureLinePreview(e.featureLine))
       : e.itemUuid
@@ -409,7 +423,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         const embedHTML = embeds[i];
         const embedOpen = this._openEmbeds?.has(e.id) ?? false;
         const pendingCount = isHeld
-          ? getQueueMirror().filter((q) => q.resumeId === e.resumeId && q.state === "pending").length
+          ? getQueueMirror().filter((q) => q.state === "pending" && (q.resumeId === e.resumeId || q.choices?.some((c) => c.resumeId === e.resumeId))).length
           : isDamageHeld
             ? getQueueMirror().filter((q) => q.state === "pending" && [q.damageId, ...(q.choices ?? []).map((c) => c.damageId)].includes(e.damageId)).length
             : isResolutionHeld
@@ -437,6 +451,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
           ...e,
           chips: UNSIDED_KINDS.has(e.kind) ? [] : impactChips(e, (docs) => faceChain(docs)),
           holdRole: holdRoles.get(e.id) ?? null,
+          holdMaybe: holdMaybe.has(e.id),
           side: side?.side ?? null,
           sideColour: side?.colour ?? null,
           embedHTML,

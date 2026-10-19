@@ -3,7 +3,7 @@
   {{#if entries.length}}
   <ul class="dst-stack-list">
     {{#each entries}}
-    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}{{#if isDamageHeld}} dst-stack-entry--held dst-stack-entry--damage{{/if}}{{#if isResolutionHeld}} dst-stack-entry--held dst-stack-entry--resolution{{/if}}{{#if isReaper}} dst-stack-entry--reaper{{/if}}{{#if side}} dst-stack-entry--{{side}}{{/if}}{{#if holdRole}} dst-hold-{{holdRole}}{{/if}}" data-entry-id="{{id}}"{{#if sideColour}} style="--dst-side: {{sideColour}}"{{/if}}>
+    <li class="dst-stack-entry dst-stack-entry--{{state}}{{#if isHeld}} dst-stack-entry--held{{/if}}{{#if isDamageHeld}} dst-stack-entry--held dst-stack-entry--damage{{/if}}{{#if isResolutionHeld}} dst-stack-entry--held dst-stack-entry--resolution{{/if}}{{#if isReaper}} dst-stack-entry--reaper{{/if}}{{#if side}} dst-stack-entry--{{side}}{{/if}}{{#if holdRole}} dst-hold-{{holdRole}}{{/if}}{{#if holdMaybe}} dst-hold-maybe{{/if}}" data-entry-id="{{id}}"{{#if sideColour}} style="--dst-side: {{sideColour}}"{{/if}}>
       {{#if isReaper}}
       <div class="dst-stack-eyebrow">
         <i class="fa-solid fa-skull dst-stack-held-icon"></i>

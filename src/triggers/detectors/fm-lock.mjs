@@ -111,6 +111,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
     m._fmChar = mod.char ?? null;
     m._fmAmount = mod.amount ?? null;
     m._fmPerSurge = mod.perSurge ?? null;
+    m._fmTargetUuid = (target.document ?? target)?.uuid ?? null;
   }
   if (!matches.length) return;
 
@@ -627,3 +628,4 @@ Hooks.once("ready", () => {
   s?.register("applyFmRedirect", _onApplyFmRedirect);
   s?.register("applyFmDeltas", _onApplyFmDeltas);
 });
+

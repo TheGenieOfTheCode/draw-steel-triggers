@@ -215,6 +215,7 @@ function _ensureDecisionTicker() {
 }
 
 function _mergeFamily(e) {
+  if (!e.kind && !e.villain && e.lock && e.resumeId && (e.subjectTokenUuid || e.fmTargetUuid)) return `lock:${e.event}`;
   if (e.kind || e.villain || e.resumeId || e.resolutionId) return null;
   if (e.damageId) return "damage";
   if (e.promptId) return "prompt";
@@ -223,7 +224,8 @@ function _mergeFamily(e) {
 
 const _asChoice = (e) => ({
   key: e.id,
-  subjectTokenUuid: e.subjectTokenUuid ?? null,
+  subjectTokenUuid: e.subjectTokenUuid ?? e.fmTargetUuid ?? null,
+  ...(e.resumeId ? { resumeId: e.resumeId, resume: e.resume ?? null } : {}),
   causeLabel: e.causeLabel ?? "",
   damageId: e.damageId ?? null,
   heldDamage: e.heldDamage ?? null,
@@ -244,6 +246,16 @@ function _takeChoice(entry, choice) {
   const { key, ...fields } = choice;
   Object.assign(entry, fields);
   delete entry.choices;
+}
+
+const _holdsResume = (q, resumeId) => q.state === "pending" && (q.resumeId === resumeId || !!q.choices?.some((c) => c.resumeId === resumeId));
+
+function _releaseUnheld(resumeIds, keep = null) {
+  for (const resumeId of new Set(resumeIds)) {
+    if (!resumeId || resumeId === keep || _queue.some((q) => _holdsResume(q, resumeId))) continue;
+    dbg(`releasing held ${resumeId}: no trigger holds it any more`);
+    _fireResume(resumeId);
+  }
 }
 
 const _choiceIds = (e, field) => [e[field], ...(e.choices ?? []).map((c) => c[field])].filter(Boolean);
@@ -303,6 +315,7 @@ function _onQueueAdd(entries) {
   if (!isPrimaryGM()) return;
 
   const fresh = [];
+  const orphaned = [];
   let merged = false;
   for (const e of entries) {
     if (_splitSquadChooser(e, fresh)) {
@@ -321,7 +334,10 @@ function _onQueueAdd(entries) {
       merged = true;
       continue;
     }
-    if (!e.damageId && !e.resolutionId && _queue.some((q) => _sameSource(q, e) && q.state === "pending")) continue;
+    if (!e.damageId && !e.resolutionId && _queue.some((q) => _sameSource(q, e) && q.state === "pending")) {
+      if (e.resumeId && !e.kind) orphaned.push(e.resumeId);
+      continue;
+    }
     fresh.push(e);
   }
   if (!fresh.length) {
@@ -348,6 +364,7 @@ function _onQueueAdd(entries) {
   }
   _queue.push(...fresh);
   dbg("queue add", fresh);
+  if (orphaned.length) _releaseUnheld(orphaned);
   _broadcast();
   const now = fresh.filter((e) => !e.squadBatch);
   if (now.length) Hooks.callAll("dst.queueAdded", now);
@@ -473,6 +490,8 @@ async function _onQueueResolve(id, outcome, userName) {
   if (entry.gain) resolveStackGain(entry, outcome);
 
   if (outcome === "declined" && !entry.villain && !entry.gain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName, lineMandatory(entry.featureLine));
+
+  if (entry.choices?.some((c) => c.resumeId)) _releaseUnheld(entry.choices.map((c) => c.resumeId), entry.resumeId);
 
   if (entry.resumeId) {
     const stillLocked = _queue.some((e) => e.resumeId === entry.resumeId && e.state === "pending");
@@ -1820,6 +1839,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmPerSurge: m._fmPerSurge ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     subjectTokenUuids: m._subjectTokenUuids ?? null,
+    fmTargetUuid: m._fmTargetUuid ?? null,
     villain: m._villain ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
     lock: true,
@@ -2116,6 +2136,7 @@ function _onQueueChoose(id, key) {
   for (const damageId of new Set(dropped.map((c) => c.damageId).filter(Boolean))) {
     if (damageId !== entry.damageId && _damageHolds.has(damageId) && !_groupPending("damageId", damageId)) _completeDamageGroup(damageId);
   }
+  _releaseUnheld(dropped.map((c) => c.resumeId), entry.resumeId);
   _broadcast();
   return result;
 }

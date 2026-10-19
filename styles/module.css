@@ -443,7 +443,25 @@
 
 .dst-stack .dst-hold-held.dst-stack-entry--damage { --dst-hold-line: rgba(196, 74, 74, 0.75); }
 
-.dst-stack .dst-hold-holder + .dst-hold-holder { margin-top: -2px; }
+.dst-stack .dst-hold-holder + .dst-hold-holder,
+.dst-stack .dst-hold-held + .dst-hold-held { margin-top: -2px; }
+
+.dst-stack .dst-hold-held:has(+ .dst-hold-held)::after {
+  height: auto;
+  bottom: -9px;
+  border-bottom: none;
+  border-bottom-left-radius: 0;
+  background: linear-gradient(var(--dst-hold-line), var(--dst-hold-line)) no-repeat 0 calc(50% - 4px) / 100% 2px;
+}
+
+.dst-stack .dst-hold-held.dst-hold-maybe::after {
+  border-left-style: dotted;
+  border-bottom-style: dotted;
+}
+
+.dst-stack .dst-hold-held.dst-hold-maybe:has(+ .dst-hold-held)::after {
+  background: repeating-linear-gradient(to right, var(--dst-hold-line) 0 2px, transparent 2px 4px) no-repeat 0 calc(50% - 4px) / 100% 2px;
+}
 
 .dst-stack .dst-hold-held::after {
   content: "";
