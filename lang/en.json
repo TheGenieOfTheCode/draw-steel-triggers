@@ -189,7 +189,7 @@
       },
       "TokenBadges": {
         "Name": "Trigger Badges on Tokens",
-        "Hint": "When a token gets a trigger, a badge pops up over it for a few seconds. Click it to open the Trigger Stack at that trigger."
+        "Hint": "When a token gets a trigger, a badge shows over it, with a count when more than one is waiting. Click it to open the Trigger Stack at that trigger."
       },
       "BadgesFade": {
         "Name": "Fade Trigger Badges",
