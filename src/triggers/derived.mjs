@@ -76,14 +76,35 @@ if (strikes.length > 1) {
 }
 return ds.helpers.macros.rollItemMacro(pick.uuid);`;
 
+const ownMacro = (m) => !!(m.getFlag(MODULE_ID, "useMacro") || m.getFlag(MODULE_ID, "freeStrike"));
+const _creating = new Map();
+
+function createOnce(key, create) {
+  if (!_creating.has(key)) _creating.set(key, create().finally(() => _creating.delete(key)));
+  return _creating.get(key);
+}
+
+function macroFolder() {
+  const found = game.folders.find((f) => f.type === "Macro" && f.getFlag(MODULE_ID, "macroFolder"));
+  if (found || !game.user.isGM) return Promise.resolve(found ?? null);
+  return createOnce("folder", () => Folder.implementation.create({ name: game.i18n.localize("DS_TRIGGERS.MacroFolder"), type: "Macro", flags: { [MODULE_ID]: { macroFolder: true } } }));
+}
+
+async function fileMacros() {
+  const loose = game.macros.filter((m) => ownMacro(m) && !m.folder);
+  if (!loose.length) return;
+  const folder = await macroFolder();
+  if (folder) await Macro.implementation.updateDocuments(loose.map((m) => ({ _id: m.id, folder: folder.id })));
+}
+
 async function ensureStrikeMacro(source, line) {
   if (!String(line.effect ?? "").match(FREE_STRIKE)) return null;
   let macro = game.macros.find((m) => m.getFlag(MODULE_ID, "freeStrike")) ?? null;
   if (!macro && game.user.isGM) {
-    macro = await Macro.implementation.create({
-      name: game.i18n.localize("DS_TRIGGERS.FreeStrike.Macro"), type: "script", img: "icons/skills/melee/strike-sword-steel-yellow.webp",
+    macro = await createOnce("freeStrike", async () => Macro.implementation.create({
+      name: game.i18n.localize("DS_TRIGGERS.FreeStrike.Macro"), type: "script", img: "icons/skills/melee/strike-sword-steel-yellow.webp", folder: (await macroFolder())?.id ?? null,
       command: STRIKE_COMMAND, ownership: { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED }, flags: { [MODULE_ID]: { freeStrike: true } },
-    });
+    }));
   } else if (macro && game.user.isGM && macro.command !== STRIKE_COMMAND) await macro.update({ command: STRIKE_COMMAND });
   return macro;
 }
@@ -119,16 +140,17 @@ const THIS_ABILITY = /(?<=\buses? )this ability\b|\b(?:mark|judge) a new target\
 const useCommand = (source) => `ds.helpers.macros.rollItemMacro("${source.uuid}");`;
 
 async function ensureUseMacro(source) {
+  if (source.actor?.isToken) source = game.actors.get(source.actor.id)?.items.get(source.id) ?? source;
   const LIMITED = CONST.DOCUMENT_OWNERSHIP_LEVELS.LIMITED;
   const owners = game.users.filter((u) => !u.isGM && source.actor?.testUserPermission(u, "OWNER")).map((u) => u.id);
   let macro = game.macros.find((m) => m.command === useCommand(source)) ?? null;
   if (!macro) {
     if (!game.user.can("MACRO_SCRIPT")) return null;
-    macro = await Macro.implementation.create({
-      name: source.name, type: "script", img: source.img, command: useCommand(source),
+    macro = await createOnce(useCommand(source), async () => Macro.implementation.create({
+      name: source.name, type: "script", img: source.img, command: useCommand(source), folder: (await macroFolder())?.id ?? null,
       ...(game.user.isGM ? { ownership: { default: 0, ...Object.fromEntries(owners.map((id) => [id, LIMITED])) } } : {}),
       flags: { "draw-steel": { itemMacro: true }, [MODULE_ID]: { useMacro: true } },
-    });
+    }));
     if (!macro) return null;
   }
   const missing = owners.filter((id) => (macro.ownership[id] ?? macro.ownership.default ?? 0) < LIMITED);
@@ -139,6 +161,51 @@ async function ensureUseMacro(source) {
   }
   return macro;
 }
+
+const USE_TARGET = /rollItemMacro\("([^"]+)"\)/;
+
+function useTargetAlive(uuid) {
+  const parts = uuid.split(".");
+  if (parts[0] !== "Scene") return !!fromUuidSync(uuid);
+  const token = fromUuidSync(parts.slice(0, 4).join("."));
+  return !!token?.actor?.items.get(parts.at(-1));
+}
+
+export async function pruneUseMacros() {
+  if (!isPrimaryGM()) return 0;
+  const dead = game.macros.filter((m) => {
+    if (!m.getFlag(MODULE_ID, "useMacro")) return false;
+    const uuid = m.command?.match(USE_TARGET)?.[1];
+    return !uuid || !useTargetAlive(uuid);
+  }).map((m) => m.id);
+  const kept = new Set();
+  const extra = [];
+  const strikes = game.macros.filter((m) => m.getFlag(MODULE_ID, "freeStrike"));
+  const strike = strikes.find((m) => m.command === STRIKE_COMMAND) ?? strikes[0];
+  for (const m of strikes) if (m !== strike) extra.push(m.id);
+  for (const m of game.macros) {
+    if (!m.getFlag(MODULE_ID, "useMacro") || dead.includes(m.id)) continue;
+    if (kept.has(m.command)) extra.push(m.id);
+    else kept.add(m.command);
+  }
+  const gone = [...dead, ...extra];
+  if (gone.length) await Macro.implementation.deleteDocuments(gone);
+  if (gone.length) dbg(`removed ${dead.length} use macros whose ability is gone and ${extra.length} duplicates`);
+  if (extra.length) refreshDerived();
+  return gone.length;
+}
+
+let _pruneTimer = null;
+const queuePrune = () => {
+  clearTimeout(_pruneTimer);
+  _pruneTimer = setTimeout(() => pruneUseMacros().catch((err) => console.warn(`${MODULE_ID} | use macro cleanup failed`, err)), 1000);
+};
+Hooks.once("ready", () => {
+  queuePrune();
+  if (isPrimaryGM()) fileMacros().catch((err) => console.warn(`${MODULE_ID} | filing macros failed`, err));
+});
+for (const hook of ["deleteActor", "deleteToken", "deleteScene"]) Hooks.on(hook, queuePrune);
+Hooks.on("deleteItem", (item) => { if (item.type === "ability" && item.parent?.documentName === "Actor") queuePrune(); });
 
 async function grantUseMacro(uuid, ownership) {
   const macro = await fromUuid(uuid);

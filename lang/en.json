@@ -922,6 +922,7 @@
       "Title": "Which free strike?",
       "None": "Select a token with a free strike first."
     },
+    "MacroFolder": "Draw Steel: Triggers",
     "AbilityUse": {
       "Description": "Draw Steel: Triggers watches this ability's triggers until {until}. Disable or delete this effect to stop them.",
       "DescriptionDying": "Draw Steel: Triggers watches this ability's triggers until {until}, or until you are dying. Disable or delete this effect to stop them.",
