@@ -2,6 +2,7 @@ import { MODULE_ID, getSetting, isPrimaryGM } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
 import { abilityRowsHTML, cardContent, cardPill, postSystemCard, withFaces } from "../ui/system-card.mjs";
+import { neutralizeStatusLinks } from "../ui/ability-preview.mjs";
 
 export const BASIC_MALICE = {
   "brutal-effectiveness": "Compendium.draw-steel.monster-features.Item.GpKibCtEYzdsnGSX",
@@ -155,7 +156,7 @@ export async function sendMaliceCard(matches, subjectActor, { causeLabel = "", p
     pills: [malicePill(m.item)],
     action: !!m.item.system.type && m.item.system.type !== "none",
     attrs: { "data-malice-cost": Number(m.item.system.resource) || 0, "data-malice-key": maliceKey(m.item) },
-  })));
+  }))).then(neutralizeStatusLinks);
   const head = `<div class="dst-malice-head">
     <span class="dst-malice-title">${esc(L("Header"))}</span>
     <button type="button" class="dst-malice-avail" data-tooltip="${esc(L("AvailableTip"))}">
