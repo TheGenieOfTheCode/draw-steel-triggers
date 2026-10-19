@@ -121,6 +121,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
     origTargetUuid: (target.document ?? target)?.uuid ?? null,
     sourceTokenId: source?.id ?? null, at: Date.now(),
     messageId: ctx.messageId ?? null,
+    fmKey: ctx.fmKey ?? null,
     baseDistance, baseType, passiveApplied,
     lineIds: found.map(lineId),
     moveBase: {
@@ -216,6 +217,7 @@ async function _onResumeFm(fmId, mods) {
       origTargetTokenId: pending.targetTokenId,
       origTargetUuid: pending.origTargetUuid,
       messageId: pending.messageId,
+      fmKey: pending.fmKey ?? null,
       moveBase: pending.moveBase,
     };
     if (mods.redirect.driveUserId && mods.redirect.driveUserId !== game.user.id) {
@@ -254,6 +256,7 @@ async function _onResumeFm(fmId, mods) {
     const payload = {
       messageId: pending.messageId,
       origTargetUuid: pending.origTargetUuid,
+      fmKey: pending.fmKey ?? null,
       distance: pending.baseDistance ?? pending.distance,
       moveBase: pending.moveBase,
       deltas: [
@@ -345,6 +348,7 @@ async function _onDriveFmRedirect(payload) {
     asPrimaryGM("applyFmDeltas", {
       messageId: payload.messageId,
       origTargetUuid: payload.origTargetUuid,
+      fmKey: payload.fmKey ?? null,
       moveBase: payload.moveBase,
 
       
@@ -381,6 +385,7 @@ async function _onDriveFmRedirect(payload) {
       amount: Number(payload.amount) || 0,
       carried: payload.carried ?? [],
       after: payload.after ?? [],
+      fmKey: payload.fmKey ?? null,
       moveBase: payload.moveBase,
     });
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectApplied", {
@@ -397,6 +402,9 @@ async function _onDriveFmRedirect(payload) {
     sourceId: ownerToken.id, targetId: picked.id,
   });
 }
+
+const fmSubKey = (fmKey, origKey, targetKey, movement) => (fmKey && fmKey.startsWith(`${origKey}:`)
+  ? `${targetKey}${fmKey.slice(origKey.length)}` : `${targetKey}:${movement}`);
 
 function _baseModState(base) {
   return {
@@ -423,7 +431,7 @@ async function _onApplyFmDeltas(payload) {
 
   const modState = _baseModState(payload.moveBase ?? {});
   const origKey = String(payload.origTargetUuid ?? "").replace(/\./g, "__");
-  const origSubKey = `${origKey}:${modState.movement}`;
+  const origSubKey = fmSubKey(payload.fmKey, origKey, origKey, modState.movement);
   const allFm = foundry.utils.getProperty(message.flags, `${DSCT_ID}.dstdFmState`) ?? {};
 
   
@@ -470,7 +478,7 @@ async function _onApplyFmDeltas(payload) {
     noteTargetsChange(payload.messageId, targets.map((t) => String(t.tokenUuid ?? t.actorUuid ?? "")));
 
     const newKey = String(c.newTarget.tokenUuid ?? c.newTarget.actorUuid ?? "").replace(/\./g, "__");
-    const newSubKey = `${newKey}:${modState.movement}`;
+    const newSubKey = fmSubKey(payload.fmKey, origKey, newKey, modState.movement);
     const newExisting = allFm[newSubKey] ? foundry.utils.deepClone(allFm[newSubKey]) : null;
 
     
@@ -526,8 +534,8 @@ async function _onApplyFmRedirect(payload) {
   const modState = _baseModState(payload.moveBase ?? {});
   const newTargetKey = String(payload.newTarget.tokenUuid ?? payload.newTarget.actorUuid ?? "").replace(/\./g, "__");
   const origTargetKey = String(payload.origTargetUuid ?? "").replace(/\./g, "__");
-  const subKey = `${newTargetKey}:${modState.movement}`;
-  const origSubKey = `${origTargetKey}:${modState.movement}`;
+  const subKey = fmSubKey(payload.fmKey, origTargetKey, newTargetKey, modState.movement);
+  const origSubKey = fmSubKey(payload.fmKey, origTargetKey, origTargetKey, modState.movement);
   const allFm = foundry.utils.getProperty(message.flags, `${DSCT_ID}.dstdFmState`) ?? {};
 
   
