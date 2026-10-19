@@ -27,6 +27,20 @@ export function sideOf(entry) {
 }
 
 const HELD_KINDS = new Set(["held", "damageHeld", "resolutionHeld"]);
+const MOMENT_GAP_MS = 2000;
+
+function momentsOf(entries) {
+  const sorted = [...entries].filter((e) => Number.isFinite(e.createdAt)).sort((a, b) => a.createdAt - b.createdAt);
+  const out = new Map();
+  let moment = -1;
+  let last = -Infinity;
+  for (const e of sorted) {
+    if (e.createdAt - last > MOMENT_GAP_MS) moment++;
+    last = e.createdAt;
+    out.set(e.id, moment);
+  }
+  return out;
+}
 
 function heldKeys(e) {
   if (e.kind === "held") return e.resumeId ? [`r:${e.resumeId}`] : [];
@@ -334,8 +348,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
       if (groupKey(a) && groupKey(a) === groupKey(b)) return (b.playerSide ? 1 : 0) - (a.playerSide ? 1 : 0);
       return 0;
     });
-    const isGated = (e) => !e.playerSide && !isHeldKind(e) && groupKey(e)
-      && getQueueMirror().some((q) => !isHeldKind(q) && groupKey(q) === groupKey(e) && q.playerSide && q.state === "pending");
+    const moments = momentsOf(getQueueMirror().filter((q) => !isHeldKind(q) && q.kind !== "reaper"));
+    const gateKeys = (e) => [groupKey(e), ...(e.choices ?? []).map((c) => c.promptId ?? c.damageId ?? null)].filter(Boolean);
+    const isGated = (e) => !e.playerSide && !isHeldKind(e) && e.kind !== "reaper"
+      && getQueueMirror().some((q) => !isHeldKind(q) && q.playerSide && q.state === "pending"
+        && ((moments.get(q.id) != null && moments.get(q.id) === moments.get(e.id)) || gateKeys(e).includes(groupKey(q))));
     const awaitsChoosers = (e) => {
       if (e.choices?.length || e.squadChooser) return false;
       const base = squadBase(e);
