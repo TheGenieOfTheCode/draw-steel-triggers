@@ -6,7 +6,7 @@ import { postFeatureCard } from "../ui/feature-card.mjs";
 import { noteFeatureLineUse } from "./feature-triggers.mjs";
 import { startCountdown } from "./countdowns.mjs";
 import { setTriggeredActionSpent } from "./spent-tracking.mjs";
-import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
+import { openDamageModWindow, damagePillType, foldDamagePills } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares, flankingAllyOf, groupMatches, isMinionActor } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
@@ -1066,12 +1066,14 @@ async function _settleDamageHold(hold) {
     });
   }
 
-  const outcome = await openDamageModWindow({
-    title: F("HeldDamageTitle", { name: actor?.name ?? "" }),
-    hint: `${F("HeldDamageHint", { amount: amountLabel })}${mitigationNote}`,
-    base,
-    pills: seedPills,
-  });
+  const outcome = seedPills.length && getSetting("skipHeldDamageWindow") !== false
+    ? { final: foldDamagePills(base, seedPills), pills: seedPills }
+    : await openDamageModWindow({
+      title: F("HeldDamageTitle", { name: actor?.name ?? "" }),
+      hint: `${F("HeldDamageHint", { amount: amountLabel })}${mitigationNote}`,
+      base,
+      pills: seedPills,
+    });
   const result = outcome ? (cap ? Math.min(Number(outcome.final), cap) : outcome.final) : null;
 
   if (result != null && Number(result) >= 0 && hold.dstd?.messageId && hold.dstd?.opId) {

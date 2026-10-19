@@ -16,6 +16,19 @@ export function damagePillType(pills) {
   return found;
 }
 
+export function foldDamagePills(base, pills = []) {
+  const api = _dsctDamageApi();
+  if (api?.fold) return api.fold(base, pills);
+  let v = Number(base) || 0;
+  for (const p of pills) {
+    if (p.enabled === false) continue;
+    if (p.kind === "half") v = Math.floor(v / 2);
+    else if (p.kind === "double") v *= 2;
+    else if (p.kind === "delta") v = Math.max(0, v + (Number(p.value) || 0));
+  }
+  return Math.max(0, v);
+}
+
 export async function openDamageModWindow({ title, hint = "", base, pills = [], surge = null }) {
   const api = _dsctDamageApi();
   if (api) return api.open({ title, hint, base, pills, surge });

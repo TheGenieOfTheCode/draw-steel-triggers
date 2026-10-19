@@ -122,6 +122,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "skipHeldDamageWindow", {
+    name: "DS_TRIGGERS.Settings.SkipHeldDamageWindow.Name",
+    hint: "DS_TRIGGERS.Settings.SkipHeldDamageWindow.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
   game.settings.register(MODULE_ID, "autoUseMandatory", {
     name: "DS_TRIGGERS.Settings.AutoUseMandatory.Name",
     hint: "DS_TRIGGERS.Settings.AutoUseMandatory.Hint",

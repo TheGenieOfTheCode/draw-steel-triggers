@@ -231,6 +231,10 @@
         "Name": "Skip Empty Ability Dialogs",
         "Hint": "Using a trigger from the stack skips the ability's dialog when it has no power roll, no resource to spend and no damage type to pick."
       },
+      "SkipHeldDamageWindow": {
+        "Name": "Skip the Held Damage Window",
+        "Hint": "When the stack's triggers already change held damage, such as halving it, apply the result straight away instead of opening the damage window."
+      },
       "AutoUseMandatory": {
         "Name": "Automatically Use Mandatory Costless Triggers",
         "Hint": "Triggers that always happen and cost nothing, such as damage bonuses and changes to forced movement or falls, apply on their own. When off, they wait on the Trigger Stack like any other."
