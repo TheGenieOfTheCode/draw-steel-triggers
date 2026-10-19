@@ -116,6 +116,7 @@ const EFFECT_TARGETS = [
   [/\b(?:that|the triggering|the) enem(?:y|ies)\b/i, "ENEMY"],
   [/\b(?:that|the triggering) all(?:y|ies)\b/i, "ALLY"],
   [/\b(?:that|the triggering) creatures?\b/i, null],
+  [/\b(?:push|pull|slide|knock|taunt|frighten|grab|strike|attack)(?:es|s)? (?:them|it)\b/i, null],
 ];
 
 function reachOf(parse, effect = "") {

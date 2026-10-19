@@ -852,14 +852,16 @@ function aimOf(m, subjectToken, ctx) {
   if (m.item.system?.distance?.type === "burst" || m.item.flags?.["draw-steel-combat-tools"]?.areaFilter?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
   if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b|\bon you or (?:another|one) (?:creature|ally)\b/.test(effect)) return "";
-  const namesOther = /\b(?:that creature|the triggering creature|that enemy|that target|the target)\b/.test(effect);
+  const namesOther = /\b(?:that creature|the triggering creature|that enemy|that target|the target)\b/.test(effect)
+    || /\b(?:push|pull|slide|knock|taunt|frighten|grab|strike|attack)(?:es|s)? (?:them|it)\b/.test(effect);
   if (/^(?:you|the self)\b/.test(effect) && !(namesOther && /^(?:you|the self) (?:can|may)\b/.test(effect))) return tokenUuidOf(ownTokenOf(m.actor));
   if (!namesOther && !/^(?:they|it|that (?:enemy|creature|ally|target)|the (?:enemy|creature|target|triggering creature))\b/.test(effect)) return null;
   if (m.clause?.through && ctx.throughToken) return tokenUuidOf(ctx.throughToken);
   const subject = tokenUuidOf(subjectToken);
   if (subject && (subject !== tokenUuidOf(ownTokenOf(m.actor)) || m.clause?.scope !== "SELF")) return subject;
-  if (ctx.victimToken) return tokenUuidOf(ctx.victimToken);
+  if (ctx.victimToken && tokenUuidOf(ctx.victimToken) !== tokenUuidOf(ownTokenOf(m.actor))) return tokenUuidOf(ctx.victimToken);
   if (ctx.dealerToken) return tokenUuidOf(ctx.dealerToken);
+  if (ctx.victimToken) return tokenUuidOf(ctx.victimToken);
   const source = ctx.sourceActorUuids?.map((uuid) => fromUuidSync(uuid)).find(Boolean);
   return source ? tokenUuidOf(ownTokenOf(source)) ?? "" : "";
 }
