@@ -187,6 +187,10 @@
         "Name": "Resources UI Sync",
         "Hint": "Mark each gain as used in Draw Steel - Resources UI, and let its undo button take a gain back."
       },
+      "TokenBadges": {
+        "Name": "Trigger Badges on Tokens",
+        "Hint": "When a token gets a trigger, a badge pops up over it for a few seconds. Click it to open the Trigger Stack at that trigger."
+      },
       "RosterGains": {
         "Name": "Resource Gains in the Trigger List",
         "Hint": "List each hero's heroic resource gains in the Trigger Stack's trigger list, so you can snooze them like any other trigger."

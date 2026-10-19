@@ -13,7 +13,68 @@ const CTLIB_ID = "draw-steel-ctlib";
 
 const ctlib = () => (game.modules.get(CTLIB_ID)?.active ? game.modules.get(CTLIB_ID).api : null);
 
-const tokenOfActor = (uuid) => {
+const UNSIDED_KINDS = new Set(["held", "damageHeld", "resolutionHeld", "reaper", "redirect"]);
+const colourOf = (user) => user?.color?.css ?? (user?.color ? String(user.color) : null);
+
+export function sideOf(entry) {
+  if (UNSIDED_KINDS.has(entry.kind)) return null;
+  if (!entry.playerSide) return { side: "director", colour: colourOf(game.users.activeGM ?? game.users.find((u) => u.isGM)) };
+  const actor = entry.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
+  const players = actor ? game.users.filter((u) => !u.isGM && actor.testUserPermission(u, "OWNER")) : [];
+  const player = players.find((u) => u.character === actor) ?? players.find((u) => u.active) ?? players[0];
+  return { side: "hero", colour: colourOf(player) };
+}
+
+const HELD_KINDS = new Set(["held", "damageHeld", "resolutionHeld"]);
+
+function heldKeys(e) {
+  if (e.kind === "held") return e.resumeId ? [`r:${e.resumeId}`] : [];
+  if (e.kind === "damageHeld") return (e.damageIds ?? [e.damageId]).filter(Boolean).map((id) => `d:${id}`);
+  if (e.kind === "resolutionHeld") return e.resolutionId ? [`s:${e.resolutionId}`] : [];
+  return [];
+}
+
+const holdingKeys = (e) => [e.resumeId && `r:${e.resumeId}`, e.resolutionId && `s:${e.resolutionId}`,
+  ...[e.damageId, ...(e.choices ?? []).map((c) => c.damageId)].filter(Boolean).map((id) => `d:${id}`)].filter(Boolean);
+
+function arrangeHolds(entries, isLocked) {
+  const blockOf = new Map();
+  const blocks = [];
+  const reapers = [];
+  const heads = entries.filter((e) => HELD_KINDS.has(e.kind)).map((held) => ({ held, holders: [], at: Infinity }));
+  for (const block of heads) for (const key of heldKeys(block.held)) blockOf.set(key, block);
+  entries.forEach((e, i) => {
+    if (e.kind === "reaper") return reapers.push(e);
+    if (HELD_KINDS.has(e.kind)) return;
+    const block = holdingKeys(e).map((k) => blockOf.get(k)).find(Boolean);
+    if (!block) return blocks.push({ holders: [e], at: i });
+    block.holders.push(e);
+    block.at = Math.min(block.at, i);
+  });
+  for (const block of heads) {
+    if (block.at === Infinity) block.at = entries.indexOf(block.held);
+    blocks.push(block);
+  }
+  const unlockedFirst = (list) => [...list.filter((e) => !isLocked(e)), ...list.filter(isLocked)];
+  const lockedBlock = (b) => b.holders.length > 0 && b.holders.every(isLocked);
+  const directorBlock = (b) => !b.holders.some((e) => e.playerSide);
+  const ordered = blocks.sort((a, b) => (lockedBlock(a) - lockedBlock(b)) || (directorBlock(a) - directorBlock(b)) || (a.at - b.at));
+  const roles = new Map();
+  const list = [];
+  for (const block of ordered) {
+    const holders = unlockedFirst(block.holders);
+    list.push(...holders);
+    if (!block.held) continue;
+    if (holders.length) {
+      holders.forEach((h) => roles.set(h.id, "holder"));
+      roles.set(block.held.id, "held");
+    }
+    list.push(block.held);
+  }
+  return { list: [...list, ...reapers], roles };
+}
+
+export const tokenOfActor = (uuid) => {
   const actor = uuid ? fromUuidSync(uuid) : null;
   if (!actor) return null;
   if (actor.token) return actor.token;
@@ -272,7 +333,6 @@ export class StackWindow extends ds.applications.api.DSApplication {
       if (groupKey(a) && groupKey(a) === groupKey(b)) return (b.playerSide ? 1 : 0) - (a.playerSide ? 1 : 0);
       return 0;
     });
-    const shown = mergeSquadHolds(ordered, getQueueMirror());
     const isGated = (e) => !e.playerSide && !isHeldKind(e) && groupKey(e)
       && getQueueMirror().some((q) => !isHeldKind(q) && groupKey(q) === groupKey(e) && q.playerSide && q.state === "pending");
     const awaitsChoosers = (e) => {
@@ -280,6 +340,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
       const base = squadBase(e);
       return !!base && getQueueMirror().some((q) => q.state === "pending" && q.squadChooser === base);
     };
+    const { list: shown, roles: holdRoles } = arrangeHolds(mergeSquadHolds(ordered, getQueueMirror()),
+      (e) => e.state === "pending" && (isGated(e) || awaitsChoosers(e)));
     const embeds = await Promise.all(shown.map((e) => e.featureLine ? Promise.resolve(featureLinePreview(e.featureLine))
       : e.itemUuid
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
@@ -352,8 +414,12 @@ export class StackWindow extends ds.applications.api.DSApplication {
         }
 
         
+        const side = sideOf(e);
         return {
           ...e,
+          holdRole: holdRoles.get(e.id) ?? null,
+          side: side?.side ?? null,
+          sideColour: side?.colour ?? null,
           embedHTML,
           embedOpen,
           iconSrc: item?.img ?? null,
@@ -426,7 +492,53 @@ export class StackWindow extends ds.applications.api.DSApplication {
     };
   }
 
+  async _preRender(context, options) {
+    await super._preRender(context, options);
+    const list = this.element?.querySelector(".dst-stack");
+    if (list) this._stackScroll = list.scrollTop;
+    const rows = [...(this.element?.querySelectorAll(".dst-stack-list > .dst-stack-entry[data-entry-id]") ?? [])];
+    this._oldRows = rows.map((row, i) => ({ row, id: row.dataset.entryId, after: rows.slice(i + 1).map((r) => r.dataset.entryId),
+      height: row.offsetHeight, ghost: row.classList.contains("dst-stack-entry--leaving") }));
+  }
+
+  _funnelOut() {
+    const OUT_MS = 280;
+    const STAGGER_MS = 70;
+    const old = this._oldRows ?? [];
+    this._oldRows = null;
+    const list = this.element.querySelector(".dst-stack-list");
+    const live = new Set([...this.element.querySelectorAll(".dst-stack-entry[data-entry-id]")].map((r) => r.dataset.entryId));
+    const leaving = old.filter((o) => !live.has(o.id));
+    if (!leaving.length || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const host = list ?? this.element.querySelector(".dst-stack")?.insertAdjacentElement("afterbegin", Object.assign(document.createElement("ul"), { className: "dst-stack-list dst-stack-list--ghosts" }));
+    if (!host) return;
+    const gap = parseFloat(getComputedStyle(host).rowGap) || 0;
+    const place = (o) => {
+      const anchor = o.after.map((id) => host.querySelector(`:scope > .dst-stack-entry[data-entry-id="${CSS.escape(id)}"]`)).find(Boolean);
+      host.insertBefore(o.row, anchor ?? null);
+    };
+    for (const o of leaving.filter((o) => o.ghost)) place(o);
+    const anims = leaving.filter((o) => !o.ghost).map((o, i) => {
+      const ghost = o.row;
+      ghost.classList.add("dst-stack-entry--leaving");
+      ghost.inert = true;
+      place(o);
+      return ghost.animate([
+        { opacity: 1, transform: "none", height: `${o.height}px`, marginBottom: "0px", clipPath: "inset(0 0 0 0 round 6px)" },
+        { opacity: 0, transform: "translateY(-10px) scale(0.96)", height: "0px", paddingTop: "0px", paddingBottom: "0px", borderWidth: "0px",
+          marginBottom: `${-gap}px`, clipPath: "inset(0 0 100% 0 round 6px)" },
+      ], { duration: OUT_MS, delay: i * STAGGER_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "forwards" }).finished
+        .catch(() => {}).finally(() => ghost.remove());
+    });
+    Promise.all(anims).then(() => {
+      if (!list) host.remove();
+      if (this.rendered && !this._userSized) this.setPosition({ height: "auto" });
+    });
+  }
+
   _onRender(_context, _options) {
+    const list = this.element.querySelector(".dst-stack");
+    if (list && this._stackScroll) list.scrollTop = this._stackScroll;
     
     
     
@@ -480,6 +592,9 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this._fitRoster();
 
     ctlib()?.activateFaces?.(this.element);
+    this._funnelIn();
+    this._funnelOut();
+    if (this._focusId) this._focusEntry(this._focusId);
     this._openEmbeds ??= new Set();
     for (const toggle of this.element.querySelectorAll(".dst-stack-embed-toggle")) {
       toggle.addEventListener("click", () => {
@@ -519,6 +634,55 @@ export class StackWindow extends ds.applications.api.DSApplication {
     if (this.element.querySelector("[data-grace-until], [data-created-at]")) {
       tick();
       this._graceTicker = setInterval(tick, 1000);
+    }
+  }
+
+  static focus(entryId) {
+    const app = this._instance?.rendered ? this._instance : null;
+    if (app) return app._focusEntry(entryId);
+    this._instance ??= new StackWindow();
+    this._instance._focusId = entryId;
+    this._instance.render({ force: true });
+  }
+
+  _focusEntry(entryId) {
+    this._focusId = null;
+    if (this.minimized) this.maximize();
+    this.bringToFront?.();
+    const row = this.element?.querySelector(`.dst-stack-entry[data-entry-id="${CSS.escape(entryId)}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    row.style.setProperty("--dst-flash-colour", row.style.getPropertyValue("--dst-side") || "var(--dst-gold-text, #d9a63f)");
+    row.classList.remove("dst-flash");
+    void row.offsetWidth;
+    row.classList.add("dst-flash");
+  }
+
+  _funnelIn() {
+    const FUNNEL_MS = 320;
+    const STAGGER_MS = 110;
+    const rows = [...this.element.querySelectorAll(".dst-stack-entry[data-entry-id]")];
+    const now = performance.now();
+    this._seenEntries ??= new Map();
+    let next = Math.max(now, ...[...this._seenEntries.values()].map((t) => t + STAGGER_MS));
+    for (const row of rows) {
+      const id = row.dataset.entryId;
+      if (!this._seenEntries.has(id)) {
+        this._seenEntries.set(id, next);
+        next += STAGGER_MS;
+      }
+    }
+    const live = new Set(rows.map((r) => r.dataset.entryId));
+    for (const id of this._seenEntries.keys()) if (!live.has(id)) this._seenEntries.delete(id);
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    for (const row of rows) {
+      const delay = this._seenEntries.get(row.dataset.entryId) - now;
+      if (delay + FUNNEL_MS <= 0) continue;
+      row.animate([
+        { opacity: 0, transform: "translateY(-14px) scale(0.96)", clipPath: "inset(0 0 100% 0 round 6px)" },
+        { opacity: 1, transform: "translateY(2px) scale(1)", clipPath: "inset(0 0 0 0 round 6px)", offset: 0.75 },
+        { opacity: 1, transform: "none", clipPath: "inset(0 0 0 0 round 6px)" },
+      ], { duration: FUNNEL_MS, delay, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "backwards" });
     }
   }
 

@@ -15,6 +15,7 @@ import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spen
 import { computeAutomationLevel } from "./ui/badge.mjs";
 import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import { StackWindow } from "./ui/stack-window.mjs";
+import "./ui/token-badge.mjs";
 import { toggleSnooze, isActorSnoozed, isTriggerSnoozed, setSnooze, clearSnooze, listSnoozes, registerSnoozeHooks } from "./ui/snooze.mjs";
 import { getQueueMirror, noteUseCancelled, setReaper } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
@@ -136,6 +137,14 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: false
+  });
+  game.settings.register(MODULE_ID, "tokenBadges", {
+    name: "DS_TRIGGERS.Settings.TokenBadges.Name",
+    hint: "DS_TRIGGERS.Settings.TokenBadges.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
   });
   game.settings.register(MODULE_ID, "rollLock", {
     name: "DS_TRIGGERS.Settings.RollLock.Name",
