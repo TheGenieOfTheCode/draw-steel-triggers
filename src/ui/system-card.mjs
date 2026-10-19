@@ -144,46 +144,51 @@ document.addEventListener("click", (event) => {
   if (h5) fitNames(h5);
 }, true);
 
-function wraps(line) {
-  const probe = line.cloneNode(true);
-  probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;width:auto;left:-9999px;top:0";
-  line.parentElement.append(probe);
-  const single = probe.getBoundingClientRect().height;
-  probe.remove();
-  return line.getBoundingClientRect().height > single * 1.5;
-}
-
-function fitNames(line) {
-  if (!line.isConnected || !line.getBoundingClientRect().width || !line.querySelector(".dst-face-name, .ctlib-faces")) return;
-  const height = () => line.getBoundingClientRect().height;
-  line.classList.remove("dst-names-short", "dst-small-faces");
-  line.classList.add("dst-names-none");
-  let multiline = false;
-  if (line.tagName === "P") {
+function fitNames(...lines) {
+  let todo = lines.flat().filter((l) => l?.isConnected && l.querySelector(".dst-face-name, .ctlib-faces"));
+  const widths = todo.map((l) => l.getBoundingClientRect().width);
+  todo = todo.filter((_, i) => widths[i]);
+  if (!todo.length) return;
+  const probes = new Map();
+  for (const line of todo) {
+    line.classList.remove("dst-names-short", "dst-small-faces");
+    line.classList.add("dst-names-none");
+    if (line.tagName !== "P") continue;
     line.classList.add("dst-small-faces");
-    multiline = wraps(line);
-    if (!multiline) line.classList.remove("dst-small-faces");
+    const probe = line.cloneNode(true);
+    probe.style.cssText = "position:absolute;visibility:hidden;white-space:nowrap;width:auto;left:-9999px;top:0";
+    line.parentElement.append(probe);
+    probes.set(line, probe);
   }
-  if (multiline || !line.querySelector(".dst-face-name")) {
-    line.classList.remove("dst-names-none");
-    return;
+  const multiline = new Set([...probes].filter(([line, probe]) => line.getBoundingClientRect().height > probe.getBoundingClientRect().height * 1.5).map(([line]) => line));
+  for (const [line, probe] of probes) {
+    probe.remove();
+    if (!multiline.has(line)) line.classList.remove("dst-small-faces");
   }
-  const bare = height();
-  line.classList.remove("dst-names-none");
-  if (height() <= bare + 1) return;
-  line.classList.add("dst-names-short");
-  if (height() <= bare + 1) return;
-  line.classList.replace("dst-names-short", "dst-names-none");
+  const named = [];
+  for (const line of todo) {
+    if (multiline.has(line) || !line.querySelector(".dst-face-name")) line.classList.remove("dst-names-none");
+    else named.push(line);
+  }
+  if (!named.length) return;
+  const bare = named.map((l) => l.getBoundingClientRect().height);
+  for (const line of named) line.classList.remove("dst-names-none");
+  const tooTall = named.filter((l, i) => l.getBoundingClientRect().height > bare[i] + 1);
+  for (const line of tooTall) line.classList.add("dst-names-short");
+  const stillTall = tooTall.filter((l) => l.getBoundingClientRect().height > bare[named.indexOf(l)] + 1);
+  for (const line of stillTall) line.classList.replace("dst-names-short", "dst-names-none");
 }
 
 const _widths = new WeakMap();
 const _fitter = new ResizeObserver((entries) => {
-  for (const { target } of entries) {
-    const width = Math.round(target.getBoundingClientRect().width);
+  const lines = [];
+  for (const { target, contentRect } of entries) {
+    const width = Math.round(contentRect.width);
     if (_widths.get(target) === width) continue;
     _widths.set(target, width);
-    target.querySelectorAll(".dst-card-event, .dst-card-row > document-embed > h5").forEach(fitNames);
+    lines.push(...target.querySelectorAll(".dst-card-event, .dst-card-row > document-embed > h5"));
   }
+  fitNames(lines);
 });
 
 Hooks.on("renderChatMessageHTML", (message, html) => {

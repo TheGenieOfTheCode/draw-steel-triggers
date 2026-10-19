@@ -516,8 +516,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const list = this.element?.querySelector(".dst-stack");
     if (list) this._stackScroll = list.scrollTop;
     const rows = [...(this.element?.querySelectorAll(".dst-stack-list > .dst-stack-entry[data-entry-id]") ?? [])];
+    const staying = new Set((context.entries ?? []).map((e) => e.id));
     this._oldRows = rows.map((row, i) => ({ row, id: row.dataset.entryId, after: rows.slice(i + 1).map((r) => r.dataset.entryId),
-      height: row.offsetHeight, ghost: row.classList.contains("dst-stack-entry--leaving") }));
+      ghost: row.classList.contains("dst-stack-entry--leaving") })).filter((o) => !staying.has(o.id));
+    for (const o of this._oldRows) if (!o.ghost) o.height = o.row.offsetHeight;
   }
 
   _funnelOut() {
