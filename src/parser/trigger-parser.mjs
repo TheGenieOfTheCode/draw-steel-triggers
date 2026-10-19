@@ -523,6 +523,7 @@ export function abilityFiltersFrom(text, effectText = "") {
 
 const DAMAGE_TYPES = ["acid", "cold", "corruption", "fire", "holy", "lightning", "poison", "psychic", "sonic"];
 const NOT_DAMAGE_TYPES = /\b(?:isn['’ʼ]t|is not|other than)\s+(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:\s+damage)?(?:,?\s+(?:or\s+|and\s+)?(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:\s+damage)?)*(?<=damage)/i;
+const NOT_DAMAGE_TYPES_AFTER = /\bdamage (?:that|which) (?:isn['’ʼ]t|is not|is other than)\s+(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)(?:,?\s+(?:or\s+|and\s+)?(?:untyped|acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic))*\b/i;
 
 const OWNER_EFFECT = /\b(\w+ed) by (?:you|the self)\b|\b(?:creatures?|targets?|enem(?:y|ies)|all(?:y|ies)) ((?:you|the self)(?:['’]ve| have) (?!(?:taunted|grabbed|restrained|frightened|slowed|weakened|dazed|bleeding)\b)(\w+ed))\b/;
 const OWNER_EFFECT_NOUN = String.raw`\s+(?:(?:an?|the|any|one)\s+|one or more\s+)(?:[\w-]+\s+)?(?:creatures?|targets?|enem(?:y|ies)|all(?:y|ies))\s*$`;
@@ -885,7 +886,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     }
     
     const dmgTypes = lc.match(/\b(acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic)\b/g);
-    const notTypes = lc.match(NOT_DAMAGE_TYPES);
+    const notTypes = lc.match(NOT_DAMAGE_TYPES) ?? lc.match(NOT_DAMAGE_TYPES_AFTER);
     if (notTypes) {
       entry.damageTypes = DAMAGE_TYPES.filter((t) => !notTypes[0].includes(t));
       entry.qualifiers = entry.qualifiers.filter((q) => !notTypes[0].includes(q));
