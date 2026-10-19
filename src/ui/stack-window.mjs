@@ -972,7 +972,9 @@ export class StackWindow extends ds.applications.api.DSApplication {
 }
 
 Hooks.on("dst.queueChanged", () => StackWindow.refresh());
-Hooks.on("dst.queueOpenRequested", () => StackWindow.open());
+Hooks.on("dst.queueOpenRequested", () => {
+  if (getSetting("tokenBadges") === false || getSetting("badgesInsteadOfStack") === false) StackWindow.open();
+});
 Hooks.on("dst.queueAdded", (entries) => StackWindow.autoUse(entries));
 
 for (const hook of ["createCombat", "deleteCombat"]) Hooks.on(hook, () => StackWindow.refresh());

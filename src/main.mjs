@@ -146,6 +146,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true,
   });
+  game.settings.register(MODULE_ID, "badgesInsteadOfStack", {
+    name: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Name",
+    hint: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
   game.settings.register(MODULE_ID, "rollLock", {
     name: "DS_TRIGGERS.Settings.RollLock.Name",
     hint: "DS_TRIGGERS.Settings.RollLock.Hint",
@@ -374,8 +382,8 @@ const SETTING_HEADERS = {
 };
 
 const HEADER_FALLBACK = { Resources: ["rosterGains"] };
-const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers"];
-const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers" };
+const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers", "badgesInsteadOfStack"];
+const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers", badgesInsteadOfStack: "tokenBadges" };
 
 Hooks.on("renderSettingsConfig", (_app, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
