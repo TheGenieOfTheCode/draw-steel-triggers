@@ -7,6 +7,7 @@ import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSno
 import { runBespokeUse } from "../triggers/bespoke.mjs";
 import { maliceValue } from "../triggers/malice.mjs";
 import { squadBase } from "../triggers/squad-groups.mjs";
+import { impactChips } from "./stack-impacts.mjs";
 
 const STACK_WIDTH = 500;
 const CTLIB_ID = "draw-steel-ctlib";
@@ -417,6 +418,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         const side = sideOf(e);
         return {
           ...e,
+          chips: UNSIDED_KINDS.has(e.kind) ? [] : impactChips(e, (docs) => faceChain(docs)),
           holdRole: holdRoles.get(e.id) ?? null,
           side: side?.side ?? null,
           sideColour: side?.colour ?? null,
@@ -596,6 +598,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this._funnelOut();
     if (this._focusId) this._focusEntry(this._focusId);
     this._openEmbeds ??= new Set();
+    for (const chip of this.element.querySelectorAll(".dst-impact--manual[data-entry-id]")) {
+      const open = () => this.element.querySelector(`.dst-stack-embed-toggle[data-entry-id="${CSS.escape(chip.dataset.entryId)}"]`)?.click();
+      chip.addEventListener("click", open);
+      chip.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open(); } });
+    }
     for (const toggle of this.element.querySelectorAll(".dst-stack-embed-toggle")) {
       toggle.addEventListener("click", () => {
         const id = toggle.dataset.entryId;

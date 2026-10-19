@@ -648,6 +648,17 @@
       "AgeMinutes": "{n}m ago",
       "AgeHours": "{n}h ago",
       "InStack": "{count} in stack",
+      "Chip": {
+        "Damage": "{n} {type}damage",
+        "Hold": "Holds damage",
+        "FreeStrike": "Free strike",
+        "FreeStrikeDamage": "Free strike: {n} damage",
+        "FreeStrikeEach": "{n} damage from each of {count} creatures, landing as one hit.",
+        "DefersDeath": "Puts off dying",
+        "PowerRoll": "Power roll",
+        "Manual": "Manual: read the effect",
+        "EnhancedTip": "Combat Tools applies this when you use it."
+      },
       "HeldBy": "Held by {name}",
       "CostMalice": "{n} Malice",
       "Cause": {

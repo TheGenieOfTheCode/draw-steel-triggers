@@ -96,6 +96,13 @@
         </span>
         {{/if}}
       </div>
+      {{#if chips.length}}
+      <div class="dst-chips">
+        {{#each chips}}
+        <span class="dst-impact dst-impact--{{kind}}" data-tooltip="{{tooltip}}"{{#if (eq kind "manual")}} data-entry-id="{{../id}}" role="button" tabindex="0"{{/if}}><i class="{{icon}}" inert></i><span>{{text}}</span>{{#if facesHTML}}<i class="fa-solid fa-arrow-right dst-impact-arrow" inert></i>{{{facesHTML}}}{{/if}}</span>
+        {{/each}}
+      </div>
+      {{/if}}
       {{#if heldDetail}}
       <div class="dst-stack-held-detail">{{heldDetail}}</div>
       {{/if}}
