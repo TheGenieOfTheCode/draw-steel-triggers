@@ -2166,6 +2166,16 @@ async function _clearStaleResolutionLocks() {
   }
 }
 
+Hooks.on("deleteCombat", (combat) => {
+  if (!isPrimaryGM()) return;
+  const othersRunning = game.combats.some((c) => c !== combat && c.started);
+  const fighters = new Set(combat.combatants.contents.flatMap((c) => [c.actor?.uuid, c.token?.actor?.uuid, c.actorId && `Actor.${c.actorId}`]).filter(Boolean));
+  const ended = _queue.filter((e) => e.state === "pending" && e.kind !== "reaper" && (!othersRunning || fighters.has(e.ownerActorUuid)));
+  if (!ended.length) return;
+  dbg(`combat ended, clearing ${ended.length} pending stack entries`);
+  (async () => { for (const e of ended) await _onQueueResolve(e.id, "dismissed", game.user.name); })();
+});
+
 Hooks.on("deleteChatMessage", (message) => {
   if (!isPrimaryGM()) return;
   let dropped = false;
