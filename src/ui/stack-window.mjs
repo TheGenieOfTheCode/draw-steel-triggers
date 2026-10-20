@@ -331,7 +331,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static refresh() {
-    if (this._instance?.rendered) this._instance.render();
+    if (!this._instance?.rendered || this._refreshTimer) return;
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      if (this._instance?.rendered) this._instance.render();
+    }, 30);
   }
 
   
@@ -551,8 +555,6 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   async _preRender(context, options) {
     await super._preRender(context, options);
-    const list = this.element?.querySelector(".dst-stack");
-    if (list) this._stackScroll = list.scrollTop;
     const rows = [...(this.element?.querySelectorAll(".dst-stack-list > .dst-stack-entry[data-entry-id]") ?? [])];
     const staying = new Set((context.entries ?? []).map((e) => e.id));
     this._oldRows = rows.map((row, i) => ({ row, id: row.dataset.entryId, after: rows.slice(i + 1).map((r) => r.dataset.entryId),
@@ -598,6 +600,10 @@ export class StackWindow extends ds.applications.api.DSApplication {
   _onRender(_context, _options) {
     const list = this.element.querySelector(".dst-stack");
     if (list && this._stackScroll) list.scrollTop = this._stackScroll;
+    if (list && this._scrollWatched !== list) {
+      this._scrollWatched = list;
+      list.addEventListener("scroll", () => { this._stackScroll = list.scrollTop; }, { passive: true });
+    }
     
     
     
