@@ -1,5 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
-import { StackWindow, sideOf, tokenOfActor } from "./stack-window.mjs";
+import { StackWindow, sideOf, tokenOfActor, reducedEffects } from "./stack-window.mjs";
 import { getQueueMirror } from "../triggers/queue.mjs";
 
 const POP_MS = 260;
@@ -15,7 +15,7 @@ let _layer = null;
 
 const enabled = () => game.settings.get(MODULE_ID, "tokenBadges") !== false;
 const fades = () => game.settings.get(MODULE_ID, "badgesFade") === true;
-const reducedMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+const reducedMotion = reducedEffects;
 const colourNumber = (css) => {
   try { return css ? Number(foundry.utils.Color.from(css)) : FALLBACK_COLOUR; } catch { return FALLBACK_COLOUR; }
 };

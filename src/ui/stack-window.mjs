@@ -27,6 +27,8 @@ const CTLIB_ID = "draw-steel-ctlib";
 
 const ctlib = () => (game.modules.get(CTLIB_ID)?.active ? game.modules.get(CTLIB_ID).api : null);
 
+export const reducedEffects = () => ctlib()?.reducedEffects?.() ?? !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
 const UNSIDED_KINDS = new Set(["held", "damageHeld", "resolutionHeld", "reaper", "redirect"]);
 const colourOf = (user) => user?.color?.css ?? (user?.color ? String(user.color) : null);
 
@@ -570,7 +572,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const list = this.element.querySelector(".dst-stack-list");
     const live = new Set([...this.element.querySelectorAll(".dst-stack-entry[data-entry-id]")].map((r) => r.dataset.entryId));
     const leaving = old.filter((o) => !live.has(o.id));
-    if (!leaving.length || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (!leaving.length || reducedEffects()) return;
     const host = list ?? this.element.querySelector(".dst-stack")?.insertAdjacentElement("afterbegin", Object.assign(document.createElement("ul"), { className: "dst-stack-list dst-stack-list--ghosts" }));
     if (!host) return;
     const gap = parseFloat(getComputedStyle(host).rowGap) || 0;
@@ -744,7 +746,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     }
     const live = new Set(rows.map((r) => r.dataset.entryId));
     for (const id of this._seenEntries.keys()) if (!live.has(id)) this._seenEntries.delete(id);
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedEffects()) return;
     for (const row of rows) {
       const delay = this._seenEntries.get(row.dataset.entryId) - now;
       if (delay + FUNNEL_MS <= 0) continue;

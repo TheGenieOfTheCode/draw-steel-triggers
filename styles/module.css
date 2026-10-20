@@ -1694,6 +1694,8 @@ button.dst-tt-pill.dst-tt-shared {
   .theme-light .dst-stack .dst-stack-entry--reaper .dst-stack-name { animation: none; }
 }
 
+body.ctlib-reduced-effects .dst-stack .dst-stack-entry--reaper .dst-stack-name { animation: none; }
+
 .dst-stack .dst-reaper-quote {
   display: flex;
   flex-wrap: wrap;
