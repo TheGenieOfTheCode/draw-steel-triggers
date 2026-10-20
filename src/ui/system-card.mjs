@@ -184,7 +184,7 @@ const _fitter = new ResizeObserver((entries) => {
   const lines = [];
   for (const { target, contentRect } of entries) {
     const width = Math.round(contentRect.width);
-    if (_widths.get(target) === width) continue;
+    if (!width || _widths.get(target) === width) continue;
     _widths.set(target, width);
     lines.push(...target.querySelectorAll(".dst-card-event, .dst-card-row > document-embed > h5"));
   }
