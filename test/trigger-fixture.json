@@ -5918,9 +5918,10 @@
         {
           "event": "WOULD_TAKE_DAMAGE",
           "scope": "TARGET",
-          "qualifiers": [
-            "while in the area of your null field ability"
-          ]
+          "qualifiers": [],
+          "range": {
+            "ability": "null-field"
+          }
         }
       ]
     }

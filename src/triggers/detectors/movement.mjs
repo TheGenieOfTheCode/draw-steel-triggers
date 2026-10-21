@@ -89,6 +89,7 @@ Hooks.on("updateToken", (doc, _changes, options) => {
   const movement = options?._movement?.[doc.id];
   if (!movement || !doc.actor) return;
   enteredSpaces(doc, movement);
+  if (options?.dsMovement || doc.movementAction === "forced") return;
   arrivals(doc, movement);
   if (!movesThrough(doc.actor)) return;
   for (const victim of passedThrough(doc, movement)) {
