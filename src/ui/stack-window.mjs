@@ -268,8 +268,14 @@ Hooks.on("renderAbilityConfigurationDialog", (app) => {
   if (!use) return;
   _stackUses.delete(uuid);
   if (!use.auto && !getSetting("skipEmptyDialogs")) return;
+  if (app.options?.ability?.system?.power?.roll?.enabled) return;
+  const reveal = () => { if (app.rendered) app.element.style.visibility = ""; };
+  app.element.style.visibility = "hidden";
   setTimeout(() => {
-    if (app.rendered && !hasDecisions(app)) app.element.querySelector("button[type=submit]")?.click();
+    if (!app.rendered) return;
+    if (hasDecisions(app)) return reveal();
+    app.element.querySelector("button[type=submit]")?.click();
+    setTimeout(reveal, 1000);
   }, 150);
 });
 
