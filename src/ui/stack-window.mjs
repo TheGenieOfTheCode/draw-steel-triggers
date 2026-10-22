@@ -23,6 +23,17 @@ function snoozeIdOf(entry) {
 const snoozeActorsOf = (entry) => [...new Set([entry.ownerActorUuid, ...(entry.squad ?? []).map((m) => m.ownerActorUuid)].filter(Boolean))];
 
 const STACK_WIDTH = 500;
+const EDGE_GAP = 8;
+
+function stackRightEdge() {
+  const side = ui.sidebar?.element?.getBoundingClientRect();
+  if (!side?.width) return window.innerWidth;
+  const chat = document.getElementById("chat-notifications")?.getBoundingClientRect();
+  const tabs = document.getElementById("sidebar-tabs")?.getBoundingClientRect();
+  if (!chat?.width || !tabs?.width) return side.left;
+  const chatLeftCollapsed = window.innerWidth - tabs.width - (side.left - chat.right) - chat.width;
+  return Math.min(side.left, chatLeftCollapsed);
+}
 const CTLIB_ID = "draw-steel-ctlib";
 
 const ctlib = () => (game.modules.get(CTLIB_ID)?.active ? game.modules.get(CTLIB_ID).api : null);
@@ -323,6 +334,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       toggleRosterEmbed: StackWindow.#onToggleRosterEmbed,
       toggleRoster: StackWindow.#onToggleRoster,
       clearStack: StackWindow.#onClearStack,
+      resetPosition: StackWindow.#onResetPosition,
     },
   };
 
@@ -374,6 +386,47 @@ export class StackWindow extends ds.applications.api.DSApplication {
         action: "toggleRoster",
       },
     ];
+  }
+
+  _getHeaderControls() {
+    return [
+      ...super._getHeaderControls(),
+      { icon: "fa-solid fa-arrows-to-circle", label: "DS_TRIGGERS.Queue.ResetPosition", action: "resetPosition" },
+    ];
+  }
+
+  static #onResetPosition() {
+    this._userPlaced = false;
+    game.settings.set(MODULE_ID, "stackPosition", null).catch(() => {});
+    this._anchor();
+  }
+
+  _onFirstRender(context, options) {
+    super._onFirstRender?.(context, options);
+    const saved = game.settings.get(MODULE_ID, "stackPosition");
+    if (Number.isFinite(saved?.left) && Number.isFinite(saved?.top)) {
+      this._userPlaced = true;
+      this.setPosition({ left: saved.left, top: saved.top });
+    }
+  }
+
+  _placedByUser() {
+    this._userPlaced = true;
+    game.settings.set(MODULE_ID, "stackPosition", { left: Math.round(this.position.left), top: Math.round(this.position.top) }).catch(() => {});
+  }
+
+  _anchor() {
+    if (this._userPlaced || this._dragging || this.minimized || !this.rendered) return;
+    const width = Number.isFinite(this.position.width) ? this.position.width : this.element.offsetWidth;
+    const height = this.element.offsetHeight;
+    const left = Math.max(0, stackRightEdge() - width - EDGE_GAP);
+    let bottom = window.innerHeight - EDGE_GAP;
+    const bar = ui.hotbar?.element?.getBoundingClientRect();
+    if (bar?.width && left < bar.right && left + width > bar.left) bottom = Math.min(bottom, bar.top - EDGE_GAP);
+    const top = Math.max(0, bottom - height);
+    if (Math.abs(left - this.position.left) < 1 && Math.abs(top - this.position.top) < 1) return;
+    this._anchoring = true;
+    try { this.setPosition({ left, top }); } finally { this._anchoring = false; }
   }
 
   async _prepareContext(_options) {
@@ -618,7 +671,25 @@ export class StackWindow extends ds.applications.api.DSApplication {
     const handle = this.element.querySelector(".window-resize-handle");
     if (handle && this._resizeHookedOn !== handle) {
       this._resizeHookedOn = handle;
-      handle.addEventListener("pointerdown", () => { this._userSized = true; });
+      handle.addEventListener("pointerdown", () => {
+        this._userSized = true;
+        this._dragging = true;
+        window.addEventListener("pointerup", () => { this._dragging = false; this._placedByUser(); }, { once: true });
+      });
+    }
+    const header = this.element.querySelector(".window-header");
+    if (header && this._dragHookedOn !== header) {
+      this._dragHookedOn = header;
+      header.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || event.target.closest("button, a, input, .header-control")) return;
+        this._dragging = true;
+        const start = { left: this.position.left, top: this.position.top };
+        window.addEventListener("pointerup", () => {
+          this._dragging = false;
+          if (Math.abs(this.position.left - start.left) > 2 || Math.abs(this.position.top - start.top) > 2) this._placedByUser();
+          else this._anchor();
+        }, { once: true });
+      });
     }
     
     const stackKey = getQueueMirror().map((e) => `${e.id}:${e.state}`).join("|");
@@ -991,6 +1062,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   _onPosition(position) {
     super._onPosition?.(position);
     this._fitRoster();
+    if (!this._anchoring) this._anchor();
   }
 
   _onClose(options) {
@@ -1007,7 +1079,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this.element.querySelector('.header-control[data-action="toggleRoster"]')?.classList.toggle("is-open", this._rosterOpen);
     
     
-    this.element.style.transition = "width 0.25s ease";
+    this.element.style.transition = "width 0.25s ease, left 0.25s ease";
     this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
     this._widthFor = this._rosterOpen;
     clearTimeout(this._drawerTimer);
@@ -1083,3 +1155,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
     tokenControl.tools["dst-stack"] = tool;
   }
 });
+
+const reanchorStack = () => setTimeout(() => StackWindow._instance?._anchor(), 300);
+Hooks.on("collapseSidebar", reanchorStack);
+window.addEventListener("resize", reanchorStack);

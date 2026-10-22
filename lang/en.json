@@ -857,6 +857,7 @@
       "SectionGains": "Heroic Resource Gains",
       "RosterToggle": "Toggle Triggers List",
       "ClearStack": "Clear Trigger Stack",
+      "ResetPosition": "Reset Position",
       "TierByHand": "{modName}: change the tier by hand, the roll window can't.",
       "RedirectNoFlanker": "{modName}: no creature is flanking, so the strike was not redirected.",
       "DamageRedirectAsk": "Where does the damage go?",

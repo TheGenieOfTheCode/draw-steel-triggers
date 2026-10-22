@@ -328,6 +328,12 @@ Hooks.once("init", () => {
     default: true,
     requiresModule: { id: "draw-steel-resources-ui", label: "Resources UI" },
   });
+  game.settings.register(MODULE_ID, "stackPosition", {
+    scope: "client",
+    config: false,
+    type: Object,
+    default: null,
+  });
   game.settings.register(MODULE_ID, "rosterGains", {
     name: "DS_TRIGGERS.Settings.RosterGains.Name",
     hint: "DS_TRIGGERS.Settings.RosterGains.Hint",
