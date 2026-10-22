@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, primaryGM } from "../util.mjs";
-import { queueSocket } from "./queue.mjs";
+import { queueSocket, asPrimaryGM } from "./queue.mjs";
 import { registerBespokeUse, getBespokeUse } from "./bespoke-registry.mjs";
 import { squadPills } from "./squad-groups.mjs";
 
@@ -31,6 +31,7 @@ export function registerDamagePillBridge() {
 }
 
 export async function addDamagePill(message, targetUuid, pill) {
+  if (!message.isOwner) return asPrimaryGM("bespokeWrite", "pill", message.id, targetUuid, pill);
   const flag = message.getFlag(MODULE_ID, PILL_FLAG);
   const existing = Array.isArray(flag) ? flag : [];
   if (existing.some((e) => e.targetUuid === targetUuid && e.pill?.label === pill.label)) return;
@@ -38,6 +39,7 @@ export async function addDamagePill(message, targetUuid, pill) {
 }
 
 export async function setDamagePillEnabled(message, targetUuid, label, enabled) {
+  if (!message.isOwner) return asPrimaryGM("bespokeWrite", "pillEnabled", message.id, targetUuid, label, enabled);
   const flag = message.getFlag(MODULE_ID, PILL_FLAG);
   if (!Array.isArray(flag)) return;
   const next = flag.map((e) => (e.targetUuid === targetUuid && e.pill?.label === label
@@ -46,6 +48,7 @@ export async function setDamagePillEnabled(message, targetUuid, label, enabled) 
 }
 
 export async function addTarget(message, tokenDoc) {
+  if (!message.isOwner) return !!(await asPrimaryGM("bespokeWrite", "target", message.id, tokenDoc.uuid));
   const state = message.getFlag(DSTD_ID, "state") ?? {};
   const targets = [...(state.targets ?? [])];
   const uuid = tokenDoc.uuid;
@@ -66,6 +69,18 @@ export async function addTarget(message, tokenDoc) {
     [`flags.${DSTD_ID}.state.updatedAt`]: Date.now(),
   });
   return true;
+}
+
+export async function onBespokeWrite(op, messageId, ...args) {
+  const message = game.user.isGM ? game.messages.get(messageId) : null;
+  if (!message) return false;
+  if (op === "target") {
+    const tokenDoc = fromUuidSync(args[0]);
+    return tokenDoc ? addTarget(message, tokenDoc) : false;
+  }
+  if (op === "pill") return addDamagePill(message, ...args);
+  if (op === "pillEnabled") return setDamagePillEnabled(message, ...args);
+  return false;
 }
 
 registerBespokeUse("harmonize", async (item, entry) => {

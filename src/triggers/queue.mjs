@@ -3,14 +3,16 @@ import { resolveStackGain } from "./resource-gains.mjs";
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } from "../util.mjs";
 import { cardContent, facesIn, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { postFeatureCard } from "../ui/feature-card.mjs";
+import { onSnoozeWrite } from "../ui/snooze.mjs";
+import { spendMalice } from "../ui/stack-window.mjs";
 import { noteFeatureLineUse } from "./feature-triggers.mjs";
 import { startCountdown } from "./countdowns.mjs";
-import { setTriggeredActionSpent } from "./spent-tracking.mjs";
+import { setTriggeredActionSpent, onSpentWrite } from "./spent-tracking.mjs";
 import { openDamageModWindow, damagePillType, foldDamagePills } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares, flankingAllyOf, groupMatches, isMinionActor } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
-import { pickHarmonizeTarget, setDamagePillEnabled, addTarget } from "./bespoke.mjs";
+import { pickHarmonizeTarget, setDamagePillEnabled, addTarget, onBespokeWrite } from "./bespoke.mjs";
 import { lineMandatory } from "./auto-use.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
@@ -2158,6 +2160,7 @@ Hooks.once("socketlib.ready", () => {
   socket.register("releaseResolutionNow", _onReleaseResolutionNow);
   socket.register("useCancelled", _onUseCancelled);
   socket.register("teleswapped", _onTeleswapped);
+  socket.register("snoozeWrite", onSnoozeWrite);
   socket.register("redirectChosen", _onRedirectChosen);
   socket.register("pickRedirectSubject", _onPickRedirectSubject);
   socket.register("pickRedirectTarget", _onPickRedirectTarget);
@@ -2169,6 +2172,9 @@ Hooks.once("socketlib.ready", () => {
   socket.register("queueSyncRequest", _onQueueSyncRequest);
   socket.register("villainMarkUsed", _onVillainMarkUsed);
   socket.register("villainDismiss", _onVillainDismiss);
+  socket.register("bespokeWrite", onBespokeWrite);
+  socket.register("spentWrite", onSpentWrite);
+  socket.register("spendMalice", spendMalice);
 });
 
 function _onQueueSyncRequest() {

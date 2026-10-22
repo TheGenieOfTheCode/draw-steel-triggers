@@ -1,5 +1,6 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
+import { asPrimaryGM } from "./queue.mjs";
 
 const CT_ID = "draw-steel-combat-tools";
 const TRACKER_ICON = "icons/magic/symbols/question-stone-yellow.webp";
@@ -31,13 +32,21 @@ export function isTriggeredActionSpent(actor) {
 export async function setTriggeredActionSpent(actor, spent = true) {
   const effect = trackerEffect(actor);
   if (effect) {
-    if (effect.disabled !== spent) await effect.update({ disabled: spent });
+    if (effect.disabled === spent) return;
+    if (!effect.isOwner) return asPrimaryGM("spentWrite", actor.uuid, spent);
+    await effect.update({ disabled: spent });
     return;
   }
   const combatant = combatantFor(actor);
   if (!combatant) return;
+  if (!combatant.isOwner) return asPrimaryGM("spentWrite", actor.uuid, spent);
   if (spent) await combatant.setFlag(MODULE_ID, "spent", true);
   else await combatant.unsetFlag(MODULE_ID, "spent");
+}
+
+export async function onSpentWrite(actorUuid, spent) {
+  const actor = game.user.isGM ? await fromUuid(actorUuid).catch(() => null) : null;
+  if (actor) await setTriggeredActionSpent(actor, spent);
 }
 
 const hasTriggeredAction = (actor) => actor?.items.some((i) => i.system?.type === "triggered" && !isMaliceAbility(i));

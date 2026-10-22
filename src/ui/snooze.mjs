@@ -1,4 +1,5 @@
 import { MODULE_ID, primaryGM } from "../util.mjs";
+import { asPrimaryGM } from "../triggers/queue.mjs";
 
 const FLAG = "snoozes";
 const ANY = "*";
@@ -16,6 +17,15 @@ const _drop = (user, keys) => user.update({
 });
 
 const _stored = (user) => user?.getFlag(MODULE_ID, FLAG) ?? {};
+
+const _apply = (user, op) => (op.drop ? _drop(user, op.drop) : user.setFlag(MODULE_ID, FLAG, { ...(_stored(user)), [op.key]: op.entry }));
+
+const _write = async (user, op) => (game.user.isGM || user.id === game.user.id ? _apply(user, op) : asPrimaryGM("snoozeWrite", user.id, op));
+
+export function onSnoozeWrite(userId, op) {
+  const user = game.user.isGM ? game.users.get(userId) : null;
+  return user ? _apply(user, op) : undefined;
+}
 
 function _expired(entry) {
   if (!entry) return true;
@@ -88,7 +98,7 @@ export async function setSnooze(actor, { actorUuid = null, dsid = null, until = 
   };
 
   for (const user of snoozeAudience(actor)) {
-    await user.setFlag(MODULE_ID, FLAG, { ...(_stored(user)), [key]: entry })
+    await _write(user, { key, entry })
       .catch((err) => console.warn(`${MODULE_ID} | could not snooze for ${user.name}`, err));
   }
   return key;
@@ -97,7 +107,7 @@ export async function setSnooze(actor, { actorUuid = null, dsid = null, until = 
 export async function clearSnooze(actor, key) {
   for (const user of snoozeAudience(actor)) {
     if (!(key in _stored(user))) continue;
-    await _drop(user, [key])
+    await _write(user, { drop: [key] })
       .catch((err) => console.warn(`${MODULE_ID} | could not clear a snooze for ${user.name}`, err));
   }
 }

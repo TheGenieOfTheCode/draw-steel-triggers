@@ -1,6 +1,6 @@
 import { MODULE_ID, getSetting } from "../util.mjs";
 import { autoUseLevel, lineMandatory } from "../triggers/auto-use.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, chooseRedirectEntry, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, chooseRedirectEntry, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch, asPrimaryGM } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
 import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor } from "./snooze.mjs";
@@ -231,6 +231,13 @@ function useMessageRendered(itemUuid, timeoutMs = 1500, settleMs = 800) {
     });
     timer = setTimeout(finish, timeoutMs);
   });
+}
+
+export async function spendMalice(cost) {
+  const held = maliceValue();
+  if (!game.user.isGM || held < cost) return false;
+  await game.settings.set("draw-steel", "malice", { ...game.settings.get("draw-steel", "malice"), value: held - cost });
+  return true;
 }
 
 async function useWithTriggerContext(item, entry) {
@@ -870,7 +877,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.NotEnoughMalice", { n: maliceCost, have: held, name: entry.itemName }));
         return;
       }
-      await game.settings.set("draw-steel", "malice", { ...game.settings.get("draw-steel", "malice"), value: held - maliceCost });
+      if (!(game.user.isGM ? await spendMalice(maliceCost) : await asPrimaryGM("spendMalice", maliceCost))) return;
     }
     if (entry.gain || entry.pill || (entry.featureLine && !entry.derived)) {
       resolveQueueEntry(entry.id, "used");
