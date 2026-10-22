@@ -19,6 +19,12 @@ It reads the trigger already written on each ability, so there's nothing to set 
 
 ---
 
+https://github.com/user-attachments/assets/bd6db76f-b980-4c21-81e4-76f7e6609154
+
+https://github.com/user-attachments/assets/9d4e3fc2-210c-4ec8-8ff8-2712021ad4cf
+
+---
+
 ## Documentation
 
 Full documentation is available on the **[Wiki](https://github.com/TheGenieOfTheCode/draw-steel-triggers/wiki)**.
