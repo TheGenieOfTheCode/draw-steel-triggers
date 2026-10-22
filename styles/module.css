@@ -1463,6 +1463,8 @@ a.dst-roster-name:hover { text-decoration: underline; text-shadow: none; }
 .dst-roster-line { display: flex; align-items: center; gap: 4px; }
 .dst-roster-name { flex: 1; min-width: 0; font-size: var(--font-size-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dst-roster-free { font-size: var(--font-size-10); opacity: var(--dst-dim-7, 0.7); }
+.dst-roster-row.is-spent .dst-roster-name { opacity: var(--dst-dim-6, 0.6); }
+.dst-roster-used { flex: 0 0 auto; font-size: var(--font-size-10); font-style: italic; opacity: var(--dst-dim-7, 0.7); white-space: nowrap; }
 .dst-roster-expand, .dst-roster-snooze {
   flex: 0 0 auto; width: 20px; height: 20px; padding: 0;
   background: none; border: none; opacity: var(--dst-dim-7, 0.7); cursor: pointer;

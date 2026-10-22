@@ -196,13 +196,13 @@
     </summary>
 
     {{#each flat}}
-    <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}"
+    <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}{{#if spentLabel}} is-spent{{/if}}" data-ability-uuid="{{uuid}}"
          data-search-name="{{searchName}}" data-search-trigger="{{searchTrigger}}" data-search-effect="{{searchEffect}}">
       <div class="dst-roster-line">
         <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}"{{#if noEmbed}} style="visibility: hidden" tabindex="-1"{{/if}}>
           <i class="fa-solid fa-angle-right"></i>
         </button>
-        <a class="dst-roster-name" data-action="openOwner" data-uuid="{{openUuid}}" data-tooltip="{{@root.labels.openItem}}">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</a>
+        <a class="dst-roster-name" data-action="openOwner" data-uuid="{{openUuid}}" data-tooltip="{{@root.labels.openItem}}">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</a>{{#if spentLabel}}<span class="dst-roster-used">{{spentLabel}}</span>{{/if}}
         {{#if costBadge}}
         <span class="dst-roster-cost{{#if costBadge.malice}} dst-roster-cost--malice{{/if}}">
           {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}
@@ -232,13 +232,13 @@
         </button>
       </summary>
       {{#each abilities}}
-      <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}" data-ability-uuid="{{uuid}}"
+      <div class="dst-roster-row{{#if snoozed}} is-snoozed{{/if}}{{#if spentLabel}} is-spent{{/if}}" data-ability-uuid="{{uuid}}"
            data-search-name="{{searchName}}" data-search-trigger="{{searchTrigger}}" data-search-effect="{{searchEffect}}">
         <div class="dst-roster-line">
           <button type="button" class="dst-roster-expand" data-action="toggleRosterEmbed" data-ability-uuid="{{uuid}}"{{#if noEmbed}} style="visibility: hidden" tabindex="-1"{{/if}}>
             <i class="fa-solid fa-angle-right"></i>
           </button>
-          <a class="dst-roster-name" data-action="openOwner" data-uuid="{{openUuid}}" data-tooltip="{{@root.labels.openItem}}">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</a>
+          <a class="dst-roster-name" data-action="openOwner" data-uuid="{{openUuid}}" data-tooltip="{{@root.labels.openItem}}">{{name}}{{#if free}} <span class="dst-roster-free">{{@root.labels.free}}</span>{{/if}}</a>{{#if spentLabel}}<span class="dst-roster-used">{{spentLabel}}</span>{{/if}}
           {{#if costBadge}}
           <span class="dst-roster-cost{{#if costBadge.malice}} dst-roster-cost--malice{{/if}}">
             {{#if costBadge.malice}}<img class="dst-malice-chip" src="{{@root.maliceChipURI}}" alt="">{{else}}<i class="fa-solid fa-bolt"></i>{{/if}} {{costBadge.label}}

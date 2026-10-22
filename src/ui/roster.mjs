@@ -30,6 +30,8 @@ function _effectOf(item) {
   try { return triggerEffectText(item); } catch { return ""; }
 }
 
+const SPENT_LABELS = { round: "UsedThisRound", encounter: "UsedThisEncounter", turn: "UsedThisTurn" };
+
 function _row(actor, entry) {
   const item = entry.item;
   const dsid = item.system?._dsid ?? item.dsid ?? null;
@@ -48,6 +50,7 @@ function _row(actor, entry) {
     noEmbed: !!entry.featureLine,
     snoozed: !!snooze,
     snoozeLabel: snooze?.label ?? "",
+    spentLabel: SPENT_LABELS[entry.spentOnce] ? game.i18n.localize(`DS_TRIGGERS.Queue.${SPENT_LABELS[entry.spentOnce]}`) : "",
     actorUuid: actor.uuid,
     searchName: `${item.name} ${actor.name}`.toLowerCase(),
     searchTrigger: _plain(trigger),
@@ -62,7 +65,7 @@ const _byCost = (a, b) => (a.cost - b.cost) || a.name.localeCompare(b.name);
 function _split(actor) {
   const own = [];
   const malice = [];
-  for (const entry of getTriggeredAbilities(actor) ?? []) {
+  for (const entry of getTriggeredAbilities(actor, { includeSpent: true }) ?? []) {
     (isMaliceAbility(entry.item) ? malice : own).push(_row(actor, entry));
   }
   return { own: own.sort(_byName), malice };

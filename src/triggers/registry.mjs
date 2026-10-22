@@ -80,7 +80,7 @@ function _effectText(item) {
   return parts.join(" ").replace(/<[^>]+>/g, " ");
 }
 
-export function getTriggeredAbilities(actor) {
+export function getTriggeredAbilities(actor, { includeSpent = false } = {}) {
   if (!actor) return [];
   const entries = [];
   for (const item of actor.items) {
@@ -90,7 +90,7 @@ export function getTriggeredAbilities(actor) {
     if (ignoredByRule(item)) continue;
     entries.push({ item, free: triggered && item.system.type === "freeTriggered", parse: getParsedTrigger(item) });
   }
-  entries.push(...featureTriggerEntries(actor));
+  entries.push(...featureTriggerEntries(actor, { includeSpent }));
   return entries;
 }
 
