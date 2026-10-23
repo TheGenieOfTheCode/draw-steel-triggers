@@ -378,7 +378,12 @@ const EVENTS = [
   ["TELEPORTS",       /\bteleports\b/i],
   ["HERO_TOKEN_EARNED", /\b(?:earns?|gains?|would earn) (?:a|one|\d+) hero tokens?\b/i],
   ["RESISTS_POTENCY", /\bresist(?:s|ing)? (?:a |the )?potenc(?:y|ies)\b/i],
-  
+  ["TEST_FAILED",     /\bfails? (?:a|an) (?:[\w-]+ )*?test\b/i],
+  ["RESOURCE_GAIN",   /\bgains? (?:\d+ |one |a )?(?:wrath|ferocity|focus|insight|discipline|piety|essence|clarity|drama|virtue|(?:a |their |its )?heroic resources?)\b/i],
+  ["MARKED",          /\b(?:marks (?:you|the self)|(?:is|are|becomes?) marked)\b/i],
+  ["GRAB_ENDS",       /\b(?:grab (?:on [\w -]+? )?ends|escapes? (?:from )?(?:your|the self['’]s|its|their|a|the) grab|(?:is|are) no longer grabbed|(?:you|the self) releases? (?:a|an|the|your) [\w -]*?(?:creature|target|grab))\b/i],
+  ["STAMINA_BELOW",   /\b(?:stamina (?:drops|falls) below \d+|(?:drops?|falls?) below \d+ stamina|reduced to \d+ stamina or (?:less|lower|fewer))\b/i],
+
   ["TAKES_DAMAGE",    /\b(takes? (?:[\w-]+(?:,? or | ?, | ))*damage|is damaged|damages? (you|the target|them|it|an ally|the \w+)|deals? ([\w, ]+ )?damage to (you|the target|the \w+))/i],
   ["DEALS_DAMAGE",    /\b(deals? ([\w, ]+ )?damage|deals? rolled damage|damages? (a|an|another|any) )\b/i],
   ["TARGETED_BY_STRIKE", /\b(targets? (you|them|the target|an ally|an enemy|the \w+)\b|is targeted|targeted by|is struck by|makes? an? (melee |ranged )?strike against|strikes? (you|the target|the \w+))/i],
@@ -413,7 +418,9 @@ const SHADOW = {
   SPENDS_RECOVERY: ["USES_ABILITY"],
   POWER_ROLL: ["WOULD_TAKE_DAMAGE", "POWER_ROLL_RESULT"],
   TARGETED_BY_STRIKE_RESULT: [],
-  CONDITION_GAIN: ["TURN_START"],
+  CONDITION_GAIN: ["TURN_START", "GRAB_ENDS"],
+  STAMINA_BELOW: ["DIES"],
+  FALL_START: ["STAMINA_BELOW"],
   MOVES: ["FORCE_MOVED", "FORCE_MOVES", "ZONE_ENTER", "DYING", "WINDED", "WINDED_OR_DYING"],
   TURN_START: ["TURN_END", "ZONE_TURN_START"],
   TURN_END: ["CONDITION_GAIN"],
@@ -712,7 +719,7 @@ function ownerWords(ownerName) {
     .filter(w => w.length > 2 && !OWNER_STOPWORDS.has(w));
 }
 
-const SUBJECT_RX = /^(you\b|the target\b|your companion\b|the [\w'’ ]+?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|obtains?|hears|causes?|fails?|succeeds?))|(?:an?|one|another|any) [\w -]+?(?: or object)?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|marks|resists|fails?|succeeds?|spends?|within)))/;
+const SUBJECT_RX = /^(you\b|the target\b|your companion\b|the [\w'’ ]+?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|obtains?|hears|causes?|fails?|succeeds?|marks|escapes?))|(?:an?|one|another|any) [\w -]+?(?: or object)?(?= (takes?|deals?|damages?|dies|is|are|moves?|enters?|starts?|ends?|uses?|makes?|targets?|would|force|becomes?|gains?|grabs?|regains?|comes|flies|loses?|reduced?|reduces?|marks|resists|fails?|succeeds?|spends?|escapes?|drops?|falls below|within)))/;
 
 function scopeOf(lc, event, owner) {
   const words = ownerWords(owner);
@@ -896,6 +903,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     let unsure = events.length !== 1;
     let scope = scopeOf(lc, events[0], ownerName);
     if (scope === "UNKNOWN" && (events[0] === "RESISTS_POTENCY" || (events[0] === "FALL_START" && /^(?:you|they)\b/.test(lc)))) scope = "SELF";
+    const ownGrab = events[0] === "GRAB_ENDS" && /\b(?:your|the self['’]s) grab\b|^(?:you|the self) releases?\b/.test(lc);
+    if (ownGrab || (events[0] === "MARKED" && /\bmarks (?:you|the self)\b/.test(lc))) scope = "SELF";
     if (scope === "SELF:DEALS") { scope = "SELF"; events.splice(0, events.length, "DEALS_DAMAGE"); }
     if (scope === "UNKNOWN") unsure = true;
     const qualifiers = QUALIFIERS.map(rx => lc.match(rx)?.[0]).filter(Boolean);
@@ -919,6 +928,12 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       entry.postRoll = true;
       
       if (entry.event === "POWER_ROLL_RESULT" && entry.scope === "SELF" && /^(?:you|the self) (?:obtains?|scores?|rolls?|gets?)\b/.test(lc)) entry.rollerScoped = true;
+    }
+    if (ownGrab) entry.asSource = true;
+    if (entry.event === "STAMINA_BELOW") {
+      const below = lc.match(/\bbelow (\d+)\b/);
+      const orLess = lc.match(/\bto (\d+) stamina or (?:less|lower|fewer)\b/);
+      entry.value = below ? Number(below[1]) : orLess ? Number(orLess[1]) + 1 : undefined;
     }
     if (entry.event === "SAVING_THROW" && /\bsucceeds? on a saving throw\b/.test(lc)) entry.saveSucceeds = true;
     if (entry.event === "SAVING_THROW" && /\bfails? (?:a|the) saving throw\b/.test(lc)) entry.saveFails = true;
