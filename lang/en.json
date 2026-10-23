@@ -678,6 +678,7 @@
         "DefersDeath": "Puts off dying",
         "PowerRoll": "Power roll",
         "Manual": "Manual: read the effect",
+        "ChangesRoll": "Changes the roll",
         "EnhancedTip": "Combat Tools applies this when you use it."
       },
       "HeldBy": "Held by {name}",

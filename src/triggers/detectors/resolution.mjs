@@ -3,6 +3,7 @@ import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds } from "../d
 import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
 import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 import { baneAbility } from "../line-effects.mjs";
+import { rollModProviderFor } from "../roll-mod-providers.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 const _handled = new Set();
@@ -134,7 +135,8 @@ function _addRollerMatches({ message, matches, seen, targets, rollerActor, abili
 function _addRollModMatches({ message, matches, seen, rollerActor, ability, dealer }) {
   const rollerToken = dealer.dealerToken;
   const found = collectTriggerMatches("POWER_ROLL", rollerActor, rollerToken, null, { ...dealer, rollMods: rollModsOf(message) })
-    .filter((m) => !m.malice && rollNeeds(m.clause) && (m.actor !== rollerActor || !!m.clause?.selfRoll)
+    .filter((m) => !m.malice && (rollNeeds(m.clause) || m.clause?.postRoll === true)
+      && (m.actor !== rollerActor || !!m.clause?.selfRoll || (m.clause?.postRoll === true && /^self/.test(m.item.system?.target?.type ?? "")))
       && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
   for (const m of found) {
     if (seen.has(m.item.uuid)) continue;
@@ -167,8 +169,9 @@ function _dispatchResolution(message, matches, ability, rollerActor) {
   });
   const stillModifiable = game.i18n.localize("DS_TRIGGERS.Queue.StillModifiable");
   const holdAll = getSetting("holdInertTriggers");
-  const held = holdAll ? matches : matches.filter((m) => changesTheStrike(m.clause));
-  const offered = holdAll ? [] : matches.filter((m) => !changesTheStrike(m.clause));
+  const changes = (m) => changesTheStrike(m.clause) || !!rollModProviderFor(m.item?.system?._dsid);
+  const held = holdAll ? matches : matches.filter(changes);
+  const offered = holdAll ? [] : matches.filter((m) => !changes(m));
 
   if (offered.length) {
     dbg(`resolution: ${offered.length} trigger(s) offered after ${ability.name} instead of holding it`);

@@ -810,10 +810,16 @@ export function parseTrigger(text, options = {}) {
   
   const states = text.match(TURN_START_WHILE);
   if (states) text = text.replace(states[0], states[1]);
-  const result = powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text);
+  const result = effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText);
   if (!states) return result;
   const subjectStates = states[2].toLowerCase().split(/,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+/).filter(Boolean);
   return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };
+}
+
+
+function effectPostRollLayer(result, effectText) {
+  if (!POST_ROLL_PHRASE.test(String(effectText ?? ""))) return result;
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "POWER_ROLL" ? { ...c, postRoll: true } : c)) };
 }
 
 function powerRollFmLayer(result, text) {

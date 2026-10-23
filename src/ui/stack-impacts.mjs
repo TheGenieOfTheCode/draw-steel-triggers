@@ -1,5 +1,6 @@
 import { IMPACTS } from "./editor-impacts.mjs";
 import { getParsedTrigger } from "../triggers/registry.mjs";
+import { rollModProviderFor } from "../triggers/roll-mod-providers.mjs";
 
 const L = (k, data) => (data ? game.i18n.format(`DS_TRIGGERS.Queue.Chip.${k}`, data) : game.i18n.localize(`DS_TRIGGERS.Queue.Chip.${k}`));
 const FREE_STRIKE = /\bfree strikes?\b/i;
@@ -75,6 +76,7 @@ export function impactChips(entry, faces) {
       : chip("auto", "fa-solid fa-hand-back-fist", L("FreeStrike"), null, aim));
   }
   if (entry.defersDeath) chips.push(chip("auto", "fa-solid fa-skull", L("DefersDeath"), null, owner));
+  if (!chips.length && rollModProviderFor(item?.system?._dsid)) chips.push(chip("auto", "fa-solid fa-dice-d10", L("ChangesRoll"), null, aim));
   if (!chips.length && item?.system?.power?.roll?.enabled) chips.push(chip("roll", "fa-solid fa-dice-d10", L("PowerRoll"), null, aim));
   if (!chips.length) chips.push({ kind: "manual", icon: "fa-solid fa-book-open", text: L("Manual"), tooltip: effect.replace(/\s+/g, " ").trim() || L("Manual"), facesHTML: "" });
   return chips;

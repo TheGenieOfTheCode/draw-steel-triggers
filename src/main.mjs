@@ -17,7 +17,7 @@ import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import { StackWindow } from "./ui/stack-window.mjs";
 import "./ui/token-badge.mjs";
 import { toggleSnooze, isActorSnoozed, isTriggerSnoozed, setSnooze, clearSnooze, listSnoozes, registerSnoozeHooks } from "./ui/snooze.mjs";
-import { getQueueMirror, noteUseCancelled, setReaper } from "./triggers/queue.mjs";
+import { getQueueMirror, noteUseCancelled, setReaper, estimateRollModTier } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/ability-use.mjs";
@@ -48,6 +48,7 @@ import "./triggers/derived-names.mjs";
 import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
 import { registerDerivedNames, itemEffectiveLines } from "./triggers/feature-triggers.mjs";
 import { registerIgnoreRule, unregisterIgnoreRule, ignoredByRule, refreshIgnored } from "./triggers/ignore-rules.mjs";
+import { registerRollModProvider, unregisterRollModProvider } from "./triggers/roll-mod-providers.mjs";
 import "./compat/dstd-sync.mjs";
 
 Hooks.once("init", () => {
@@ -387,6 +388,9 @@ Hooks.once("init", () => {
     refreshDerived,
     registerIgnoreRule,
     unregisterIgnoreRule,
+    registerRollModProvider,
+    unregisterRollModProvider,
+    estimateRollModTier,
     isIgnored: ignoredByRule,
     refreshIgnored,
     derivedLines: (item) => itemEffectiveLines(item).map((l) => ({ key: l.key, name: l.name, trigger: l.trigger, effect: l.effect })),

@@ -15,6 +15,7 @@ import { triggerEffectText } from "./registry.mjs";
 import { pickHarmonizeTarget, setDamagePillEnabled, addTarget, onBespokeWrite } from "./bespoke.mjs";
 import { lineMandatory } from "./auto-use.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
+import { rollModProviderFor } from "./roll-mod-providers.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
 import { joinSquad, noteSquadUse, squadBase, squadMember } from "./squad-groups.mjs";
 import { pickStabilityShare, pickSurgeSpend, shareStability, markVictim, markDealer } from "./line-effects.mjs";
@@ -719,7 +720,30 @@ async function _finalizeResolutionHold(resolutionId) {
   const message = game.messages.get(hold.messageId);
   const used = (hold.usedEntries ?? []).filter((u) => !u.cancelled);
   for (const u of used) {
-    if (u.rollMod) await _applyRollModOverride(hold, u).catch((err) => dbg("roll mod apply failed", err));
+    const item = fromUuidSync(u.itemUuid, { strict: false });
+    const provide = rollModProviderFor(item?.system?._dsid);
+    if (provide) {
+      try { u.rollMod = (await provide({ item, actor: item?.actor ?? null, messageId: hold.messageId, subjectTokenUuid: u.subjectTokenUuid ?? null })) ?? null; } catch (err) {
+        console.warn(`${MODULE_ID} | ${u.itemName} could not decide its roll change`, err);
+        u.rollMod = null;
+      }
+    }
+    if (!u.rollMod) continue;
+    
+    const keys = u.subjectTargetKey ? [u.subjectTargetKey]
+      : u.rollMod.diceTotal != null ? (message?.getFlag("draw-steel-target-damage", "state")?.targets ?? []).map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).filter(Boolean)
+      : [];
+    
+    const addPill = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.addResultPill;
+    if (u.rollMod.diceTotal != null && addPill) {
+      const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+      for (const key of keys) {
+        await addPill(hold.messageId, key, { kind: "base", amount: Number(u.rollMod.diceTotal), dice: u.rollMod.dice ?? null, reason: u.itemName,
+          src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null }).catch((err) => dbg("base roll pill failed", err));
+      }
+      continue;
+    }
+    for (const key of keys) await _applyRollModOverride(hold, { ...u, subjectTargetKey: key }).catch((err) => dbg("roll mod apply failed", err));
   }
   for (const u of used) {
     if (!u.halfOnUse || !u.subjectTargetKey) continue;
@@ -787,47 +811,62 @@ function _findPowerRoll(message, targetActorUuid) {
   return fallback;
 }
 
-async function _applyRollModOverride(hold, u) {
-  const message = game.messages.get(hold.messageId);
-  if (!message || !u.subjectTargetKey) return;
-  const state = foundry.utils.deepClone(message.getFlag("draw-steel-target-damage", "state") ?? null);
-  if (!state) return;
-  const targetTokenUuid = u.subjectTargetKey.replace(/__/g, ".");
-  const targetDoc = await fromUuid(targetTokenUuid).catch(() => null);
+function _rollModResult(message, targetKey, rollMod) {
+  const state = message?.getFlag("draw-steel-target-damage", "state");
+  if (!state || !targetKey) return null;
+  const targetDoc = fromUuidSync(targetKey.replace(/__/g, "."), { strict: false });
   const roll = _findPowerRoll(message, targetDoc?.actor?.uuid ?? null);
-  if (!roll) return;
-  const natural = Number(roll.dice?.[0]?.total ?? 0);
+  if (!roll) return null;
+  const rolled = Number(roll.dice?.[0]?.total ?? 0);
+  
+  const natural = rollMod.diceTotal != null ? Number(rollMod.diceTotal) : rolled;
   const critThreshold = Number(roll.options?.criticalThreshold ?? 19);
-  const existing = state.tierOverrides?.[u.subjectTargetKey] ?? null;
+  const existing = state.tierOverrides?.[targetKey] ?? null;
   const baseEdges = existing?.edges != null ? Number(existing.edges) : Number(roll.options?.edges ?? 0);
   const baseBanes = existing?.banes != null ? Number(existing.banes) : Number(roll.options?.banes ?? 0);
   const baseBonuses = existing?.bonuses != null ? Number(existing.bonuses) : Number(roll.options?.bonuses ?? 0);
-  const edges = Math.min(2, baseEdges + (u.rollMod.edges ?? 0));
-  const banes = Math.max(0, Math.min(2, baseBanes + (u.rollMod.banes ?? 0) - (u.rollMod.negateBane && baseBanes > 0 ? 1 : 0)));
-  const bonuses = baseBonuses + (u.rollMod.bonus ?? 0);
+  const edges = Math.min(2, baseEdges + (rollMod.edges ?? 0));
+  const banes = Math.max(0, Math.min(2, baseBanes + (rollMod.banes ?? 0) - (rollMod.negateBane && baseBanes > 0 ? 1 : 0)));
+  const bonuses = baseBonuses + (rollMod.bonus ?? 0);
 
   const net0 = Number(roll.options?.edges ?? 0) - Number(roll.options?.banes ?? 0);
   const adj0 = Math.abs(net0) === 1 ? Math.sign(net0) * 2 : 0;
   const staticModifier = existing?.staticModifier != null
     ? Number(existing.staticModifier)
-    : Number(roll.total ?? 0) - natural - adj0 - Number(roll.options?.bonuses ?? 0);
+    : Number(roll.total ?? 0) - rolled - adj0 - Number(roll.options?.bonuses ?? 0);
 
   const net = edges - banes;
   const adj = Math.abs(net) === 1 ? Math.sign(net) * 2 : 0;
   const total = natural + staticModifier + adj + bonuses;
+  const shift = net - Math.sign(net);
   let tier;
   if (natural >= critThreshold) tier = 3;
   else {
     tier = 1;
     if (total >= 12) tier = 2;
     if (total >= 17) tier = 3;
-    const shift = net - Math.sign(net);
     tier = Math.min(3, Math.max(1, tier + shift));
   }
   const applyTier = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.applyTierMods;
   if (applyTier && roll.options?.dsctTier) tier = applyTier(tier, roll.options.dsctTier);
-  if (u.rollMod.tierShift) tier = Math.min(3, Math.max(1, tier + u.rollMod.tierShift));
+  if (rollMod.tierShift) tier = Math.min(3, Math.max(1, tier + rollMod.tierShift));
+  return { state, tier, total, natural, critThreshold, staticModifier, edges, banes, bonuses };
+}
 
+export function estimateRollModTier({ messageId, targetKey = null, rollMod }) {
+  const message = game.messages.get(messageId);
+  const key = targetKey ?? (message?.getFlag("draw-steel-target-damage", "state")?.targets ?? [])
+    .map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).find(Boolean) ?? null;
+  return rollMod ? _rollModResult(message, key, rollMod)?.tier ?? null : null;
+}
+
+async function _applyRollModOverride(hold, u) {
+  const message = game.messages.get(hold.messageId);
+  if (!message || !u.subjectTargetKey) return;
+  const result = _rollModResult(message, u.subjectTargetKey, u.rollMod);
+  if (!result) return;
+  const { tier, total, natural, critThreshold, staticModifier, edges, banes, bonuses } = result;
+  const state = foundry.utils.deepClone(result.state);
   state.tierOverrides = state.tierOverrides ?? {};
   state.tierOverrides[u.subjectTargetKey] = {
     tier, total, naturalTotal: natural, staticModifier, edges, banes, bonuses,
@@ -835,6 +874,7 @@ async function _applyRollModOverride(hold, u) {
     dstModName: u.itemName,
     dstSrcName: u.ownerName ?? null,
     ...(u.rollMod.tierShift ? { dstTierShift: u.rollMod.tierShift } : {}),
+    ...(u.rollMod.diceTotal != null ? { dstDiceTotal: Number(u.rollMod.diceTotal), ...(u.rollMod.dice?.length ? { dstDice: u.rollMod.dice } : {}) } : {}),
     dstSrcTokenId: (u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null)?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
   };
   state.updatedAt = Date.now();
