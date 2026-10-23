@@ -154,7 +154,7 @@ function _holdMatches(actor, token, damageType, ctx = {}) {
   let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, { ...dealt, ...ctx }).filter((m) =>
     !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual")
     && !(m.clause.damageReduction && autoPassive(m)));
-  if (damageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType));
+  matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType || "untyped"));
   return matches;
 }
 
