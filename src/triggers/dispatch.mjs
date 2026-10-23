@@ -5,6 +5,7 @@ import { enqueuePromptEntries } from "./queue.mjs";
 import { abilityRowsHTML, cardContent, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { malicePill, sendMaliceCard } from "./malice.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
+import { partSnoozeId } from "./firing.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown, featureLineSpent } from "./feature-triggers.mjs";
@@ -767,7 +768,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       if (entry.item.featureLine && entry.parse?.confidence !== "high" && entry.parse?.source !== "manual") continue;
       
       
-      if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
+      const dsid = entry.item.system?._dsid ?? entry.item.dsid ?? null;
+      if (isSnoozedForAudience(actor, dsid)) continue;
       
       const malice = isMaliceAbility(entry.item) && !entry.featureLine;
       
@@ -785,7 +787,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
-        eventHits(c.event, event) && (!fallen || ownDeath || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
+        eventHits(c.event, event) && (!fallen || ownDeath || c.entersSpace)
+        && !(dsid && entry.parse.clauses.length > 1 && isSnoozedForAudience(actor, partSnoozeId(dsid, c))) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
         && rollHasMatches(c, usedContext)

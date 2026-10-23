@@ -1,9 +1,10 @@
 import { getTriggeredAbilities, isMaliceAbility, triggerEffectText } from "../triggers/registry.mjs";
 import { candidateEntries } from "../triggers/dispatch.mjs";
 import { sourceOf, isDerived } from "../triggers/derived.mjs";
-import { snoozeFor, actorSnoozeFor } from "./snooze.mjs";
+import { snoozeFor, actorSnoozeFor, exactSnoozeFor } from "./snooze.mjs";
 import { heroGainLines, gainsActive, gainSnoozeId, lineText } from "../triggers/resource-gains.mjs";
 import { MODULE_ID } from "../util.mjs";
+import { clauseFires, triggerCanFire, partSnoozeId } from "../triggers/firing.mjs";
 
 const COMPANION = "draw-steel-companion.companion";
 
@@ -32,10 +33,28 @@ function _effectOf(item) {
 
 const SPENT_LABELS = { round: "UsedThisRound", encounter: "UsedThisEncounter", turn: "UsedThisTurn" };
 
+const _title = (v) => String(v ?? "").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+function _parts(actor, entry, dsid, name) {
+  const clauses = entry.parse?.clauses ?? [];
+  if (!dsid || clauses.length < 2) return [];
+  const malice = isMaliceAbility(entry.item);
+  const seen = new Set();
+  return clauses.filter((c) => clauseFires(c, malice)).map((c) => {
+    const id = partSnoozeId(dsid, c);
+    if (seen.has(id)) return null;
+    seen.add(id);
+    const snooze = exactSnoozeFor(actor, id);
+    const label = `${_title(c.event)} (${_title(c.scope)})`;
+    return { id, label, name: `${name}: ${label}`, snoozed: !!snooze, snoozeLabel: snooze?.label ?? "" };
+  }).filter(Boolean);
+}
+
 function _row(actor, entry) {
   const item = entry.item;
   const dsid = item.system?._dsid ?? item.dsid ?? null;
   const snooze = snoozeFor(actor, dsid);
+  const parts = _parts(actor, entry, dsid, item.name);
   const resource = item.system?.resource;
   const trigger = item.system?.trigger ?? "";
   return {
@@ -50,6 +69,7 @@ function _row(actor, entry) {
     noEmbed: !!entry.featureLine,
     snoozed: !!snooze,
     snoozeLabel: snooze?.label ?? "",
+    parts: parts.length > 1 ? parts : [],
     spentLabel: SPENT_LABELS[entry.spentOnce] ? game.i18n.localize(`DS_TRIGGERS.Queue.${SPENT_LABELS[entry.spentOnce]}`) : "",
     actorUuid: actor.uuid,
     searchName: `${item.name} ${actor.name}`.toLowerCase(),
@@ -66,7 +86,9 @@ function _split(actor) {
   const own = [];
   const malice = [];
   for (const entry of getTriggeredAbilities(actor, { includeSpent: true }) ?? []) {
-    (isMaliceAbility(entry.item) ? malice : own).push(_row(actor, entry));
+    const isMalice = isMaliceAbility(entry.item);
+    if (!triggerCanFire(entry.parse, { malice: isMalice, featureLine: !!entry.item.featureLine })) continue;
+    (isMalice ? malice : own).push(_row(actor, entry));
   }
   return { own: own.sort(_byName), malice };
 }

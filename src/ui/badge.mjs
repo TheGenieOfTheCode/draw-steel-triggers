@@ -1,42 +1,9 @@
-import { MODULE_ID, getSetting } from "../util.mjs";
+import { MODULE_ID } from "../util.mjs";
 import { emblemCoinHTML, emblemCoinURI } from "./emblem-coin.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
 import { isTriggeredAbility, isMaliceAbility, getParsedTrigger } from "../triggers/registry.mjs";
 import { isDerived } from "../triggers/derived.mjs";
-import { changesTheStrike } from "../parser/trigger-parser.mjs";
-
-const EVENT_MODES = {
-  TURN_START: "reminder",
-  TURN_END: "reminder",
-  ROUND_START: "reminder",
-  REGAINS_STAMINA: "reminder",
-  LOSES_STAMINA: "reminder",
-  TAKES_DAMAGE: "prompt",
-  USES_ABILITY: "prompt",
-  DEALS_DAMAGE: "prompt",
-  FORCE_MOVED: "forced",
-  FORCE_MOVES: "forced",
-  DIES: "prompt",
-  WINDED_OR_DYING: "prompt",
-  WINDED: "prompt",
-  DYING: "prompt",
-  FALL_START: "hold",
-  SPENDS_RECOVERY: "reminder",
-  HERO_TOKEN_EARNED: "reminder",
-  RESISTS_POTENCY: "reminder",
-  STAMINA_BELOW: "prompt",
-  CONDITION_GAIN: "prompt",
-  EFFECT_ENDS: "prompt",
-  GRAB_ENDS: "prompt",
-  WOULD_TAKE_DAMAGE: "hold",
-  TARGETED_BY_STRIKE: "lock",
-  TARGETED_BY_ABILITY: "lock",
-  MAKES_STRIKE: "lock",
-  POWER_ROLL: "lock",
-};
-const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", "MENTOR"]);
-
-const RESOLUTION_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
+import { clauseMode, scopeResolves } from "../triggers/firing.mjs";
 
 export function computeAutomationLevel(item) {
   if (!isTriggeredAbility(item) && !isMaliceAbility(item) && !isDerived(item)) return null;
@@ -59,11 +26,8 @@ export function parseAutomationLevel(parse, { manual = false, malice = false } =
   const detail = [];
   let detected = 0;
   for (const clause of parse.clauses) {
-    const mode = clause.turnLock ? "turn"
-      : clause.postRoll && (RESOLUTION_EVENTS.has(clause.event) || (clause.event === "POWER_ROLL_RESULT" && ((clause.tierFilter?.length ?? 0) > 0 || !!clause.critical)))
-        ? (changesTheStrike(clause) || getSetting("holdInertTriggers") ? "resolution" : "prompt")
-        : EVENT_MODES[clause.event];
-    const scopeOk = BASE_SCOPES.has(clause.scope) || malice;
+    const mode = clauseMode(clause);
+    const scopeOk = scopeResolves(clause, malice);
     if (mode && scopeOk) {
       detected++;
       detail.push(game.i18n.format("DS_TRIGGERS.Badge.Detail.Detected", {

@@ -1479,6 +1479,10 @@ a.dst-roster-name:hover { text-decoration: underline; text-shadow: none; }
 .dst-roster-cost .dst-malice-chip { width: 14px; height: 14px; flex: 0 0 14px; border: none; background: none; }
 .dst-roster-trigger { padding-left: 20px; font-size: var(--font-size-11); opacity: var(--dst-dim-75, 0.75); font-style: italic; }
 .dst-roster-embed { padding: 4px 0 4px 20px; }
+.dst-roster-parts { list-style: none; margin: 2px 0 0; padding: 0 0 0 20px; }
+.dst-roster-part { display: flex; align-items: center; gap: 4px; font-size: var(--font-size-11); }
+.dst-roster-part-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: var(--dst-dim-75, 0.75); }
+.dst-roster-part.is-snoozed .dst-roster-part-label { opacity: var(--dst-dim-45, 0.45); }
 
 .dst-qual-pills { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 

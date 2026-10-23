@@ -868,6 +868,7 @@
       "SnoozeEntryTooltip": "Snooze this trigger: it stays here, but won't be offered again for a while",
       "SnoozeAllTooltip": "Snooze every trigger for me",
       "SnoozeActorTooltip": "Snooze every trigger this creature has",
+      "SnoozePartTooltip": "Snooze only this part of the trigger",
       "RosterSearch": "Filter triggers",
       "RosterSearchHint": "Names, or 'trigger text' in single quotes, or \"effect text\" in double quotes",
       "RosterNoMatch": "No trigger matches the filter.",

@@ -3,7 +3,7 @@ import { autoUseLevel, lineMandatory } from "../triggers/auto-use.mjs";
 import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, chooseRedirectEntry, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch, asPrimaryGM } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
-import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor } from "./snooze.mjs";
+import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor, exactSnoozeFor } from "./snooze.mjs";
 import { runBespokeUse } from "../triggers/bespoke.mjs";
 import { maliceValue } from "../triggers/malice.mjs";
 import { squadBase } from "../triggers/squad-groups.mjs";
@@ -496,6 +496,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         snoozeEntryTooltip: L("SnoozeEntryTooltip"),
         snoozeAllTooltip: L("SnoozeAllTooltip"),
         snoozeActorTooltip: L("SnoozeActorTooltip"),
+        snoozePartTooltip: L("SnoozePartTooltip"),
         rosterSearch: L("RosterSearch"),
         rosterSearchHint: L("RosterSearchHint"),
         rosterNoMatch: L("RosterNoMatch"),
@@ -1034,9 +1035,9 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static async #onSnoozeTrigger(_event, target) {
-    const { dsid, actorUuid, name } = target.dataset;
+    const { dsid, actorUuid, name, part } = target.dataset;
     const actor = actorUuid ? fromUuidSync(actorUuid) : null;
-    const existing = snoozeFor(actor, dsid);
+    const existing = part ? exactSnoozeFor(actor, dsid) : snoozeFor(actor, dsid);
     if (existing) {
       await clearSnooze(actor, existing.key);
       this.render();

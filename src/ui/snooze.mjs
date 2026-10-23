@@ -69,6 +69,17 @@ export function snoozeFor(actor, dsid) {
   return first;
 }
 
+export function exactSnoozeFor(actor, dsid) {
+  for (const user of snoozeAudience(actor)) {
+    const stored = _stored(user);
+    for (const key of [_key(actor?.uuid, dsid), _key(ANY, dsid)]) {
+      const entry = stored[key];
+      if (entry && !_expired(entry)) return { key, ...entry };
+    }
+  }
+  return null;
+}
+
 export const isTriggerSnoozed = (actor, dsid) => !!snoozeFor(actor, dsid);
 
 export const isSnoozedForAudience = (actor, dsid) => !!snoozeFor(actor, dsid);
