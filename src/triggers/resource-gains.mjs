@@ -245,8 +245,10 @@ async function _ruiMark(actor, trackKey, used) {
 
 const _words = (s) => String(s ?? "").toLowerCase().replace(/<[^>]+>/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
 
+const _ruiTracking = () => { try { return !!game.settings.get(RUI, "combatTracking"); } catch { return false; } };
+
 function _ruiTrackKey(actor, line) {
-  if (!_rui || !getSetting("resourcesUiSync")) return null;
+  if (!_rui || !getSetting("resourcesUiSync") || !_ruiTracking()) return null;
   try {
     const classDef = _rui.getClassDefinition(actor);
     if (!classDef) return null;

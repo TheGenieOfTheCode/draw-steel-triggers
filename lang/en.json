@@ -185,7 +185,7 @@
       },
       "ResourcesUiSync": {
         "Name": "Resources UI Sync",
-        "Hint": "Mark each gain as used in Draw Steel - Resources UI, and let its undo button take a gain back."
+        "Hint": "Mark each gain as used in Draw Steel - Resources UI, and let its undo button take a gain back. Works while Resources UI's combat tracking is on."
       },
       "TokenBadges": {
         "Name": "Trigger Badges on Tokens",
