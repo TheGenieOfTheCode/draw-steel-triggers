@@ -42,7 +42,10 @@ const GATES = [
   ["threeHeroes", /three or more heroes use an ability on the same turn/i],
   ["heroDeath", /\b(?:you or another hero|any hero|a hero) dies\b/i],
   ["threeSurges", /\bwith 3 surges\b/i],
+  ["turnDamageOverLevel", /greater than 5 \+ your level in a single turn/i],
 ];
+
+const NOT_YET = "an event Triggers does not detect yet";
 
 const MANUAL = [
   [/null field/i, "the area of the Null Field"],
@@ -54,10 +57,39 @@ const MANUAL = [
   [/villain action/i, "damage from a villain action"],
   [/who isn['’]t a minion|\bsolo creature\b/i, "a non-minion or solo creature"],
   [/tier \d outcome/i, "an outcome tier on someone else's roll"],
-  [/area ability|aid attack|hide maneuver|temporary stamina|triggered action|single turn|spends? malice|natural 2\b|last recovery|falls \d+/i, "an event Triggers does not detect yet"],
+  [/area ability|aid attack|hide maneuver|temporary stamina|triggered action|single turn|spends? malice|natural 2\b|last recovery|falls \d+/i, NOT_YET],
 ];
 
+const TYPED = ["acid", "cold", "corruption", "fire", "holy", "lightning", "poison", "psychic", "sonic"];
+const NEAR = String.raw`within (\d+) squares(?: of you)?`;
+const words = (list) => list.split(/,\s*(?:or\s+)?|\s+or\s+/).map((w) => w.trim().toLowerCase()).filter(Boolean);
+
 const FIXUPS = [
+  [new RegExp(`^you or (?:a )?creature ${NEAR} gains temporary stamina, or uses a triggered action`, "i"), (m) => [
+    { event: "GAINS_TEMP_STAMINA", scope: "ANY", range: Number(m[1]) },
+    { event: "USES_ABILITY", scope: "ANY", range: Number(m[1]), abilityType: "triggered", defensiveTriggered: true },
+  ]],
+  [new RegExp(`^you or an ally ${NEAR} uses a triggered action`, "i"), (m) => [
+    { event: "USES_ABILITY", scope: "SELF_OR_ALLY", range: Number(m[1]), abilityType: "triggered" },
+  ]],
+  [new RegExp(`^you or a creature ${NEAR} teleports or uses an area ability`, "i"), (m) => [
+    { event: "TELEPORTS", scope: "ANY", range: Number(m[1]) },
+    { event: "USES_ABILITY", scope: "ANY", range: Number(m[1]), abilityKeywords: ["area"] },
+  ]],
+  [/^the director spends malice/i, [{ event: "MALICE_SPENT", scope: "ANY", range: "none" }]],
+  [new RegExp(`^you or a creature ${NEAR} gains a surge`, "i"), (m) => [{ event: "GAINS_SURGE", scope: "ANY", range: Number(m[1]) }]],
+  [new RegExp(`^you or a creature ${NEAR} takes damage that isn['’]t untyped greater than`, "i"), (m) => [
+    { event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: TYPED },
+  ]],
+  [new RegExp(`^you or a creature ${NEAR} takes ([a-z ,]+?) damage, or is made ([a-z ,]+)$`, "i"), (m) => [
+    { event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: words(m[2]) },
+    { event: "CONDITION_GAIN", scope: "ANY", range: Number(m[1]), conditions: words(m[3]) },
+  ]],
+  [new RegExp(`^you or a creature ${NEAR} takes ([a-z ,]+?) damage, begins dying, or dies`, "i"), (m) => [
+    { event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: words(m[2]) },
+    { event: "DYING", scope: "ANY", range: Number(m[1]) },
+    { event: "DIES", scope: "ANY", range: Number(m[1]) },
+  ]],
   [/the director uses an ability that costs malice/i, { event: "USES_ABILITY", scope: "ANY", range: "none" }],
   [/rolls a natural 19 or 20/i, { event: "NATURAL_19_20", scope: "ANY", range: "none" }],
   [/three or more heroes use an ability/i, { event: "USES_ABILITY", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
@@ -133,9 +165,12 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
           if (fix) {
             const m = line.trigger.match(fix[0]) ?? sentence.match(fix[0]);
             const patch = typeof fix[1] === "function" ? fix[1](m) : fix[1];
-            parse.clauses = [{ ...(parse.clauses[0] ?? {}), qualifiers: parse.clauses[0]?.qualifiers ?? [], ...patch, events: [patch.event] }];
+            parse.clauses = Array.isArray(patch)
+              ? patch.map((p) => ({ qualifiers: [], ...p, events: [p.event] }))
+              : [{ ...(parse.clauses[0] ?? {}), qualifiers: parse.clauses[0]?.qualifiers ?? [], ...patch, events: [patch.event] }];
             parse.confidence = "high";
             parse.source = "gain-fixup";
+            if (Array.isArray(patch)) line.manual = line.manual.filter((why) => why !== NOT_YET);
           }
           const seen = new Set();
           parse.clauses = parse.clauses.filter((c) => {
@@ -155,12 +190,14 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
   return lines;
 }
 
-export const GAIN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "WINDED_OR_DYING", "WINDED", "DYING", "FORCE_MOVED", "FORCE_MOVES", "USES_ABILITY",
-  "NATURAL_19_20", "STAMINA_BELOW", "REGAINS_STAMINA"]);
+export const GAIN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "WINDED_OR_DYING", "WINDED", "DYING", "DIES", "FORCE_MOVED", "FORCE_MOVES", "USES_ABILITY",
+  "NATURAL_19_20", "STAMINA_BELOW", "REGAINS_STAMINA", "CONDITION_GAIN", "GAINS_TEMP_STAMINA", "GAINS_SURGE", "TELEPORTS", "MALICE_SPENT"]);
 
 export function lineAutomated(line) {
   if (line.kind !== "trigger" && line.kind !== "upgrade") return false;
   if (line.manual.length) return false;
-  const clause = line.parse?.clauses?.[0];
-  return !!clause && line.parse.confidence === "high" && line.parse.clauses.length === 1 && GAIN_EVENTS.has(clause.event);
+  const clauses = line.parse?.clauses ?? [];
+  if (!clauses.length || line.parse.confidence !== "high") return false;
+  if (clauses.length > 1 && line.parse.source !== "gain-fixup") return false;
+  return clauses.every((c) => GAIN_EVENTS.has(c.event));
 }

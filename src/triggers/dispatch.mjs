@@ -598,6 +598,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
 
 function statusMatches(clause, ownerActor, subjectActor) {
   if (clause.subjectConcealed && !isConcealed(subjectActor)) return false;
+  if (clause.subjectStates?.length && !clause.subjectStates.some((s) => subjectActor?.statuses?.has(s))) return false;
   if (clause.tauntedByOwner && !subjectActor?.system?.statuses?.taunted?.sources?.has?.(ownerActor.uuid)) return false;
   return !(clause.ownerLacks && ownerActor.statuses?.has(clause.ownerLacks));
 }

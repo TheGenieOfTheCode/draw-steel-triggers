@@ -1,8 +1,9 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, executeAsDirector } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
-import { eventHits, footprintGap, scopeMatches, usedAbilityMatches } from "./dispatch.mjs";
+import { eventHits, footprintGap, scopeMatches, usedAbilityMatches, isMinionActor } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
+import { DAMAGE_MODIFYING } from "../parser/trigger-parser.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
 import { isTriggerSnoozed } from "../ui/snooze.mjs";
 import { cardContent, postSystemCard, speakerFor, withFaces } from "../ui/system-card.mjs";
@@ -75,7 +76,44 @@ const _inLineOfEffect = (heroToken, otherToken) => {
   return !!game.modules.get("draw-steel-ctlib")?.api?.hasSightToToken?.(a, b);
 };
 
+const squadVictim = (actor) => isMinionActor(actor) && game.combat?.combatants.find((c) => c.actor === actor)?.group?.type === "squad";
+
+let _turnKey = "";
+const _turnDamage = new Map();
+function _noteTurnDamage(e) {
+  const ctx = e.eventContext;
+  if (e.event !== "TAKES_DAMAGE" || !_typed(e) || !e.subjectActor || (ctx.dealerOnly && !squadVictim(e.subjectActor))) return;
+  const combat = game.combat;
+  const key = `${combat.id}:${combat.round}:${combat.turn}`;
+  if (key !== _turnKey) { _turnKey = key; _turnDamage.clear(); }
+  const who = _token(e.subjectToken)?.uuid ?? e.subjectActor.uuid;
+  const before = _turnDamage.get(who) ?? 0;
+  const after = before + (Number(ctx.damageAmount ?? e.triggerDamage) || 0);
+  _turnDamage.set(who, after);
+  e.turnDamage = { before, after };
+}
+
+const _overLevel = (e, hero) => {
+  const limit = 5 + (Number(hero.system?.level) || 1);
+  return !!e.turnDamage && e.turnDamage.before <= limit && e.turnDamage.after > limit;
+};
+
+const _valuesOf = (c) => c?.contents ?? (c instanceof Map ? [...c.values()] : Object.values(c ?? {}));
+const DEFENSIVE = /\bbanes?\b|\bhalve[sd]?\b|\bhalf (?:the )?damage\b|\breduc\w*\b[^.]*\bdamage\b|\bdamage\b[^.]*\breduc\w*/i;
+function defensiveTriggered(ability) {
+  if (!ability) return false;
+  const sys = ability.system ?? {};
+  if (DAMAGE_MODIFYING.has(sys._dsid)) return true;
+  const texts = [sys.description?.value];
+  for (const section of _valuesOf(sys.effects)) texts.push(section?.description);
+  for (const effect of _valuesOf(sys.power?.effects)) {
+    for (const n of [1, 2, 3]) texts.push(effect?.[effect.type]?.[`tier${n}`]?.display);
+  }
+  return texts.some((t) => DEFENSIVE.test(String(t ?? "").replace(/<[^>]+>/g, " ")));
+}
+
 const GATES = {
+  turnDamageOverLevel: (e, hero) => _overLevel(e, hero),
   dealerJudged: (e, hero) => judgedBy(e.eventContext.dealerActor, hero),
   victimJudged: (e, hero) => judgedBy(e.eventContext.victimActor, hero),
   victimMarked: (e, hero) => markedBy(e.eventContext.victimActor, hero),
@@ -160,13 +198,15 @@ function _lineMatches(line, e, hero, heroToken) {
   const ctx = e.eventContext;
   return (line.parse?.clauses ?? []).some((clause) => {
     if (!eventHits(clause.event, e.event)) return false;
-    if (e.event === "TAKES_DAMAGE" && ctx.dealerOnly && !line.gates.includes("dealerJudged")) return false;
+    if (e.event === "TAKES_DAMAGE" && ctx.dealerOnly && !line.gates.includes("dealerJudged") && !squadVictim(e.subjectActor)) return false;
     const subjectToken = _token(e.subjectToken);
     if (!scopeMatches(clause, hero, _token(heroToken)?.disposition ?? null, e.subjectActor, subjectToken?.disposition ?? null)) return false;
     if (Number.isFinite(clause.range) && clause.range > 0 && e.subjectActor && e.subjectActor !== hero
       && !_near(heroToken, subjectToken, clause.range)) return false;
     if (clause.damageTypes?.length && !clause.damageTypes.includes(ctx.damageType)) return false;
+    if (clause.conditions?.length && !clause.conditions.includes(ctx.condition)) return false;
     if (e.event === "USES_ABILITY" && !usedAbilityMatches(clause, e.usedAbility, hero, ctx)) return false;
+    if (clause.defensiveTriggered && !defensiveTriggered(e.usedAbility)) return false;
     return line.gates.every((id) => GATES[id]?.(e, hero, heroToken) ?? false);
   });
 }
@@ -300,6 +340,7 @@ export function noteGainEvent(e) {
   if (!combat?.started) return;
   e = { ...e, eventContext: e.eventContext ?? {} };
   e.threeHeroes = _threeHeroes(e);
+  _noteTurnDamage(e);
   const defeated = CONFIG.specialStatusEffects?.DEFEATED ?? "dead";
   for (const { actor, token } of _heroes(combat)) {
     

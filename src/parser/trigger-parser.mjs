@@ -345,6 +345,10 @@ const EVENTS = [
   ["FORCE_MOVES",     /\b(force moves?|(?:you|the self|your companion) (?:would )?(?:use forced movement to )?(?:push|pull|slide)(?:e?s)?)\b/i],
   ["FALL_START",      /\b(?:you|they|the self|(?:a|an|any) [\w -]+?) falls?\b(?! prone)/i],
   ["SPENDS_RECOVERY", /(?<!\bto )\bspends? (?:a|one|\d+) recover(?:y|ies)\b/i],
+  ["GAINS_TEMP_STAMINA", /\bgains? temporary stamina\b/i],
+  ["GAINS_SURGE",     /\bgains? (?:a|one or more|\d+) surges?\b/i],
+  ["MALICE_SPENT",    /\bspends? malice\b/i],
+  ["TELEPORTS",       /\bteleports\b/i],
   ["HERO_TOKEN_EARNED", /\b(?:earns?|gains?|would earn) (?:a|one|\d+) hero tokens?\b/i],
   ["RESISTS_POTENCY", /\bresist(?:s|ing)? (?:a |the )?potenc(?:y|ies)\b/i],
   
@@ -797,9 +801,19 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
   return { sentence, segments, clauseCount: parse.clauses.length };
 }
 
+const STATE_WORDS = "bleeding|weakened|winded|dazed|frightened|slowed|restrained|grabbed|taunted|prone";
+const TURN_START_WHILE = new RegExp(String.raw`\b(starts? their turn) while ((?:${STATE_WORDS})(?:(?:,\s*|\s+)(?:or\s+|and\s+)?(?:${STATE_WORDS}))*)`, "i");
+
 export function parseTrigger(text, options = {}) {
   text = String(text ?? "").replace(/\b[MARIP]<(\w+)/g, "$1 potency");
-  return powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text);
+  
+  
+  const states = text.match(TURN_START_WHILE);
+  if (states) text = text.replace(states[0], states[1]);
+  const result = powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text);
+  if (!states) return result;
+  const subjectStates = states[2].toLowerCase().split(/,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+/).filter(Boolean);
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };
 }
 
 function powerRollFmLayer(result, text) {
@@ -922,6 +936,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       const also = [/\bbanes?\b/.test(lc) && "bane", /\bsurges?\b/.test(lc) && "surge"].filter(Boolean);
       if (also.length) entry.rollHas = ["edge", ...also];
     }
+    if (/\b(?:damage from|incorporating) (?:one or more|a|\d+) surges?\b/.test(lc)) entry.rollHas = [...new Set([...(entry.rollHas ?? []), "surge"])];
     if (/\bsaving throw\b|ends? at the end of their turn/.test(lc) && entry.event === "CONDITION_GAIN") entry.durationFilter = "save-or-eot";
     if (entry.event === "CONDITION_GAIN") {
       const conds = [...new Set([...lc.matchAll(/\b(grabbed|restrained|frightened|taunted|prone|slowed|weakened|dazed|bleeding|hidden)\b/g)].map((m) => m[1]))];

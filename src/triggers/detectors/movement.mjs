@@ -82,9 +82,21 @@ async function arrivals(doc, movement) {
   });
 }
 
+const teleported = (doc, changes, options) => foundry.utils.hasProperty(changes, "flags.draw-steel-combat-tools.lastTpMoveId")
+  || !!options?._movement?.[doc.id]?.passed?.waypoints?.some((w) => w.action === "teleport");
+
 Hooks.on("updateToken", (doc, _changes, options) => {
   if (!isPrimaryGM()) return;
   if (!triggersLive()) return;
+  if (doc.actor && !options?.isPaste && teleported(doc, _changes, options)) {
+    dbg(`${doc.name} teleported`);
+    dispatchTriggerEvent({
+      event: "TELEPORTS",
+      subjectActor: doc.actor,
+      subjectToken: doc,
+      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.Teleports", { name: doc.name }),
+    });
+  }
   if (options?.isUndo || options?.isPaste || window._dsctTeleportActive) return;
   const movement = options?._movement?.[doc.id];
   if (!movement || !doc.actor) return;

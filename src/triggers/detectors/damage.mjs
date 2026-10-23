@@ -463,7 +463,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
         surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
         immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? null,
-        victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
+        victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded, damageAmount: prevTotal - curTotal },
     });
 
     
@@ -480,6 +480,15 @@ Hooks.on("updateActor", (actor, changed, options) => {
           victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
       });
     }
+  }
+  if ((cur.temporary ?? 0) > prev.temporary) {
+    dispatchTriggerEvent({
+      event: "GAINS_TEMP_STAMINA",
+      subjectActor: actor,
+      subjectToken: token,
+      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.GainsTempStamina", { name: actor.name, amount: (cur.temporary ?? 0) - prev.temporary }),
+      eventContext: { amount: (cur.temporary ?? 0) - prev.temporary },
+    });
   }
   if (cur.value < prev.value) {
     dispatchTriggerEvent({
