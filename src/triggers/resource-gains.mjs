@@ -452,6 +452,28 @@ Hooks.once("ready", async () => {
   }
 });
 
+async function _clearUnreachedMarks(combat, prefixes) {
+  if (!_rui || !isPrimaryGM() || !getSetting("resourcesUiSync") || !_ruiTracking()) return;
+  try { if (!game.settings.get(RUI, "sharedTracking")) return; } catch { return; }
+  const reached = new Set(_rui.getAllHeroActors?.() ?? []);
+  for (const { actor } of _heroes(combat)) {
+    if (reached.has(actor)) continue;
+    const keys = actor.getFlag(RUI, "usedEntries") ?? [];
+    const keep = prefixes ? keys.filter((k) => !prefixes.some((p) => k.startsWith(p))) : [];
+    if (keep.length === keys.length) continue;
+    if (keep.length) await actor.setFlag(RUI, "usedEntries", keep);
+    else await actor.unsetFlag(RUI, "usedEntries");
+  }
+}
+
+Hooks.on("updateCombat", (combat, changes) => {
+  const prefixes = changes.round !== undefined ? ["turn:", "round:"] : changes.turn !== undefined ? ["turn:"] : null;
+  if (prefixes) _clearUnreachedMarks(combat, prefixes).catch((err) => console.warn(`${MODULE_ID} | Resources UI marks could not be cleared`, err));
+});
+Hooks.on("deleteCombat", (combat) => {
+  _clearUnreachedMarks(combat, null).catch((err) => console.warn(`${MODULE_ID} | Resources UI marks could not be cleared`, err));
+});
+
 let _socket = null;
 Hooks.once("socketlib.ready", () => {
   _socket = socketlib.registerModule(MODULE_ID);
