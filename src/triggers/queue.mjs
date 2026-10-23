@@ -436,6 +436,9 @@ async function _onQueueResolve(id, outcome, userName) {
   if (outcome === "used") entry.usedAt = Date.now();
   if (outcome === "used" && entry.pill) await _enableBonusPill(entry.pill);
   if (outcome === "used" && entry.mark) await _applyQueuedMark(entry.mark);
+  if (outcome === "used" && entry.potencyMod && entry.potencyKeys?.messageId) {
+    await applyPotencyMods(entry.potencyKeys.messageId, entry.potencyKeys.keys, [entry]).catch((err) => dbg("potency change failed", err));
+  }
   if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
   if (outcome === "used" && entry.defersDeath) {
     const run = fromUuid(entry.heldDamage?.deathActorUuid ?? entry.heldDamage?.actorUuid ?? "")
@@ -1310,6 +1313,13 @@ async function _onPickPotencyEffect(modName, choices = []) {
   }).catch(() => null);
 }
 
+let _potencyChain = Promise.resolve();
+export function applyPotencyMods(messageId, keys, usedEntries) {
+  const run = _potencyChain.then(() => _applyPotencyMods(messageId, keys, usedEntries));
+  _potencyChain = run.catch(() => {});
+  return run;
+}
+
 async function _applyPotencyMods(messageId, keys, usedEntries) {
   const api = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog;
   if (!messageId || !keys?.length || !api?.addResultPill) return;
@@ -1999,6 +2009,8 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     gain: m._gain ?? null,
     pill: m._pill ?? null,
     mark: m._mark ?? null,
+    potencyMod: m.clause?.potencyMod ?? null,
+    potencyKeys: m._potencyKeys ?? null,
     ...(squadBatch ? { squadBatch } : {}),
   }));
   matches.forEach((m, i) => {

@@ -398,7 +398,7 @@ Hooks.on("updateChatMessage", (message) => {
           triggerDamage: Number(r.amount),
           eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc), ability: dealer.ability,
             victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded,
-            ...(squadBatch ? { squadBatch } : {}) },
+            damageMessageId: message?.id ?? null, ...(squadBatch ? { squadBatch } : {}) },
         });
       }
       dispatchTriggerEvent({

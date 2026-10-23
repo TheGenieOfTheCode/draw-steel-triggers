@@ -1,7 +1,7 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
-import { enqueuePromptEntries } from "./queue.mjs";
+import { enqueuePromptEntries, applyPotencyMods } from "./queue.mjs";
 import { abilityRowsHTML, cardContent, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { malicePill, sendMaliceCard } from "./malice.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
@@ -887,6 +887,23 @@ function matchesForDealers(event, subjectActor, subjectToken, usedAbility, conte
   return [...merged.values()];
 }
 
+const targetKey = (t) => {
+  const uuid = typeof t === "string" ? t : t?.uuid ?? t?.document?.uuid ?? null;
+  return uuid ? uuid.replace(/\./g, "__") : null;
+};
+
+function potencyTargets(event, { subjectTokenUuid, usedTargets, sourceMessageId, eventContext }) {
+  if (event === "RESISTS_POTENCY" && sourceMessageId && subjectTokenUuid) return { messageId: sourceMessageId, keys: [targetKey(subjectTokenUuid)] };
+  if (event === "USES_ABILITY" && sourceMessageId && usedTargets?.length) {
+    const keys = usedTargets.map(targetKey).filter(Boolean);
+    return keys.length ? { messageId: sourceMessageId, keys } : null;
+  }
+  if (event === "DEALS_DAMAGE" && eventContext.damageMessageId && eventContext.victimToken) {
+    return { messageId: eventContext.damageMessageId, keys: [targetKey(eventContext.victimToken)] };
+  }
+  return null;
+}
+
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {}, filter = null, gains = true }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
@@ -929,6 +946,17 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   if (queuedMarks.length) enqueuePromptEntries(queuedMarks, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
+  }
+  const potencyAt = potencyTargets(event, { subjectTokenUuid, usedTargets, sourceMessageId, eventContext });
+  if (potencyAt) {
+    for (const m of matches.filter((x) => x.clause?.potencyMod && (x.parse?.confidence === "high" || x.parse?.source === "manual"))) {
+      m._potencyKeys = potencyAt;
+      if (m.item.featureLine?.action || !markNow(m)) continue;
+      applyPotencyMods(potencyAt.messageId, potencyAt.keys, [{ itemUuid: m.item.uuid, itemName: m.item.featureLine?.itemName ?? m.item.name, ownerActorUuid: m.actor.uuid,
+        ownerName: m.actor.name, potencyMod: m.clause.potencyMod }]).catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not change the potency`, err));
+      m._potencyDone = true;
+    }
+    matches = matches.filter((m) => !m._potencyDone);
   }
   if (!matches.length) return;
 

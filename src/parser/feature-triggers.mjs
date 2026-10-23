@@ -578,6 +578,9 @@ const SENTENCE_LINES = [
   [/^Clarity and Strain$/, /\bat the end of each of your turns, you take 1 damage for each negative point\b/i, { trigger: "You end your turn" }],
   [/^Music of the Spheres$/, /^As a main action, you sing or play a note\b/i, { trigger: "", action: "main" }],
   [/^Evolutionary Circuit$/, /\bany psionic strike made by a voiceless talker deals an extra 5 damage\b/i, { trigger: "You make a psionic strike" }],
+  [/^(?:Corven|Raden) Growing Ferocity$/, /\bthe potency of any effects targeting you is reduced by \d+ for you\b/i, { trigger: "You resist a potency" }],
+  [/^Heat Drain$/, /\bwhenever the target damages another creature while restrained this way, any potency associated with the damage is reduced\b/i, { trigger: "The target damages another creature" }],
+  [/^Accursed Slam$/,/\bthe potency of any ability used against them increases by \d+ for the target\b/i, { trigger: "The target resists a potency" }],
 ];
 
 const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;

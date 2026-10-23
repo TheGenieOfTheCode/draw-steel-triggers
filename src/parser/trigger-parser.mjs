@@ -255,14 +255,19 @@ export const POTENCY_TEXT = [
   [new RegExp(`\\bpotency of any (?:potency )?effects? associated with the damage (?:is|are) ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
   [new RegExp(`\\bif the damage has any potency effects? associated with it, the potency is ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
   [new RegExp(`\\bpotency of any potency effects (?:is|are) ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
-];
+  [new RegExp(`^\\W*the potency is ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
+  [/\b(increases|raises|reduces|decreases|lowers) its potency by (\d+)/i, "all"],
+  [new RegExp(`\\bpotency of (?:any|all) (?:enemy )?effects targeting you (?:is|are) ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
+  [/\b(reduce|increase|lower|raise)s? the potency of (?:any |all )?(?:enemy )?effects targeting you by (\d+)/i, "all"],
+  [/\bpotency of any abilit(?:y|ies) used against them (increases|decreases) by (\d+)/i, "all"],
+  [new RegExp(`\\bany potency associated with the damage is ${POTENCY_WAY} by (\\d+)`, "i"), "all"],];
 
-const POTENCY_EVENTS = new Set(["WOULD_TAKE_DAMAGE", "TAKES_DAMAGE", "DEALS_DAMAGE"]);
+const POTENCY_EVENTS = new Set(["WOULD_TAKE_DAMAGE", "TAKES_DAMAGE", "DEALS_DAMAGE", "USES_ABILITY", "RESISTS_POTENCY"]);
 
 function potencyMatch(text) {
   for (const [rx, scope] of POTENCY_TEXT) {
     const hit = String(text ?? "").match(rx);
-    if (hit) return { amount: (/increased|raised/i.test(hit[1]) ? 1 : -1) * Number(hit[2]), scope };
+    if (hit) return { amount: (/increase|raise/i.test(hit[1]) ? 1 : -1) * Number(hit[2]), scope };
   }
   return null;
 }

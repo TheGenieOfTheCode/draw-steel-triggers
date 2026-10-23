@@ -3,7 +3,7 @@ import { getTriggeredAbilities } from "./registry.mjs";
 import { triggersLive, usedAbilityMatches, abilityDamageTypes, dealsRolledDamage, effectsMatch, footprintGap, isMinionActor, groupMatches } from "./dispatch.mjs";
 import { addDamagePill } from "./bespoke.mjs";
 import { autoApplies } from "./auto-use.mjs";
-import { enqueuePromptEntries } from "./queue.mjs";
+import { enqueuePromptEntries, applyPotencyMods } from "./queue.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
@@ -85,6 +85,7 @@ export function damageBonusFor(actor, attackerToken, targetToken, message = null
       const amount = bonusAmount(actor, formula);
       if (!(amount > 0)) continue;
       out.push({ name: entry.item.name, amount, type: c.damageBonusType ?? null, dice: isDice(formula) ? formula : null, optional: !!c.optional, item: entry.item, actor: entry.actor ?? actor,
+        potencyMod: c.potencyMod ?? null,
         perRound: entry.item.featureLine?.once === "round", auto: autoApplies({ mandatory: !c.optional, perRound: entry.item.featureLine?.once === "round", line: entry.item.featureLine }) });
     }
   }
@@ -142,7 +143,14 @@ async function _pillTargets(message) {
           ...(b.auto ? {} : { enabled: false }) });
       }
 
+      const potencyAt = b.potencyMod ? { messageId: message.id, keys: [pillKey(t.tokenUuid)] } : null;
+      if (potencyAt && b.auto) {
+        applyPotencyMods(potencyAt.messageId, potencyAt.keys, [{ itemUuid: b.item.uuid, itemName: b.name, ownerActorUuid: b.actor.uuid,
+          ownerName: b.actor.name, potencyMod: b.potencyMod }]).catch((err) => dbg(`${b.name} potency change failed`, err));
+      }
+
       if (!b.auto) enqueuePromptEntries([{ item: b.item, actor: b.actor, _subjectTokenUuid: t.tokenUuid,
+        ...(potencyAt ? { clause: { potencyMod: b.potencyMod }, _potencyKeys: potencyAt } : {}),
         _pill: { messageId: message.id, targetUuid: t.tokenUuid, label, extra },
         _causeLabel: game.i18n.format("DS_TRIGGERS.Queue.BonusCause", { name: b.name, n: b.amount, target: target.name }) }],
       { event: "DEALS_DAMAGE", causeLabel: "", sourceMessageId: message.id });
