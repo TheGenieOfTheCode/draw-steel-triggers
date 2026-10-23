@@ -248,6 +248,33 @@ function rollModLayer(result, id, effectText) {
   };
 }
 
+const POTENCY_WAY = "(reduced|decreased|lowered|increased|raised)";
+
+export const POTENCY_TEXT = [
+  [new RegExp(`\\bpotency of (?:one|an) effect associated with the damage is ${POTENCY_WAY} by (\\d+)`, "i"), "one"],
+  [new RegExp(`\\bpotency of any (?:potency )?effects? associated with the damage (?:is|are) ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
+  [new RegExp(`\\bif the damage has any potency effects? associated with it, the potency is ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
+  [new RegExp(`\\bpotency of any potency effects (?:is|are) ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
+];
+
+const POTENCY_EVENTS = new Set(["WOULD_TAKE_DAMAGE", "TAKES_DAMAGE", "DEALS_DAMAGE"]);
+
+function potencyMatch(text) {
+  for (const [rx, scope] of POTENCY_TEXT) {
+    const hit = String(text ?? "").match(rx);
+    if (hit) return { amount: (/increased|raised/i.test(hit[1]) ? 1 : -1) * Number(hit[2]), scope };
+  }
+  return null;
+}
+
+function potencyLayer(result, effectText, spendText) {
+  if (!effectText || !result.clauses.some((c) => POTENCY_EVENTS.has(c.event))) return result;
+  const found = potencyMatch(effectText);
+  if (!found) return result;
+  const potencyMod = { ...found, ...(potencyMatch(spendText) ? { spend: true } : {}) };
+  return { ...result, clauses: result.clauses.map((c) => (POTENCY_EVENTS.has(c.event) && !c.potencyMod ? { ...c, potencyMod } : c)) };
+}
+
 export const HALF_TEXT = [
   /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
   /\bhalf (?:the |that |this |of the |any )?(?:\w+ )?damage\b/i,
@@ -810,7 +837,7 @@ export function parseTrigger(text, options = {}) {
   
   const states = text.match(TURN_START_WHILE);
   if (states) text = text.replace(states[0], states[1]);
-  const result = effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText);
+  const result = potencyLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.effectText, options.spendText);
   if (!states) return result;
   const subjectStates = states[2].toLowerCase().split(/,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+/).filter(Boolean);
   return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };

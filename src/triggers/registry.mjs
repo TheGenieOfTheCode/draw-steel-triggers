@@ -52,12 +52,13 @@ export function getParsedTrigger(item, { ignoreManual = false } = {}) {
   const text = item.system.trigger ?? "";
   const ownerName = item.actor?.name ?? "";
   const effectText = _effectText(item);
+  const spendText = _spendText(item);
   const targetType = item.system.target?.type ?? "";
   const cached = _parseCache.get(item.uuid);
   if (cached && cached.text === text && cached.ownerName === ownerName && cached.effectText === effectText && cached.targetType === targetType) return cached.result;
 
   const side = !item.actor ? undefined : item.actor.type === "hero" ? "hero" : "monster";
-  const result = parseTrigger(text, { dsid: item.dsid, ownerName, effectText, targetType, side });
+  const result = parseTrigger(text, { dsid: item.dsid, ownerName, effectText, spendText, targetType, side });
   _parseCache.set(item.uuid, { text, ownerName, effectText, targetType, result });
   return result;
 }
@@ -79,6 +80,9 @@ function _effectText(item) {
   }
   return parts.join(" ").replace(/<[^>]+>/g, " ");
 }
+
+const _spendText = (item) => (item.system.effects?.contents ?? []).filter((e) => e.type === "spend")
+  .map((e) => e.description ?? "").join(" ").replace(/<[^>]+>/g, " ");
 
 export function getTriggeredAbilities(actor, { includeSpent = false } = {}) {
   if (!actor) return [];

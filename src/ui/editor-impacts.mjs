@@ -38,7 +38,7 @@ export const IMPACTS = [
     add: (c) => { c.event = "WOULD_TAKE_DAMAGE"; },
     remove: (c) => {
       c.event = "TAKES_DAMAGE";
-      for (const k of ["halfDamage", "damageReduction", "damageRedirect", "redirectRange", "redirectPool", "unreducible"]) delete c[k];
+      for (const k of ["halfDamage", "damageReduction", "damageRedirect", "redirectRange", "redirectPool", "unreducible", "potencyMod"]) delete c[k];
     },
     summary: () => L("hold.Summary"),
   },
@@ -76,6 +76,28 @@ export const IMPACTS = [
       if (v.mode === "level") c.damageReduction = "level";
       else if (v.mode === "char") c.damageReduction = { base: num(v.amount), char: v.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0] };
       else c.damageReduction = num(v.amount);
+    },
+  },
+  {
+    id: "potencyMod", icon: "fa-solid fa-scale-unbalanced",
+    keys: ["potencyMod"],
+    supports: (c) => held(c) || TARGETING.has(c.event),
+    has: (c) => !!c.potencyMod,
+    add: (c) => { c.potencyMod = { amount: -1, scope: "one" }; },
+    summary: (c) => {
+      const m = c.potencyMod;
+      const n = `${m.amount > 0 ? "+" : ""}${m.amount}`;
+      return L(m.scope === "all" ? "potencyMod.SummaryAll" : "potencyMod.SummaryOne", { n }) + (m.spend ? L("potencyMod.SpendSuffix") : "");
+    },
+    fields: (c) => [
+      { name: "amount", label: L("FieldAmount"), type: "number", value: c.potencyMod.amount ?? -1, min: -9 },
+      { name: "scope", label: L("potencyMod.Scope"), type: "select", options: [
+        opt("one", L("potencyMod.One"), c.potencyMod.scope), opt("all", L("potencyMod.All"), c.potencyMod.scope)] },
+      { name: "spend", label: L("potencyMod.Spend"), hint: L("potencyMod.SpendHint"), type: "checkbox", checked: !!c.potencyMod.spend },
+    ],
+    read: (c, v) => {
+      const amount = Math.trunc(Number(v.amount) || 0) || -1;
+      c.potencyMod = { amount, scope: v.scope === "all" ? "all" : "one", ...(v.spend ? { spend: true } : {}) };
     },
   },
   {

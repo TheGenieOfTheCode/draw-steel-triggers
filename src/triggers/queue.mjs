@@ -236,6 +236,7 @@ const _asChoice = (e) => ({
   triggerDamage: e.triggerDamage ?? null,
   halfDamage: e.halfDamage ?? false,
   damageReduction: e.damageReduction ?? null,
+  potencyMod: e.potencyMod ?? null,
   sourceMessageId: e.sourceMessageId ?? null,
 });
 
@@ -560,7 +561,7 @@ async function _onQueueResolve(id, outcome, userName) {
     if (outcome === "used" && !entry.defersDeath) {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
-      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null,
+      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null, potencyMod: entry.potencyMod ?? null,
         damageRedirect: entry.damageRedirect ?? null, redirectRange: entry.redirectRange ?? null, redirectFilter: entry.redirectFilter ?? null, unreducible: !!entry.unreducible });
       if (entry.damageRedirect === "director") _queueRedirectEntry(entry, hold, hold.usedEntries.at(-1));
     }
@@ -576,7 +577,7 @@ async function _onQueueResolve(id, outcome, userName) {
       (hold.usedEntries ??= []).push({
         itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName,
         itemName: entry.itemName, usedAt: entry.usedAt,
-        rollMod: entry.rollMod ?? null, redirect: entry.redirect ?? null,
+        rollMod: entry.rollMod ?? null, potencyMod: entry.potencyMod ?? null, redirect: entry.redirect ?? null,
         reflectHalf: entry.reflectHalf ?? false, redirectPool: entry.redirectPool ?? null,
         halfOnUse: entry.halfOnUse ?? false, postHoc: entry.postHoc ?? false,
         subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
@@ -744,6 +745,11 @@ async function _finalizeResolutionHold(resolutionId) {
       continue;
     }
     for (const key of keys) await _applyRollModOverride(hold, { ...u, subjectTargetKey: key }).catch((err) => dbg("roll mod apply failed", err));
+  }
+  const allKeys = (message?.getFlag("draw-steel-target-damage", "state")?.targets ?? [])
+    .map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).filter(Boolean);
+  for (const u of used) {
+    if (u.potencyMod) await _applyPotencyMods(hold.messageId, u.subjectTargetKey ? [u.subjectTargetKey] : allKeys, [u]);
   }
   for (const u of used) {
     if (!u.halfOnUse || !u.subjectTargetKey) continue;
@@ -1097,6 +1103,7 @@ async function _settleDamageHold(hold) {
   }
   const redirect = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.damageRedirect);
   if (redirect && await _redirectHeldDamage(hold, redirect)) return;
+  await _applyPotencyMods(hold.dstd?.messageId, hold.tokenUuid ? [hold.tokenUuid.replace(/\./g, "__")] : [], hold.usedEntries);
 
   
   
@@ -1289,7 +1296,47 @@ function _finishResume(usedEntries, resume) {
     });
 }
 
-function _fmSpendUsed(itemUuid) {
+async function _onPickPotencyEffect(modName, choices = []) {
+  if (choices.length < 2) return choices[0]?.effectId ?? null;
+  return foundry.applications.api.DialogV2.wait({
+    window: { title: modName },
+    content: `<p>${foundry.utils.escapeHTML(game.i18n.format("DS_TRIGGERS.Queue.PotencyPick", { modName }))}</p>`,
+    buttons: choices.map((c, i) => ({ action: c.effectId, label: c.label, default: i === 0 })),
+    rejectClose: false,
+  }).catch(() => null);
+}
+
+async function _applyPotencyMods(messageId, keys, usedEntries) {
+  const api = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog;
+  if (!messageId || !keys?.length || !api?.addResultPill) return;
+  for (const u of usedEntries ?? []) {
+    const mod = u.potencyMod;
+    if (u.cancelled || !Number(mod?.amount)) continue;
+    if (mod.spend && !_spendUsed(u.itemUuid)) continue;
+    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    for (const key of keys) {
+      let effectId = null;
+      if (mod.scope === "one") {
+        const choices = api.potencyEffectsOf?.(messageId, key) ?? [];
+        if (!choices.length) continue;
+        const pickUser = choices.length > 1 ? _pickUserFor(u.ownerActorUuid) : null;
+        effectId = pickUser && pickUser.id !== game.user.id
+          ? await socket.executeAsUser("pickPotencyEffect", pickUser.id, u.itemName, choices).catch(() => null)
+          : await _onPickPotencyEffect(u.itemName, choices);
+        if (!effectId) continue;
+      }
+      const picked = effectId ? (api.potencyEffectsOf?.(messageId, key) ?? []).find((c) => c.effectId === effectId) : null;
+      const effectName = picked?.label?.replace(/\s*\([^)]*<[^)]*\)$/, "");
+      await api.addResultPill(messageId, key, {
+        kind: "potency", amount: Number(mod.amount), ...(effectId ? { effectId } : {}),
+        reason: effectName ? `${u.itemName} (${effectName})` : u.itemName,
+        src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
+      }).catch((err) => dbg("potency pill failed", err));
+    }
+  }
+}
+
+function _spendUsed(itemUuid) {
   const item = itemUuid ? fromUuidSync(itemUuid) : null;
   const spendIds = new Set((item?.system?.effects?.documentsByType?.spend ?? []).map((e) => e.id));
   if (!spendIds.size) return false;
@@ -1434,7 +1481,7 @@ function _fmAmount(entry) {
   const owner = entry?.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
   const amount = Math.max(0, Number(owner?.system?.characteristics?.[entry?.fmChar]?.value ?? 0));
   if (entry?.fmPerSurge) return amount * (Number(entry.fmSurges) || 0);
-  return (amount && _fmSpendUsed(entry.itemUuid)) ? amount * 2 : amount;
+  return (amount && _spendUsed(entry.itemUuid)) ? amount * 2 : amount;
 }
 
 function _collectFmMods(usedEntries) {
@@ -1983,6 +2030,7 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     halfDamage: m.clause?.halfDamage ?? false,
     expend: m.clause?.expendEffect ?? null,
     damageReduction: m.clause?.damageReduction ?? null,
+    potencyMod: m.clause?.potencyMod ?? null,
     damageRedirect: m.clause?.damageRedirect ?? null,
     redirectRange: m.clause?.redirectRange ?? null,
     redirectFilter: m.clause?.redirectFilter ?? null,
@@ -2038,6 +2086,7 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     resume: null,
     resolutionId,
     rollMod: m.clause?.rollMod ?? null,
+    potencyMod: m.clause?.potencyMod ?? null,
     redirect: m.clause?.redirect ?? null,
     reflectHalf: m.clause?.redirect === "reflect" && !!m.clause?.reflectHalf,
     redirectPool: m.clause?.redirectPool ?? null,
@@ -2207,6 +2256,7 @@ Hooks.once("socketlib.ready", () => {
   socket.register("pickDamageRedirect", _onPickDamageRedirect);
   socket.register("pickStabilityShare", _onPickStabilityShare);
   socket.register("pickSurgeSpend", _onPickSurgeSpend);
+  socket.register("pickPotencyEffect", _onPickPotencyEffect);
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
   socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
   socket.register("queueSyncRequest", _onQueueSyncRequest);

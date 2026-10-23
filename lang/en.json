@@ -450,6 +450,18 @@
           "Char": "An amount plus a characteristic",
           "Hint": "Using the trigger subtracts this from the held damage."
         },
+        "potencyMod": {
+          "Label": "Change the Potency",
+          "SummaryOne": "Potency {n} on one effect",
+          "SummaryAll": "Potency {n} on every effect",
+          "SpendSuffix": " (when spent)",
+          "Scope": "Effects",
+          "One": "One effect, picked when it lands",
+          "All": "Every potency effect",
+          "Spend": "Only when the spend is paid",
+          "SpendHint": "The change happens only if the trigger's use spent its heroic resource.",
+          "Hint": "Using the trigger changes the potency of the triggering card's effects for the target. Draw Steel: Combat Tools shows it on the card and checks it."
+        },
         "redirectHeld": {
           "Label": "Redirect the Held Damage",
           "Who": "Who takes it",
@@ -834,6 +846,7 @@
       },
       "LockCause": "{roller} is using {ability}.",
       "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
+      "PotencyPick": "Which effect does {modName} change the potency of?",
       "NoBaneToNegate": "{modName} has no bane to negate on this roll.",
       "NotEnoughMalice": "{name} costs {n} Malice and the Director has {have}.",
       "AddedAsTarget": "{name} is now a target too.",

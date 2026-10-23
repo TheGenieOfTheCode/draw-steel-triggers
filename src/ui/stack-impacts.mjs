@@ -4,7 +4,7 @@ import { rollModProviderFor } from "../triggers/roll-mod-providers.mjs";
 
 const L = (k, data) => (data ? game.i18n.format(`DS_TRIGGERS.Queue.Chip.${k}`, data) : game.i18n.localize(`DS_TRIGGERS.Queue.Chip.${k}`));
 const FREE_STRIKE = /\bfree strikes?\b/i;
-const HELD_IMPACTS = new Set(["hold", "halfHeld", "reduceHeld", "redirectHeld", "damageType"]);
+const HELD_IMPACTS = new Set(["hold", "halfHeld", "reduceHeld", "redirectHeld", "damageType", "potencyMod"]);
 const OWNER_IMPACTS = new Set(["turn"]);
 const SHORT_KEYS = { hold: "Hold" };
 const MINOR = new Set(["a", "an", "the", "of", "to", "with", "by", "on", "in", "and", "or", "for", "at"]);
