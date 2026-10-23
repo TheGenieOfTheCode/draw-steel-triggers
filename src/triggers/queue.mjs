@@ -731,16 +731,19 @@ async function _finalizeResolutionHold(resolutionId) {
     }
     if (!u.rollMod) continue;
     
+    const pill = u.rollMod.diceTotal != null ? { kind: "base", amount: Number(u.rollMod.diceTotal), dice: u.rollMod.dice ?? null }
+      : u.rollMod.autoTier ? { kind: "autoTier", amount: Number(u.rollMod.autoTier) }
+      : null;
     const keys = u.subjectTargetKey ? [u.subjectTargetKey]
-      : u.rollMod.diceTotal != null ? (message?.getFlag("draw-steel-target-damage", "state")?.targets ?? []).map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).filter(Boolean)
+      : pill ? (message?.getFlag("draw-steel-target-damage", "state")?.targets ?? []).map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).filter(Boolean)
       : [];
-    
+
     const addPill = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.addResultPill;
-    if (u.rollMod.diceTotal != null && addPill) {
+    if (pill && addPill) {
       const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
       for (const key of keys) {
-        await addPill(hold.messageId, key, { kind: "base", amount: Number(u.rollMod.diceTotal), dice: u.rollMod.dice ?? null, reason: u.itemName,
-          src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null }).catch((err) => dbg("base roll pill failed", err));
+        await addPill(hold.messageId, key, { ...pill, reason: u.itemName,
+          src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null }).catch((err) => dbg(`${pill.kind} pill failed`, err));
       }
       continue;
     }
@@ -855,6 +858,7 @@ function _rollModResult(message, targetKey, rollMod) {
   }
   const applyTier = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.applyTierMods;
   if (applyTier && roll.options?.dsctTier) tier = applyTier(tier, roll.options.dsctTier);
+  if (rollMod.autoTier) tier = Math.min(3, Math.max(1, Number(rollMod.autoTier)));
   if (rollMod.tierShift) tier = Math.min(3, Math.max(1, tier + rollMod.tierShift));
   return { state, tier, total, natural, critThreshold, staticModifier, edges, banes, bonuses };
 }
