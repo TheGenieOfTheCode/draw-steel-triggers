@@ -1,5 +1,20 @@
 {
   "DS_TRIGGERS": {
+    "Tip": {
+      "Category": "Triggers",
+      "StackCategory": "Trigger Stack",
+      "EditorCategory": "Trigger Builder",
+      "GainCategory": "Resource Gain",
+      "Resync": { "category": "Derived Trigger" },
+      "FmHeld": { "title": "Held", "category": "Trigger Stack" },
+      "MaliceAvailable": { "title": "Available Features", "category": "Malice" },
+      "GainUndo": { "category": "Resource Gain" },
+      "IgnoredFeature": { "category": "Ignored Feature" },
+      "IgnoreAdd": { "title": "Ignore a Feature", "category": "Ignored Features" },
+      "IgnoreToggle": { "category": "Ignored Features", "body": "Shows or hides the list of features Triggers leaves alone." },
+      "AbilityLink": { "category": "Ability" },
+      "OpenEditor": { "title": "Trigger Builder", "category": "Triggers" }
+    },
     "Sheet": {
       "MaliceActions": "Malice Actions"
     },

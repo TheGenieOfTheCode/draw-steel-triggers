@@ -1,5 +1,6 @@
 import { MODULE_ID } from "../util.mjs";
 import { featureLineEmbed } from "./feature-card.mjs";
+import { tip as richTip, tipAttrs } from "./tips.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML(String(s ?? ""));
 const ctlib = () => game.modules.get("draw-steel-ctlib")?.api ?? null;
@@ -111,9 +112,8 @@ function compactEmbed(html, { item, name, owner, pills, action = true }) {
   if (fields.length && fields.every((el) => el.classList.contains("dst-default"))) meta.classList.add("dst-default");
   const h5 = embed.querySelector(":scope > h5");
   if (h5) {
-    const tip = esc(game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip"));
     const title = item
-      ? `<a class="dst-ability-link" data-item-uuid="${item.uuid}" data-tooltip="${tip}">${esc(name ?? h5.textContent.trim())}</a>`
+      ? `<a class="dst-ability-link" data-item-uuid="${item.uuid}" ${tipAttrs(richTip("AbilityLink", { title: name ?? h5.textContent.trim(), body: game.i18n.localize("DS_TRIGGERS.Reminder.LinkTooltip") }))}>${esc(name ?? h5.textContent.trim())}</a>`
       : esc(name ?? h5.textContent.trim());
     const tail = [action ? actionPill(item) : "", ...(pills ?? []), owner ? faceHTML(owner, { named: true }) : ""].filter(Boolean).join("");
     h5.innerHTML = `<i class="fa-solid fa-caret-down dst-card-caret" inert></i>${title}${tail ? `<span class="dst-card-tail">${tail}</span>` : ""}`;

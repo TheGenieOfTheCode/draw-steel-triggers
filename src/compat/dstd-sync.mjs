@@ -1,6 +1,7 @@
 import { MODULE_ID, dbg, getSetting, isPrimaryGM } from "../util.mjs";
 import { getActiveDamageHolds, queueSocket, noteHeldLinked } from "../triggers/queue.mjs";
 import { noteTargetsChange } from "../triggers/detectors/resolution.mjs";
+import { setTip, textTip } from "../ui/tips.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 
@@ -333,7 +334,7 @@ function _patchMessageLabels(message, root) {
         const span = btn.querySelector("span");
         const label = r.byHand ? game.i18n.localize("DS_TRIGGERS.Queue.DstdRedirectedByHand") : game.i18n.format("DS_TRIGGERS.Queue.DstdRedirected", { name: r.name });
         if (span && span.textContent !== label) span.textContent = label;
-        if (r.modName) btn.dataset.tooltip = r.modName;
+        if (r.modName) setTip(btn, textTip(r.modName, { label, categoryKey: "Category" }));
       }
       for (const undo of root.querySelectorAll(`button[data-dstd-action="undoDamage"][data-operation-id="${opId}"]`)) undo.disabled = true;
       continue;

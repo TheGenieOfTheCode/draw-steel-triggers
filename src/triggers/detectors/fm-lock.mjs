@@ -3,6 +3,7 @@ import { collectTriggerMatches, dispatchTriggerEvent, footprintGap, triggersLive
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
 import { autoApplies } from "../auto-use.mjs";
+import { setTip, tip } from "../../ui/tips.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
@@ -678,7 +679,7 @@ function _markHeldFmRows({ message, root }) {
     const span = apply.querySelector("span");
     const label = game.i18n.localize("DS_TRIGGERS.Queue.DstdHeldLabel");
     if (span && span.textContent !== label) span.textContent = label;
-    apply.dataset.tooltip = game.i18n.localize("DS_TRIGGERS.Queue.FmRowHeldTip");
+    setTip(apply, tip("FmHeld", { body: game.i18n.localize("DS_TRIGGERS.Queue.FmRowHeldTip") }));
     for (const b of rest) b.disabled = true;
   }
 }

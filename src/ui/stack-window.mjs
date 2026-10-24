@@ -10,6 +10,7 @@ import { squadBase } from "../triggers/squad-groups.mjs";
 import { impactChips } from "./stack-impacts.mjs";
 import { featureSnoozeId } from "../triggers/feature-triggers.mjs";
 import { gainSnoozeId } from "../triggers/resource-gains.mjs";
+import { richify } from "./tips.mjs";
 
 const UNSNOOZABLE_KINDS = new Set(["held", "damageHeld", "resolutionHeld", "reaper", "redirect"]);
 
@@ -667,6 +668,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   _onRender(_context, _options) {
+    richify(this.element, "StackCategory");
     const list = this.element.querySelector(".dst-stack");
     if (list && this._stackScroll) list.scrollTop = this._stackScroll;
     if (list && this._scrollWatched !== list) {

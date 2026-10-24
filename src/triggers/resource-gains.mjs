@@ -7,6 +7,7 @@ import { DAMAGE_MODIFYING } from "../parser/trigger-parser.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
 import { isTriggerSnoozed } from "../ui/snooze.mjs";
 import { cardContent, postSystemCard, speakerFor, withFaces } from "../ui/system-card.mjs";
+import { tip, tipAttrs } from "../ui/tips.mjs";
 
 const RUI = "draw-steel-resources-ui";
 const CT = "draw-steel-combat-tools";
@@ -278,7 +279,7 @@ function _cardContent({ actor, resource, total, previous, current, line }) {
     intro: gained,
     body: `<h5 class="dst-gain-title">${esc(line.name)}</h5>
       <p class="dst-gain-rule">${esc(cap(lineText(line)))}</p>${upgraded}`,
-    buttons: `<button type="button" class="dst-gain-undo" data-tooltip="${esc(L("UndoTooltip"))}"><i class="fa-solid fa-rotate-left" inert></i> ${L("Undo")}</button>`,
+    buttons: `<button type="button" class="dst-gain-undo" ${tipAttrs(tip("GainUndo", { title: L("Undo"), body: L("UndoTooltip") }))}><i class="fa-solid fa-rotate-left" inert></i> ${L("Undo")}</button>`,
   });
 }
 

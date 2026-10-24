@@ -5,6 +5,7 @@ import { parseTrigger } from "../parser/trigger-parser.mjs";
 import { prerequisites } from "../ui/feature-card.mjs";
 import { cardContent, facesIn, postSystemCard } from "../ui/system-card.mjs";
 import { remindConsumable } from "./consumables.mjs";
+import { tip, tipAttrs } from "../ui/tips.mjs";
 
 const FLAG = "derived";
 const ONCE_FLAG = "derivedOnce";
@@ -516,7 +517,7 @@ Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   const note = document.createElement("p");
   note.className = "dst-derived-note";
   note.innerHTML = `<i class="fa-solid fa-link" inert></i> ${L("From", { source: `<a class="dst-derived-source">${esc(d.sourceName)}</a>` })}`
-    + (d.edited ? ` · <span class="dst-derived-edited">${L("Edited")}</span> · <a class="dst-derived-resync" data-tooltip="${esc(L("ResyncTip"))}">${L("Resync")}</a>` : "");
+    + (d.edited ? ` · <span class="dst-derived-edited">${L("Edited")}</span> · <a class="dst-derived-resync" ${tipAttrs(tip("Resync", { title: L("Resync"), body: L("ResyncTip") }))}>${L("Resync")}</a>` : "");
   note.querySelector(".dst-derived-source")?.addEventListener("click", () => sourceOf(item)?.sheet.render({ force: true }));
   note.querySelector(".dst-derived-resync")?.addEventListener("click", async () => {
     if (!item.isOwner) return;

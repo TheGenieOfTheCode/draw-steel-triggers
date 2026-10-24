@@ -10,6 +10,7 @@ import { COUNTDOWN_RESOURCES } from "../triggers/countdowns.mjs";
 import { QUALIFIERS, qualifierById, hasQualifier, writeSettings, clearQualifier } from "./qualifier-library.mjs";
 import { QualifierPicker, optionLabel, conditionLabel } from "./qualifier-picker.mjs";
 import { IMPACTS, impactById, impactLabel, impactHint, moveImpact, pruneImpacts, removeImpact } from "./editor-impacts.mjs";
+import { richify, setTip, tip } from "./tips.mjs";
 
 const L = (k, data) => data
   ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
@@ -622,6 +623,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    richify(this.element, "EditorCategory");
     const titleEl = this.element.querySelector(".window-header .window-title");
     if (titleEl) titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem-coin.png" alt="">${this.title}`;
     this._listenerAbort?.abort();
@@ -1091,7 +1093,7 @@ Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   btn.type = "button";
   btn.className = "dst-trigger-edit-btn";
   btn.innerHTML = `<i class="fa-solid fa-wrench"></i>`;
-  btn.dataset.tooltip = game.i18n.localize("DS_TRIGGERS.Editor.OpenTooltip");
+  setTip(btn, tip("OpenEditor", { body: game.i18n.localize("DS_TRIGGERS.Editor.OpenTooltip") }));
   btn.addEventListener("click", () => new TriggerEditor(item).render({ force: true }));
   
   const wrap = document.createElement("div");

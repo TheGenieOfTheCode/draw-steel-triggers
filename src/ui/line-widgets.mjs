@@ -5,6 +5,7 @@ import { parseAutomationLevel } from "./badge.mjs";
 import { emblemCoinURI } from "./emblem-coin.mjs";
 import { MODULE_ID } from "../util.mjs";
 import { derivedFor, derivedActive } from "../triggers/derived.mjs";
+import { setTip, textTip } from "./tips.mjs";
 
 const WIDGET_KINDS = new Set(["trigger", "upgrade"]);
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Gain.${key}`));
@@ -69,8 +70,8 @@ function widgetFor(item, line) {
   button.dataset.lineKey = line.key;
   const name = namedGainLines(item.actor).find((e) => e.line.key === line.key)?.line.name ?? "";
   const head = name ? `<strong>${foundry.utils.escapeHTML(name)}</strong><br>` : "";
-  button.dataset.tooltip = head + (line.kind === "upgrade" && line.upgradeOf
-    ? `${tip}<br>${L("WidgetUpgrade", { base: line.upgradeOf })}` : tip);
+  setTip(button, textTip(head + (line.kind === "upgrade" && line.upgradeOf
+    ? `${tip}<br>${L("WidgetUpgrade", { base: line.upgradeOf })}` : tip), { label: item.name, categoryKey: "GainCategory" }));
   button.setAttribute("aria-label", name ? `${name}. ${tip}` : tip);
   if (!item.isOwner) button.disabled = true;
   button.addEventListener("click", (event) => {
@@ -97,8 +98,8 @@ function coinWidgetFor(item, line) {
           : game.i18n.localize(`DS_TRIGGERS.Badge.Level.${info.level}`);
   const action = line.action === "triggered" ? F("ActionTriggered") : line.action === "freeTriggered" ? F("ActionFree") : F("ActionNone");
   const tier = tierText(line.tier);
-  button.dataset.tooltip = `<strong>${foundry.utils.escapeHTML(line.name)}</strong> (${action})<br>${why}${tier ? `<br>${tier}` : ""}`
-    + (info.detail?.length && line.enabled ? `<br>${info.detail.join("<br>")}` : "");
+  setTip(button, textTip(`<strong>${foundry.utils.escapeHTML(line.name)}</strong> (${action})<br>${why}${tier ? `<br>${tier}` : ""}`
+    + (info.detail?.length && line.enabled ? `<br>${info.detail.join("<br>")}` : ""), { categoryKey: "Category" }));
   button.setAttribute("aria-label", `${line.name}. ${why}`);
   if (!item.isOwner) button.disabled = true;
   button.addEventListener("click", (event) => {

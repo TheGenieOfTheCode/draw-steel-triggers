@@ -4,6 +4,7 @@ import { TriggerEditor } from "./trigger-editor.mjs";
 import { isTriggeredAbility, isMaliceAbility, getParsedTrigger } from "../triggers/registry.mjs";
 import { isDerived } from "../triggers/derived.mjs";
 import { clauseMode, scopeResolves } from "../triggers/firing.mjs";
+import { setTip, textTip } from "./tips.mjs";
 
 export function computeAutomationLevel(item) {
   if (!isTriggeredAbility(item) && !isMaliceAbility(item) && !isDerived(item)) return null;
@@ -78,7 +79,7 @@ function buildBadge(item) {
   badge.className = `dst-auto-badge dst-auto-badge--${info.level}`;
   badge.innerHTML = emblemCoinHTML(info.level, { className: "dst-emblem-img" });
   const title = game.i18n.localize(`DS_TRIGGERS.Badge.Level.${info.level}`);
-  badge.dataset.tooltip = `<strong>${title}</strong><br>${info.detail.join("<br>")}`;
+  setTip(badge, textTip(`<strong>${title}</strong><br>${info.detail.join("<br>")}`, { categoryKey: "Category" }));
   badge.dataset.tooltipDirection = "UP";
   return badge;
 }
@@ -109,7 +110,7 @@ function buildCoin(item) {
   coin.className = `dst-line-widget dst-coin-widget dst-coin-widget--${info.level}`;
   coin.style.backgroundImage = `url("${emblemCoinURI(info.level === "none" ? "iron" : info.level)}")`;
   const title = game.i18n.localize(`DS_TRIGGERS.Badge.Level.${info.level}`);
-  coin.dataset.tooltip = `<strong>${title}</strong><br>${info.detail.join("<br>")}`;
+  setTip(coin, textTip(`<strong>${title}</strong><br>${info.detail.join("<br>")}`, { categoryKey: "Category" }));
   coin.setAttribute("aria-label", title);
   if (!item.isOwner) coin.disabled = true;
   coin.addEventListener("click", (event) => {

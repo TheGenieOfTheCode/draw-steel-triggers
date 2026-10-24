@@ -3,6 +3,7 @@ import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
 import { abilityRowsHTML, cardContent, cardPill, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { neutralizeStatusLinks } from "../ui/ability-preview.mjs";
+import { tip, tipAttrs } from "../ui/tips.mjs";
 
 export const BASIC_MALICE = {
   "brutal-effectiveness": "Compendium.draw-steel.monster-features.Item.GpKibCtEYzdsnGSX",
@@ -159,7 +160,7 @@ export async function sendMaliceCard(matches, subjectActor, { causeLabel = "", p
   }))).then(neutralizeStatusLinks);
   const head = `<div class="dst-malice-head">
     <span class="dst-malice-title">${esc(L("Header"))}</span>
-    <button type="button" class="dst-malice-avail" data-tooltip="${esc(L("AvailableTip"))}">
+    <button type="button" class="dst-malice-avail" ${tipAttrs(tip("MaliceAvailable", { body: L("AvailableTip") }))}>
       <img class="dst-card-pill-chip" src="${chipURI()}" alt=""><span class="dst-malice-avail-text"></span>
     </button>
   </div>`;
