@@ -10,6 +10,11 @@ const DSTD_ID = "draw-steel-target-damage";
 
 const objectOf = (t) => t?.object ?? t ?? null;
 
+const extraTypesConvert = () => {
+  try { return game.modules.get(DSCT_ID)?.active && game.settings.get(DSCT_ID, "extraDamageTypes") === "convert"; }
+  catch { return false; }
+};
+
 function hasHighGround(attacker, target) {
   const check = game.modules.get(DSCT_ID)?.active ? game.modules.get(DSCT_ID).api?.hasHighGround : null;
   const a = objectOf(attacker), b = objectOf(target);
@@ -131,16 +136,17 @@ async function _pillTargets(message) {
       if (_done.has(key)) continue;
       _done.add(key);
       const dealt = abilityDamageTypes(ability);
-      const extra = !!b.type && !(dealt.size === 1 && dealt.has(b.type));
+      const typed = !!b.type && !(dealt.size === 1 && dealt.has(b.type));
+      const extra = typed && !extraTypesConvert();
       const label = b.dice ? `${b.name} (${b.dice})` : b.name;
-      dbg(`${b.name}: +${b.amount}${b.type ? ` ${b.type}` : ""} damage to ${target.name} on ${ability.name}${extra ? " as its own row" : ""}${b.auto ? "" : " (on the stack)"}`);
+      dbg(`${b.name}: +${b.amount}${b.type ? ` ${b.type}` : ""} damage to ${target.name} on ${ability.name}${extra ? " as its own row" : typed ? ", converting the damage" : ""}${b.auto ? "" : " (on the stack)"}`);
       if (extra) {
         const api = game.modules.get(DSCT_ID)?.active ? game.modules.get(DSCT_ID).api?.extraDamage : null;
         if (!api?.add) continue;
         await api.add(message, { targetUuid: t.tokenUuid, id: label, amount: b.amount, type: b.type, label, enabled: b.auto });
       } else {
         await addDamagePill(message, t.tokenUuid, { kind: "delta", value: b.amount, label, src: actor.name, source: "trigger", dstTarget: t.tokenUuid,
-          ...(b.auto ? {} : { enabled: false }) });
+          ...(typed ? { damageType: b.type } : {}), ...(b.auto ? {} : { enabled: false }) });
       }
 
       const potencyAt = b.potencyMod ? { messageId: message.id, keys: [pillKey(t.tokenUuid)] } : null;
