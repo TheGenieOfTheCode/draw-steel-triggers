@@ -97,7 +97,7 @@
         {{/if}}
         {{#if snoozeId}}
         <button type="button" class="dst-stack-snooze{{#if snoozed}} is-snoozed{{/if}}" data-action="snoozeEntry" data-id="{{id}}"
-                data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeEntryTooltip}}{{/if}}" aria-label="{{@root.labels.snoozeEntryTooltip}}">
+                data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeEntryTooltip}}{{/if}}" aria-label="{{#if snoozed}}{{@root.labels.snoozedShort}}{{else}}{{@root.labels.snoozeShort}}{{/if}}">
           <i class="fa-solid {{#if snoozed}}fa-bell-slash{{else}}fa-bell{{/if}}" inert></i>
         </button>
         {{/if}}
@@ -133,7 +133,7 @@
         {{/if}}
         <button type="button" data-action="declineEntry" data-id="{{id}}"{{#if notYours}} disabled data-tooltip="{{notYoursTooltip}}"{{/if}}>{{@root.labels.decline}}</button>
         {{#if showMarkUsed}}<button type="button" data-action="markVillainUsed" data-id="{{id}}" data-tooltip="{{@root.labels.markUsedTooltip}}"><i class="fa-solid fa-check"></i> {{@root.labels.markUsed}}</button>{{/if}}
-        {{#if @root.isGM}}<button type="button" class="dst-stack-dismiss" data-action="dismissEntry" data-id="{{id}}" data-tooltip="{{@root.labels.dismissTooltip}}"><i class="fa-solid fa-eye-slash"></i></button>{{/if}}
+        {{#if @root.isGM}}<button type="button" class="dst-stack-dismiss" data-action="dismissEntry" data-id="{{id}}" data-tooltip="{{@root.labels.dismissTooltip}}" aria-label="{{@root.labels.dismiss}}"><i class="fa-solid fa-eye-slash"></i></button>{{/if}}
       </div>
       {{/if}}
       {{#if showRelease}}
@@ -176,7 +176,7 @@
     <span class="dst-roster-part-label">{{label}}</span>
     <button type="button" class="dst-roster-snooze" data-action="snoozeTrigger"
             data-dsid="{{id}}" data-actor-uuid="{{../actorUuid}}" data-name="{{name}}" data-part="1"
-            data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozePartTooltip}}{{/if}}">
+            data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozePartTooltip}}{{/if}}" aria-label="{{#if snoozed}}{{@root.labels.snoozedShort}}{{else}}{{@root.labels.snoozeShort}}{{/if}}">
       <i class="fa-solid {{#if snoozed}}fa-bell-slash{{else}}fa-bell{{/if}}"></i>
     </button>
   </li>
@@ -226,7 +226,7 @@
         {{/if}}
         <button type="button" class="dst-roster-snooze" data-action="snoozeTrigger"
                 data-dsid="{{dsid}}" data-actor-uuid="{{actorUuid}}" data-name="{{name}}"
-                data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeTooltip}}{{/if}}">
+                data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeTooltip}}{{/if}}" aria-label="{{#if snoozed}}{{@root.labels.snoozedShort}}{{else}}{{@root.labels.snoozeShort}}{{/if}}">
           <i class="fa-solid {{#if snoozed}}fa-bell-slash{{else}}fa-bell{{/if}}"></i>
         </button>
       </div>
@@ -244,7 +244,7 @@
         <span>{{name}}</span>
         {{#if snoozedCount}}{{#unless actorSnoozed}}<i class="fa-solid fa-bell-slash dst-roster-muted" data-tooltip="{{@root.labels.groupMuted}}"></i>{{/unless}}{{/if}}
         <button type="button" class="dst-roster-snooze" data-action="snoozeActor" data-actor-uuid="{{actorUuid}}" data-name="{{name}}"
-                data-tooltip="{{#if actorSnoozed}}{{actorSnoozeLabel}}{{else}}{{@root.labels.snoozeActorTooltip}}{{/if}}">
+                data-tooltip="{{#if actorSnoozed}}{{actorSnoozeLabel}}{{else}}{{@root.labels.snoozeActorTooltip}}{{/if}}" aria-label="{{#if actorSnoozed}}{{@root.labels.snoozedShort}}{{else}}{{@root.labels.snoozeCreatureShort}}{{/if}}">
           <i class="fa-solid {{#if actorSnoozed}}fa-bell-slash{{else}}fa-bell{{/if}}"></i>
         </button>
       </summary>
@@ -263,7 +263,7 @@
           {{/if}}
           <button type="button" class="dst-roster-snooze" data-action="snoozeTrigger"
                   data-dsid="{{dsid}}" data-actor-uuid="{{actorUuid}}" data-name="{{name}}"
-                  data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeTooltip}}{{/if}}">
+                  data-tooltip="{{#if snoozed}}{{snoozeLabel}}{{else}}{{@root.labels.snoozeTooltip}}{{/if}}" aria-label="{{#if snoozed}}{{@root.labels.snoozedShort}}{{else}}{{@root.labels.snoozeShort}}{{/if}}">
             <i class="fa-solid {{#if snoozed}}fa-bell-slash{{else}}fa-bell{{/if}}"></i>
           </button>
         </div>

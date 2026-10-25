@@ -550,6 +550,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         addClause: L("AddClause"), options: L("RowOptions"), expand: L("RowExpand"),
         impacts: L("Impacts"), clause: L("Clause"), wholeTrigger: L("WholeTrigger"), effect: L("EffectText"), effectHint: L("Impact.EffectHint"),
         addImpact: L("AddImpact"), noImpacts: L("NoImpacts"), noImpactsPossible: L("NoImpactsPossible"),
+        linkedText: L("LinkedText"),
         malice: L("Malice"), save: L("Save"), reset: L("Reset"),
       },
       hints: {

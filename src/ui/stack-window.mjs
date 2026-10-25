@@ -497,6 +497,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         snoozeEntryTooltip: L("SnoozeEntryTooltip"),
         snoozeAllTooltip: L("SnoozeAllTooltip"),
         snoozeActorTooltip: L("SnoozeActorTooltip"),
+        snoozeShort: L("SnoozeShort"), snoozedShort: L("SnoozedShort"), snoozeCreatureShort: L("SnoozeCreatureShort"),
         snoozePartTooltip: L("SnoozePartTooltip"),
         rosterSearch: L("RosterSearch"),
         rosterSearchHint: L("RosterSearchHint"),
