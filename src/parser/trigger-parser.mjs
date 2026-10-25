@@ -252,6 +252,7 @@ const POTENCY_WAY = "(reduced|decreased|lowered|increased|raised)";
 
 export const POTENCY_TEXT = [
   [new RegExp(`\\bany potenc(?:y|ies) associated with the damage (?:is|are) ${POTENCY_WAY} by your ${CHAR} score`, "i"), "all"],
+  [new RegExp(`\\bany potenc(?:y|ies) associated with the damage (?:is|are) ${POTENCY_WAY} by ([MARIP])\\b`, "i"), "all"],
   [new RegExp(`\\bpotency of (?:one|an) effect associated with the damage is ${POTENCY_WAY} by (\\d+)`, "i"), "one"],
   [new RegExp(`\\bpotency of any (?:potency )?effects? associated with the damage (?:is|are) ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
   [new RegExp(`\\bif the damage has any potency effects? associated with it, the potency is ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
@@ -271,7 +272,8 @@ function potencyMatch(text) {
     if (!hit) continue;
     const sign = /increase|raise/i.test(hit[1]) ? 1 : -1;
     
-    if (!/^\d+$/.test(hit[2])) return { amount: sign, char: hit[2].toLowerCase(), scope };
+    const LETTER = { m: "might", a: "agility", r: "reason", i: "intuition", p: "presence" };
+    if (!/^\d+$/.test(hit[2])) return { amount: sign, char: LETTER[hit[2].toLowerCase()] ?? hit[2].toLowerCase(), scope };
     return { amount: sign * Number(hit[2]), scope };
   }
   return null;
