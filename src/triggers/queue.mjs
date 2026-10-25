@@ -509,7 +509,7 @@ async function _onQueueResolve(id, outcome, userName) {
       
       _queue = _queue.filter((e) => e.resumeId !== entry.resumeId || e.kind === "held");
       if (!usedItems.size) {
-        _removeHeld(entry.resumeId);
+        _settleHeld(entry.resumeId, resume);
         _dispatchResume(resume);
       } else {
         const usedEntries = group.filter((e) => e.state === "used")
@@ -525,7 +525,7 @@ async function _onQueueResolve(id, outcome, userName) {
           }));
         const awaiting = new Set(usedEntries.filter((u) => !_postedAfterUse(u.itemUuid, u.usedAt)).map((u) => u.itemUuid));
         if (!awaiting.size) {
-          _removeHeld(entry.resumeId);
+          _settleHeld(entry.resumeId, resume);
           _finishResume(usedEntries, resume);
         } else {
           const grace = _graceMs();
@@ -1617,14 +1617,42 @@ function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {
   else asPrimaryGM("resumeRoll", resume.itemUuid, retargets, rollMods);
 }
 
+const _releaseAfter = new Map();
+const _fmSettling = new Map();
+const FM_SETTLE_MAX_MS = 600000;
+
 function _removeHeld(resumeId) {
   _queue = _queue.filter((e) => !(e.resumeId === resumeId && e.kind === "held"));
+  const waiting = _releaseAfter.get(resumeId);
+  if (waiting) {
+    _releaseAfter.delete(resumeId);
+    _releaseUnheld(waiting);
+  }
+}
+
+function _settleHeld(resumeId, resume) {
+  const held = _queue.find((e) => e.resumeId === resumeId && e.kind === "held");
+  if (!resume?.fmId || !held) return _removeHeld(resumeId);
+  held.state = "resolving";
+  held.graceUntil = null;
+  clearTimeout(_fmSettling.get(resume.fmId)?.timer);
+  _fmSettling.set(resume.fmId, { resumeId, timer: setTimeout(() => _onFmSettled(resume.fmId), FM_SETTLE_MAX_MS) });
+}
+
+function _onFmSettled(fmId) {
+  if (!isPrimaryGM()) return;
+  const rec = _fmSettling.get(fmId);
+  if (!rec) return;
+  clearTimeout(rec.timer);
+  _fmSettling.delete(fmId);
+  _removeHeld(rec.resumeId);
+  _broadcast();
 }
 
 function _fireResume(resumeId, expired = false) {
   const pending = _pendingResumes.get(resumeId);
   const held = _queue.find((e) => e.resumeId === resumeId && e.kind === "held");
-  _removeHeld(resumeId);
+  _settleHeld(resumeId, pending?.resume ?? held?.resume);
   if (pending) {
     clearTimeout(pending.timer);
     _pendingResumes.delete(resumeId);
@@ -1641,7 +1669,7 @@ function _fireResume(resumeId, expired = false) {
 
     const usedInGroup = _queue.filter((e) => e.resumeId === resumeId && e.state === "used");
     for (const e of _queue) {
-      if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
+      if (e.resumeId === resumeId && e.kind !== "held") { e.resumeId = null; e.resume = null; }
     }
     _finishResume(usedInGroup, held.resume);
   }
@@ -2267,7 +2295,10 @@ function _onQueueChoose(id, key) {
   for (const damageId of new Set(dropped.map((c) => c.damageId).filter(Boolean))) {
     if (damageId !== entry.damageId && _damageHolds.has(damageId) && !_groupPending("damageId", damageId)) _completeDamageGroup(damageId);
   }
-  _releaseUnheld(dropped.map((c) => c.resumeId), entry.resumeId);
+  const droppedIds = dropped.map((c) => c.resumeId).filter(Boolean);
+  
+  if (entry.fmMode && entry.resumeId && droppedIds.length) _releaseAfter.set(entry.resumeId, droppedIds);
+  else _releaseUnheld(droppedIds, entry.resumeId);
   _broadcast();
   return result;
 }
@@ -2285,6 +2316,7 @@ Hooks.once("socketlib.ready", () => {
   socket.register("queueSync", _onQueueSync);
   socket.register("resumeRoll", _onResumeRoll);
   socket.register("releaseHeld", _onReleaseHeld);
+  socket.register("fmSettled", _onFmSettled);
   socket.register("applyHeldDamageNow", _onApplyHeldDamageNow);
   socket.register("releaseResolutionNow", _onReleaseResolutionNow);
   socket.register("useCancelled", _onUseCancelled);

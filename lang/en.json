@@ -800,6 +800,7 @@
       "FmStoppedCounter": "The forced movement was reduced to 0 squares. The target may push the source instead (see the trigger's effect).",
       "FmRedirected": "{owner} redirects the forced movement with {modName}. They choose the new target and destination.",
       "FmRedirectPick": "{modName} | Click the new target to force move. Escape to cancel.",
+      "FmRedirectPickKeep": "{modName} | Enter keeps {name} as the target, or click another creature to force move instead.",
       "PickSubject": "{modName} | Click which target's targeting is replaced. Escape to cancel.",
       "PickTarget": "{modName} | Click the new target. Escape to cancel.",
       "PickerUnavailable": "The target picker needs Draw Steel: CTLib, which isn't enabled; apply the redirect by hand.",
