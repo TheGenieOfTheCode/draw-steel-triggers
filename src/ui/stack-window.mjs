@@ -809,13 +809,14 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this._focusId = null;
     if (this.minimized) this.maximize();
     this.bringToFront?.();
-    const row = this.element?.querySelector(`.dst-stack-entry[data-entry-id="${CSS.escape(entryId)}"]`);
-    if (!row) return;
-    row.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    row.style.setProperty("--dst-flash-colour", row.style.getPropertyValue("--dst-side") || "var(--dst-gold-text, #d9a63f)");
-    row.classList.remove("dst-flash");
-    void row.offsetWidth;
-    row.classList.add("dst-flash");
+    const rows = [entryId].flat().map((id) => this.element?.querySelector(`.dst-stack-entry[data-entry-id="${CSS.escape(id)}"]`)).filter(Boolean);
+    rows[0]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    for (const row of rows) {
+      row.style.setProperty("--dst-flash-colour", row.style.getPropertyValue("--dst-side") || "var(--dst-gold-text, #d9a63f)");
+      row.classList.remove("dst-flash");
+      void row.offsetWidth;
+      row.classList.add("dst-flash");
+    }
   }
 
   _funnelIn() {
@@ -1166,6 +1167,43 @@ Hooks.on("getSceneControlButtons", (controls) => {
     tokenControl.tools["dst-stack"] = tool;
   }
 });
+
+function markStackButton() {
+  const mirror = getQueueMirror();
+  const triggers = mirror.filter((e) => !HELD_KINDS.has(e.kind) && e.kind !== "reaper" && e.state === "pending").length;
+  const title = game.i18n.localize("DS_TRIGGERS.Queue.OpenStackButton");
+  for (const btn of document.querySelectorAll('[data-tool="dst-stack"]')) {
+    btn.classList.toggle("dst-stack-lit", mirror.length > 0);
+    if (triggers) btn.dataset.dstCount = triggers > 9 ? "9+" : String(triggers);
+    else delete btn.dataset.dstCount;
+    btn.setAttribute("aria-label", triggers ? game.i18n.format("DS_TRIGGERS.Queue.OpenStackButtonCount", { title, n: triggers }) : title);
+  }
+}
+
+
+function holdersOf(messageId) {
+  const mirror = getQueueMirror();
+  const ids = new Set(mirror.filter((e) => e.kind === "resolutionHeld" && e.resolution?.messageId === messageId).map((e) => e.resolutionId));
+  return mirror.filter((e) => !HELD_KINDS.has(e.kind) && ids.has(e.resolutionId)).map((e) => e.id);
+}
+
+document.addEventListener("click", (event) => {
+  const li = event.target?.closest?.("li.chat-message[data-message-id]");
+  if (!li || !game.messages.get(li.dataset.messageId)?.getFlag(MODULE_ID, "resolutionLock")) return;
+  const hit = event.target.closest(".dst-dstd-res-banner") || [...li.querySelectorAll("button.dst-dstd-res-locked")].some((b) => {
+    const r = b.getBoundingClientRect();
+    return event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+  });
+  if (!hit) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const holders = holdersOf(li.dataset.messageId);
+  if (holders.length) StackWindow.focus(holders);
+  else StackWindow.open();
+}, { capture: true });
+
+Hooks.on("dst.queueChanged", markStackButton);
+Hooks.on("renderSceneControls", markStackButton);
 
 const reanchorStack = () => setTimeout(() => StackWindow._instance?._anchor(), 300);
 Hooks.on("collapseSidebar", reanchorStack);
