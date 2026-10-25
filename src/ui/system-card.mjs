@@ -70,14 +70,16 @@ export function faceHTML(thing, { named = false } = {}) {
 
 export const withFaces = (text, things = []) => facesIn(esc(text), things);
 
+
 export function facesIn(html, things = []) {
   const faces = new Map();
   for (const thing of things.flat()) {
     const doc = tokenDocOf(thing);
-    const name = doc?.name ?? thing?.name;
-    if (!name || faces.has(name)) continue;
-    const face = faceHTML(doc, { named: true });
-    if (face) faces.set(name, face);
+    const face = faceHTML(doc);
+    if (!face) continue;
+    for (const name of [doc?.name, doc?.actor?.name, thing?.name]) {
+      if (name && !faces.has(name)) faces.set(name, face);
+    }
   }
   const names = [...faces.keys()].sort((a, b) => b.length - a.length);
   names.forEach((n, i) => { html = html.split(esc(n)).join(`\u0000${i}\u0000`); });
