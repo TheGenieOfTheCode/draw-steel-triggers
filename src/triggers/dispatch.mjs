@@ -913,7 +913,8 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
     ? matchesForDealers(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext })
     : collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
   if (filter) matches = matches.filter(filter);
-  
+  if (event === "USES_ABILITY" && getSetting("resolutionHolds")) matches = matches.filter((m) => !m.clause?.abilityWide);
+
   const markNow = (m) => autoApplies({ mandatory: matchMandatory(m), line: m.item?.featureLine });
   const queuedMarks = [];
   const marking = matches.filter((m) => m.clause?.markVictim);

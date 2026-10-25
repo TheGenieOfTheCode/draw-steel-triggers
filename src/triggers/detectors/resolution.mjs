@@ -150,6 +150,23 @@ function _addRollModMatches({ message, matches, seen, rollerActor, ability, deal
   }
 }
 
+function _addAbilityWideMatches({ matches, seen, rollerActor, ability, dealer, usedTargets }) {
+  const rollerToken = dealer.dealerToken;
+  const found = collectTriggerMatches("USES_ABILITY", rollerActor, rollerToken, ability, { usedTargets })
+    .filter((m) => !m.malice && m.clause?.abilityWide && m.actor !== rollerActor
+      && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+  for (const m of found) {
+    if (seen.has(m.item.uuid)) continue;
+    seen.add(m.item.uuid);
+    m._subjectTargetKey = null;
+    m._subjectTokenUuid = rollerToken?.uuid ?? null;
+    m._subjectTokenUuids = rollerToken?.uuid ? [rollerToken.uuid] : null;
+    m._subjectName = rollerToken?.name ?? rollerActor?.name ?? "";
+    m._causeLabel = game.i18n.format("DS_TRIGGERS.Reminder.UsesAbility", { name: m._subjectName, ability: ability.name });
+    matches.push(m);
+  }
+}
+
 function _pruneTierWatch() {
   const now = Date.now();
   for (const [id, w] of _tierWatch) if (now - w.at > 300000) _tierWatch.delete(id);
@@ -254,6 +271,7 @@ async function _tryDispatch(message) {
     }
   }
   _addRollModMatches({ message, matches, seen, rollerActor, ability, dealer });
+  _addAbilityWideMatches({ matches, seen, rollerActor, ability, dealer, usedTargets: targetPairs.map((p) => p.tokenDoc).filter(Boolean) });
   if (_addRollerMatches({ message, matches, seen, targets, rollerActor, ability })) watching = true;
 
   if (watching && !_anyApplied(message)) { _tierWatch.set(message.id, { at: Date.now() }); _pruneTierWatch(); }

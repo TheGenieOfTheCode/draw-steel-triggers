@@ -99,7 +99,7 @@ function resolveTargetScope(result, targetType) {
 }
 
 export function changesTheStrike(clause) {
-  return !!(clause?.rollMod || clause?.redirect || clause?.halfOnUse || clause?.halfDamage || clause?.targetedHalf);
+  return !!(clause?.rollMod || clause?.redirect || clause?.halfOnUse || clause?.halfDamage || clause?.targetedHalf || clause?.abilityWide);
 }
 
 export const EFFECT_TODO = new Set(["final-orders"]);
@@ -251,6 +251,7 @@ function rollModLayer(result, id, effectText) {
 const POTENCY_WAY = "(reduced|decreased|lowered|increased|raised)";
 
 export const POTENCY_TEXT = [
+  [new RegExp(`\\bany potenc(?:y|ies) associated with the damage (?:is|are) ${POTENCY_WAY} by your ${CHAR} score`, "i"), "all"],
   [new RegExp(`\\bpotency of (?:one|an) effect associated with the damage is ${POTENCY_WAY} by (\\d+)`, "i"), "one"],
   [new RegExp(`\\bpotency of any (?:potency )?effects? associated with the damage (?:is|are) ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
   [new RegExp(`\\bif the damage has any potency effects? associated with it, the potency is ${POTENCY_WAY} by (\\d+)`, "i"), "all"],
@@ -267,9 +268,21 @@ const POTENCY_EVENTS = new Set(["WOULD_TAKE_DAMAGE", "TAKES_DAMAGE", "DEALS_DAMA
 function potencyMatch(text) {
   for (const [rx, scope] of POTENCY_TEXT) {
     const hit = String(text ?? "").match(rx);
-    if (hit) return { amount: (/increase|raise/i.test(hit[1]) ? 1 : -1) * Number(hit[2]), scope };
+    if (!hit) continue;
+    const sign = /increase|raise/i.test(hit[1]) ? 1 : -1;
+    
+    if (!/^\d+$/.test(hit[2])) return { amount: sign, char: hit[2].toLowerCase(), scope };
+    return { amount: sign * Number(hit[2]), scope };
   }
   return null;
+}
+
+function abilityWideLayer(result, effectText) {
+  if (!effectText || !/\btriggering ability\b/i.test(effectText)) return result;
+  const uses = (c) => c.event === "USES_ABILITY";
+  const half = halvesDamage(effectText);
+  if (!result.clauses.some((c) => uses(c) && (half || c.potencyMod))) return result;
+  return { ...result, clauses: result.clauses.map((c) => (uses(c) ? { ...c, abilityWide: true, ...(half ? { abilityHalf: true } : {}) } : c)) };
 }
 
 function potencyLayer(result, effectText, spendText) {
@@ -284,6 +297,7 @@ export const HALF_TEXT = [
   /\bhalves? (?:the |that |this |any )?(?:\w+ )?damage\b/i,
   /\bhalf (?:the |that |this |of the |any )?(?:\w+ )?damage\b/i,
   /\bdamage (?:is |taken is )?halved\b/i,
+  /\bdamage from the triggering (?:ability|strike) is halved\b/i,
 ];
 
 const HALF_IS_A_QUANTITY = /\bequal to half\b/i;
@@ -843,13 +857,17 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
 const STATE_WORDS = "bleeding|weakened|winded|dazed|frightened|slowed|restrained|grabbed|taunted|prone";
 const TURN_START_WHILE = new RegExp(String.raw`\b(starts? their turn) while ((?:${STATE_WORDS})(?:(?:,\s*|\s+)(?:or\s+|and\s+)?(?:${STATE_WORDS}))*)`, "i");
 
+
+const enricherLabels = (s) => (s == null ? s : String(s).replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, "$1"));
+
 export function parseTrigger(text, options = {}) {
-  text = String(text ?? "").replace(/\b[MARIP]<(\w+)/g, "$1 potency");
+  options = { ...options, effectText: enricherLabels(options.effectText), spendText: enricherLabels(options.spendText) };
+  text = enricherLabels(String(text ?? "")).replace(/\b[MARIP]<(\w+)/g, "$1 potency");
   
   
   const states = text.match(TURN_START_WHILE);
   if (states) text = text.replace(states[0], states[1]);
-  const result = potencyLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.effectText, options.spendText);
+  const result = abilityWideLayer(potencyLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.effectText, options.spendText), options.effectText);
   if (!states) return result;
   const subjectStates = states[2].toLowerCase().split(/,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+/).filter(Boolean);
   return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };

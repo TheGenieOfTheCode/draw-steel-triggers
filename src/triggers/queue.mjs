@@ -583,6 +583,7 @@ async function _onQueueResolve(id, outcome, userName) {
         rollMod: entry.rollMod ?? null, potencyMod: entry.potencyMod ?? null, redirect: entry.redirect ?? null,
         reflectHalf: entry.reflectHalf ?? false, redirectPool: entry.redirectPool ?? null,
         halfOnUse: entry.halfOnUse ?? false, postHoc: entry.postHoc ?? false,
+        abilityWide: entry.abilityWide ?? false, abilityHalf: entry.abilityHalf ?? false,
         subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
         subjectTokenUuid: entry.subjectTokenUuid ?? null, subjectTokenUuids: entry.subjectTokenUuids ?? null,
       });
@@ -755,7 +756,8 @@ async function _finalizeResolutionHold(resolutionId) {
   const allKeys = (message?.getFlag("draw-steel-target-damage", "state")?.targets ?? [])
     .map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).filter(Boolean);
   for (const u of used) {
-    if (u.potencyMod) await _applyPotencyMods(hold.messageId, u.subjectTargetKey ? [u.subjectTargetKey] : allKeys, [u]);
+    if (u.abilityWide) await _applyAbilityWide(message, u);
+    else if (u.potencyMod) await _applyPotencyMods(hold.messageId, u.subjectTargetKey ? [u.subjectTargetKey] : allKeys, [u]);
   }
   for (const u of used) {
     if (!u.halfOnUse || !u.subjectTargetKey) continue;
@@ -1314,6 +1316,25 @@ async function _onPickPotencyEffect(modName, choices = []) {
 }
 
 let _potencyChain = Promise.resolve();
+const _potencyAmount = (mod, owner) => (mod?.char
+  ? Number(mod.amount) * (Number(owner?.system?.characteristics?.[mod.char]?.value) || 0)
+  : Number(mod?.amount) || 0);
+
+async function _applyAbilityWide(message, u) {
+  const api = game.modules.get("draw-steel-combat-tools")?.api?.globalModifiers;
+  if (!message || !api) return;
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  const src = { reason: u.itemName, src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null };
+  if (u.abilityHalf) {
+    await api.addDamage(message, [{ kind: "half", value: null, label: u.itemName, src: src.src, srcTokenId: src.srcTokenId, source: "trigger" }])
+      .catch((err) => dbg(`${u.itemName} global half failed`, err));
+  }
+  const amount = _potencyAmount(u.potencyMod, owner);
+  if (amount && (!u.potencyMod.spend || _spendUsed(u.itemUuid))) {
+    await api.addRoll(message, [{ kind: "potency", amount, ...src }]).catch((err) => dbg(`${u.itemName} global potency failed`, err));
+  }
+}
+
 export function applyPotencyMods(messageId, keys, usedEntries) {
   const run = _potencyChain.then(() => _applyPotencyMods(messageId, keys, usedEntries));
   _potencyChain = run.catch(() => {});
@@ -1325,9 +1346,10 @@ async function _applyPotencyMods(messageId, keys, usedEntries) {
   if (!messageId || !keys?.length || !api?.addResultPill) return;
   for (const u of usedEntries ?? []) {
     const mod = u.potencyMod;
-    if (u.cancelled || !Number(mod?.amount)) continue;
-    if (mod.spend && !_spendUsed(u.itemUuid)) continue;
     const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    const amount = _potencyAmount(mod, owner);
+    if (u.cancelled || !amount) continue;
+    if (mod.spend && !_spendUsed(u.itemUuid)) continue;
     for (const key of keys) {
       let effectId = null;
       if (mod.scope === "one") {
@@ -1342,7 +1364,7 @@ async function _applyPotencyMods(messageId, keys, usedEntries) {
       const picked = effectId ? (api.potencyEffectsOf?.(messageId, key) ?? []).find((c) => c.effectId === effectId) : null;
       const effectName = picked?.label?.replace(/\s*\([^)]*<[^)]*\)$/, "");
       await api.addResultPill(messageId, key, {
-        kind: "potency", amount: Number(mod.amount), ...(effectId ? { effectId } : {}),
+        kind: "potency", amount, ...(effectId ? { effectId } : {}),
         reason: effectName ? `${u.itemName} (${effectName})` : u.itemName,
         src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
       }).catch((err) => dbg("potency pill failed", err));
@@ -2108,6 +2130,8 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     redirectPool: m.clause?.redirectPool ?? null,
     halfOnUse: m.clause?.halfOnUse === true
       || (m._postHoc === true && m.clause?.targetedHalf === true),
+    abilityWide: m.clause?.abilityWide === true,
+    abilityHalf: m.clause?.abilityHalf === true,
     postHoc: m._postHoc === true,
     subjectTargetKey: m._subjectTargetKey ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
