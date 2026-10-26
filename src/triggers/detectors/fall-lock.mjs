@@ -61,7 +61,10 @@ function _onResumeFall(fallId, usedItemUuids = []) {
   if (!pending) return;
   _pendingFalls.delete(fallId);
   const mods = { reduction: 0, cancel: false, safe: false };
-  for (const uuid of usedItemUuids) {
+  for (const used of usedItemUuids) {
+    
+    if (used && typeof used === "object") { mods.reduction += Number(used.reduction) || 0; continue; }
+    const uuid = used;
     const effect = pending.effects.get(uuid);
     if (!effect) continue;
     mods.reduction += effect.reduction;

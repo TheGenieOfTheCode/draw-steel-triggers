@@ -518,7 +518,7 @@ async function _onQueueResolve(id, outcome, userName) {
             itemName: e.itemName, usedAt: e.usedAt,
             redirect: e.redirect ?? null, redirectPool: e.redirectPool ?? null, rollMod: e.rollMod ?? null,
             fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null, fmAmount: e.fmAmount ?? null,
-            fmPerSurge: e.fmPerSurge ?? null, fmSurges: e.fmSurges ?? null,
+            fmPerSurge: e.fmPerSurge ?? null, fmSurges: e.fmSurges ?? null, fallAdjust: e.fallAdjust ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
             subjectTokenUuids: e.subjectTokenUuids ?? null,
             villain: e.villain ?? null,
@@ -1295,14 +1295,39 @@ async function _resolveRetargetPicks(retargets, resume) {
   return out;
 }
 
-function _resumeFall(resume, usedItemUuids) {
-  if (game.users.get(resume.userId)?.active) socket?.executeForUsers("resumeFall", [resume.userId], resume.fallId, usedItemUuids);
+function _resumeFall(resume, usedEntries) {
+  const used = (usedEntries ?? []).map((u) => (u.fallAdjust && u.adjustSign ? { uuid: u.itemUuid, reduction: -u.adjustSign * _adjustAmount(u) } : u.itemUuid));
+  if (game.users.get(resume.userId)?.active) socket?.executeForUsers("resumeFall", [resume.userId], resume.fallId, used);
 }
 
-function _finishResume(usedEntries, resume) {
+const _adjustAmount = (u) => _fmAmount(u.fallAdjust ? { ...u, fmChar: u.fallAdjust.char ?? null, fmAmount: u.fallAdjust.amount ?? null } : u);
+
+async function _pickAdjustSigns(usedEntries) {
+  for (const u of usedEntries ?? []) {
+    if (u.cancelled || (u.fmMode !== "adjust" && !u.fallAdjust)) continue;
+    const pickUser = _pickUserFor(u.ownerActorUuid);
+    const amount = _adjustAmount(u);
+    u.adjustSign = pickUser ? Number(await socket.executeAsUser("pickAdjust", pickUser.id, u.itemName, amount, !!u.fallAdjust).catch(() => 0)) || 0 : 0;
+  }
+}
+
+async function _onPickAdjust(modName, amount, fall = false) {
+  return foundry.applications.api.DialogV2.wait({
+    window: { title: modName },
+    content: `<p>${foundry.utils.escapeHTML(game.i18n.format(fall ? "DS_TRIGGERS.Queue.AdjustPickFall" : "DS_TRIGGERS.Queue.AdjustPickFm", { modName, n: amount }))}</p>`,
+    buttons: [
+      { action: "up", label: game.i18n.format("DS_TRIGGERS.Queue.AdjustUp", { n: amount }), icon: "fa-solid fa-plus", callback: () => 1, default: true },
+      { action: "down", label: game.i18n.format("DS_TRIGGERS.Queue.AdjustDown", { n: amount }), icon: "fa-solid fa-minus", callback: () => -1 },
+    ],
+    rejectClose: false,
+  }).catch(() => 0) ?? 0;
+}
+
+async function _finishResume(usedEntries, resume) {
   if (getSetting("debugMode")) console.log(`DS_TRIGGERS | finishResume: used=${(usedEntries ?? []).map((u) => `${u.itemName}:${u.redirect ?? "-"}`).join(",")} resume=${resume?.itemUuid ?? resume?.fmId ?? resume?.kind ?? null}`);
+  await _pickAdjustSigns(usedEntries).catch((err) => dbg("increase or reduce pick failed", err));
   if (resume?.kind === "fall") {
-    _resumeFall(resume, (usedEntries ?? []).map((u) => u.itemUuid));
+    _resumeFall(resume, usedEntries);
     return;
   }
   if (resume?.kind === "turn") {
@@ -1545,6 +1570,8 @@ function _collectFmMods(usedEntries) {
     if (u.fmMode === "reduce" || u.fmMode === "boost") {
       const signed = { ...base, amount: u.fmMode === "reduce" ? -amount : amount };
       (out.redirect ? out.after : out.deltas).push(signed);
+    } else if (u.fmMode === "adjust") {
+      if (u.adjustSign) (out.redirect ? out.after : out.deltas).push({ ...base, amount: u.adjustSign * amount });
     } else if (u.fmMode === "slide" || u.fmMode === "pull") {
       out.movement ??= { ...base, to: u.fmMode };
     } else if (u.fmMode === "vertical") {
@@ -2032,6 +2059,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmChar: m._fmChar ?? null,
     fmAmount: m._fmAmount ?? null,
     fmPerSurge: m._fmPerSurge ?? null,
+    fallAdjust: m.clause?.fallAdjust ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     subjectTokenUuids: m._subjectTokenUuids ?? null,
     fmTargetUuid: m._fmTargetUuid ?? null,
@@ -2370,6 +2398,7 @@ Hooks.once("socketlib.ready", () => {
   socket.register("pickStabilityShare", _onPickStabilityShare);
   socket.register("pickSurgeSpend", _onPickSurgeSpend);
   socket.register("pickPotencyEffect", _onPickPotencyEffect);
+  socket.register("pickAdjust", _onPickAdjust);
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
   socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
   socket.register("queueSyncRequest", _onQueueSyncRequest);

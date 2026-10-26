@@ -166,7 +166,11 @@ const FM_MOD_ABILITIES = {
 };
 
 const CHAR = "(might|agility|reason|intuition|presence)";
+const LETTER_CHAR = { M: "might", A: "agility", R: "reason", I: "intuition", P: "presence" };
+
+const FM_ADJUST = new RegExp(`\\bforced movement distance gains a bonus equal to or is reduced by (?:your ${CHAR} score|([MARIP])\\b|(\\d+))`, "i");
 export const FM_MOD_TEXT = [
+  [FM_ADJUST, (m) => ({ mode: "adjust", ...(m[3] ? { amount: Number(m[3]) } : { char: m[1]?.toLowerCase() ?? LETTER_CHAR[m[2].toUpperCase()] }) })],
   [new RegExp(`\\bspend up to (\\d+) surges?\\b[^.]*\\.\\s*for each surge spent, the forced movement distance gains a bonus equal to your ${CHAR} score\\b`, "i"),
     (m) => ({ mode: "boost", char: m[2].toLowerCase(), perSurge: Number(m[1]) })],
   [new RegExp(`\\bforced movement distance gains a bonus equal to your ${CHAR} score\\b`, "i"), (m) => ({ mode: "boost", char: m[1].toLowerCase() })],
@@ -393,7 +397,7 @@ const EVENTS = [
   ["WOULD_TAKE_DAMAGE", /\bwould take damage\b/i],
   ["FORCE_MOVED",     /\b(is |are |be |being )?(force(d)? moved|pushed|pulled|slid)\b/i],
   ["FORCE_MOVES",     /\b(force moves?|(?:you|the self|your companion) (?:would )?(?:use forced movement to )?(?:push|pull|slide)(?:e?s)?)\b/i],
-  ["FALL_START",      /\b(?:you|they|the self|(?:a|an|any) [\w -]+?) falls?\b(?! prone)/i],
+  ["FALL_START",      /\b(?:you|they|the self|the target|(?:a|an|any) [\w -]+?) falls?\b(?! prone)/i],
   ["SPENDS_RECOVERY", /(?<!\bto )\bspends? (?:a|one|\d+) recover(?:y|ies)\b/i],
   ["GAINS_TEMP_STAMINA", /\bgains? temporary stamina\b/i],
   ["GAINS_SURGE",     /\bgains? (?:a|one or more|\d+) surges?\b/i],
@@ -705,7 +709,7 @@ export function explainAbilityFilters(text, effectText = "") {
   return found;
 }
 
-const EVENT_VERB = /\b(takes?|deals?|damages?|dies|destroyed|moves?|enters?|leaves?|shifts?|starts?|ends?|uses?|makes?|targets?|targeted|forced?|pushed|pulled|slid|becomes?|gains?|grabs?|regains?|reduced?|winded|dying|falls|flies|comes|obtains?|push(?:es)?|pulls?|slides?|knocks?|causes?|spends?)\b/;
+const EVENT_VERB = /\b(takes?|deals?|damages?|dies|destroyed|moves?|enters?|leaves?|shifts?|starts?|ends?|uses?|makes?|targets?|targeted|forced?|pushed|pulled|slid|becomes?|gains?|grabs?|regains?|reduced?|winded|dying|falls?|flies|comes|obtains?|push(?:es)?|pulls?|slides?|knocks?|causes?|spends?)\b/;
 
 function stripPrefix(t) {
   return t.replace(/^(whenever|when|once per (round|turn) when|after)\s+/i, "").replace(/^while [^,]+,\s*/i, "");
@@ -725,7 +729,7 @@ function splitClauses(text) {
   const qi = t.search(/\b(that|which) \b/);
   if (qi > 0) { const inner = splitClauses(t.slice(0, qi).trim()); inner[inner.length - 1] += " " + t.slice(qi); return inner; }
   const DT = "(?!(?:acid|cold|corruption|fire|holy|lightning|poison|psychic|sonic|untyped)\\b)";
-  const split = t.split(new RegExp(`,\\s*or\\s+${DT}|,\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would)\\b)|\\s+or\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would|reduced|falls|damages|obtains|knocks?|the [\\w]+ obtains)\\b)`, "i"));
+  const split = t.split(new RegExp(`,\\s*or\\s+${DT}|,\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would)\\b)|\\s+or\\s+(?=(?:is|are|takes|moves|starts|ends|uses|makes|becomes|gains|dies|would|reduced|falls?|damages|obtains|knocks?|the [\\w]+ obtains)\\b)`, "i"));
   
   const shared = split.at(-1).match(/\b(?:to|from|against) ((?:you|the [\w'’ -]+|an? [\w'’ -]+|any [\w'’ -]+))$/i)?.[1];
   const parts = shared ? split.map((p, i) => i < split.length - 1 && /\b(?:to|from|against)$/i.test(p.trim()) ? `${p.trim()} ${shared}` : p) : split;
@@ -861,7 +865,6 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
 const STATE_WORDS = "bleeding|weakened|winded|dazed|frightened|slowed|restrained|grabbed|taunted|prone";
 const TURN_START_WHILE = new RegExp(String.raw`\b(starts? their turn) while ((?:${STATE_WORDS})(?:(?:,\s*|\s+)(?:or\s+|and\s+)?(?:${STATE_WORDS}))*)`, "i");
 
-
 const enricherLabels = (s) => (s == null ? s : String(s).replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, "$1"));
 
 export function parseTrigger(text, options = {}) {
@@ -877,13 +880,10 @@ export function parseTrigger(text, options = {}) {
   return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };
 }
 
-
-
 function effectPostRollLayer(result, effectText) {
   if (!POST_ROLL_PHRASE.test(String(effectText ?? ""))) return result;
   return { ...result, clauses: result.clauses.map((c) => (c.event === "POWER_ROLL" || TARGETING_EVENTS.has(c.event) ? { ...c, postRoll: true } : c)) };
 }
-
 
 function spendHalfLayer(result, spendText) {
   if (!halvesDamage(spendText) || !result.clauses.some((c) => c.postRoll)) return result;
@@ -1081,6 +1081,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
       const fx = String(effectText ?? "");
       const by = fx.match(/\breduce (?:the )?(?:effective height|distance) of (?:the|your) fall by (?:(\d+) squares|a number of squares equal to your jump distance)/i);
       if (by) entry.fallReduction = by[1] ? Number(by[1]) : "jump";
+      const either = fx.match(new RegExp(`\\beffective height of the (?:triggering )?fall is increased or reduced by (?:your ${CHAR} score|([MARIP])\\b|(\\d+))`, "i"));
+      if (either) entry.fallAdjust = either[3] ? { amount: Number(either[3]) } : { char: either[1]?.toLowerCase() ?? LETTER_CHAR[either[2].toUpperCase()] };
     }
     if (scope === "GROUP") entry.groupName = lc.match(/^(?:a|an|any|one)(?: other)? ([\w -]+?) (?:within|adjacent|acting|is|takes|dies|starts|moves|uses|makes|deals|ends|enters)\b/)?.[1];
     if (!["USES_ABILITY", "DEALS_DAMAGE", "TAKES_DAMAGE", "RESISTS_POTENCY", "FORCE_MOVES", "TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "POWER_ROLL"].includes(entry.event)) {
