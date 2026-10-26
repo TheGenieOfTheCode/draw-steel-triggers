@@ -2,6 +2,7 @@ import { MODULE_ID, getSetting, dbg } from "../../util.mjs";
 import { activationsLeft, collectTriggerMatches, isMinionActor, noteOncePerRoundUse } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket } from "../queue.mjs";
 import { getParsedTrigger } from "../registry.mjs";
+import { sourceOf } from "../derived.mjs";
 import { villainMatches } from "../villain-actions.mjs";
 import { cardContent, facesIn, postSystemCard } from "../../ui/system-card.mjs";
 
@@ -208,14 +209,15 @@ async function _turnTaker(combat, used) {
     const clause = getParsedTrigger(item)?.clauses?.find((c) => c.turnLock) ?? {};
     const pick = { taker: null, viaHesitation: false, squad: !!clause.squadTurn, bonus: !!clause.bonusTurn, manual: !!clause.manualTurn, item, used: u };
     if (clause.manualTurn) return pick;
+
     
-    
-    if (dsid === "hesitation-is-weakness" || clause.squadTurn || clause.bonusTurn || item?.system?.target?.type === "self") {
+    if (dsid === "hesitation-is-weakness" || clause.squadTurn || clause.bonusTurn || (sourceOf(item) ?? item)?.system?.target?.type === "self") {
       const taker = _combatantOfActor(combat, u.ownerActorUuid);
       if (taker) return { ...pick, taker, viaHesitation: dsid === "hesitation-is-weakness" };
       continue;
     }
-    const targets = await _useTargets(u.itemUuid);
+    
+    const targets = await _useTargets((sourceOf(item) ?? item)?.uuid ?? u.itemUuid);
     const tokenTargets = targets.map((doc) => combat.combatants.find((c) => c.tokenId === doc.id)).filter(Boolean);
     if (tokenTargets.length === 1) return { ...pick, taker: tokenTargets[0] };
     return pick;
@@ -268,7 +270,7 @@ async function _onResumeTurn(resume, used = []) {
     
     
     if (next && !pick?.manual) _skipStartOnce.delete(next.id);
-    ui.notifications.warn(game.i18n.format(key, { owner: u.ownerName, ability: u.itemName, name: putBack, ...extra }));
+    ui.notifications.warn(game.i18n.format(next ? key : `${key}NoNext`, { owner: u.ownerName, ability: u.itemName, name: putBack, ...extra }));
     if (!next) {
       if (resume.round) await _advanceRound(combat);
       else await combat.update({ turn: resume.turn }, { direction: resume.direction ?? 1, dstTurnResume: true });

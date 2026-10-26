@@ -582,6 +582,9 @@ const SENTENCE_LINES = [
   [/^(?:Corven|Raden) Growing Ferocity$/, /\bthe potency of any effects targeting you is reduced by \d+ for you\b/i, { trigger: "You resist a potency" }],
   [/^Heat Drain$/, /\bwhenever the target damages another creature while restrained this way, any potency associated with the damage is reduced\b/i, { trigger: "The target damages another creature" }],
   [/^Accursed Slam$/,/\bthe potency of any ability used against them increases by \d+ for the target\b/i, { trigger: "The target resists a potency" }],
+  
+  [/./, /\bcan take their turn immediately after yours\b/i, { trigger: "You end your turn",
+    effect: "The target takes their turn immediately after yours if they haven't acted this round.", clause: { turnLock: true } }],
 ];
 
 const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
@@ -635,7 +638,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const spends = free || /\btriggered action\b/i.test(sentence);
       const synth = sentenceLine(name, sentence);
       if (synth) {
-        found.push({ index, sentence, trigger: synth.trigger, effect: sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "), action: synth.action ?? null, synth: true });
+        found.push({ index, sentence, trigger: synth.trigger, effect: synth.effect ?? sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "),
+          action: synth.action ?? null, synth: true, ...(synth.clause ? { clause: synth.clause } : {}) });
         return;
       }
       if (!spends && !WHEN.test(sentence)) return;
@@ -673,7 +677,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       }
       const pick = curatedLine(name, f.sentence, ability) ?? {};
       if (pick.drop) return;
-      const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...pick };
+      const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...(f.clause ? { clause: f.clause } : {}), ...pick };
       const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : "trigger");
       const once = curated.once ?? onceOf(f.sentence) ?? (/\buntil the end of the round\b/i.test(effect) ? "round" : null);
       const parseText = curated.trigger ?? (ownerName ? asOwner(f.trigger, ownerName) : f.trigger);
