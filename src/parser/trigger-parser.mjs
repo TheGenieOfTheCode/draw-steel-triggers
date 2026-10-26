@@ -235,21 +235,24 @@ export const ROLL_MOD_TEXT = [
 ];
 
 const PREROLL_MOD_EVENTS = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY", "MAKES_STRIKE", "POWER_ROLL"]);
+const DAMAGE_EVENTS = new Set(["WOULD_TAKE_DAMAGE"]);
 
 function rollModLayer(result, id, effectText) {
   if (!effectText) return result;
   const applies = (c) => c.postRoll || PREROLL_MOD_EVENTS.has(c.event);
-  if (!result.clauses.some(applies)) return result;
+  const retiers = (c) => DAMAGE_EVENTS.has(c.event);
+  if (!result.clauses.some((c) => applies(c) || retiers(c))) return result;
   let mod = null;
   for (const [rx, m] of ROLL_MOD_TEXT) {
     const hit = String(effectText).match(rx);
     if (hit) { mod = typeof m === "function" ? m(hit) : m; break; }
   }
   if (!mod) return result;
+  
   return {
     ...result,
     rollModifying: true,
-    clauses: result.clauses.map((c) => applies(c) ? { ...c, rollMod: mod } : c),
+    clauses: result.clauses.map((c) => applies(c) ? { ...c, rollMod: mod } : retiers(c) ? { ...c, retier: mod } : c),
   };
 }
 
@@ -874,7 +877,7 @@ export function parseTrigger(text, options = {}) {
   
   const states = text.match(TURN_START_WHILE);
   if (states) text = text.replace(states[0], states[1]);
-  const result = abilityWideLayer(potencyLayer(spendHalfLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.spendText), options.effectText, options.spendText), options.effectText);
+  const result = abilityWideLayer(potencyLayer(spendWideHalfLayer(spendHalfLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.spendText), options.spendText), options.effectText, options.spendText), options.effectText);
   if (!states) return result;
   const subjectStates = states[2].toLowerCase().split(/,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+/).filter(Boolean);
   return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };
@@ -888,6 +891,11 @@ function effectPostRollLayer(result, effectText) {
 function spendHalfLayer(result, spendText) {
   if (!halvesDamage(spendText) || !result.clauses.some((c) => c.postRoll)) return result;
   return { ...result, damageModifying: true, clauses: result.clauses.map((c) => (c.postRoll ? { ...c, spendHalf: true } : c)) };
+}
+
+function spendWideHalfLayer(result, spendText) {
+  if (!halvesDamage(spendText) || !/\ball (?:of the )?targets of the triggering (?:strike|ability)\b/i.test(spendText)) return result;
+  return { ...result, clauses: result.clauses.map((c) => (DAMAGE_EVENTS.has(c.event) ? { ...c, spendWideHalf: true } : c)) };
 }
 
 function powerRollFmLayer(result, text) {

@@ -436,6 +436,9 @@ Hooks.once("ready", () => {
       if (apps[opId]?.status !== "applied") continue;
       for (const p of data.pills ?? []) out.push({ opId, pill: p });
     }
+    for (const [key, halves] of Object.entries(message.getFlag(MODULE_ID, "retierHalf") ?? {})) {
+      for (const h of halves ?? []) out.push({ targetUuid: key.replace(/__/g, "."), pill: { kind: "half", label: h.label, src: h.src ?? null, source: "trigger" } });
+    }
     return out;
   });
 });

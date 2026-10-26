@@ -235,6 +235,7 @@ const _asChoice = (e) => ({
   promptId: e.promptId ?? null,
   triggerDamage: e.triggerDamage ?? null,
   halfDamage: e.halfDamage ?? false,
+  retier: e.retier ?? null,
   damageReduction: e.damageReduction ?? null,
   potencyMod: e.potencyMod ?? null,
   sourceMessageId: e.sourceMessageId ?? null,
@@ -564,7 +565,7 @@ async function _onQueueResolve(id, outcome, userName) {
     if (outcome === "used" && !entry.defersDeath) {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
-      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null, potencyMod: entry.potencyMod ?? null,
+      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, retier: entry.retier ?? null, spendWideHalf: entry.spendWideHalf ?? false, damageReduction: entry.damageReduction ?? null, potencyMod: entry.potencyMod ?? null,
         damageRedirect: entry.damageRedirect ?? null, redirectRange: entry.redirectRange ?? null, redirectFilter: entry.redirectFilter ?? null, unreducible: !!entry.unreducible });
       if (entry.damageRedirect === "director") _queueRedirectEntry(entry, hold, hold.usedEntries.at(-1));
     }
@@ -1119,6 +1120,50 @@ async function _redirectHeldDamage(hold, u) {
   return true;
 }
 
+async function _retierHeldDamage(hold, u) {
+  const message = hold.dstd?.messageId ? game.messages.get(hold.dstd.messageId) : null;
+  const key = String(hold.tokenUuid ?? hold.actorUuid ?? "").replace(/\./g, "__");
+  if (!message || !key) return false;
+  const result = _rollModResult(message, key, u.retier);
+  if (!result) return false;
+  const halves = (hold.usedEntries ?? []).filter((x) => !x.cancelled && x.halfDamage && !x.wideHalved)
+    .map((x) => ({ label: x.itemName, src: x.ownerName ?? null }));
+  Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
+  const opPath = `flags.draw-steel-target-damage.state.applications.${hold.dstd.opId}.status`;
+  for (let i = 0; i < 30 && foundry.utils.getProperty(game.messages.get(message.id) ?? {}, opPath) !== "undone"; i++) await new Promise((r) => setTimeout(r, 100));
+  const { tier, total, natural, critThreshold, staticModifier, edges, banes, bonuses } = result;
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  await game.messages.get(message.id).update({
+    [`flags.draw-steel-target-damage.state.tierOverrides.${key}`]: {
+      tier, total, naturalTotal: natural, staticModifier, edges, banes, bonuses, isCritical: natural >= critThreshold,
+      dstModName: u.itemName, dstSrcName: u.ownerName ?? null, dstSrcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
+    },
+    [`flags.draw-steel-target-damage.state.updatedAt`]: Date.now(),
+    ...(halves.length ? { [`flags.${MODULE_ID}.retierHalf.${key}`]: halves } : {}),
+  });
+  const victim = fromUuidSync(hold.actorUuid);
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModApplied", { modName: u.itemName, name: victim?.name ?? "", tier }));
+  await new Promise((r) => setTimeout(r, 800));
+  await game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("reapplyDamageRow")?.(game.messages.get(message.id), key);
+  return true;
+}
+
+async function _halveTriggeringStrike(hold, u) {
+  const message = hold.dstd?.messageId ? game.messages.get(hold.dstd.messageId) : null;
+  const api = game.modules.get("draw-steel-combat-tools")?.api?.globalModifiers;
+  if (!message || !api?.addDamage) return;
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  await api.addDamage(message, [{ kind: "half", value: null, label: u.itemName, src: u.ownerName ?? null,
+    srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null, source: "trigger" }]).catch((err) => dbg(`${u.itemName} strike half failed`, err));
+  u.wideHalved = true;
+  const held = String(hold.tokenUuid ?? hold.actorUuid ?? "").replace(/\./g, "__");
+  const redeal = game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("redealDamageRow");
+  for (const t of message.getFlag("draw-steel-target-damage", "state")?.targets ?? []) {
+    const key = String(t.tokenUuid ?? "").replace(/\./g, "__");
+    if (key && key !== held) await redeal?.(game.messages.get(message.id), key);
+  }
+}
+
 async function _settleDamageHold(hold) {
   if (!hold.anyUsed) {
     await _applyHeldDamage(hold, hold.amount);
@@ -1127,6 +1172,10 @@ async function _settleDamageHold(hold) {
   }
   const redirect = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.damageRedirect);
   if (redirect && await _redirectHeldDamage(hold, redirect)) return;
+  const wide = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.spendWideHalf && _spendUsed(u.itemUuid));
+  if (wide) await _halveTriggeringStrike(hold, wide);
+  const retier = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.retier);
+  if (retier && await _retierHeldDamage(hold, retier)) return;
   await _applyPotencyMods(hold.dstd?.messageId, hold.tokenUuid ? [hold.tokenUuid.replace(/\./g, "__")] : [], hold.usedEntries);
 
   
@@ -2165,6 +2214,8 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     subjectTokenUuid: heldDamage.tokenUuid ?? null,
     defersDeath: !!m.defersDeath,
     halfDamage: m.clause?.halfDamage ?? false,
+    retier: m.clause?.retier ?? null,
+    spendWideHalf: m.clause?.spendWideHalf === true,
     expend: m.clause?.expendEffect ?? null,
     damageReduction: m.clause?.damageReduction ?? null,
     potencyMod: m.clause?.potencyMod ?? null,
