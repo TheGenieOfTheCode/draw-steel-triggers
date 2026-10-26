@@ -799,6 +799,9 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c.scope === "TARGET" && entry.watch ? { ...c, scope: "ANY" } : c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken, usedContext))));
       if (!clause) continue;
+      
+      const ownLine = entry.item.featureLine?.key;
+      if (ownLine && (usedContext.damageSource === ownLine || usedContext.ability?.getFlag?.(MODULE_ID, "derived")?.lineKey === ownLine)) continue;
       if (entry.watch === "subject" && !entry.watchMark && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
       if (entry.watch === "used" && !usedSubjectOk(entry, token, subjectActor, subjectToken, usedContext)) continue;
       if (entry.spendUsed && !spendWasPaid(entry.originUuid)) continue;

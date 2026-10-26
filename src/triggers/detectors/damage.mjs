@@ -462,7 +462,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
       eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
         surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
-        immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? null,
+        immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? _lineSource(dealer?.ability) ?? null,
         victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded, damageAmount: prevTotal - curTotal },
     });
 
