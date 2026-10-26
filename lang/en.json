@@ -1015,7 +1015,8 @@
     "FreeStrike": {
       "Macro": "Free Strike (Selected Token)",
       "Title": "Which free strike?",
-      "None": "Select a token with a free strike first."
+      "None": "Select a token with a free strike first.",
+      "Link": "free strike"
     },
     "MacroFolder": "Draw Steel: Triggers",
     "AbilityUse": {

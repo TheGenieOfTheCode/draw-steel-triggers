@@ -65,17 +65,7 @@ const kind = /\\bmelee\\b/.test(said) ? "melee" : /\\branged\\b/.test(said) ? "r
 const host = link?.parentElement?.closest?.("[data-uuid], [data-item-uuid]");
 const owned = host ? fromUuidSync(host.dataset.uuid ?? host.dataset.itemUuid) : null;
 const actor = (owned?.documentName === "Item" ? owned.actor : null) ?? canvas.tokens.controlled[0]?.actor ?? game.user.character;
-if (actor && actor.type !== "hero" && actor.system?.performFreeStrike) return actor.system.performFreeStrike();
-const strikes = (actor?.items ?? []).filter((i) => ["melee-free-strike", "ranged-free-strike"].includes(i.system?._dsid) && (!kind || i.system._dsid === kind + "-free-strike"));
-if (!strikes.length) return ui.notifications.warn(game.i18n.localize("DS_TRIGGERS.FreeStrike.None"));
-let pick = strikes[0];
-if (strikes.length > 1) {
-  const id = await foundry.applications.api.DialogV2.wait({ window: { title: game.i18n.localize("DS_TRIGGERS.FreeStrike.Title") },
-    buttons: strikes.map((i) => ({ action: i.id, label: i.name })), rejectClose: false }).catch(() => null);
-  pick = strikes.find((i) => i.id === id);
-  if (!pick) return;
-}
-return ds.helpers.macros.rollItemMacro(pick.uuid);`;
+return game.modules.get("draw-steel-triggers")?.api?.freeStrike?.(actor, kind);`;
 
 const ownMacro = (m) => !!(m.getFlag(MODULE_ID, "useMacro") || m.getFlag(MODULE_ID, "freeStrike"));
 const _creating = new Map();
