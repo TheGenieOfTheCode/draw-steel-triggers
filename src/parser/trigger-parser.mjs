@@ -154,6 +154,7 @@ export const REDIRECT_TEXT = [
   [/targeting them instead|reflects?[\w'’ ]* back|\bimposed on the creature making the strike\b/i, "reflect"],
   
   [/\bis the target of the triggering (?:strike|ability)\b/i, "chooser"],
+  [/\bchange the target of the triggering (?:strike|ability) to\b/i, "chooser"],
   
   [/becomes? the (?:[\w'’]+ ){0,3}target\b|is the (?:strike|ability)['’]?s? new target/i, "self"],
 ];
@@ -366,11 +367,12 @@ function redirectLayer(result, id, effectText) {
   }
   if (!mode) return result;
   const reflectHalf = mode === "reflect" && halvesDamage(effectText);
+  const pool = mode === "chooser" && /\b(?:yourself|you) or (?:one|an?|another) ally\b/i.test(effectText ?? "") ? "selfOrAlly" : null;
   let stamped = 0;
   const clauses = result.clauses.map((c) => {
     if (TARGETING_EVENTS.has(c.event)) {
       stamped++;
-      return { ...c, redirect: mode, ...(reflectHalf ? { reflectHalf: true } : {}) };
+      return { ...c, redirect: mode, ...(reflectHalf ? { reflectHalf: true } : {}), ...(pool && !c.redirectPool ? { redirectPool: pool } : {}) };
     }
     
     if (c.event === "TAKES_DAMAGE" || c.event === "WOULD_TAKE_DAMAGE") {
@@ -869,16 +871,23 @@ export function parseTrigger(text, options = {}) {
   
   const states = text.match(TURN_START_WHILE);
   if (states) text = text.replace(states[0], states[1]);
-  const result = abilityWideLayer(potencyLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.effectText, options.spendText), options.effectText);
+  const result = abilityWideLayer(potencyLayer(spendHalfLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.spendText), options.effectText, options.spendText), options.effectText);
   if (!states) return result;
   const subjectStates = states[2].toLowerCase().split(/,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+/).filter(Boolean);
   return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };
 }
 
 
+
 function effectPostRollLayer(result, effectText) {
   if (!POST_ROLL_PHRASE.test(String(effectText ?? ""))) return result;
-  return { ...result, clauses: result.clauses.map((c) => (c.event === "POWER_ROLL" ? { ...c, postRoll: true } : c)) };
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "POWER_ROLL" || TARGETING_EVENTS.has(c.event) ? { ...c, postRoll: true } : c)) };
+}
+
+
+function spendHalfLayer(result, spendText) {
+  if (!halvesDamage(spendText) || !result.clauses.some((c) => c.postRoll)) return result;
+  return { ...result, damageModifying: true, clauses: result.clauses.map((c) => (c.postRoll ? { ...c, spendHalf: true } : c)) };
 }
 
 function powerRollFmLayer(result, text) {

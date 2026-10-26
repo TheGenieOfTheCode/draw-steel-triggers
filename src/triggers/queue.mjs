@@ -582,7 +582,7 @@ async function _onQueueResolve(id, outcome, userName) {
         itemName: entry.itemName, usedAt: entry.usedAt,
         rollMod: entry.rollMod ?? null, potencyMod: entry.potencyMod ?? null, redirect: entry.redirect ?? null,
         reflectHalf: entry.reflectHalf ?? false, redirectPool: entry.redirectPool ?? null,
-        halfOnUse: entry.halfOnUse ?? false, postHoc: entry.postHoc ?? false,
+        halfOnUse: entry.halfOnUse ?? false, spendHalf: entry.spendHalf ?? false, postHoc: entry.postHoc ?? false,
         abilityWide: entry.abilityWide ?? false, abilityHalf: entry.abilityHalf ?? false,
         subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
         subjectTokenUuid: entry.subjectTokenUuid ?? null, subjectTokenUuids: entry.subjectTokenUuids ?? null,
@@ -675,6 +675,23 @@ function _removeResolutionHeldEntry(resolutionId) {
   _queue = _queue.filter((e) => !(e.resolutionId === resolutionId && e.kind === "resolutionHeld"));
 }
 
+const RESOLVE_MAX_MS = 600000;
+
+async function _finishResolution(resolutionId) {
+  const held = _queue.find((e) => e.resolutionId === resolutionId && e.kind === "resolutionHeld");
+  if (held) {
+    held.state = "resolving";
+    held.graceUntil = null;
+    _broadcast();
+  }
+  try {
+    await Promise.race([_finalizeResolutionHold(resolutionId), new Promise((r) => setTimeout(r, RESOLVE_MAX_MS))]);
+  } finally {
+    _removeResolutionHeldEntry(resolutionId);
+    _broadcast();
+  }
+}
+
 function _completeResolutionGroup(resolutionId) {
   const hold = _resolutionHolds.get(resolutionId);
   if (!hold) return;
@@ -682,8 +699,7 @@ function _completeResolutionGroup(resolutionId) {
     .filter((u) => !u.cancelled && !_postedAfterUse(u.itemUuid, u.usedAt))
     .map((u) => u.itemUuid));
   if (!awaiting.size) {
-    _removeResolutionHeldEntry(resolutionId);
-    _finalizeResolutionHold(resolutionId);
+    _finishResolution(resolutionId);
     return;
   }
   const grace = _graceMs();
@@ -713,9 +729,7 @@ function _endResolutionGrace(resolutionId, expired) {
     }
     hold.anyUsed = (hold.usedItems?.size ?? 0) > 0;
   }
-  _removeResolutionHeldEntry(resolutionId);
-  _broadcast();
-  _finalizeResolutionHold(resolutionId);
+  _finishResolution(resolutionId);
 }
 
 async function _finalizeResolutionHold(resolutionId) {
@@ -724,6 +738,7 @@ async function _finalizeResolutionHold(resolutionId) {
   _resolutionHolds.delete(resolutionId);
   const message = game.messages.get(hold.messageId);
   const used = (hold.usedEntries ?? []).filter((u) => !u.cancelled);
+  for (const u of used) if (u.spendHalf && _spendUsed(u.itemUuid)) u.halfOnUse = true;
   for (const u of used) {
     const item = fromUuidSync(u.itemUuid, { strict: false });
     const provide = rollModProviderFor(item?.system?._dsid);
@@ -782,7 +797,7 @@ async function _finalizeResolutionHold(resolutionId) {
       continue;
     }
     const actor = token.actor ?? null;
-    asPrimaryGM("applyResolutionRedirect", {
+    await asPrimaryGM("applyResolutionRedirect", {
       messageId: hold.messageId,
       origTargetUuid: rt.removeTokenUuid,
       modName: rt.modName,
@@ -1854,7 +1869,7 @@ function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } 
   if (!triggerItemUuid || !triggeringUuid) return null;
   const trigItem = fromUuidSync(triggerItemUuid);
   if (!trigItem) return null;
-  if (!/within distance of the (?:triggering|ability)/i.test(triggerEffectText(trigItem))) return null;
+  if (!/within distance of the (?:triggering|ability)|able to be targeted by the triggering (?:strike|ability)/i.test(triggerEffectText(trigItem))) return null;
   const triggering = fromUuidSync(triggeringUuid);
   const range = abilityRangeSquares(triggering);
   if (!range) return null;
@@ -1866,6 +1881,29 @@ function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } 
   if (!originDoc) originDoc = triggering?.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
   if (!originDoc) return null;
   return { originDoc, range };
+}
+
+function _ownDistanceConstraint({ triggerItemUuid } = {}) {
+  const trigItem = triggerItemUuid ? fromUuidSync(triggerItemUuid) : null;
+  if (!trigItem || !/\bnew target must be within distance\b(?! of)/i.test(triggerEffectText(trigItem))) return null;
+  const range = abilityRangeSquares(trigItem);
+  const originDoc = trigItem.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
+  return range && originDoc ? { originDoc, range } : null;
+}
+
+function _triggeringTargetable({ triggerItemUuid, triggeringUuid } = {}) {
+  const trigItem = triggerItemUuid ? fromUuidSync(triggerItemUuid) : null;
+  if (!trigItem || !/able to be targeted by the triggering (?:strike|ability)/i.test(triggerEffectText(trigItem))) return null;
+  const triggering = triggeringUuid ? fromUuidSync(triggeringUuid) : null;
+  const attacker = triggering?.actor?.getActiveTokens?.(false, false)?.[0] ?? null;
+  const getValidTargets = game.modules.get("draw-steel-ctlib")?.api?.getValidTargets;
+  if (!attacker || typeof getValidTargets !== "function") return null;
+  try {
+    return new Set(getValidTargets(attacker, triggering.system?.target?.type ?? "creature", abilityRangeSquares(triggering) ?? 0).map((t) => t.document.uuid));
+  } catch (err) {
+    console.error("DS_TRIGGERS | triggering ability target check failed:", err);
+    return null;
+  }
 }
 
 function _rangeEnforced() {
@@ -1903,7 +1941,11 @@ async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
   try {
     const fromText = _chooserRangeConstraint(removeDoc, ctx);
     if (fromText) constraints.push(fromText);
+    const own = _ownDistanceConstraint(ctx);
+    if (own) constraints.push(own);
   } catch (err) { console.error("DS_TRIGGERS | chooser range constraint failed:", err); }
+  const targetable = _triggeringTargetable(ctx);
+  if (targetable) tokens = tokens.filter((t) => targetable.has(t.document.uuid));
   const legal = _legalRedirectTargets(ctx);
   if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: mod=${modName} candidates=${tokens.length} textConstraint=`, constraints.map((c) => ({ range: c.range, origin: c.originDoc?.name })), `legalTargets=${legal ? legal.size : "not enforced"}`);
   const gridDist = canvas.grid.distance || 1;
@@ -1911,9 +1953,9 @@ async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
     tokens = tokens.filter((t) => footprintGap(c.originDoc, t.document) < c.range * gridDist);
   }
   if (legal) tokens = tokens.filter((t) => legal.has(t.document.uuid));
-  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: eligible candidates=${tokens.length}`);
+  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: eligible candidates=${tokens.length} (${tokens.map((t) => t.name).join(", ")})`);
   
-  if (!tokens.length && (constraints.length || legal)) {
+  if (!tokens.length && (constraints.length || legal || targetable)) {
     ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.RedirectNoneEligible", { modName }));
     return null;
   }
@@ -2158,6 +2200,7 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     redirectPool: m.clause?.redirectPool ?? null,
     halfOnUse: m.clause?.halfOnUse === true
       || (m._postHoc === true && m.clause?.targetedHalf === true),
+    spendHalf: m.clause?.spendHalf === true,
     abilityWide: m.clause?.abilityWide === true,
     abilityHalf: m.clause?.abilityHalf === true,
     postHoc: m._postHoc === true,
@@ -2205,9 +2248,7 @@ function _onReleaseResolutionNow(resolutionId) {
       e.rollMod = null;
     }
   }
-  _removeResolutionHeldEntry(resolutionId);
-  _finalizeResolutionHold(resolutionId);
-  _broadcast();
+  _finishResolution(resolutionId);
 }
 
 export function applyHeldDamageNow(damageId) {
