@@ -324,6 +324,7 @@ async function _resumeFm(fmId, mods) {
   }
   const moved = pending.resume({
     distance,
+    modifierNotes: deltas.filter((d) => d.amount).map((d) => `${d.amount > 0 ? "+" : ""}${d.amount} ${d.modName}`),
     ...(toSlide ? { type: String(pending.type).replace(/push/i, (w) => (w[0] === "P" ? cap(mods.movement.to) : mods.movement.to)) } : {}),
     ...(mods?.vertical ? { verticalHeight: distance } : {}),
     ...(mods?.objectDamage ? { bonusObjectDmg: pending.bonusObjectDmg + mods.objectDamage } : {}),

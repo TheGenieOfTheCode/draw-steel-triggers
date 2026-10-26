@@ -34,13 +34,14 @@ Hooks.on("dsct.preFall", (ctx) => {
     const { reduction } = effectOf(m);
     if (!reduction) continue;
     ctx.reduction += reduction;
+    ctx.reasons?.push({ name: m.item.name, n: reduction });
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FallReduced", { name: m.item.name, n: reduction }));
   }
 
   const held = matches.filter(optional);
   if (!held.length) return;
   const fallId = foundry.utils.randomID();
-  const effects = new Map(held.map((m) => [m.item.uuid, effectOf(m)]));
+  const effects = new Map(held.map((m) => [m.item.uuid, { ...effectOf(m), name: m.item.name }]));
   ctx.holds.push(new Promise((resolve) => _pendingFalls.set(fallId, { resolve, effects })));
   enqueueLockEntries(held, {
     event: "FALL_LOCK",
@@ -60,14 +61,20 @@ function _onResumeFall(fallId, usedItemUuids = []) {
   const pending = _pendingFalls.get(fallId);
   if (!pending) return;
   _pendingFalls.delete(fallId);
-  const mods = { reduction: 0, cancel: false, safe: false };
+  const mods = { reduction: 0, cancel: false, safe: false, reasons: [] };
   for (const used of usedItemUuids) {
-    
-    if (used && typeof used === "object") { mods.reduction += Number(used.reduction) || 0; continue; }
+
+    if (used && typeof used === "object") {
+      const n = Number(used.reduction) || 0;
+      mods.reduction += n;
+      if (n) mods.reasons.push({ name: used.name ?? "", n });
+      continue;
+    }
     const uuid = used;
     const effect = pending.effects.get(uuid);
     if (!effect) continue;
     mods.reduction += effect.reduction;
+    if (effect.reduction) mods.reasons.push({ name: effect.name, n: effect.reduction });
     if (effect.cancel) mods.cancel = true;
     if (effect.safe) mods.safe = true;
   }

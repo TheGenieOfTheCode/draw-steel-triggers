@@ -1296,7 +1296,7 @@ async function _resolveRetargetPicks(retargets, resume) {
 }
 
 function _resumeFall(resume, usedEntries) {
-  const used = (usedEntries ?? []).map((u) => (u.fallAdjust && u.adjustSign ? { uuid: u.itemUuid, reduction: -u.adjustSign * _adjustAmount(u) } : u.itemUuid));
+  const used = (usedEntries ?? []).map((u) => (u.fallAdjust && u.adjustSign ? { uuid: u.itemUuid, name: u.itemName, reduction: -u.adjustSign * _adjustAmount(u) } : u.itemUuid));
   if (game.users.get(resume.userId)?.active) socket?.executeForUsers("resumeFall", [resume.userId], resume.fallId, used);
 }
 
