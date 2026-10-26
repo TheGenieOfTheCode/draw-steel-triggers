@@ -1063,7 +1063,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   static async #onResetParser() {
     this._syncFromDOM();
     if (this._line) {
-      await this.item.update({ [`flags.${MODULE_ID}.${this._lineFlag()}.-=${this._line.key}`]: null });
+      await this.item.update({ [`flags.${MODULE_ID}.${this._lineFlag()}.${this._line.key}`]: new foundry.data.operators.ForcedDeletion() });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.ResetDone", { name: this.item.name }));
       this.close();
       return;

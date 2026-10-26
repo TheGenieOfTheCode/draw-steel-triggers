@@ -306,8 +306,7 @@ async function _cleanupUndonePills(message) {
   const update = {};
   for (const opId of Object.keys(stored)) {
     if (apps[opId]?.status !== "undone") continue;
-    if (foundry.data?.operators?.ForcedDeletion) update[`flags.${MODULE_ID}.damagePills.${opId}`] = new foundry.data.operators.ForcedDeletion();
-    else update[`flags.${MODULE_ID}.damagePills.-=${opId}`] = null;
+    update[`flags.${MODULE_ID}.damagePills.${opId}`] = new foundry.data.operators.ForcedDeletion();
   }
   if (Object.keys(update).length) await message.update(update).catch(() => {});
 }
@@ -499,7 +498,7 @@ async function _onApplyResolutionRedirect(payload) {
         moving.dstSrcTokenId = newTarget.tokenId ?? null;
       }
       updates[`flags.${DSTD_ID}.state.damageOverrides.${toId}`] = moving;
-      if (overrides[fromId]) updates[`flags.${DSTD_ID}.state.damageOverrides.-=${fromId}`] = null;
+      if (overrides[fromId]) updates[`flags.${DSTD_ID}.state.damageOverrides.${fromId}`] = new foundry.data.operators.ForcedDeletion();
       moved++;
     }
   }

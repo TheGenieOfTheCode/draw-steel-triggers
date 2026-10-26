@@ -251,6 +251,7 @@ async function useWithTriggerContext(item, entry) {
   if (Number.isFinite(entry.triggerDamage)) {
     game.modules.get(DSCT_ID)?.api?.setTriggerDamage?.(entry.triggerDamage);
   }
+  game.modules.get(DSCT_ID)?.api?.setTriggerSubject?.(entry.eventSubjectUuid ?? entry.subjectTokenUuid ?? null);
   if (borrowed) {
     token.setTarget(true, { user: game.user, releaseOthers: true });
     game.modules.get(DSCT_ID)?.api?.allowOutOfRange?.(item.uuid);
