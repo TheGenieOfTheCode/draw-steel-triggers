@@ -114,8 +114,9 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   const keys = new Set();
   const skip = new Set(benefits.map((n) => plainWords(n)));
   const { rest, rows } = tierRows(html);
-  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip, ability });
-  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip, ability });
+  const story = leadFlavor(html);
+  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip, ability, story });
+  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip, ability, story });
   for (const levels of [levelRows(rest), levelParagraphs(rest)]) {
     let next = 0;
     for (const line of lines) {
@@ -373,7 +374,7 @@ const CURATED_LINES = [
     effects: [{ on: "victim", has: true, kind: "name", value: "Revenger’s Wrap", by: "self" }] } }],
   [/^Barbed Tail$/, /deal extra damage with the strike equal to your highest characteristic score/, { clause: { damageBonus: "highest", optional: true } }],
   [/^Minion Mower$/, /targets a minion and at least one more minion is within distance/, { clause: { damageBonus: 3, victimOrganization: ["minion"], alsoMinionNear: true } }],
-  [/^Bloodbound Band$/, /any other bonded creature takes damage/, { clause: { scope: "ALLY",
+  [/^Bloodbound Band$/, /any other bonded creature takes damage/, { effect: "first", clause: { scope: "ALLY",
     effects: [{ on: "subject", has: true, kind: "name", value: "Bonded", by: "anyone" }] } }],
   [/^Foesense Lenses$/, /creature whose senses you are using/, { clause: { effects: [{ on: "victim", has: true, kind: "name", value: "Foesense", by: "self" }] } }],
   [/^Chaos Incarnate$/, /first becomes aware of you in combat/, { trigger: "A creature starts their turn", clause: { scope: "ANY", firstTurn: true,
@@ -593,7 +594,12 @@ const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
 
 const EFFECT_COST = /^(?:and )?(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
 
-function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set(), ability = false }) {
+const leadFlavor = (html) => {
+  const m = String(html ?? "").match(/^\s*<p>\s*<em>([\s\S]*?)<\/em>\s*<\/p>/i);
+  return m ? m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
+};
+
+function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set(), ability = false, story = "" }) {
   let lead = null;
   let leads = 0;
   let benefitsOf = null;
@@ -674,7 +680,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       let key = generateDSID(`${base} ${f.trigger.replace(/\b[MARIP]<(\w+)/g, "$1 potency")}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
       for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
-      const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
+      const flavor = story;
       const paid = effect.match(EFFECT_COST);
       const cost = f.cost ?? (paid ? { amount: Number(paid[1]), resource: paid[2].toLowerCase() } : null);
       const parseOne = (text) => parseTrigger(`${text}.`, { effectText: effect, ownerName, side: ownerName ? "monster" : "hero" });
@@ -697,7 +703,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       if (!curated.note && !curated.later && parse.clauses.length > 1 && parse.clauses.some((c) => c.scope === "COMPANION")) curated.note = "Companion half: Later";
       const zoneLater = !ability && !curated.later && kind === "trigger" && zoneOnly(parse);
       if (zoneLater) curated.later = "Zones";
-      const line = { key, sentence: f.sentence, action: f.action, kind: zoneLater ? "later" : kind, once, trigger: f.trigger, effect, flavor,
+      const shown = curated.effect === "first" ? String(f.effect ?? "").replace(/\s+/g, " ").trim() : effect;
+      const line = { key, sentence: f.sentence, action: f.action, kind: zoneLater ? "later" : kind, once, trigger: f.trigger, effect: shown, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
         ...(curated.neverAutoUse ? { neverAutoUse: true } : {}), ...((curated.countdown ?? victoryCountdown(effect)) ? { countdown: curated.countdown ?? victoryCountdown(effect) } : {}), ...(curated.director ? { director: true } : {}),
