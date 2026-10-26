@@ -6072,7 +6072,8 @@
           "qualifiers": [],
           "fmMod": {
             "mode": "redirect",
-            "char": "might"
+            "char": "might",
+            "canPush": true
           }
         }
       ]

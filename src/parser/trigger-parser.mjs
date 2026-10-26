@@ -160,7 +160,7 @@ export const REDIRECT_TEXT = [
 ];
 
 const FM_MOD_ABILITIES = {
-  "lines-of-force": { mode: "redirect", char: "might" },
+  "lines-of-force": { mode: "redirect", char: "might", canPush: true },
   "repel": { mode: "reduce", char: "reason" },
   "explosive-assistance": { mode: "boost", char: "reason" },
 };

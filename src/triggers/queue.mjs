@@ -518,7 +518,7 @@ async function _onQueueResolve(id, outcome, userName) {
             itemName: e.itemName, usedAt: e.usedAt,
             redirect: e.redirect ?? null, redirectPool: e.redirectPool ?? null, rollMod: e.rollMod ?? null,
             fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null, fmAmount: e.fmAmount ?? null,
-            fmPerSurge: e.fmPerSurge ?? null, fmSurges: e.fmSurges ?? null, fallAdjust: e.fallAdjust ?? null,
+            fmPerSurge: e.fmPerSurge ?? null, fmSurges: e.fmSurges ?? null, fmCanPush: !!e.fmCanPush, fallAdjust: e.fallAdjust ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
             subjectTokenUuids: e.subjectTokenUuids ?? null,
             villain: e.villain ?? null,
@@ -1583,7 +1583,7 @@ function _collectFmMods(usedEntries) {
       const driveUser = (owner
         ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
         : null) ?? primaryGM();
-      out.redirect = { ...base, amount, driveUserId: driveUser?.id ?? null };
+      out.redirect = { ...base, amount, canPush: !!u.fmCanPush, driveUserId: driveUser?.id ?? null };
     }
   }
   return (out.deltas.length || out.after.length || out.redirect || out.movement || out.vertical || out.objectDamage) ? out : null;
@@ -2059,6 +2059,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmChar: m._fmChar ?? null,
     fmAmount: m._fmAmount ?? null,
     fmPerSurge: m._fmPerSurge ?? null,
+    fmCanPush: !!m._fmCanPush,
     fallAdjust: m.clause?.fallAdjust ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     subjectTokenUuids: m._subjectTokenUuids ?? null,
