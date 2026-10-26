@@ -198,11 +198,11 @@ export const IMPACTS = [
     summary: (c) => L(`fmMod.${c.fmMod.mode}`, { n: amountOf(c.fmMod) }),
     fields: (c) => {
       const m = c.fmMod;
-      const counted = ["boost", "reduce", "redirect", "objectDamage"].includes(m.mode);
+      const counted = ["boost", "reduce", "adjust", "redirect", "objectDamage"].includes(m.mode);
       const from = m.char ? "char" : "amount";
       return [
         { name: "mode", label: L("fmMod.Mode"), type: "select", rerender: true,
-          options: ["boost", "reduce", "redirect", "slide", "pull", "vertical", "objectDamage", "stability"].map((k) => opt(k, L(`fmMod.Mode_${k}`), m.mode)) },
+          options: ["boost", "reduce", "adjust", "redirect", "slide", "pull", "vertical", "objectDamage", "stability"].map((k) => opt(k, L(`fmMod.Mode_${k}`), m.mode)) },
         ...(counted ? [
           { name: "from", label: L("FieldBy"), type: "select", rerender: true, options: [opt("amount", L("FieldAmount"), from), opt("char", L("FieldChar"), from)] },
           from === "char"
@@ -214,7 +214,7 @@ export const IMPACTS = [
     },
     read: (c, v) => {
       const mod = { mode: v.mode || "boost" };
-      if (["boost", "reduce", "redirect", "objectDamage"].includes(mod.mode)) {
+      if (["boost", "reduce", "adjust", "redirect", "objectDamage"].includes(mod.mode)) {
         if (v.from === "char") mod.char = v.char || c.fmMod?.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0];
         else mod.amount = num(v.amount ?? c.fmMod?.amount ?? 1);
       }
@@ -236,6 +236,28 @@ export const IMPACTS = [
       ...(c.fallReduction === "jump" ? [] : [{ name: "amount", label: L("FieldAmount"), type: "number", value: c.fallReduction }]),
     ],
     read: (c, v) => { c.fallReduction = v.by === "jump" ? "jump" : num(v.amount ?? 1, 1); },
+  },
+  {
+    id: "fallAdjust", icon: "fa-solid fa-arrows-up-down",
+    keys: ["fallAdjust"],
+    supports: (c) => c.event === "FALL_START",
+    has: (c) => !!c.fallAdjust,
+    add: (c) => { c.fallAdjust = { amount: 1 }; },
+    summary: (c) => L("fallAdjust.Summary", { n: amountOf(c.fallAdjust) }),
+    fields: (c) => {
+      const from = c.fallAdjust.char ? "char" : "amount";
+      return [
+        { name: "from", label: L("FieldBy"), type: "select", rerender: true, options: [opt("amount", L("FieldAmount"), from), opt("char", L("FieldChar"), from)] },
+        from === "char"
+          ? { name: "char", label: L("FieldChar"), type: "select", options: charOptions().map((o) => opt(o.value, o.label, c.fallAdjust.char)) }
+          : { name: "amount", label: L("FieldAmount"), type: "number", value: c.fallAdjust.amount ?? 1 },
+      ];
+    },
+    read: (c, v) => {
+      c.fallAdjust = v.from === "char"
+        ? { char: v.char || c.fallAdjust?.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0] }
+        : { amount: num(v.amount ?? c.fallAdjust?.amount ?? 1, 1) };
+    },
   },
   {
     id: "fallSafe", icon: "fa-solid fa-parachute-box",

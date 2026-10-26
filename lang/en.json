@@ -523,6 +523,7 @@
           "Mode_vertical": "The movement can be vertical",
           "Mode_objectDamage": "Extra damage on hitting an object",
           "Mode_stability": "Share stability with the target",
+          "Mode_adjust": "Move further or less (picked on use)",
           "PerSurge": "Per surge, up to",
           "PerSurgeHint": "0 applies it once. Above 0, the owner spends up to this many surges and the change counts once for each.",
           "boost": "+{n} distance",
@@ -533,7 +534,13 @@
           "vertical": "Can be vertical",
           "objectDamage": "+{n} object damage",
           "stability": "Shares stability",
+          "adjust": "±{n} distance",
           "Hint": "Using the trigger changes the forced movement before it happens."
+        },
+        "fallAdjust": {
+          "Label": "Raise or Lower the Fall",
+          "Summary": "±{n} fall height",
+          "Hint": "Using the trigger raises or lowers the effective height of the fall; the owner picks which on use."
         },
         "fallReduce": {
           "Label": "Shorten the Fall",
