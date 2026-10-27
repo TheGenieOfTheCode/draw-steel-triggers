@@ -407,6 +407,7 @@ const EVENTS = [
   ["MALICE_SPENT",    /\bspends? malice\b/i],
   ["TELEPORTS",       /\bteleports\b/i],
   ["SIZE_CHANGES",    /\bchanges? (?:their |its |your )?(?:form or )?size\b/i],
+  ["FORM_CHANGES",    /\bchanges? (?:their |its |your )?(?:form|shape)\b/i],
   ["HERO_TOKEN_EARNED", /\b(?:earns?|gains?|would earn) (?:a|one|\d+) hero tokens?\b/i],
   ["RESISTS_POTENCY", /\bresist(?:s|ing)? (?:a |the )?potenc(?:y|ies)\b/i],
   ["TEST_FAILED",     /\bfails? (?:a|an) (?:[\w-]+ )*?test\b/i],
