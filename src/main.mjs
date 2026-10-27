@@ -399,46 +399,37 @@ Hooks.once("init", () => {
   };
 });
 
-const SETTING_HEADERS = {
-  combatOnly: "General",
-  damagePrompts: "Stack",
-  rollLock: "Rolls",
-  damageInterrupts: "DamageMovement",
-  turnInterrupts: "Turns",
-  featureTriggers: "Features",
-  resourceGains: "Resources",
-  debugMode: "Debug",
-};
-
-const HEADER_FALLBACK = { Resources: ["rosterGains"] };
-const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers", "badgesFade", "badgesInsteadOfStack"];
-const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers", badgesInsteadOfStack: "tokenBadges", badgesFade: "tokenBadges" };
-
-Hooks.on("renderSettingsConfig", (_app, html) => {
-  const root = html instanceof HTMLElement ? html : html?.[0];
-  if (!root) return;
-  const groupOf = (key) => root.querySelector(`[name="${MODULE_ID}.${key}"]`)?.closest(".form-group")
-    ?? root.querySelector(`[data-setting-id="${MODULE_ID}.${key}"]`);
-  for (const [key, header] of Object.entries(SETTING_HEADERS)) {
-    const el = [key, ...(HEADER_FALLBACK[header] ?? [])].map(groupOf).find(Boolean);
-    if (!el || el.previousElementSibling?.classList?.contains("dst-settings-header")) continue;
-    const h = document.createElement("h3");
-    h.className = "dst-settings-header";
-    h.textContent = game.i18n.localize(`DS_TRIGGERS.Settings.Headers.${header}`);
-    el.insertAdjacentElement("beforebegin", h);
-  }
-  for (const key of SUB_SETTINGS) groupOf(key)?.classList.add("dst-sub-setting");
-  for (const [childKey, parentKey] of Object.entries(SUB_PARENTS)) {
-    const parent = root.querySelector(`[name="${MODULE_ID}.${parentKey}"]`);
-    const child = root.querySelector(`[name="${MODULE_ID}.${childKey}"]`);
-    if (!parent || !child) continue;
-    const sync = () => {
-      child.disabled = !parent.checked;
-      groupOf(childKey)?.classList.toggle("dst-setting-off", !parent.checked);
-    };
-    parent.addEventListener("change", sync);
-    sync();
-  }
+Hooks.once("ready", () => {
+  const H = (key) => `DS_TRIGGERS.Settings.Headers.${key}`;
+  game.modules.get("draw-steel-ctlib")?.api?.registerSettingsLayout?.(MODULE_ID, [
+    { label: H("General"), wiki: "How-Triggers-Work", items: ["combatOnly", "allSceneTokens", "requireLineOfEffect", "spentTracking", "chatReminders"] },
+    { label: H("Stack"), wiki: "The-Trigger-Stack", items: ["damagePrompts", "conditionPrompts", "stackDecisionTimer", "skipEmptyDialogs", "skipHeldDamageWindow",
+      "autoUseMandatory", "autoUseTriggers", "tokenBadges", "badgesFade", "badgesInsteadOfStack"] },
+    { label: H("Rolls"), wiki: "Trigger-Effects#roll-modifying", items: ["rollLock", "rollLockGrace", "resolutionHolds", "holdInertTriggers", "freeStrikeCards"] },
+    { label: H("DamageMovement"), wiki: "Trigger-Effects#damage-modifying", items: ["damageInterrupts", "fmInterrupts"] },
+    { label: H("Turns"), items: ["turnInterrupts", "offerVillainActions"] },
+    { label: H("Features"), wiki: "Feature-Triggers", items: ["featureTriggers", "derivedTriggers", "derivedChatLinks", "autoSpendConsumables", "featureShareCards",
+      "basicMalice", "featureIgnore"] },
+    { label: H("Resources"), wiki: "Heroic-Resource-Gains", items: ["resourceGains", "resourcesUiSync", "rosterGains"] },
+    { label: H("Debug"), items: ["debugMode"] },
+  ], {
+    indent: ["allSceneTokens"],
+    dependencies: { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers", badgesInsteadOfStack: "tokenBadges", badgesFade: "tokenBadges" },
+    wiki: {
+      base: "https://github.com/TheGenieOfTheCode/draw-steel-triggers/wiki/",
+      pages: {
+        requireLineOfEffect: "Ability-Triggers#distance-and-line-of-effect",
+        stackDecisionTimer: "The-Trigger-Stack#the-decision-timer",
+        tokenBadges: "The-Trigger-Stack#trigger-badges",
+        autoUseMandatory: "Feature-Triggers#mandatory-optional-and-costless-lines",
+        derivedTriggers: "Feature-Triggers#derived-trigger-abilities",
+        autoSpendConsumables: "Feature-Triggers#consumables",
+        featureShareCards: "Feature-Triggers#feature-messages-on-share",
+        featureIgnore: "Feature-Triggers#ignored-features",
+        resourcesUiSync: "Heroic-Resource-Gains#resources-ui-sync",
+      },
+    },
+  });
 });
 
 registerSnoozeHooks();

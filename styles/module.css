@@ -1217,30 +1217,8 @@ button.dst-dstd-res-locked {
   border-style: dashed;
 }
 
-.dst-settings-header {
-  margin: 14px 0 4px;
-  padding-bottom: 3px;
-  border-bottom: 1px solid rgba(217, 166, 63, 0.45);
-  color: var(--dst-gold-text, #d9a63f);
-  font-size: 1.0em;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.form-group.dst-sub-setting {
-  margin-left: 1.5em;
-}
-
-.form-group.dst-sub-setting > .hint {
-  padding-right: 1.5em;
-}
-
 .form-group:has(> .form-fields > input[type="checkbox"][name^="draw-steel-triggers."]) > label { flex: 1 1 0; min-width: 0; }
 .form-group:has(> .form-fields > input[type="checkbox"][name^="draw-steel-triggers."]) > .form-fields { flex: 0 0 auto; width: auto; }
-
-.form-group.dst-setting-off {
-  opacity: var(--dst-dim-55, 0.55);
-}
 
 button.dst-ignore-toggle {
   flex: 0 0 auto;
