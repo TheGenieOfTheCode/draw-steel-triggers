@@ -11,6 +11,7 @@ export const EVENT_MODES = {
   GAINS_TEMP_STAMINA: "reminder",
   GAINS_SURGE: "reminder",
   TELEPORTS: "reminder",
+  SIZE_CHANGES: "reminder",
   MALICE_SPENT: "reminder",
   TAKES_DAMAGE: "prompt",
   USES_ABILITY: "prompt",

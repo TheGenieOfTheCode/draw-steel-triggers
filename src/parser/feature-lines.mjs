@@ -95,6 +95,10 @@ const FIXUPS = [
   [/three or more heroes use an ability/i, { event: "USES_ABILITY", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
   [/(?:you or another hero|any hero) dies/i, { event: "STAMINA_BELOW", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
   [/any hero is made winded/i, { event: "WINDED", scope: "SELF_OR_ALLY", heroOnly: true, range: "none" }],
+  [new RegExp(`^you or a creature ${NEAR} takes damage that isn['’]t untyped or holy, or uses an ability or effect that has them change their form or size`, "i"), (m) => [
+    { event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: TYPED.filter((t) => t !== "holy") },
+    { event: "SIZE_CHANGES", scope: "ANY", range: Number(m[1]) },
+  ]],
   [/^you or a creature within (\d+) squares takes damage that isn['’]t/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]) })],
   [/^you or a creature within (\d+) squares takes ([a-z, ]+?) damage/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageTypes: m[2].split(/,\s*(?:or\s+)?|\s+or\s+/).filter(Boolean) })],
   [/^an enemy within (\d+) squares takes ([a-z, ]+?) damage/i, (m) => ({ event: "TAKES_DAMAGE", scope: "ENEMY", range: Number(m[1]), damageTypes: m[2].split(/,\s*(?:or\s+)?|\s+or\s+/).filter(Boolean) })],
@@ -191,7 +195,7 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
 }
 
 export const GAIN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "WINDED_OR_DYING", "WINDED", "DYING", "DIES", "FORCE_MOVED", "FORCE_MOVES", "USES_ABILITY",
-  "NATURAL_19_20", "STAMINA_BELOW", "REGAINS_STAMINA", "CONDITION_GAIN", "GAINS_TEMP_STAMINA", "GAINS_SURGE", "TELEPORTS", "MALICE_SPENT"]);
+  "NATURAL_19_20", "STAMINA_BELOW", "REGAINS_STAMINA", "CONDITION_GAIN", "GAINS_TEMP_STAMINA", "GAINS_SURGE", "TELEPORTS", "SIZE_CHANGES", "MALICE_SPENT"]);
 
 export function lineAutomated(line) {
   if (line.kind !== "trigger" && line.kind !== "upgrade") return false;

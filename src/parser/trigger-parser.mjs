@@ -406,6 +406,7 @@ const EVENTS = [
   ["GAINS_SURGE",     /\bgains? (?:a|one or more|\d+) surges?\b/i],
   ["MALICE_SPENT",    /\bspends? malice\b/i],
   ["TELEPORTS",       /\bteleports\b/i],
+  ["SIZE_CHANGES",    /\bchanges? (?:their |its |your )?(?:form or )?size\b/i],
   ["HERO_TOKEN_EARNED", /\b(?:earns?|gains?|would earn) (?:a|one|\d+) hero tokens?\b/i],
   ["RESISTS_POTENCY", /\bresist(?:s|ing)? (?:a |the )?potenc(?:y|ies)\b/i],
   ["TEST_FAILED",     /\bfails? (?:a|an) (?:[\w-]+ )*?test\b/i],

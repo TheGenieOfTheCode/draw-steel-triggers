@@ -34,6 +34,7 @@ import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
+import "./triggers/detectors/size-changes.mjs";
 import "./triggers/detectors/hero-events.mjs";
 import "./triggers/detectors/resource-changes.mjs";
 import "./triggers/detectors/fall-lock.mjs";
