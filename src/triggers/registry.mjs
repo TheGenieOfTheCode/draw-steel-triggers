@@ -1,12 +1,15 @@
 import { parseTrigger, generateDSID, SPECIAL_CASES } from "../parser/trigger-parser.mjs";
 import { MODULE_ID } from "../util.mjs";
-import { featureTriggerEntries } from "./feature-triggers.mjs";
+import { featureTriggerEntries, featureLineSpent } from "./feature-triggers.mjs";
 import { isDerived, derivedParse } from "./derived.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
 
 const TRIGGERED_TYPES = new Set(["triggered", "freeTriggered"]);
 
 const _parseCache = new Map();
+
+export const abilityOnce = (item) => item?.getFlag?.(MODULE_ID, "once") || null;
+export const abilityOnceKey = (item) => `ability.${item.system?._dsid || item.id}`;
 
 export function isTriggeredAbility(item) {
   return item?.type === "ability" && TRIGGERED_TYPES.has(item.system?.type);
@@ -92,7 +95,10 @@ export function getTriggeredAbilities(actor, { includeSpent = false } = {}) {
     const triggered = isTriggeredAbility(item);
     if (!triggered && !isImplicitMaliceTrigger(item)) continue;
     if (ignoredByRule(item)) continue;
-    entries.push({ item, free: triggered && item.system.type === "freeTriggered", parse: getParsedTrigger(item) });
+    const once = triggered ? abilityOnce(item) : null;
+    const spentOnce = once && featureLineSpent(actor, abilityOnceKey(item), once) ? once : null;
+    if (spentOnce && !includeSpent) continue;
+    entries.push({ item, free: triggered && item.system.type === "freeTriggered", parse: getParsedTrigger(item), ...(spentOnce ? { spentOnce } : {}) });
   }
   entries.push(...featureTriggerEntries(actor, { includeSpent }));
   return entries;

@@ -1,7 +1,8 @@
 import { dispatchTriggerEvent, triggersLive, hasPotency } from "../dispatch.mjs";
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
 import { gainsActive } from "../resource-gains.mjs";
-import { itemFeatureLines } from "../feature-triggers.mjs";
+import { itemFeatureLines, noteFeatureLineUse } from "../feature-triggers.mjs";
+import { abilityOnce, abilityOnceKey } from "../registry.mjs";
 import { recordAbilityUse } from "../ability-uses.mjs";
 
 const ABILITY_PART = "abilityUse";
@@ -35,10 +36,10 @@ function _rollTargetsOf(message) {
 
 Hooks.on("createChatMessage", (message) => {
   if (!isPrimaryGM()) return;
+  const used = _usedFromMessage(message);
+  if (used?.actor && abilityOnce(used.item)) noteFeatureLineUse(used.actor, abilityOnceKey(used.item));
   if (!getSetting("chatReminders") && !getSetting("damagePrompts") && !gainsActive()) return;
   if (!triggersLive()) return;
-
-  const used = _usedFromMessage(message);
   if (!used) return;
 
   const targets = _targetsOf(message);
