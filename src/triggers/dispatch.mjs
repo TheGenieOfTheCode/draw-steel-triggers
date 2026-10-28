@@ -754,7 +754,9 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   const maliceLineSeen = new Set();
   const featureSeen = new Set();
 
+  const subjectScene = tokenDoc(subjectToken)?.parent ?? null;
   for (const { actor, disposition, token } of candidates) {
+    if (subjectScene && token?.parent && token.parent !== subjectScene) continue;
     const fallen = actor.statuses?.has(defeated);
     const ownDeath = event === "DIES" && !!subjectActor && (actor === subjectActor || actor.uuid === subjectActor.uuid);
     if (fallen && !ownDeath && (event !== "MOVES" || !lingeringEffect(actor))) continue;
