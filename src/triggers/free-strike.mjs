@@ -1,4 +1,5 @@
 import { MODULE_ID, getSetting } from "../util.mjs";
+import { enqueuePromptEntries } from "./queue.mjs";
 
 const L = (key) => game.i18n.localize(`DS_TRIGGERS.FreeStrike.${key}`);
 
@@ -66,6 +67,15 @@ Hooks.once("init", () => {
     onRender: (element) => element.querySelector("a.dst-free-strike")?.addEventListener("click", onFreeStrike),
   });
 });
+
+export function offerFreeStrike({ striker, target, causeLabel = "", meta = null }) {
+  const actor = striker?.actor ?? striker;
+  const item = actor?.items?.find((i) => i.system?._dsid === "melee-free-strike");
+  const targetUuid = target?.document?.uuid ?? target?.uuid ?? null;
+  if (!item || !targetUuid) return null;
+  const [entry] = enqueuePromptEntries([{ actor, item, _subjectTokenUuid: targetUuid, _meta: meta }], { event: "OPPORTUNITY_ATTACK", causeLabel, subjectTokenUuid: targetUuid });
+  return entry?.id ?? null;
+}
 
 export async function postFreeStrikeCard(actor) {
   const strike = actor.system.freeStrike;

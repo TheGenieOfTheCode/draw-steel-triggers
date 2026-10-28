@@ -2181,6 +2181,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     mark: m._mark ?? null,
     potencyMod: m.clause?.potencyMod ?? null,
     potencyKeys: m._potencyKeys ?? null,
+    meta: m._meta ?? null,
     ...(squadBatch ? { squadBatch } : {}),
   }));
   matches.forEach((m, i) => {
@@ -2191,6 +2192,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     e.causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ChoiceCause", { count: e.choices.length });
   });
   asPrimaryGM("queueAdd", entries);
+  return entries;
 }
 
 export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {

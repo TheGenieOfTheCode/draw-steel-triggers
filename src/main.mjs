@@ -25,7 +25,7 @@ import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
 import "./triggers/countdowns.mjs";
-import { freeStrike } from "./triggers/free-strike.mjs";
+import { freeStrike, offerFreeStrike } from "./triggers/free-strike.mjs";
 import { ownsResourceGain, canUndoResourceGain, undoResourceGain } from "./triggers/resource-gains.mjs";
 import "./ui/line-widgets.mjs";
 import "./ui/ignore-pills.mjs";
@@ -396,6 +396,7 @@ Hooks.once("init", () => {
     estimateRollModTier,
     isIgnored: ignoredByRule,
     freeStrike,
+    offerFreeStrike,
     refreshIgnored,
     derivedLines: (item) => itemEffectiveLines(item).map((l) => ({ key: l.key, name: l.name, trigger: l.trigger, effect: l.effect })),
   };
