@@ -1,5 +1,5 @@
 import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
-import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds } from "../dispatch.mjs";
+import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds, resolutionHolds, heldAbilityWide } from "../dispatch.mjs";
 import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
 import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 import { baneAbility } from "../line-effects.mjs";
@@ -153,8 +153,7 @@ function _addRollModMatches({ message, matches, seen, rollerActor, ability, deal
 function _addAbilityWideMatches({ matches, seen, rollerActor, ability, dealer, usedTargets }) {
   const rollerToken = dealer.dealerToken;
   const found = collectTriggerMatches("USES_ABILITY", rollerActor, rollerToken, ability, { usedTargets })
-    .filter((m) => !m.malice && m.clause?.abilityWide && m.actor !== rollerActor
-      && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
+    .filter((m) => heldAbilityWide(m, rollerActor));
   for (const m of found) {
     if (seen.has(m.item.uuid)) continue;
     seen.add(m.item.uuid);
@@ -212,17 +211,14 @@ function _dispatchResolution(message, matches, ability, rollerActor) {
 
 async function _tryDispatch(message) {
   if (!isPrimaryGM()) return;
-  if (!getSetting("resolutionHolds")) return;
+  if (!resolutionHolds(message)) return;
   if (!triggersLive()) return;
   if (_handled.has(message.id)) return;
   if (Date.now() - (message.timestamp ?? 0) > 30000) return;
 
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;
-  const state = message.getFlag(DSTD_ID, "state");
-  const targets = state?.targets ?? [];
-  if (!targets.length) return;
-  if (!message.rolls?.length) return;
+  const targets = message.getFlag(DSTD_ID, "state").targets;
 
   const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
   if (!ability || ability.type !== "ability") return;

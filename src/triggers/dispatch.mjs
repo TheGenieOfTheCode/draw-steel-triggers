@@ -1,7 +1,7 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
-import { enqueuePromptEntries, applyPotencyMods } from "./queue.mjs";
+import { enqueuePromptEntries, applyPotencyMods, strikeTakenBack } from "./queue.mjs";
 import { abilityRowsHTML, cardContent, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { malicePill, sendMaliceCard } from "./malice.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
@@ -715,6 +715,12 @@ function spentBeyondCost(message, abilityUuid) {
 
 export const rollNeeds = (clause) => clause?.rollHas?.length ? clause.rollHas : clause?.edgeRequired ? ["edge"] : null;
 
+export const resolutionHolds = (message) => !!getSetting("resolutionHolds") && !!message?.rolls?.length
+  && (message.getFlag?.("draw-steel-target-damage", "state")?.targets?.length ?? 0) > 0;
+
+export const heldAbilityWide = (m, rollerActor) => !m.malice && !!m.clause?.abilityWide && m.actor !== rollerActor
+  && (m.parse?.confidence === "high" || m.parse?.source === "manual");
+
 export function rollModsOf(message, target = null) {
   const part = message?.system?.parts?.contents?.find((p) => p.type === "abilityResult");
   const rolls = (part?.rolls ?? []).filter((r) => r?.constructor?.name === "PowerRoll");
@@ -918,7 +924,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
     ? matchesForDealers(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext })
     : collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
   if (filter) matches = matches.filter(filter);
-  if (event === "USES_ABILITY" && getSetting("resolutionHolds")) matches = matches.filter((m) => !m.clause?.abilityWide);
+  if (event === "USES_ABILITY" && resolutionHolds(game.messages.get(sourceMessageId))) matches = matches.filter((m) => !heldAbilityWide(m, subjectActor));
 
   const markNow = (m) => autoApplies({ mandatory: matchMandatory(m), line: m.item?.featureLine });
   const queuedMarks = [];
@@ -954,6 +960,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
     matches = matches.filter((m) => !m.clause?.turnLock);
   }
   const potencyAt = potencyTargets(event, { subjectTokenUuid, usedTargets, sourceMessageId, eventContext });
+  if (event === "DEALS_DAMAGE" && potencyAt) matches = matches.filter((m) => !strikeTakenBack(potencyAt, m.item.uuid));
   if (potencyAt) {
     for (const m of matches.filter((x) => x.clause?.potencyMod && (x.parse?.confidence === "high" || x.parse?.source === "manual"))) {
       m._potencyKeys = potencyAt;
@@ -964,6 +971,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
     }
     matches = matches.filter((m) => !m._potencyDone);
   }
+  if (event === "DEALS_DAMAGE" && potencyAt) for (const m of matches) if (m.clause?.strikeDamage) m._strikeRow = potencyAt;
   if (!matches.length) return;
 
   const promptsOn = DAMAGE_PROMPTS.has(event) ? getSetting("damagePrompts")

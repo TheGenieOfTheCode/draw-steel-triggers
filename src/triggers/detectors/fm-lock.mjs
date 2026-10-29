@@ -159,10 +159,12 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   if (ctx.noObstacleCollisionDamage) detailParts.push(game.i18n.localize("DS_TRIGGERS.Queue.FmDetailNoObstacleCollision"));
   if (ctx.fastMove) detailParts.push(game.i18n.localize("DS_TRIGGERS.Queue.FmDetailFastMove"));
 
+  let heldAt = null;
   if (ctx.messageId) {
     const origKey = String((target.document ?? target)?.uuid ?? "").replace(/\./g, "__");
     const rowKey = fmSubKey(ctx.fmKey ?? null, origKey, origKey, String(baseType ?? "push").toLowerCase());
     _pendingFm.get(fmId).rowKey = rowKey;
+    heldAt = { messageId: ctx.messageId, rowKey };
     asPrimaryGM("markFmRowHeld", ctx.messageId, rowKey, true);
   }
   dbg(`fm lock: ${ctx.type} ${ctx.distance} on ${target.name} held by ${matches.length} triggers`);
@@ -175,6 +177,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
       itemName: fmTitle,
       heldDetail: detailParts.join(" · ") || null,
       fmDistance: Number(ctx.distance) || 0,
+      heldAt,
       ownerActorUuid: targetActor.uuid,
       ownerName: target.name,
     },

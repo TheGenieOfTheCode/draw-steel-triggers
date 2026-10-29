@@ -888,10 +888,17 @@ export function parseTrigger(text, options = {}) {
   
   const states = text.match(TURN_START_WHILE);
   if (states) text = text.replace(states[0], states[1]);
-  const result = abilityWideLayer(potencyLayer(spendWideHalfLayer(spendHalfLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.spendText), options.spendText), options.effectText, options.spendText), options.effectText);
+  const result = strikeDamageLayer(abilityWideLayer(potencyLayer(spendWideHalfLayer(spendHalfLayer(effectPostRollLayer(powerRollFmLayer(lineOfEffectLayer(damageTypeLayer(resistedLayer(parseTriggerClauses(text, options), options.effectText), options.effectText), text), text), options.effectText), options.spendText), options.spendText), options.effectText, options.spendText), options.effectText), options.effectText);
   if (!states) return result;
   const subjectStates = states[2].toLowerCase().split(/,\s*(?:or\s+|and\s+)?|\s+(?:or|and)\s+/).filter(Boolean);
   return { ...result, clauses: result.clauses.map((c) => (c.event === "TURN_START" ? { ...c, subjectStates } : c)) };
+}
+
+const STRIKE_DAMAGE_TEXT = /\bsurges?\b[^.]*\b(?:use|spend)\b[^.]*\bon the triggering (?:strike|ability)\b|\bthe triggering (?:strike|ability) deals? (?:\w+ )?(?:extra|additional) damage\b/i;
+
+function strikeDamageLayer(result, effectText) {
+  if (!STRIKE_DAMAGE_TEXT.test(String(effectText ?? ""))) return result;
+  return { ...result, clauses: result.clauses.map((c) => (c.event === "DEALS_DAMAGE" ? { ...c, strikeDamage: true } : c)) };
 }
 
 function effectPostRollLayer(result, effectText) {

@@ -1182,23 +1182,35 @@ function markStackButton() {
 }
 
 
-function holdersOf(messageId) {
-  const mirror = getQueueMirror();
-  const ids = new Set(mirror.filter((e) => e.kind === "resolutionHeld" && e.resolution?.messageId === messageId).map((e) => e.resolutionId));
-  return mirror.filter((e) => !HELD_KINDS.has(e.kind) && ids.has(e.resolutionId)).map((e) => e.id);
+const HELD_BUTTONS = "button.dst-dstd-res-locked, button.dst-dstd-held-btn:not(.dst-dstd-redirected-btn)";
+
+function holdsButton(e, messageId, button) {
+  if (e.kind === "resolutionHeld") return e.resolution?.messageId === messageId && (!button || button.classList.contains("dst-dstd-res-locked"));
+  if (!button || e.heldAt?.messageId !== messageId) return false;
+  if (e.heldAt.opId) return e.heldAt.opId === button.dataset.operationId;
+  const row = button.closest("[data-dsct-fm-key]")?.dataset.dsctFmKey ?? "";
+  return !!e.heldAt.rowKey && e.heldAt.rowKey === row.slice(row.indexOf(":") + 1);
 }
 
-document.addEventListener("click", (event) => {
+function holdersOf(messageId, button = null) {
+  const mirror = getQueueMirror();
+  const keys = new Set(mirror.filter((e) => HELD_KINDS.has(e.kind) && holdsButton(e, messageId, button)).flatMap(heldKeys));
+  return mirror.filter((e) => !HELD_KINDS.has(e.kind) && holdingKeys(e).some((k) => keys.has(k))).map((e) => e.id);
+}
+
+document.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
   const li = event.target?.closest?.("li.chat-message[data-message-id]");
-  if (!li || !game.messages.get(li.dataset.messageId)?.getFlag(MODULE_ID, "resolutionLock")) return;
-  const hit = event.target.closest(".dst-dstd-res-banner") || [...li.querySelectorAll("button.dst-dstd-res-locked")].some((b) => {
+  if (!li) return;
+  const banner = event.target.closest(".dst-dstd-res-banner");
+  const button = banner ? null : [...li.querySelectorAll(HELD_BUTTONS)].find((b) => {
     const r = b.getBoundingClientRect();
     return event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
   });
-  if (!hit) return;
+  if (!banner && !button) return;
   event.preventDefault();
   event.stopPropagation();
-  const holders = holdersOf(li.dataset.messageId);
+  const holders = holdersOf(li.dataset.messageId, button);
   if (holders.length) StackWindow.focus(holders);
   else StackWindow.open();
 }, { capture: true });

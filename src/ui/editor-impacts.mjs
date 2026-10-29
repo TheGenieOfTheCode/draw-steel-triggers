@@ -12,6 +12,7 @@ const num = (v, min = 0) => Math.max(min, Math.floor(Number(v) || 0));
 
 const TARGETING = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 const PRE_ROLL_MODS = new Set([...TARGETING, "MAKES_STRIKE", "POWER_ROLL"]);
+const POTENCY_ON_POST = new Set(["DEALS_DAMAGE", "USES_ABILITY", "RESISTS_POTENCY"]);
 const held = (c) => c.event === "WOULD_TAKE_DAMAGE";
 
 function rollModSummary(mod) {
@@ -81,23 +82,27 @@ export const IMPACTS = [
   {
     id: "potencyMod", icon: "fa-solid fa-scale-unbalanced",
     keys: ["potencyMod"],
-    supports: (c) => held(c) || TARGETING.has(c.event),
+    supports: (c) => held(c) || TARGETING.has(c.event) || POTENCY_ON_POST.has(c.event),
     has: (c) => !!c.potencyMod,
     add: (c) => { c.potencyMod = { amount: -1, scope: "one" }; },
     summary: (c) => {
       const m = c.potencyMod;
-      const n = `${m.amount > 0 ? "+" : ""}${m.amount}`;
+      const n = m.char
+        ? `${m.amount < 0 ? "-" : "+"}${Math.abs(m.amount) === 1 ? "" : `${Math.abs(m.amount)} x `}${charLabel(m.char)}`
+        : `${m.amount > 0 ? "+" : ""}${m.amount}`;
       return L(m.scope === "all" ? "potencyMod.SummaryAll" : "potencyMod.SummaryOne", { n }) + (m.spend ? L("potencyMod.SpendSuffix") : "");
     },
     fields: (c) => [
       { name: "amount", label: L("FieldAmount"), type: "number", value: c.potencyMod.amount ?? -1, min: -9 },
+      { name: "char", label: L("FieldChar"), hint: L("potencyMod.CharHint"), type: "select", options: [
+        opt("", L("potencyMod.CharNone"), c.potencyMod.char ?? ""), ...charOptions().map((o) => opt(o.value, o.label, c.potencyMod.char))] },
       { name: "scope", label: L("potencyMod.Scope"), type: "select", options: [
         opt("one", L("potencyMod.One"), c.potencyMod.scope), opt("all", L("potencyMod.All"), c.potencyMod.scope)] },
       { name: "spend", label: L("potencyMod.Spend"), hint: L("potencyMod.SpendHint"), type: "checkbox", checked: !!c.potencyMod.spend },
     ],
     read: (c, v) => {
       const amount = Math.trunc(Number(v.amount) || 0) || -1;
-      c.potencyMod = { amount, scope: v.scope === "all" ? "all" : "one", ...(v.spend ? { spend: true } : {}) };
+      c.potencyMod = { amount, ...(v.char ? { char: v.char } : {}), scope: v.scope === "all" ? "all" : "one", ...(v.spend ? { spend: true } : {}) };
     },
   },
   {

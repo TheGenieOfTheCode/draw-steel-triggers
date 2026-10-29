@@ -440,6 +440,7 @@ async function _onQueueResolve(id, outcome, userName) {
   if (outcome === "used" && entry.potencyMod && entry.potencyKeys?.messageId) {
     await applyPotencyMods(entry.potencyKeys.messageId, entry.potencyKeys.keys, [entry]).catch((err) => dbg("potency change failed", err));
   }
+  if (outcome === "used" && entry.strikeRow) await _takeBackStrikeDamage(entry);
   if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
   if (outcome === "used" && entry.defersDeath) {
     const run = fromUuid(entry.heldDamage?.deathActorUuid ?? entry.heldDamage?.actorUuid ?? "")
@@ -949,13 +950,13 @@ function _uncappedSquadHit(hold, actor) {
 }
 
 export function noteHeldLinked(hold) {
-  if (!hold?.squad?.areaCap) return;
   const damageId = [..._damageHolds].find(([, h]) => h === hold)?.[0];
   if (!damageId) return;
-  const original = _uncappedSquadHit(hold, fromUuidSync(hold.actorUuid));
-  if (!(original > hold.amount)) return;
+  const original = hold.squad?.areaCap ? _uncappedSquadHit(hold, fromUuidSync(hold.actorUuid)) : null;
   for (const e of _queue) {
-    if (e.damageId === damageId && e.heldDamage) e.heldDamage = { ...e.heldDamage, original };
+    if (e.damageId !== damageId) continue;
+    if (e.kind === "damageHeld" && hold.dstd) e.heldAt = { messageId: hold.dstd.messageId, opId: hold.dstd.opId };
+    if (original > hold.amount && e.heldDamage) e.heldDamage = { ...e.heldDamage, original };
   }
   _broadcast();
 }
@@ -1161,6 +1162,26 @@ async function _halveTriggeringStrike(hold, u) {
   for (const t of message.getFlag("draw-steel-target-damage", "state")?.targets ?? []) {
     const key = String(t.tokenUuid ?? "").replace(/\./g, "__");
     if (key && key !== held) await redeal?.(game.messages.get(message.id), key);
+  }
+}
+
+const _takenBack = new Set();
+
+export const strikeTakenBack = ({ messageId, keys = [] }, itemUuid) => keys.some((key) => _takenBack.has(`${messageId}:${key}:${itemUuid}`));
+
+async function _takeBackStrikeDamage(entry) {
+  const message = game.messages.get(entry.strikeRow.messageId);
+  const undo = game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("undoDamageRow");
+  if (!message || !undo) return;
+  const apps = Object.values(message.getFlag("draw-steel-target-damage", "state")?.applications ?? {});
+  for (const key of entry.strikeRow.keys ?? []) {
+    const landed = apps.some((a) => a?.kind === "damage" && a.status === "applied" && !a.dstHeld && !a.dstRedirected
+      && String(a.target?.tokenUuid ?? a.target?.actorUuid ?? "").replace(/\./g, "__") === key);
+    if (!landed || !await undo(message, key)) continue;
+    if (_takenBack.size > 400) _takenBack.clear();
+    _takenBack.add(`${message.id}:${key}:${entry.itemUuid}`);
+    const victim = fromUuidSync(key.replace(/__/g, "."));
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.StrikeDamageTakenBack", { modName: entry.itemName, name: victim?.name ?? "" }));
   }
 }
 
@@ -2132,6 +2153,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmDistance: held.fmDistance ?? null,
     fmRunning: held.fmDistance ?? null,
     fmTrail: [],
+    heldAt: held.heldAt ?? null,
     ownerActorUuid: held.ownerActorUuid,
     ownerName: held.ownerName,
     event,
@@ -2181,6 +2203,7 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     mark: m._mark ?? null,
     potencyMod: m.clause?.potencyMod ?? null,
     potencyKeys: m._potencyKeys ?? null,
+    strikeRow: m._strikeRow ?? null,
     meta: m._meta ?? null,
     ...(squadBatch ? { squadBatch } : {}),
   }));

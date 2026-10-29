@@ -1087,6 +1087,8 @@ button.dst-dstd-res-locked {
   pointer-events: none;
 }
 
+button.dst-dstd-held-btn:not(.dst-dstd-redirected-btn) { cursor: pointer; }
+
 .dst-dstd-res-banner,
 :has(> button.dst-dstd-res-locked) { cursor: pointer; }
 

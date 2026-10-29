@@ -399,6 +399,7 @@ Hooks.once("init", () => {
     offerFreeStrike,
     provideEvent: (event) => {
       provideEvent(event);
+      clearParseCache();
       clearFeatureLineCache();
       if (game.ready) refreshDerived();
     },

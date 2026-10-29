@@ -24,7 +24,7 @@
       { "id": "draw-steel-target-damage", "type": "module", "compatibility": {} }
     ],
     "recommends": [
-      { "id": "draw-steel-combat-tools", "type": "module", "reason": "[Combat Tools] Performs forced movement, so triggers set off by being pushed, pulled or slid can fire.", "compatibility": { "minimum": "1.2.5" } },
+      { "id": "draw-steel-combat-tools", "type": "module", "reason": "[Combat Tools] Performs forced movement, so triggers set off by being pushed, pulled or slid can fire.", "compatibility": { "minimum": "1.2.7" } },
       { "id": "lib-wrapper", "type": "module", "reason": "[Compatible] Lets triggers that reduce or prevent damage hold it before it lands, rather than prompting afterwards.", "compatibility": { "minimum": "1.12.0" } }
     ]
   },

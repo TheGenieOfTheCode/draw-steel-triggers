@@ -108,18 +108,6 @@
         "Resources": "Heroic Resources",
         "Debug": "Debug"
       },
-      "MultiplierOverride": {
-        "Name": "Multiplier Override",
-        "Hint": "Halving and doubling pills always apply after plus and minus bonuses, and sort to the right of them to reflect the order."
-      },
-      "NoMultiplierStacking": {
-        "Name": "No Multiplier Stacking",
-        "Hint": "Multiple halving or multiple doubling pills do not stack; duplicates beyond the first have no effect and show as inactive."
-      },
-      "PillDamageEditor": {
-        "Name": "Pill Damage Editor",
-        "Hint": "Replaces Draw Steel Target Damage's edit damage dialog with the pill window, where halves, doubles, custom amounts and surges each show as a named pill. Turn off to use the original editor."
-      },
       "ResolutionHolds": {
         "Name": "Post-Roll Resolution Holds",
         "Hint": "When a creature has a trigger that answers a strike's roll, such as a retroactive bane, the strike's damage and effects wait on the stack until the trigger is decided."
@@ -268,7 +256,7 @@
       },
       "RollLockGrace": {
         "Name": "Roll Lock Grace Period",
-        "Hint": "After Use is chosen, the held roll resumes once the triggered ability posts, or after this many seconds if it never does."
+        "Hint": "After Use is chosen, a held roll, held damage or held results go ahead once the triggered ability posts, or after this many seconds if it never does."
       }
     },
     "Badge": {
@@ -475,12 +463,14 @@
           "SummaryOne": "Potency {n} on one effect",
           "SummaryAll": "Potency {n} on every effect",
           "SpendSuffix": " (when spent)",
+          "CharNone": "None, a flat number",
+          "CharHint": "With a characteristic, the potency changes by its score times the amount, so -1 lowers it by the full score.",
           "Scope": "Effects",
           "One": "One effect, picked when it lands",
           "All": "Every potency effect",
           "Spend": "Only when the spend is paid",
           "SpendHint": "The change happens only if the trigger's use spent its heroic resource.",
-          "Hint": "Using the trigger changes the potency of the triggering card's effects for the target. Draw Steel: Combat Tools shows it on the card and checks it."
+          "Hint": "Using the trigger changes the potency of the triggering chat message's effects for the target. Draw Steel: Combat Tools shows it on the chat message and checks it."
         },
         "redirectHeld": {
           "Label": "Redirect the Held Damage",
@@ -772,6 +762,7 @@
       "ReleaseResolution": "Resolve Now",
       "ReleaseResolutionTooltip": "End the resolution window immediately (Director only). Undecided triggers become simple prompts.",
       "RollModApplied": "{modName}: {name}'s result is now tier {tier}.",
+      "StrikeDamageTakenBack": "{modName}: the strike's damage to {name} was taken back. Add the change to that damage and apply it again.",
       "RollModInjected": "{modName}: {effect} applied to the roll.",
       "RedirectApplied": "{modName}: {newName} becomes the target instead of {oldName}.",
       "RedirectNoToken": "{modName}: its owner has no token on this scene, so the strike was left where it was.",
