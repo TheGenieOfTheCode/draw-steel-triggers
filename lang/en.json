@@ -182,7 +182,7 @@
       "ResourceGains": {
         "Name": "Heroic Resource Gains",
         "Hint": "Heroic resource gains written in each hero's features, such as a Fury taking damage. Gain them automatically, or offer each one on the Trigger Stack for the player to use or decline.",
-        "Auto": "Gain automatically",
+        "Auto": "Gain Automatically",
         "Stack": "Offer on the Trigger Stack",
         "Off": "Off"
       },
