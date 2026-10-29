@@ -436,6 +436,13 @@ const EVENTS = [
   ["ZONE_ENTER",      /\benters? (the|a) [\w -]+\b/i],
   ["ZONE_TURN_START", /\bstarts? their turn (there|in|within|adjacent)\b/i],
 ];
+
+const PROVIDED_EVENTS = new Set(["OPPORTUNITY_ATTACK"]);
+const _provided = new Set();
+export const provideEvent = (event) => { _provided.add(event); };
+export const eventProvided = (event) => !PROVIDED_EVENTS.has(event) || _provided.has(event);
+const liveEvents = () => EVENTS.filter(([name]) => eventProvided(name));
+
 const SHADOW = {
   TAKES_DAMAGE: ["WOULD_TAKE_DAMAGE", "DIES", "WINDED_OR_DYING", "WINDED", "DYING"],
   DEALS_DAMAGE: ["TAKES_DAMAGE", "DIES", "WOULD_TAKE_DAMAGE", "TARGETED_BY_STRIKE"],
@@ -847,7 +854,8 @@ export function annotateTrigger(text, { dsid, ownerName, effectText, targetType,
       const shared = spans.filter((s) => s.kind === "subject").at(-1);
       if (shared) (shared.clauses ??= [shared.clause]).push(index);
     } else add("subject", subject, "scope");
-    const eventRow = EVENTS.find(([name]) => name === clause?.event) ?? EVENTS.find(([, rx]) => rx.test(lc));
+    const live = liveEvents();
+    const eventRow = live.find(([name]) => name === clause?.event) ?? live.find(([, rx]) => rx.test(lc));
     if (eventRow) {
       const rx = new RegExp(eventRow[1].source, eventRow[1].flags.replace("g", ""));
       add("event", lc.match(rx), "event");
@@ -943,7 +951,7 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
   const normalized = normalizeTrigger(clean, ownerName);
   for (const clause of splitClauses(normalized)) {
     const lc = clause.toLowerCase();
-    const hits = EVENTS.filter(([, rx]) => rx.test(clause)).map(([e]) => e);
+    const hits = liveEvents().filter(([, rx]) => rx.test(clause)).map(([e]) => e);
     const events = hits.filter(e => !(SHADOW[e] || []).some(s => hits.includes(s)));
     let unsure = events.length !== 1;
     let scope = scopeOf(lc, events[0], ownerName);

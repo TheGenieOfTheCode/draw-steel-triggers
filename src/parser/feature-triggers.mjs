@@ -1,4 +1,4 @@
-import { parseTrigger, generateDSID } from "./trigger-parser.mjs";
+import { parseTrigger, generateDSID, eventProvided } from "./trigger-parser.mjs";
 import { featureGainLines } from "./feature-lines.mjs";
 
 const decode = (s) => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -417,6 +417,7 @@ const CURATED_LINES = [
   [/^Lightning Soul$/, /spend a surge to deal extra damage/, { clause: { qualifiers: ["spend a surge"], damageTypeChange: "lightning" },
     note: "Turns all the damage to lightning for now. Revisit once the errata says whether only the surge damage changes" }],
   [/^Marauder of the Primordial Chaos$/, /first becomes aware/, { later: "Potency tests" }],
+  [/^Melee Superiority$/, /opportunity attack/, { later: "Opportunity attacks", until: "OPPORTUNITY_ATTACK" }],
   [/^Mindlink$/, /linked creature spends/, { later: "Linked creatures" }],
   [/^Mundane$/, /more than three magic treasures/, { later: "Treasure count" }],
   [/^(?:No Matter the Cost|Soul Flense)$/, /./, { later: "Summoner" }],
@@ -674,7 +675,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
         host.effect = `${host.effect} ${f.sentence}`.trim();
         return;
       }
-      const pick = curatedLine(name, f.sentence, ability) ?? {};
+      const raw = curatedLine(name, f.sentence, ability) ?? {};
+      const pick = raw.until && eventProvided(raw.until) ? (({ later, until, ...rest }) => rest)(raw) : raw;
       if (pick.drop) return;
       const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...(f.clause ? { clause: f.clause } : {}), ...pick };
       const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : "trigger");

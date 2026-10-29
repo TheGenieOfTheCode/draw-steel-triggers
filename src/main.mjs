@@ -1,4 +1,4 @@
-import { parseTrigger, generateDSID, SPECIAL_CASES } from "./parser/trigger-parser.mjs";
+import { parseTrigger, generateDSID, SPECIAL_CASES, provideEvent } from "./parser/trigger-parser.mjs";
 import { MODULE_ID, getSetting, dbg } from "./util.mjs";
 import {
   isTriggeredAbility,
@@ -48,7 +48,7 @@ import "./ui/malice-section.mjs";
 import "./ui/derived-chat-links.mjs";
 import "./triggers/derived-names.mjs";
 import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
-import { registerDerivedNames, itemEffectiveLines } from "./triggers/feature-triggers.mjs";
+import { registerDerivedNames, itemEffectiveLines, clearFeatureLineCache } from "./triggers/feature-triggers.mjs";
 import { registerIgnoreRule, unregisterIgnoreRule, ignoredByRule, refreshIgnored } from "./triggers/ignore-rules.mjs";
 import { registerRollModProvider, unregisterRollModProvider } from "./triggers/roll-mod-providers.mjs";
 import "./compat/dstd-sync.mjs";
@@ -397,6 +397,11 @@ Hooks.once("init", () => {
     isIgnored: ignoredByRule,
     freeStrike,
     offerFreeStrike,
+    provideEvent: (event) => {
+      provideEvent(event);
+      clearFeatureLineCache();
+      if (game.ready) refreshDerived();
+    },
     refreshIgnored,
     derivedLines: (item) => itemEffectiveLines(item).map((l) => ({ key: l.key, name: l.name, trigger: l.trigger, effect: l.effect })),
   };
