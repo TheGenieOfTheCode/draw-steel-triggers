@@ -25,14 +25,19 @@ Hooks.on("updateActor", (actor, changed, options) => {
 let _resetting = false;
 
 Hooks.once("ready", () => {
+  const flagReset = async function (wrapped, ...args) {
+    _resetting = true;
+    try { return await wrapped(...args); } finally { _resetting = false; }
+  };
+  if (game.modules.get("lib-wrapper")?.active && ds.data?.settings?.HeroTokenModel?.prototype?.resetTokens) {
+    libWrapper.register(MODULE_ID, "ds.data.settings.HeroTokenModel.prototype.resetTokens", flagReset, "WRAPPER");
+    return;
+  }
   const tokens = game.actors?.heroTokens;
   const proto = tokens && Object.getPrototypeOf(tokens);
   if (!proto?.resetTokens || proto.resetTokens[MODULE_ID]) return;
   const original = proto.resetTokens;
-  proto.resetTokens = async function (...args) {
-    _resetting = true;
-    try { return await original.apply(this, args); } finally { _resetting = false; }
-  };
+  proto.resetTokens = function (...args) { return flagReset.call(this, original.bind(this), ...args); };
   proto.resetTokens[MODULE_ID] = true;
 });
 
