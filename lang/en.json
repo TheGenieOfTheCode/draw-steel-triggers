@@ -78,6 +78,7 @@
       "WidgetManual": "Triggers reads this line but cannot detect it yet: {why}. Click to open the trigger builder.",
       "WidgetOptional": "One of the events you can choose. Turn it on in the trigger builder.",
       "WidgetUpgrade": "Raises the gain from {base}.",
+      "WidgetUpgradeOrphan": "Raises a gain {name} doesn't have, so it grants nothing. Click to open the trigger builder.",
       "WidgetBonusDomain": "Adds {amount} to every gain from a domain.",
       "WidgetBonusChosen": "Adds {amount} to {name}.",
       "WidgetBonusPick": "Pick the event this adds to in the trigger builder. Click to open it.",

@@ -214,6 +214,9 @@ export function namedGainLines(actor) {
   return out;
 }
 
+export const upgradeHasBase = (actor, line) =>
+  namedGainLines(actor).some((e) => e.line.kind === "trigger" && _sig(e.line) === _sig(line));
+
 const _fromDomain = (actor, item) => item.type === "subclass"
   || actor.items.get(item.getFlag("draw-steel", "advancement")?.parentId)?.type === "subclass";
 
@@ -241,7 +244,7 @@ export function heroGainLines(actor) {
   }
   for (const up of upgrades) {
     const base = bases.find((b) => b.line.kind === "trigger" && _sig(b.line) === _sig(up.line));
-    if (!base) { bases.push(up); continue; }
+    if (!base) continue;
     if (_size(up.line.amount) > _size(base.line.amount)) {
       base.line = { ...base.line, amount: up.line.amount, upgradedBy: up.item.name };
     }

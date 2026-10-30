@@ -1,4 +1,4 @@
-import { itemGainLines, effectiveLine, resourceName, gainsActive, namedGainLines } from "../triggers/resource-gains.mjs";
+import { itemGainLines, effectiveLine, resourceName, gainsActive, namedGainLines, upgradeHasBase } from "../triggers/resource-gains.mjs";
 import { TriggerEditor } from "./trigger-editor.mjs";
 import { FEATURE_ACTOR_TYPES, itemEffectiveLines, lineAutomationLevel, featureTriggersActive, tierText, isLineSource } from "../triggers/feature-triggers.mjs";
 import { parseAutomationLevel } from "./badge.mjs";
@@ -51,9 +51,10 @@ function sentenceStart(root, sentence, from) {
   return hit ? { node: hit.node, offset: raw - hit.start, at } : null;
 }
 
-function stateOf(line) {
+function stateOf(line, actor) {
   if (!gainsActive()) return { cls: "off", tip: L("WidgetOff") };
   if (line.optional && !line.enabled) return { cls: "optional", tip: L("WidgetOptional") };
+  if (line.kind === "upgrade" && actor && !upgradeHasBase(actor, line)) return { cls: "manual", tip: L("WidgetUpgradeOrphan", { name: actor.name }) };
   if (line.kind === "bonus" && !line.automated) return { cls: "manual", tip: L("WidgetBonusPick") };
   if (!line.automated) return { cls: "manual", tip: L("WidgetManual", { why: line.manual?.join(", ") || L("ManualGeneric") }) };
   if (!line.enabled) return { cls: "off", tip: L("WidgetOff") };
@@ -63,7 +64,7 @@ function stateOf(line) {
 function widgetFor(item, line) {
   const button = document.createElement("button");
   button.type = "button";
-  const { cls, tip } = stateOf(line);
+  const { cls, tip } = stateOf(line, item.actor);
   button.className = `dst-line-widget dst-line-widget--${cls}`;
   const token = game.modules.get("draw-steel-ctlib")?.api?.resourceTokenURI?.("heroic");
   if (token) button.style.backgroundImage = `url("${token}")`;
