@@ -1084,7 +1084,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   const item = app.document;
   if (item?.type !== "ability" || !app.isEditable) return;
-  if (!isTriggeredAbility(item) && !isMaliceAbility(item) && !isImplicitMaliceTrigger(item)) return;
+  if (!isTriggeredAbility(item) && !isMaliceAbility(item) && !isImplicitMaliceTrigger(item) && !derivedInfo(item)) return;
   const anchor = element.querySelector('input[name="system.trigger"]')
     ?? element.querySelector('select[name="system.type"]');
   if (!anchor) return;
