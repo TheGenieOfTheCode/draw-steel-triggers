@@ -66,13 +66,21 @@
         "melodrama-a-hero-spends-their-last-recovery": "Drama from a Last Recovery",
         "melodrama-a-hero-unwillingly-falls-5-or-more-squares": "Drama from a Long Fall",
         "melodrama-the-chosen-event-grants-you-drama": "Drama from the Chosen Event",
-        "melodrama-the-director-deals-damage-to-a-hero-using-a-villain-action-or-an-abili": "Drama from Villainous Damage"
+        "melodrama-the-director-deals-damage-to-a-hero-using-a-villain-action-or-an-abili": "Drama from Villainous Damage",
+        "melodrama-natural-2-a-creature-rolls-a-natural-2-on-a-power-roll": "Drama from a Natural 2",
+        "melodrama-villainous-damage-the-director-deals-damage-to-a-hero-using-a-villain-": "Drama from Villainous Damage",
+        "melodrama-long-fall-a-hero-unwillingly-falls-5-or-more-squares": "Drama from a Long Fall",
+        "melodrama-three-surges-a-hero-deals-damage-with-3-surges": "Drama from Three Surges",
+        "melodrama-last-recovery-a-hero-spends-their-last-recovery": "Drama from a Last Recovery"
       },
       "WidgetAuto": "Triggers gains this automatically. Click to open the trigger builder.",
       "WidgetOff": "Turned off. Click to open the trigger builder.",
       "WidgetManual": "Triggers reads this line but cannot detect it yet: {why}. Click to open the trigger builder.",
       "WidgetOptional": "One of the events you can choose. Turn it on in the trigger builder.",
       "WidgetUpgrade": "Raises the gain from {base}.",
+      "WidgetBonusDomain": "Adds {amount} to every gain from a domain.",
+      "WidgetBonusChosen": "Adds {amount} to {name}.",
+      "WidgetBonusPick": "Pick the event this adds to in the trigger builder. Click to open it.",
       "ManualGeneric": "an event Triggers does not detect yet",
       "Legend": "Heroic resource gain",
       "Enabled": "Gain automatically",
@@ -82,6 +90,13 @@
       "OnceEncounter": "Once per encounter",
       "OnceNone": "Every time",
       "Upgraded": "Raised to {amount} by {name}.",
+      "Bonus": "{amount} more from {name}.",
+      "BonusTarget": "Adds to",
+      "BonusNone": "Not chosen yet",
+      "BonusHint": {
+        "domain": "Adds to every gain that comes from one of your domains.",
+        "chosen": "Adds to the one event you pick here. The list shows the gains you have turned on."
+      },
       "ManualWhy": "Not detected yet: {why}. Change the clauses below to have Triggers gain it anyway.",
       "Checks": "Also checks: {list}.",
       "Gate": {
@@ -96,7 +111,10 @@
         "threeHeroes": "three or more heroes used an ability this turn",
         "heroDeath": "a hero died",
         "turnDamageOverLevel": "the creature took more damage this turn than {base} + your level",
-        "inNullField": "the creature is in the area of your Null Field"
+        "inNullField": "the creature is in the area of your Null Field",
+        "maliceDamage": "the damage came from a Villain action or an ability that costs Malice, or Malice was spent on it",
+        "unwillingFall": "the hero falls {fall} or more squares, and not by their own move",
+        "lastRecovery": "the hero has no Recoveries left"
       }
     },
     "Settings": {
@@ -363,6 +381,7 @@
         "FORM_CHANGES": "A creature changes its form, through an ability it uses or one used on it. Chat reminder.",
         "MALICE_SPENT": "The Director spends Malice. The Malice set at the start of combat and cleared at its end does not count. Chat reminder.",
         "NATURAL_19_20": "A creature rolls a natural 19 or 20 on a power roll. Heroic Resource gains only; use Power Roll Result for a triggered ability.",
+        "NATURAL_2": "A creature rolls a natural 2 on a power roll. Heroic Resource gains only.",
         "HERO_TOKEN_EARNED": "The party earns a hero token. The start-of-session reset does not count.",
         "TURN_START": "A creature's turn begins. Chat reminder, or holds the activation for abilities that take the turn.",
         "TURN_END": "A creature's turn ends. Chat reminder, or holds the next activation for abilities that take the turn.",

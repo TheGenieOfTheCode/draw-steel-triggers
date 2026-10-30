@@ -4,6 +4,7 @@
     <legend>{{gain.legend}}</legend>
     <p class="hint dst-line-sentence">{{gain.sentence}}</p>
     {{#if gain.manualWhy}}<p class="hint dst-line-note">{{gain.manualWhy}}</p>{{/if}}
+    {{#if gain.bonusHint}}<p class="hint dst-line-note">{{gain.bonusHint}}</p>{{/if}}
     <div class="form-group">
       <label>{{gain.labels.name}}</label>
       <div class="form-fields"><input type="text" data-gain-field="name" value="{{gain.name}}" placeholder="{{gain.namePlaceholder}}"></div>
@@ -12,6 +13,17 @@
       <label>{{gain.labels.enabled}}</label>
       <div class="form-fields"><input type="checkbox" data-gain-field="enabled" {{#if gain.enabled}}checked{{/if}}></div>
     </div>
+    {{#if gain.bonusTargets}}
+    <div class="form-group">
+      <label>{{gain.labels.bonusTarget}}</label>
+      <div class="form-fields">
+        <select data-gain-field="bonusTarget">
+          {{#each gain.bonusTargets}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </div>
+    </div>
+    {{/if}}
+    {{#unless gain.isBonus}}
     <div class="form-group">
       <label>{{gain.labels.once}}</label>
       <div class="form-fields">
@@ -21,6 +33,7 @@
       </div>
       {{#if gain.checks}}<p class="hint">{{gain.checks}}</p>{{/if}}
     </div>
+    {{/unless}}
   </fieldset>
   {{/if}}
 

@@ -113,6 +113,20 @@ const _inNullField = (hero, heroToken, otherToken) => {
   return _near(heroToken, otherToken, Number.parseInt(field.system?.distance?.primary) || 1);
 };
 
+const _spentRx = () => {
+  const parts = game.i18n.localize("DRAW_STEEL.Item.ability.ConfigureUse.SpentFlavor").split(/(\{value\}|\{name\})/);
+  const rx = parts.map((p) => (p === "{value}" ? "\\d+" : p === "{name}" ? ".+" : p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  return new RegExp(`^${rx.join("")}$`, "i");
+};
+
+function _maliceDamage(e) {
+  const { ability, dealerActor, dealerMessage } = e.eventContext;
+  if (!dealerActor || dealerActor.type === "hero") return false;
+  const sys = ability?.system ?? {};
+  if (ability && (sys.category === "villain" || isMaliceAbility(ability) || Number(sys.resource) > 0)) return true;
+  return !!dealerMessage?.flavor && _spentRx().test(dealerMessage.flavor.trim());
+}
+
 const _valuesOf = (c) => c?.contents ?? (c instanceof Map ? [...c.values()] : Object.values(c ?? {}));
 const DEFENSIVE = /\bbanes?\b|\bhalve[sd]?\b|\bhalf (?:the )?damage\b|\breduc\w*\b[^.]*\bdamage\b|\bdamage\b[^.]*\breduc\w*/i;
 function defensiveTriggered(ability) {
@@ -130,6 +144,9 @@ function defensiveTriggered(ability) {
 const GATES = {
   turnDamageOverLevel: (e, hero, tok, line) => _overLevel(e, hero, line),
   inNullField: (e, hero, tok) => _inNullField(hero, tok, e.subjectToken),
+  maliceDamage: (e) => _maliceDamage(e),
+  unwillingFall: (e, hero, tok, line) => e.eventContext.willing !== true && Number(e.eventContext.fallHeight) >= (line.fallMin ?? 5),
+  lastRecovery: (e) => Number(e.subjectActor?.system?.recoveries?.value) === 0,
   dealerJudged: (e, hero) => judgedBy(e.eventContext.dealerActor, hero),
   victimJudged: (e, hero) => judgedBy(e.eventContext.victimActor, hero),
   victimMarked: (e, hero) => markedBy(e.eventContext.victimActor, hero),
@@ -162,6 +179,7 @@ export function effectiveLine(item, line) {
   if (Array.isArray(saved.clauses) && saved.clauses.length) out.parse = { clauses: saved.clauses, confidence: "high", source: "manual" };
   if (Array.isArray(saved.gates)) out.gates = saved.gates;
   if (saved.once !== undefined) out.once = saved.once;
+  if (line.kind === "bonus" && saved.bonusTarget) { out.bonusTarget = saved.bonusTarget; out.manual = []; }
   const bookName = `DS_TRIGGERS.Gain.Names.${line.key}`;
   out.name = saved.name || (game.i18n.has(bookName) ? game.i18n.localize(bookName) : line.kind === "upgrade" ? item.name : null);
   out.automated = lineAutomated({ ...out, manual: out.parse?.source === "manual" ? [] : out.manual });
@@ -185,7 +203,7 @@ export function namedGainLines(actor) {
   let n = 0;
   for (const item of actor.items) {
     for (const line of itemGainLines(item, resource)) {
-      if (line.kind !== "trigger" && line.kind !== "upgrade") continue;
+      if (!["trigger", "upgrade", "bonus"].includes(line.kind)) continue;
       if (seen.has(line.key)) continue;
       seen.add(line.key);
       const effective = effectiveLine(item, line);
@@ -196,10 +214,31 @@ export function namedGainLines(actor) {
   return out;
 }
 
+const _fromDomain = (actor, item) => item.type === "subclass"
+  || actor.items.get(item.getFlag("draw-steel", "advancement")?.parentId)?.type === "subclass";
+
+const _plus = (a, b) => (/^\d+$/.test(a) && /^\d+$/.test(b) ? String(Number(a) + Number(b)) : `${a}+${b}`);
+
+function _addBonuses(actor, bases, bonuses) {
+  for (const { item, line } of bonuses) {
+    if (!line.enabled || !line.automated) continue;
+    for (const base of bases) {
+      const hit = line.bonusFor === "domain" ? _fromDomain(actor, base.item) : base.line.key === line.bonusTarget;
+      if (!hit) continue;
+      base.line = { ...base.line, amount: _plus(base.line.amount, line.amount), baseAmount: base.line.baseAmount ?? base.line.amount,
+        bonuses: [...(base.line.bonuses ?? []), { amount: line.amount, name: item.name }] };
+    }
+  }
+}
+
 export function heroGainLines(actor) {
   const bases = [];
   const upgrades = [];
-  for (const entry of namedGainLines(actor)) (entry.line.kind === "upgrade" ? upgrades : bases).push(entry);
+  const bonuses = [];
+  for (const entry of namedGainLines(actor)) {
+    const kind = entry.line.kind;
+    (kind === "upgrade" ? upgrades : kind === "bonus" ? bonuses : bases).push(entry);
+  }
   for (const up of upgrades) {
     const base = bases.find((b) => b.line.kind === "trigger" && _sig(b.line) === _sig(up.line));
     if (!base) { bases.push(up); continue; }
@@ -207,6 +246,7 @@ export function heroGainLines(actor) {
       base.line = { ...base.line, amount: up.line.amount, upgradedBy: up.item.name };
     }
   }
+  _addBonuses(actor, bases, bonuses);
   return bases;
 }
 
@@ -292,7 +332,8 @@ const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, dat
 function _cardContent({ actor, resource, total, previous, current, line }) {
   const esc = foundry.utils.escapeHTML;
   const gained = `${withFaces(L("Gained", { name: actor.name, amount: total, resource }), [actor])} <span class="dst-gain-change">(${previous} → ${current})</span>`;
-  const upgraded = line.upgradedBy ? `<p class="dst-gain-upgraded">${esc(L("Upgraded", { amount: total, name: line.upgradedBy }))}</p>` : "";
+  const upgraded = (line.upgradedBy ? `<p class="dst-gain-upgraded">${esc(L("Upgraded", { amount: line.baseAmount ?? total, name: line.upgradedBy }))}</p>` : "")
+    + (line.bonuses ?? []).map((b) => `<p class="dst-gain-upgraded">${esc(L("Bonus", { amount: b.amount, name: b.name }))}</p>`).join("");
   return cardContent({
     intro: gained,
     body: `<h5 class="dst-gain-title">${esc(line.name)}</h5>
@@ -506,6 +547,7 @@ Hooks.once("socketlib.ready", () => {
   _socket = socketlib.registerModule(MODULE_ID);
   _socket?.register("resourceGainUndo", (trackKey) => _afterRuiUndo(trackKey));
   _socket?.register("resourceGainUndoRecord", (recordKey) => undoGain(recordKey));
+  _socket?.register("resourceGainFall", (fall) => _noteFall(fall));
 });
 
 export function canUndoResourceGain(message) {
@@ -553,4 +595,23 @@ Hooks.on("createChatMessage", (message) => {
   const tiers = [...new Set(rolls.map((r) => Number(r.product)).filter((t) => t >= 1 && t <= 3))];
   if (tiers.length) noteGainEvent({ event: "POWER_ROLL_RESULT", subjectActor: actor, subjectToken, eventContext: { tiers } });
   if (rolls.some((r) => Number(r.dice?.[0]?.total) >= 19)) noteGainEvent({ event: "NATURAL_19_20", subjectActor: actor, subjectToken });
+  if (rolls.some((r) => Number(r.dice?.[0]?.total) === 2)) noteGainEvent({ event: "NATURAL_2", subjectActor: actor, subjectToken });
+});
+
+function _noteFall({ tokenUuid, height, willing }) {
+  const token = fromUuidSync(tokenUuid);
+  if (token?.actor) noteGainEvent({ event: "FALL_START", subjectActor: token.actor, subjectToken: token, eventContext: { fallHeight: height, willing } });
+}
+
+Hooks.on("dsct.preFall", (ctx) => {
+  const token = ctx.token?.document ?? ctx.token;
+  if (!gainsActive() || token?.actor?.type !== "hero") return;
+  setTimeout(async () => {
+    const mods = await Promise.all(ctx.holds ?? []);
+    if (ctx.cancel || mods.some((m) => m?.cancel)) return;
+    const reduced = [ctx, ...mods].reduce((n, m) => n + (Number(m?.reduction) || 0), 0);
+    const fall = { tokenUuid: token.uuid, height: Number(ctx.height) - reduced, willing: ctx.willing === true };
+    if (isPrimaryGM()) _noteFall(fall);
+    else executeAsDirector(_socket, "resourceGainFall", fall);
+  }, 0);
 });

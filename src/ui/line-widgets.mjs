@@ -7,7 +7,7 @@ import { MODULE_ID } from "../util.mjs";
 import { derivedFor, derivedActive } from "../triggers/derived.mjs";
 import { setTip, textTip } from "./tips.mjs";
 
-const WIDGET_KINDS = new Set(["trigger", "upgrade"]);
+const WIDGET_KINDS = new Set(["trigger", "upgrade", "bonus"]);
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Gain.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Gain.${key}`));
 
 function normalized(raw) {
@@ -42,9 +42,9 @@ function textNodes(root) {
 function sentenceStart(root, sentence, from) {
   const { text, nodes } = textNodes(root);
   const { out, map } = normalized(text);
-  const probe = normalized(sentence).out.slice(0, 48).trim();
-  if (!probe) return null;
-  const at = out.indexOf(probe, from);
+  const wanted = normalized(sentence).out;
+  if (!wanted.trim()) return null;
+  const at = [48, 32].map((n) => out.indexOf(wanted.slice(0, n).trim(), from)).find((i) => i >= 0) ?? -1;
   if (at < 0) return null;
   const raw = map[at];
   const hit = nodes.findLast((n) => n.start <= raw);
@@ -54,6 +54,7 @@ function sentenceStart(root, sentence, from) {
 function stateOf(line) {
   if (!gainsActive()) return { cls: "off", tip: L("WidgetOff") };
   if (line.optional && !line.enabled) return { cls: "optional", tip: L("WidgetOptional") };
+  if (line.kind === "bonus" && !line.automated) return { cls: "manual", tip: L("WidgetBonusPick") };
   if (!line.automated) return { cls: "manual", tip: L("WidgetManual", { why: line.manual?.join(", ") || L("ManualGeneric") }) };
   if (!line.enabled) return { cls: "off", tip: L("WidgetOff") };
   return { cls: "auto", tip: L("WidgetAuto") };
@@ -68,10 +69,15 @@ function widgetFor(item, line) {
   if (token) button.style.backgroundImage = `url("${token}")`;
   else button.classList.add("dst-line-widget--emblem");
   button.dataset.lineKey = line.key;
-  const name = namedGainLines(item.actor).find((e) => e.line.key === line.key)?.line.name ?? "";
+  const named = namedGainLines(item.actor);
+  const name = named.find((e) => e.line.key === line.key)?.line.name ?? "";
   const head = name ? `<strong>${foundry.utils.escapeHTML(name)}</strong><br>` : "";
-  setTip(button, textTip(head + (line.kind === "upgrade" && line.upgradeOf
-    ? `${tip}<br>${L("WidgetUpgrade", { base: line.upgradeOf })}` : tip), { label: item.name, categoryKey: "GainCategory" }));
+  const esc = foundry.utils.escapeHTML;
+  const target = line.bonusTarget ? named.find((e) => e.line.key === line.bonusTarget)?.line.name : null;
+  const extra = line.kind === "upgrade" && line.upgradeOf ? L("WidgetUpgrade", { base: line.upgradeOf })
+    : line.kind === "bonus" && line.bonusFor === "domain" ? L("WidgetBonusDomain", { amount: line.amount })
+      : line.kind === "bonus" && target ? esc(L("WidgetBonusChosen", { amount: line.amount, name: target })) : "";
+  setTip(button, textTip(head + (extra ? `${tip}<br>${extra}` : tip), { label: item.name, categoryKey: "GainCategory" }));
   button.setAttribute("aria-label", name ? `${name}. ${tip}` : tip);
   if (!item.isOwner) button.disabled = true;
   button.addEventListener("click", (event) => {

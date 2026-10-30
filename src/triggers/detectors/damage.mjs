@@ -409,7 +409,7 @@ Hooks.on("updateChatMessage", (message) => {
           name: _names(dealers), target: victim.name, amount: r.amount,
         }),
         triggerDamage: Number(r.amount),
-        eventContext: { dealerOnly: true, dealerActor: dealers[0].actor, dealerToken: dealers[0].token, ...(dealers.length > 1 ? { dealers } : {}), damageType: r.damageType ?? null, ability: dealer.ability, damageSource,
+        eventContext: { dealerOnly: true, dealerActor: dealers[0].actor, dealerToken: dealers[0].token, ...(dealers.length > 1 ? { dealers } : {}), damageType: r.damageType ?? null, ability: dealer.ability, damageSource, dealerMessage: message,
           surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc),
           victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
       });
@@ -461,7 +461,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
       eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
-        surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
+        dealerMessage: dealer?.message ?? null, surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
         immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? _lineSource(dealer?.ability) ?? null,
         victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded, damageAmount: prevTotal - curTotal },
     });
