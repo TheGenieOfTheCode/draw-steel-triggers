@@ -21,7 +21,7 @@ const Q = (k, data) => data
   : game.i18n.localize(`DS_TRIGGERS.Qualifier.${k}`);
 
 const FLAG_TO_QUALIFIER = {
-  damageTypes: "damage", edgeRequired: "roll", excludeSelfTarget: "ability", effectName: "which", zone: "zone", targetsOwner: "ability",
+  damageTypes: "damage", edgeRequired: "roll", excludeSelfTarget: "ability", effectName: "which", zone: "zone", targetsOwner: "ability", targetsAlly: "ability", organizationInclude: "creatureIs",
   victimNotSelf: "creatureIs", sourceScope: "hasEffect", rolledDamage: "ability", abilityDealsDamage: "ability", fmPowerRoll: "ability", organization: "creatureIs", tauntedByOwner: "hasEffect",
   ownerLacks: "hasEffect", ownerEffect: "hasEffect", through: "movement", entersSpace: "movement", lineOfEffect: "lineOfEffect",
   victimNotMentor: "creatureIs", fmType: "movement", victimEndsAdjacent: "movement", firstTurn: "acted", damageOutcome: "damage",
@@ -996,7 +996,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     const line = this._line;
     const saved = this.item.getFlag(MODULE_ID, `gainLines.${line.key}`)?.name ?? "";
     line.customName ??= saved || null;
-    const gates = (line.gates ?? []).map((id) => game.i18n.localize(`DS_TRIGGERS.Gain.Gate.${id}`));
+    const gates = (line.gates ?? []).map((id) => game.i18n.format(`DS_TRIGGERS.Gain.Gate.${id}`, { base: line.turnDamageBase ?? 5 }));
     return {
       legend: game.i18n.localize("DS_TRIGGERS.Gain.Legend"),
       sentence: line.sentence,

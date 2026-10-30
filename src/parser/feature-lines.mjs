@@ -42,21 +42,25 @@ const GATES = [
   ["threeHeroes", /three or more heroes use an ability on the same turn/i],
   ["heroDeath", /\b(?:you or another hero|any hero|a hero) dies\b/i],
   ["threeSurges", /\bwith 3 surges\b/i],
-  ["turnDamageOverLevel", /greater than 5 \+ your level in a single turn/i],
+  ["turnDamageOverLevel", /greater than \d+ \+ your level in a single turn/i],
+  ["inNullField", /in the area of your null field/i],
 ];
 
 const NOT_YET = "an event Triggers does not detect yet";
+const NON_MINION = "a non-minion or solo creature";
+const OUTCOME_TIER = "an outcome tier on someone else's roll";
+const FIXABLE = new Set([NOT_YET, NON_MINION, OUTCOME_TIER]);
 
 const MANUAL = [
-  [/null field/i, "the area of the Null Field"],
+  [/null field(?! ability(?: \([^)]*\))? uses a main action)/i, "the area of the Null Field"],
   [/\bcompanion\b/i, "a creature adjacent to your companion"],
   [/summoner['’]s range/i, "the Summoner's Range"],
   [/\bunwillingly\b/i, "an unwilling death or fall"],
   [/that can be (?:spent|used) only/i, "a gain that can be spent on only one thing"],
   [/\byou can [^.]*\bgain\b/i, "a choice the player makes"],
   [/villain action/i, "damage from a villain action"],
-  [/who isn['’]t a minion|\bsolo creature\b/i, "a non-minion or solo creature"],
-  [/tier \d outcome/i, "an outcome tier on someone else's roll"],
+  [/who isn['’]t a minion|\bsolo creature\b/i, NON_MINION],
+  [/tier \d outcome/i, OUTCOME_TIER],
   [/area ability|aid attack|hide maneuver|temporary stamina|triggered action|single turn|spends? malice|natural 2\b|last recovery|falls \d+/i, NOT_YET],
 ];
 
@@ -68,6 +72,35 @@ const FIXUPS = [
   [new RegExp(`^you or (?:a )?creature ${NEAR} gains temporary stamina, or uses a triggered action`, "i"), (m) => [
     { event: "GAINS_TEMP_STAMINA", scope: "ANY", range: Number(m[1]) },
     { event: "USES_ABILITY", scope: "ANY", range: Number(m[1]), abilityType: "triggered", defensiveTriggered: true },
+  ]],
+  [new RegExp(`^you or any ally ${NEAR} gains temporary stamina, or uses a triggered action`, "i"), (m) => [
+    { event: "GAINS_TEMP_STAMINA", scope: "SELF_OR_ALLY", range: Number(m[1]) },
+    { event: "USES_ABILITY", scope: "SELF_OR_ALLY", range: Number(m[1]), abilityType: "triggered", defensiveTriggered: true },
+  ]],
+  [new RegExp(`^a creature ${NEAR} uses an area ability`, "i"), (m) => [
+    { event: "USES_ABILITY", scope: "ANY", range: Number(m[1]), abilityKeywords: ["area"] },
+  ]],
+  [new RegExp(`^a creature ${NEAR} who isn['’]t a minion is reduced to 0 stamina, or .*?a solo creature ${NEAR} becomes winded`, "i"), (m) => [
+    { event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]), damageOutcome: ["zero"], organization: { exclude: ["minion"] } },
+    { event: "WINDED", scope: "ANY", range: Number(m[2]), organization: { include: ["solo"] } },
+  ]],
+  [new RegExp(`^an ally ${NEAR} obtains a tier (\\d) outcome on a power roll, or an enemy ${NEAR} obtains a tier (\\d) outcome`, "i"), (m) => [
+    { event: "POWER_ROLL_RESULT", scope: "ALLY", range: Number(m[1]), tierFilter: [Number(m[2])] },
+    { event: "POWER_ROLL_RESULT", scope: "ENEMY", range: Number(m[3]), tierFilter: [Number(m[4])] },
+  ]],
+  [new RegExp(`^you or any ally ${NEAR} uses the aid attack maneuver or an ability that targets an ally`, "i"), (m) => [
+    { event: "USES_ABILITY", scope: "SELF_OR_ALLY", range: Number(m[1]), abilityDsid: "aid-attack" },
+    { event: "USES_ABILITY", scope: "SELF_OR_ALLY", range: Number(m[1]), targetsAlly: true },
+  ]],
+  [new RegExp(`^you or a creature ${NEAR} takes the aid attack or hide maneuver`, "i"), (m) => [
+    { event: "USES_ABILITY", scope: "ANY", range: Number(m[1]), abilityDsid: "aid-attack" },
+    { event: "USES_ABILITY", scope: "ANY", range: Number(m[1]), abilityDsid: "dsct-hide" },
+  ]],
+  [new RegExp(`^you or a creature ${NEAR} takes damage greater than \\d+ \\+ your level`, "i"), (m) => [
+    { event: "TAKES_DAMAGE", scope: "ANY", range: Number(m[1]) },
+  ]],
+  [/^an enemy in the area of your null field ability uses a main action/i, [
+    { event: "USES_ABILITY", scope: "ENEMY", range: "none", abilityType: "main" },
   ]],
   [new RegExp(`^you or an ally ${NEAR} uses a triggered action`, "i"), (m) => [
     { event: "USES_ABILITY", scope: "SELF_OR_ALLY", range: Number(m[1]), abilityType: "triggered" },
@@ -162,6 +195,8 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
         line.once = onceOf(condition);
         line.trigger = triggerFrom(condition);
         line.gates = GATES.filter(([, rx]) => rx.test(sentence)).map(([id]) => id);
+        const over = sentence.match(/greater than (\d+) \+ your level in a single turn/i);
+        if (over) line.turnDamageBase = Number(over[1]);
         line.manual = MANUAL.filter(([rx]) => rx.test(sentence)).map(([, why]) => why);
         if (!/^[A-Za-z]/.test(line.trigger)) { line.kind = "other"; line.trigger = ""; }
         if (line.trigger) {
@@ -175,11 +210,11 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
               : [{ ...(parse.clauses[0] ?? {}), qualifiers: parse.clauses[0]?.qualifiers ?? [], ...patch, events: [patch.event] }];
             parse.confidence = "high";
             parse.source = "gain-fixup";
-            if (Array.isArray(patch)) line.manual = line.manual.filter((why) => why !== NOT_YET);
+            if (Array.isArray(patch)) line.manual = line.manual.filter((why) => !FIXABLE.has(why));
           }
           const seen = new Set();
           parse.clauses = parse.clauses.filter((c) => {
-            const id = `${c.event}|${c.scope}`;
+            const id = `${c.event}|${c.scope}|${c.abilityDsid ?? ""}|${c.targetsAlly ? "ally" : ""}`;
             return seen.has(id) ? false : (seen.add(id), true);
           });
           line.parse = parse;
@@ -196,7 +231,7 @@ export function featureGainLines(html, { resource, dsid = "" } = {}) {
 }
 
 export const GAIN_EVENTS = new Set(["TAKES_DAMAGE", "DEALS_DAMAGE", "WINDED_OR_DYING", "WINDED", "DYING", "DIES", "FORCE_MOVED", "FORCE_MOVES", "USES_ABILITY",
-  "NATURAL_19_20", "STAMINA_BELOW", "REGAINS_STAMINA", "CONDITION_GAIN", "GAINS_TEMP_STAMINA", "GAINS_SURGE", "TELEPORTS", "SIZE_CHANGES", "FORM_CHANGES", "MALICE_SPENT"]);
+  "NATURAL_19_20", "POWER_ROLL_RESULT", "STAMINA_BELOW", "REGAINS_STAMINA", "CONDITION_GAIN", "GAINS_TEMP_STAMINA", "GAINS_SURGE", "TELEPORTS", "SIZE_CHANGES", "FORM_CHANGES", "MALICE_SPENT"]);
 
 export function lineAutomated(line) {
   if (line.kind !== "trigger" && line.kind !== "upgrade") return false;

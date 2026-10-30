@@ -45,17 +45,25 @@ const multi = (key, options, events = null, extra = {}) => ({
   ...extra,
 });
 
+const organizationSide = (key, side) => ({
+  key, kind: "multi", options: () => ORGANIZATIONS,
+  read: (c) => (c.organization?.[side]?.length ? clone(c.organization[side]) : undefined),
+  write: (c, v) => {
+    const list = asList(v);
+    const org = { ...(c.organization ?? {}) };
+    if (list.length) org[side] = list; else delete org[side];
+    if (org.include?.length || org.exclude?.length) c.organization = org; else delete c.organization;
+  },
+});
+
 export const QUALIFIERS = [
   { id: "creatureIs", group: "who", icon: "fa-solid fa-user-tag", rules: [
     check("heroOnly"),
     check("notSelf"),
     check("victimNotSelf", ["DEALS_DAMAGE"]),
     text("groupName", null, { input: "keyword" }),
-    {
-      key: "organization", kind: "multi", options: () => ORGANIZATIONS,
-      read: (c) => (c.organization?.exclude?.length ? clone(c.organization.exclude) : undefined),
-      write: (c, v) => { const list = asList(v); if (list.length) c.organization = { ...(c.organization ?? {}), exclude: list }; else delete c.organization; },
-    },
+    organizationSide("organizationInclude", "include"),
+    organizationSide("organization", "exclude"),
     check("victimNotMentor", ["MOVES"]),
     check("captainOnly", ["TURN_END"]),
     check("lastMinion", ["DIES"]),
@@ -87,6 +95,7 @@ export const QUALIFIERS = [
     number("abilityTargetCount", ["USES_ABILITY"]),
     select("abilityTargetSide", () => ["ally", "enemy"], ["USES_ABILITY"]),
     check("targetsOwner", ["USES_ABILITY"]),
+    check("targetsAlly", ["USES_ABILITY"]),
     check("excludeSelfTarget", TARGETED),
     check("rolledDamage", [...TARGETED, "DEALS_DAMAGE"]),
     check("abilityDealsDamage", [...TARGETED, "USES_ABILITY"]),

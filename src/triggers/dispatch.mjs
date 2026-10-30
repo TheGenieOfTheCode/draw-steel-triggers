@@ -253,9 +253,20 @@ const isKitAbility = (used, owner) => {
 };
 const ownerKitWeapons = (owner) => kitsOf(owner).some((k) => (k.system?.equipment?.weapon?.size ?? 0) > 0);
 
+const ALLY_TARGET_TYPES = new Set(["ally", "selfAlly"]);
+
+function targetsAnAlly(used, context) {
+  const user = tokenDoc(context.userToken);
+  const targets = (context.usedTargets ?? []).map(tokenDoc).filter(Boolean);
+  if (!targets.length) return ALLY_TARGET_TYPES.has(used.system?.target?.type);
+  return targets.some((t) => t !== user && t.actor !== used.actor && opposed(user, t) === false);
+}
+
 export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length && !clause.abilityDealsDamage
-    && clause.abilityCostMax == null && clause.abilityCostMin == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
+    && clause.abilityCostMax == null && clause.abilityCostMin == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency
+    && !clause.targetsAlly;
+  if (clause.targetsAlly && !targetsAnAlly(used, context)) return false;
 
   if (clause.abilityDealsDamage && !abilityDealsDamage(used)) return false;
   const sys = used.system ?? {};
@@ -372,7 +383,7 @@ function grabsHeldBy(ownerActor, status) {
   return count;
 }
 
-function damageOutcomeMatches(outcomes, ctx) {
+export function damageOutcomeMatches(outcomes, ctx) {
   const prev = Number(ctx.victimPrev), cur = Number(ctx.victimCur), winded = Number(ctx.victimWinded);
   if (!Number.isFinite(prev) || !Number.isFinite(cur)) return true;
   return outcomes.some((o) => o === "zero" ? prev > 0 && cur <= 0
@@ -604,7 +615,7 @@ function statusMatches(clause, ownerActor, subjectActor) {
   return !(clause.ownerLacks && ownerActor.statuses?.has(clause.ownerLacks));
 }
 
-function organizationMatches(clause, subjectActor) {
+export function organizationMatches(clause, subjectActor) {
   if (clause.subjectKeywords?.length && subjectActor) {
     const kw = subjectActor.system?.monster?.keywords;
     if (!clause.subjectKeywords.some((k) => kw?.has?.(k) ?? kw?.includes?.(k))) return false;
@@ -918,7 +929,7 @@ function potencyTargets(event, { subjectTokenUuid, usedTargets, sourceMessageId,
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {}, filter = null, gains = true }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
-  if (gains) noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext, causeLabel });
+  if (gains) noteGainEvent({ event, subjectActor, subjectToken, usedAbility, usedTargets, triggerDamage, eventContext, causeLabel });
 
   let matches = eventContext.dealers?.length > 1
     ? matchesForDealers(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext })

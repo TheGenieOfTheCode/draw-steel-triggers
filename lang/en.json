@@ -94,7 +94,9 @@
         "maliceAbility": "the ability costs Malice",
         "lineOfEffect": "the creature is within your line of effect",
         "threeHeroes": "three or more heroes used an ability this turn",
-        "heroDeath": "a hero died"
+        "heroDeath": "a hero died",
+        "turnDamageOverLevel": "the creature took more damage this turn than {base} + your level",
+        "inNullField": "the creature is in the area of your Null Field"
       }
     },
     "Settings": {
@@ -1327,6 +1329,7 @@
           "notSelf": "The subject is not this creature",
           "victimNotSelf": "The creature hit is not this creature",
           "groupName": "The subject has this keyword, or the word in its name",
+          "organizationInclude": "The subject is one of these organizations",
           "organization": "The subject is not one of these organizations",
           "victimNotMentor": "The subject is not this retainer's mentor",
           "captainOnly": "This creature is its squad's captain",
@@ -1337,6 +1340,7 @@
           "notSelf": "not this creature",
           "victimNotSelf": "hits someone else",
           "groupName": "{v}",
+          "organizationInclude": "{v}",
           "organization": "not {v}",
           "victimNotMentor": "not the mentor",
           "captainOnly": "captain only",
@@ -1441,6 +1445,7 @@
           "abilityTargetCount": "Targets exactly this many",
           "abilityTargetSide": "Those targets are",
           "targetsOwner": "Targets this creature",
+          "targetsAlly": "Targets an ally of the creature using it",
           "excludeSelfTarget": "Does not also target this creature",
           "rolledDamage": "Its damage comes from a power roll",
           "abilityDealsDamage": "It deals damage (power roll, damage button or damage link)",
@@ -1460,6 +1465,7 @@
           "abilityTargetCount": "{v} target(s)",
           "abilityTargetSide": "{v}",
           "targetsOwner": "targets this creature",
+          "targetsAlly": "targets an ally",
           "excludeSelfTarget": "not also targeting this creature",
           "rolledDamage": "rolled damage",
           "abilityDealsDamage": "deals damage",

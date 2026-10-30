@@ -1,7 +1,7 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, executeAsDirector } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
-import { eventHits, footprintGap, scopeMatches, usedAbilityMatches, isMinionActor } from "./dispatch.mjs";
+import { eventHits, footprintGap, scopeMatches, usedAbilityMatches, isMinionActor, damageOutcomeMatches, organizationMatches } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 import { DAMAGE_MODIFYING } from "../parser/trigger-parser.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
@@ -81,22 +81,36 @@ const squadVictim = (actor) => isMinionActor(actor) && game.combat?.combatants.f
 
 let _turnKey = "";
 const _turnDamage = new Map();
+const _turnTypedDamage = new Map();
 function _noteTurnDamage(e) {
   const ctx = e.eventContext;
-  if (e.event !== "TAKES_DAMAGE" || !_typed(e) || !e.subjectActor || (ctx.dealerOnly && !squadVictim(e.subjectActor))) return;
+  if (e.event !== "TAKES_DAMAGE" || !e.subjectActor || (ctx.dealerOnly && !squadVictim(e.subjectActor))) return;
   const combat = game.combat;
   const key = `${combat.id}:${combat.round}:${combat.turn}`;
-  if (key !== _turnKey) { _turnKey = key; _turnDamage.clear(); }
+  if (key !== _turnKey) { _turnKey = key; _turnDamage.clear(); _turnTypedDamage.clear(); }
   const who = _token(e.subjectToken)?.uuid ?? e.subjectActor.uuid;
-  const before = _turnDamage.get(who) ?? 0;
-  const after = before + (Number(ctx.damageAmount ?? e.triggerDamage) || 0);
-  _turnDamage.set(who, after);
-  e.turnDamage = { before, after };
+  const amount = Number(ctx.damageAmount ?? e.triggerDamage) || 0;
+  const add = (totals) => {
+    const before = totals.get(who) ?? 0;
+    totals.set(who, before + amount);
+    return { before, after: before + amount };
+  };
+  e.turnDamage = add(_turnDamage);
+  if (_typed(e)) e.turnTypedDamage = add(_turnTypedDamage);
 }
 
-const _overLevel = (e, hero) => {
-  const limit = 5 + (Number(hero.system?.level) || 1);
-  return !!e.turnDamage && e.turnDamage.before <= limit && e.turnDamage.after > limit;
+const _overLevel = (e, hero, line) => {
+  const limit = (line?.turnDamageBase ?? 5) + (Number(hero.system?.level) || 1);
+  const typed = (line?.parse?.clauses ?? []).some((c) => c.damageTypes?.length);
+  const total = typed ? e.turnTypedDamage : e.turnDamage;
+  return !!total && total.before <= limit && total.after > limit;
+};
+
+const _nullField = (hero) => hero.items.find((i) => i.type === "ability" && i.system?._dsid === "null-field") ?? null;
+const _inNullField = (hero, heroToken, otherToken) => {
+  const field = _nullField(hero);
+  if (!field || Number(hero.system?.stamina?.value ?? 1) <= 0) return false;
+  return _near(heroToken, otherToken, Number.parseInt(field.system?.distance?.primary) || 1);
 };
 
 const _valuesOf = (c) => c?.contents ?? (c instanceof Map ? [...c.values()] : Object.values(c ?? {}));
@@ -114,7 +128,8 @@ function defensiveTriggered(ability) {
 }
 
 const GATES = {
-  turnDamageOverLevel: (e, hero) => _overLevel(e, hero),
+  turnDamageOverLevel: (e, hero, tok, line) => _overLevel(e, hero, line),
+  inNullField: (e, hero, tok) => _inNullField(hero, tok, e.subjectToken),
   dealerJudged: (e, hero) => judgedBy(e.eventContext.dealerActor, hero),
   victimJudged: (e, hero) => judgedBy(e.eventContext.victimActor, hero),
   victimMarked: (e, hero) => markedBy(e.eventContext.victimActor, hero),
@@ -206,9 +221,12 @@ function _lineMatches(line, e, hero, heroToken) {
       && !_near(heroToken, subjectToken, clause.range)) return false;
     if (clause.damageTypes?.length && !clause.damageTypes.includes(ctx.damageType)) return false;
     if (clause.conditions?.length && !clause.conditions.includes(ctx.condition)) return false;
-    if (e.event === "USES_ABILITY" && !usedAbilityMatches(clause, e.usedAbility, hero, ctx)) return false;
+    if (clause.tierFilter?.length && !(ctx.tiers ?? []).some((t) => clause.tierFilter.includes(t))) return false;
+    if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
+    if (!organizationMatches(clause, e.subjectActor)) return false;
+    if (e.event === "USES_ABILITY" && !usedAbilityMatches(clause, e.usedAbility, hero, { ...ctx, usedTargets: e.usedTargets ?? [], userToken: subjectToken })) return false;
     if (clause.defensiveTriggered && !defensiveTriggered(e.usedAbility)) return false;
-    return line.gates.every((id) => GATES[id]?.(e, hero, heroToken) ?? false);
+    return line.gates.every((id) => GATES[id]?.(e, hero, heroToken, line) ?? false);
   });
 }
 
@@ -325,6 +343,14 @@ async function _gain(combat, actor, item, line) {
   }
 }
 
+
+const _queues = new Map();
+function _inTurn(actor, fn) {
+  const next = (_queues.get(actor.id) ?? Promise.resolve()).then(fn, fn);
+  _queues.set(actor.id, next.catch(() => {}));
+  return next;
+}
+
 function _heroes(combat) {
   const seen = new Set();
   const out = [];
@@ -355,7 +381,7 @@ export function noteGainEvent(e) {
       try { hit = _lineMatches(line, e, actor, token); } catch (err) { dbg(`resource gain line ${line.key} threw`, err); }
       if (!hit) continue;
       if (getSetting("resourceGains") === "stack") _offer(combat, actor, item, line, e);
-      else _gain(combat, actor, item, line);
+      else _inTurn(actor, () => _gain(combat, actor, item, line));
     }
   }
 }
@@ -381,7 +407,7 @@ export async function resolveStackGain(entry, outcome) {
   if (!combat?.started || !actor) return;
   const found = heroGainLines(actor).find((x) => x.line.key === entry.gain.line);
   if (!found) return;
-  if (outcome === "used") return _gain(combat, actor, found.item, found.line);
+  if (outcome === "used") return _inTurn(actor, () => _gain(combat, actor, found.item, found.line));
   if (!found.line.once) return;
   await combat.update({ [`flags.${MODULE_ID}.${FLAG}.${entry.gain.record}`]: {
     actorId: actor.id, line: found.line.key, declined: true, amount: 0, round: combat.round, cardIds: [],
@@ -516,12 +542,15 @@ Hooks.on("createChatMessage", (message) => {
   if (!gainsActive() || !isPrimaryGM() || !game.combat?.started) return;
   const PowerRoll = globalThis.ds?.rolls?.PowerRoll;
   if (!PowerRoll) return;
-  const rolls = [...(message.rolls ?? []), ...(message.system?.parts?.contents ?? []).flatMap((p) => p?.rolls ?? [])];
-  const natural = rolls.some((r) => r instanceof PowerRoll && Number(r.dice?.[0]?.total) >= 19);
-  if (!natural) return;
+  const rolls = [...(message.rolls ?? []), ...(message.system?.parts?.contents ?? []).flatMap((p) => p?.rolls ?? [])]
+    .filter((r) => r instanceof PowerRoll);
+  if (!rolls.length) return;
   const tokenId = message.speaker?.token;
   const token = tokenId ? canvas.scene?.tokens?.get(tokenId) ?? null : null;
   const actor = token?.actor ?? (message.speaker?.actor ? game.actors.get(message.speaker.actor) : null);
   if (!actor) return;
-  noteGainEvent({ event: "NATURAL_19_20", subjectActor: actor, subjectToken: token ?? actor.getActiveTokens(true, true)[0] ?? null });
+  const subjectToken = token ?? actor.getActiveTokens(true, true)[0] ?? null;
+  const tiers = [...new Set(rolls.map((r) => Number(r.product)).filter((t) => t >= 1 && t <= 3))];
+  if (tiers.length) noteGainEvent({ event: "POWER_ROLL_RESULT", subjectActor: actor, subjectToken, eventContext: { tiers } });
+  if (rolls.some((r) => Number(r.dice?.[0]?.total) >= 19)) noteGainEvent({ event: "NATURAL_19_20", subjectActor: actor, subjectToken });
 });
