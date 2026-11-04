@@ -459,6 +459,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.victimNotSelf && ctx.victimActor === ownerActor) return false;
       if (clause.victimType && ctx.victimActor && ctx.victimActor.type !== clause.victimType) return false;
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
+      if (clause.damageFromLine && ctx.ability?.getFlag?.(MODULE_ID, "derived")?.lineKey !== clause.damageFromLine) return false;
       if (clause.victimCondition && !ctx.victimActor?.statuses?.has(clause.victimCondition)) return false;
       if (clause.notForceMoved && forcesMovement(ctx.ability)) return false;
       if (clause.rangeMin && !beyondRange(clause.rangeMin, subjectToken, ctx.victimToken)) return false;

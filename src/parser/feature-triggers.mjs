@@ -521,6 +521,7 @@ const CURATED_LINES = [
 const ABILITY_LINES = [
   [/^Jaws of Death$/, /fails the saving throw while weakened this way/i, { clause: { saveOwnEffect: true, saveAgainst: "weakened", saveFails: true } }],
   [/^I Am Fire! I Am Death!$/, /adjacent enemy grabs the bloodlord/i, { watch: "used" }],
+  [/^Elemental Ferocity$/, /^If this damage reduces the enemy to 0 Stamina\b/i, { clause: { damageFromLine: "elemental-ferocity-an-enemy-damages-you", damageOutcome: ["zero"], victimScope: "ENEMY" } }],
   [/^Power Ballad$/, /deal half the damage they took/i, { damageModifying: false, clause: { event: "TAKES_DAMAGE", events: ["TAKES_DAMAGE"], halfDamage: false, aim: "dealer" } }],
   [/^Saved in the Edit$/, /deal rolled damage to a creature or object, or enable a creature to spend a Recovery/i, { triggers: [
     ["You deal rolled damage to a creature or object", { rolledDamage: true }],
@@ -577,6 +578,7 @@ const SENTENCE_LINES = [
   [/^Clarity and Strain$/, /\bat the end of each of your turns, you take 1 damage for each negative point\b/i, { trigger: "You end your turn" }],
   [/^Music of the Spheres$/, /^As a main action, you sing or play a note\b/i, { trigger: "", action: "main" }],
   [/^Evolutionary Circuit$/, /\bany psionic strike made by a voiceless talker deals an extra 5 damage\b/i, { trigger: "You make a psionic strike" }],
+  [/^Elemental Ferocity$/, /^If this damage reduces the enemy to 0 Stamina\b/i, { trigger: "You reduce an enemy to 0 Stamina", effect: "you gain 10 temporary Stamina." }],
 ];
 
 const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
@@ -625,7 +627,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const spends = free || /\btriggered action\b/i.test(sentence);
       const synth = sentenceLine(name, sentence);
       if (synth) {
-        found.push({ index, sentence, trigger: synth.trigger, effect: sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "), action: synth.action ?? null, synth: true });
+        found.push({ index, sentence, trigger: synth.trigger, effect: synth.effect ?? sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "), action: synth.action ?? null, synth: true });
         return;
       }
       if (!spends && !WHEN.test(sentence)) return;
