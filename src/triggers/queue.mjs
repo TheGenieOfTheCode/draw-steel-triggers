@@ -862,7 +862,7 @@ async function _addRollModPills(message, u) {
 }
 
 function _rollModResult(message, targetKey, rollMod) {
-  const state = message?.getFlag("draw-steel-target-damage", "state") ?? (message && resultModsActive() ? {} : null);
+  const state = message?.flags?.["draw-steel-target-damage"]?.state ?? (message && resultModsActive() ? {} : null);
   if (!state || !targetKey) return null;
   const targetDoc = fromUuidSync(targetKey.replace(/__/g, "."), { strict: false });
   const roll = _findPowerRoll(message, targetDoc?.actor?.uuid ?? null);
@@ -1192,7 +1192,7 @@ async function _takeBackStrikeDamage(entry) {
   const message = game.messages.get(entry.strikeRow.messageId);
   const undo = game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("undoDamageRow");
   if (!message || !undo) return;
-  const apps = Object.values(message.getFlag("draw-steel-target-damage", "state")?.applications ?? {});
+  const apps = Object.values(message.flags?.["draw-steel-target-damage"]?.state?.applications ?? {});
   for (const key of entry.strikeRow.keys ?? []) {
     const landed = apps.some((a) => a?.kind === "damage" && a.status === "applied" && !a.dstHeld && !a.dstRedirected
       && String(a.target?.tokenUuid ?? a.target?.actorUuid ?? "").replace(/\./g, "__") === key);

@@ -219,7 +219,7 @@ function useMessageRendered(itemUuid, timeoutMs = 1500, settleMs = 800) {
       clearTimeout(timer);
       requestAnimationFrame(() => resolve());
     };
-    const recorded = (message) => !!message.getFlag?.("draw-steel-target-damage", "state") || rolledTargets(message).length > 0;
+    const recorded = (message) => !!message.flags?.["draw-steel-target-damage"]?.state || rolledTargets(message).length > 0;
     const renderHook = Hooks.on("renderChatMessageHTML", (message) => {
       if (rendered || !message.system?.parts?.contents?.some((p) => p.type === "abilityUse" && p.abilityUuid === itemUuid)) return;
       rendered = message.id;
@@ -1180,7 +1180,6 @@ function markStackButton() {
     btn.setAttribute("aria-label", triggers ? game.i18n.format("DS_TRIGGERS.Queue.OpenStackButtonCount", { title, n: triggers }) : title);
   }
 }
-
 
 const HELD_BUTTONS = "button.dst-dstd-res-locked, button.dst-dstd-held-btn:not(.dst-dstd-redirected-btn)";
 

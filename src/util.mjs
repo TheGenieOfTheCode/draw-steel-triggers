@@ -62,7 +62,7 @@ export const addTargetResult = async (message, token) => (await ctlib()?.addTarg
 
 export const messageTargets = (message) => {
   const rolled = rolledTargets(message);
-  return rolled.length ? rolled : (message?.getFlag?.("draw-steel-target-damage", "state")?.targets ?? []);
+  return rolled.length ? rolled : (message?.flags?.["draw-steel-target-damage"]?.state?.targets ?? []);
 };
 
 export const targetKeys = (message) => messageTargets(message)
