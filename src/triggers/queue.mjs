@@ -176,6 +176,18 @@ export function getActiveDamageHolds() {
   return _damageHolds;
 }
 
+export const damageBypassed = (actorUuid) => !!actorUuid && _damageBypass.has(actorUuid);
+
+async function _withBypass(actorUuid, fn) {
+  if (!actorUuid) return fn();
+  _damageBypass.add(actorUuid);
+  try {
+    return await fn();
+  } finally {
+    _damageBypass.delete(actorUuid);
+  }
+}
+
 export function consumeDamageBypass(actorUuid) {
   if (!_damageBypass.has(actorUuid)) return false;
   _damageBypass.delete(actorUuid);
@@ -1156,8 +1168,22 @@ async function _retierOnResult(hold, u) {
     await api.addDamage(game.messages.get(message.id), key.replace(/__/g, "."), { kind: "half", label: x.itemName, src: x.ownerName ?? null,
       srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null, source: "trigger" });
   }
-  await _rowService("reapplyDamageRow")?.(game.messages.get(message.id), key);
+  await _withBypass(hold.actorUuid, () => _rowService("reapplyDamageRow")?.(game.messages.get(message.id), key));
   return true;
+}
+
+function _resultHold(hold) {
+  if (hold.dstd || hold.squad || !resultModsActive()) return null;
+  const message = game.messages.get(hold.damageOptions?.origin?.messageId ?? "");
+  const key = String(hold.tokenUuid ?? hold.actorUuid ?? "").replace(/\./g, "__");
+  const target = key.replace(/__/g, ".");
+  return message && key && resultMods()?.partFor(message, target) ? { messageId: message.id, key, target } : null;
+}
+
+
+async function _landOnResult(hold, at, pills = []) {
+  for (const pill of pills) await resultMods().addDamage(game.messages.get(at.messageId), at.target, pill);
+  await _withBypass(hold.actorUuid, () => _rowService("reapplyDamageRow")?.(game.messages.get(at.messageId), at.key));
 }
 
 async function _retierHeldDamage(hold, u) {
@@ -1202,7 +1228,7 @@ async function _halveTriggeringStrike(hold, u) {
   const redeal = game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("redealDamageRow");
   for (const t of messageTargets(message)) {
     const key = String(t.tokenUuid ?? "").replace(/\./g, "__");
-    if (key && key !== held) await redeal?.(game.messages.get(message.id), key);
+    if (key && key !== held) await _withBypass(fromUuidSync(t.tokenUuid, { strict: false })?.actor?.uuid, () => redeal?.(game.messages.get(message.id), key));
   }
 }
 
@@ -1229,7 +1255,9 @@ async function _takeBackStrikeDamage(entry) {
 
 async function _settleDamageHold(hold) {
   if (!hold.anyUsed) {
-    await _applyHeldDamage(hold, hold.amount);
+    const at = _resultHold(hold);
+    if (at) await _landOnResult(hold, at);
+    else await _applyHeldDamage(hold, hold.amount);
     Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: hold.amount });
     return;
   }
@@ -1298,7 +1326,9 @@ async function _settleDamageHold(hold) {
   }
   const typePill = damagePillType(outcome.pills);
   if (typePill != null && hold.damageOptions) hold.damageOptions = { ...hold.damageOptions, type: typePill };
-  await _applyHeldDamage(hold, Number(result));
+  const at = cap ? null : _resultHold(hold);
+  if (at) await _landOnResult(hold, at, outcome.pills ?? []);
+  else await _applyHeldDamage(hold, Number(result));
   Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: Number(result) });
 }
 

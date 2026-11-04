@@ -1,5 +1,5 @@
 import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor, triggersLive, rollModsOf } from "../dispatch.mjs";
-import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor } from "../queue.mjs";
+import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor, damageBypassed } from "../queue.mjs";
 import { deferDeathApi } from "../../compat/death-tracker.mjs";
 import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
 import { damageBonusFor } from "../damage-bonus.mjs";
@@ -130,6 +130,7 @@ Hooks.once("ready", () => {
 });
 
 function _takeDamage(wrapped, damage, options) {
+  if (!options?.dstBypass && damageBypassed(this.parent?.uuid)) options = { ...options, dstBypass: true };
   if (_source && !options?.dsSource) options = { ...options, dsSource: _source };
   _pendingDamageType  = options?.type ?? null;
   if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
