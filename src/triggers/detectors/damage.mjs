@@ -21,6 +21,16 @@ const _typeFor = new Map();
 
 const _lineSource = (ability) => ability?.getFlag?.(MODULE_ID, "derived")?.lineKey ?? null;
 
+function _dealerFromSource(source) {
+  if (!source) return null;
+  const token = source.tokenUuid ? fromUuidSync(source.tokenUuid, { strict: false }) : null;
+  const actor = token?.actor ?? (source.actorUuid ? fromUuidSync(source.actorUuid, { strict: false }) : null);
+  if (!actor?.items) return null;
+  const ability = (source.abilityUuid ? fromUuidSync(source.abilityUuid, { strict: false }) : null)
+    ?? (source.ability ? actor.items.find((i) => i.type === "ability" && i.name === source.ability) ?? null : null);
+  return { actor, token, ability, message: null, surges: 0 };
+}
+
 function _dealerFromMessage(message) {
   if (!message) return null;
   const speaker = message.speaker ?? {};
@@ -116,7 +126,7 @@ function _takeDamage(wrapped, damage, options) {
   if (_source && !options?.dsSource) options = { ...options, dsSource: _source };
   _pendingDamageType  = options?.type ?? null;
   if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
-    type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced, source: options?.dsSource ?? null,
+    type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced, source: options?.dsSource ?? null, flat: options?.dsbl?.source ?? null,
   });
   damage = _autoAdjust(this.parent, damage, options);
   _pendingStaminaLoss = !!options?.staminaLoss;
@@ -365,7 +375,7 @@ Hooks.on("updateActor", (actor, changed, options) => {
   const token = actor.getActiveTokens(true, true)[0] ?? null;
   const record = _typeFor.get(actor.uuid) ?? null;
   const damageType = record?.type ?? options.ds?.damageType ?? null;
-  const dealer = _dealer ?? _dealerFromOrigin(options.ds?.origin);
+  const dealer = _dealer ?? _dealerFromOrigin(options.ds?.origin) ?? _dealerFromSource(record?.flat);
   if (dealer) dbg(`${actor.name}'s Stamina changed, dealt by ${dealer.actor.name}${dealer.ability ? ` with ${dealer.ability.name}` : ""}${dealer.surges ? `, ${dealer.surges} surge(s)` : ""}`);
   _typeFor.delete(actor.uuid);
   const immunityReduced = !!damageType && (actor.system.calculateImmunityAndWeakness?.({ type: damageType, ignoredImmunities: record.ignored })?.immunity ?? 0) > 0;
