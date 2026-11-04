@@ -46,6 +46,7 @@ import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
 import { registerDerivedNames, itemEffectiveLines } from "./triggers/feature-triggers.mjs";
 import { registerIgnoreRule, unregisterIgnoreRule, ignoredByRule, refreshIgnored } from "./triggers/ignore-rules.mjs";
 import "./compat/dstd-sync.mjs";
+import "./compat/system-results.mjs";
 
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "combatOnly", {

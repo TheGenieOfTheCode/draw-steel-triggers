@@ -1,13 +1,20 @@
-import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
+import { getSetting, dbg, isPrimaryGM, rolledTargets, tierFor, powerRollFor } from "../../util.mjs";
 import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds } from "../dispatch.mjs";
 import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
 import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 import { baneAbility } from "../line-effects.mjs";
 
-const DSTD_ID = "draw-steel-target-damage";
 const _handled = new Set();
 const _handledAt = new Map();
 const _knownTargets = new Map();
+const _applied = new Set();
+
+Hooks.on("ctlib.applyTargetResult", (part) => {
+  const id = part?.message?.id;
+  if (id) _applied.add(id);
+});
+
+const _targetsOf = (message) => rolledTargets(message).map((t) => ({ tokenUuid: t.tokenUuid, actorUuid: t.actorUuid }));
 
 function _pruneHandled() {
   const now = Date.now();
@@ -28,10 +35,10 @@ export function noteTargetsChange(messageId, keys) {
 }
 
 function _seedKnownTargets(message) {
-  const state = message.getFlag(DSTD_ID, "state");
-  if (!state) return;
+  const targets = _targetsOf(message);
+  if (!targets.length) return;
   _knownTargets.set(message.id, {
-    keys: new Set((state.targets ?? []).map(_targetKey)),
+    keys: new Set(targets.map(_targetKey)),
     at: Date.now(),
   });
   const now = Date.now();
@@ -43,23 +50,14 @@ function _seedKnownTargets(message) {
 const _tierWatch = new Map();
 
 function _tierFor(message, target) {
-  const state = message.getFlag(DSTD_ID, "state") ?? {};
-  const key = String(target?.tokenUuid ?? target?.actorUuid ?? "").replace(/\./g, "__");
-  const override = state.tierOverrides?.[key];
-  if (override?.tier != null) return Number(override.tier);
-  const part = message.system?.parts?.contents?.find((p) => p.type === "abilityResult");
-  const roll = (part?.rolls ?? []).find((r) => r?.constructor?.name === "PowerRoll");
-  return roll?.product == null ? null : Number(roll.product);
+  return tierFor(message, target ? (target.actorUuid ?? target.tokenUuid) : null);
 }
 
-function _anyApplied(message) {
-  const state = message.getFlag(DSTD_ID, "state") ?? {};
-  return Object.values(state.applications ?? {}).some((a) => a && a.status !== "undone");
-}
+const _anyApplied = (message) => _applied.has(message.id);
 
 function _isCritical(message) {
-  const part = message?.system?.parts?.contents?.find((p) => p.type === "abilityResult");
-  const roll = (part?.rolls ?? []).find((r) => r?.constructor?.name === "PowerRoll");
+  const first = rolledTargets(message)[0];
+  const roll = powerRollFor(message, first?.actorUuid ?? null);
   if (!roll) return false;
   return roll.isCritical ?? (Number(roll.dice?.[0]?.total) >= (Number(roll.options?.criticalThreshold) || 19));
 }
@@ -199,10 +197,9 @@ async function _tryDispatch(message) {
 
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;
-  const state = message.getFlag(DSTD_ID, "state");
-  const targets = state?.targets ?? [];
+  const targets = _targetsOf(message);
   if (!targets.length) return;
-  if (!message.rolls?.length) return;
+  if (!powerRollFor(message, targets[0].actorUuid)) return;
 
   const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
   if (!ability || ability.type !== "ability") return;
@@ -274,7 +271,7 @@ async function _tryTierRecheck(message) {
   if (!ability || ability.type !== "ability") return;
   const rollerActor = ability.actor;
   const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor), ability };
-  const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
+  const targets = _targetsOf(message);
 
   const queued = new Set((getQueueMirror() ?? [])
     .filter((e) => e.state === "pending" || e.state === "used").map((e) => e.itemUuid));
@@ -315,14 +312,13 @@ async function _tryPostHocDispatch(message, addedTargets) {
 
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;
-  if (!message.rolls?.length) return;
   const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
   if (!ability || ability.type !== "ability") return;
   const strike = ability.system.keywords?.has?.("strike") ?? false;
   const rollerActor = ability.actor;
   const dealer = { dealerActor: rollerActor, dealerToken: _rollerToken(message, rollerActor), ability };
 
-  const allTargets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
+  const allTargets = _targetsOf(message);
   const targetActors = new Set();
   for (const t of allTargets) {
     const doc = t.tokenUuid ? await fromUuid(t.tokenUuid).catch(() => null) : null;
@@ -373,19 +369,15 @@ Hooks.on("createChatMessage", async (message) => {
 
 Hooks.on("updateChatMessage", async (message, changes) => {
   if (!isPrimaryGM()) return;
-  if (!foundry.utils.hasProperty(changes, `flags.${DSTD_ID}`)) return;
+  if (!changes?.system?.parts) return;
   const known = _knownTargets.get(message.id);
   if (!known) {
-    
-    
-    
-    
     await _tryDispatch(message);
     _seedKnownTargets(message);
     await _tryTierRecheck(message);
     return;
   }
-  const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
+  const targets = _targetsOf(message);
   const added = targets.filter((t) => !known.keys.has(_targetKey(t)));
   known.keys = new Set(targets.map(_targetKey));
   known.at = Date.now();

@@ -712,6 +712,7 @@
       "DamageReduced": "{name}: damage reduced by {n}.",
       "DamageBonus": "{name}: +{n} damage.",
       "DamageBonusOffered": "{name} could add +{n} damage. Add it by hand if you use it.",
+      "DamageBonusByHand": "{name}: {target} also takes {n} damage. Apply it by hand.",
       "BonusCause": "{name} could add +{n} damage to {target}",
       "HeldDamageIgnoresImmunity": "Ignores {types} immunity",
       "FallHeld": "{name}'s fall is held while triggered abilities are decided. See the Trigger Stack.",
@@ -778,6 +779,7 @@
       "Adjusted": "adjusted",
       "Half": "half",
       "DstdHeldLabel": "Triggers Pending",
+      "ResolutionLocked": "Triggers are still pending on this ability. Resolve them first, then apply its results.",
       "WaitingOn": "waiting on {count} more triggers",
       "GraceCountdown": "Resumes in {seconds}s",
       "State": {

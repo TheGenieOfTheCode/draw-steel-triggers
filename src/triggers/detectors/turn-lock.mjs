@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg } from "../../util.mjs";
+import { MODULE_ID, getSetting, dbg, targetTokenUuids } from "../../util.mjs";
 import { activationsLeft, collectTriggerMatches, isMinionActor, noteOncePerRoundUse } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket } from "../queue.mjs";
 import { getParsedTrigger } from "../registry.mjs";
@@ -192,10 +192,8 @@ async function _useTargets(itemUuid) {
   for (let tries = 0; tries < 10; tries++) {
     const stamped = message.getFlag(MODULE_ID, "useTargets");
     if (Array.isArray(stamped)) return stamped.map((uuid) => fromUuidSync(uuid)).filter(Boolean);
-    const state = message.getFlag("draw-steel-target-damage", "state");
-    if (state?.targets?.length) {
-      return state.targets.map((t) => (t.tokenUuid ? fromUuidSync(t.tokenUuid) : null)).filter(Boolean);
-    }
+    const rolled = targetTokenUuids(message);
+    if (rolled.length) return rolled.map((uuid) => fromUuidSync(uuid, { strict: false })).filter(Boolean);
     await new Promise((r) => setTimeout(r, 200));
   }
   return [];

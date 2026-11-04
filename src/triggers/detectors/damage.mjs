@@ -31,6 +31,36 @@ function _dealerFromMessage(message) {
   return actor ? { actor, token, ability, message } : null;
 }
 
+const _rollIndex = new Map();
+
+let _hitToken = null;
+
+Hooks.on("ctlib.preApplyTargetResult", (part, action, context) => {
+  if (action !== "applyDamage" || !part?.id) return;
+  _hitToken = part.tokenUuid ?? null;
+  if (context?.roll) _rollIndex.set(part.id, Array.from(part.rolls ?? []).indexOf(context.roll));
+});
+
+Hooks.on("ctlib.applyTargetResult", (part, action) => {
+  if (action === "applyDamage") _hitToken = null;
+});
+
+function _surgesFor(message, partId, index) {
+  if (!message || !partId || !(index >= 0)) return 0;
+  return Number(message.flags?.[MODULE_ID]?.surgeRolls?.[`${partId}:${index}`])
+    || Number(message.flags?.["draw-steel-combat-tools"]?.resultMods?.[partId]?.damage?.[index]?.surges) || 0;
+}
+
+function _dealerFromOrigin(origin) {
+  const message = origin?.messageId ? game.messages.get(origin.messageId) : null;
+  if (!message) return null;
+  const token = origin.tokenUuid ? fromUuidSync(origin.tokenUuid, { strict: false }) : null;
+  const actor = token?.actor ?? (origin.actorUuid ? fromUuidSync(origin.actorUuid, { strict: false }) : null);
+  if (!actor) return null;
+  const ability = (origin.abilityUuid ? fromUuidSync(origin.abilityUuid, { strict: false }) : null) ?? _dealerFromMessage(message)?.ability ?? null;
+  return { actor, token, ability, message, surges: _surgesFor(message, origin.partId, _rollIndex.get(origin.partId)) };
+}
+
 Hooks.once("ready", () => {
   if (!game.modules.get("lib-wrapper")?.active) return;
 
@@ -69,23 +99,36 @@ Hooks.once("ready", () => {
   }, "WRAPPER");
 
   libWrapper.register(MODULE_ID, "ds.data.Actor.BaseActorModel.prototype.takeDamage", function (wrapped, damage, options = {}) {
-    if (_source && !options?.dsSource) options = { ...options, dsSource: _source };
-    _pendingDamageType  = options?.type ?? null;
-    if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
-      type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced, source: options?.dsSource ?? null,
-    });
-    damage = _autoAdjust(this.parent, damage, options);
-    _pendingStaminaLoss = !!options?.staminaLoss;
-    _noteAbsorbed(this.parent, damage, options);
+    const fromOrigin = !_dealer && options?.origin ? _dealerFromOrigin(options.origin) : null;
+    if (fromOrigin) {
+      _dealer = fromOrigin;
+      _source = fromOrigin.message.flags?.[MODULE_ID]?.damageSource ?? _lineSource(fromOrigin.ability);
+    }
     try {
-      if (_tryHoldDamage(this, damage, options)) return this.parent;
-      return wrapped(damage, options);
+      return _takeDamage.call(this, wrapped, damage, options);
     } finally {
-      _pendingDamageType  = null;
-      _pendingStaminaLoss = false;
+      if (fromOrigin) { _dealer = null; _source = null; }
     }
   }, "MIXED");
 });
+
+function _takeDamage(wrapped, damage, options) {
+  if (_source && !options?.dsSource) options = { ...options, dsSource: _source };
+  _pendingDamageType  = options?.type ?? null;
+  if (this.parent?.uuid) _typeFor.set(this.parent.uuid, {
+    type: options?.type ?? "", ignored: [...(options?.ignoredImmunities ?? [])], fall: !!options?.dsctFall, forced: !!options?.dsctForced, source: options?.dsSource ?? null,
+  });
+  damage = _autoAdjust(this.parent, damage, options);
+  _pendingStaminaLoss = !!options?.staminaLoss;
+  _noteAbsorbed(this.parent, damage, options);
+  try {
+    if (_tryHoldDamage(this, damage, options)) return this.parent;
+    return wrapped(damage, options);
+  } finally {
+    _pendingDamageType  = null;
+    _pendingStaminaLoss = false;
+  }
+}
 
 function _autoAdjust(actor, damage, options) {
   if (!actor || !(damage > 0) || options?.dstBypass || options?.staminaLoss || !triggersLive()) return damage;
@@ -211,6 +254,7 @@ function _tryHoldDamage(model, damage, options) {
   if (options?.dsSource) damageOptions.dsSource = options.dsSource;
   if (options?.ignoredImmunities?.length) damageOptions.ignoredImmunities = [...options.ignoredImmunities];
   if (options?.dsbl) damageOptions.dsbl = foundry.utils.deepClone(options.dsbl);
+  if (options?.origin) damageOptions.origin = foundry.utils.deepClone(options.origin);
 
   const typeLabel = options?.type
     ? game.i18n.localize(ds.CONFIG.damageTypes?.[options.type]?.label ?? options.type)
@@ -269,8 +313,8 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   if (next === undefined || !Number.isFinite(prev) || !(prev - Number(next) > 0)) return;
   if (!getSetting("damageInterrupts")) return;
   if (!triggersLive()) return;
-  const tokenId = options?.dstd?.primaryTargetId;
-  const hit = tokenId ? group.parent?.scene?.tokens?.get(tokenId) ?? canvas.scene?.tokens?.get(tokenId) ?? null : null;
+  const hitDoc = _hitToken ? fromUuidSync(_hitToken, { strict: false }) : null;
+  const hit = hitDoc && Array.from(group.members ?? []).some((c) => c.token === hitDoc) ? hitDoc : null;
   const damageType = options?.ds?.damageType || null;
   const death = Number(next) <= 0 ? _lastMinionDeath(group, hit, damageType) : null;
   const token = hit ?? death?.token ?? null;
@@ -302,95 +346,6 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   return false;
 });
 
-const DSTD_ID = "draw-steel-target-damage";
-const _seenApplications = new Set();
-
-const _damageRecords = (record) => (Array.isArray(record?.records) ? record.records : [record])
-  .filter((r) => r?.kind === "damage" && r?.status === "applied" && Number(r?.amount) > 0);
-
-Hooks.on("updateChatMessage", (message) => {
-  
-  const state = message.getFlag(DSTD_ID, "state");
-  const applications = state?.applications;
-  if (!applications) return;
-
-  
-  const age = Date.now() - Number(state.updatedAt ?? 0);
-  if (!(age >= 0) || age > 15000) return;
-
-  const dealer = _dealerFromMessage(message);
-  if (!dealer) {
-    dbg(`target damage recorded on ${message.id} but its speaker resolves to no actor`);
-    return;
-  }
-
-  const keyFor = (operationId, r) =>
-    `${message.id}:${operationId}:${r.target?.tokenUuid ?? r.target?.actorUuid ?? ""}`;
-  const damageSource = message.getFlag(MODULE_ID, "damageSource") ?? _lineSource(dealer.ability);
-
-  for (const [operationId, record] of Object.entries(applications)) {
-    
-    for (const r of (Array.isArray(record?.records) ? record.records : [record])) {
-      if (r?.status !== "applied") _seenApplications.delete(keyFor(operationId, r));
-    }
-
-    for (const r of _damageRecords(record)) {
-      const victimUuid = r.target?.tokenUuid ?? r.target?.actorUuid ?? "";
-      const key = keyFor(operationId, r);
-      if (_seenApplications.has(key)) continue;
-      _seenApplications.add(key);
-
-      const doc = victimUuid ? fromUuidSync(victimUuid) : null;
-      const victim = doc?.actor ?? doc ?? null;
-      if (victim && victim === dealer.actor && damageSource) {
-        dbg(`target damage recorded: ${victim.name} took ${r.amount} from their own ${damageSource}`);
-        dispatchTriggerEvent({
-          event: "TAKES_DAMAGE",
-          subjectActor: victim,
-          subjectToken: doc instanceof TokenDocument ? doc : null,
-          causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: victim.name, amount: r.amount }),
-          triggerDamage: Number(r.amount),
-          eventContext: { damageType: r.damageType ?? null, ability: dealer.ability, damageSource },
-          filter: (m) => !!m.clause?.damageSource?.length,
-          gains: false,
-        });
-        continue;
-      }
-      if (!victim || victim === dealer.actor) {
-        dbg(`skipped a damage record on ${message.id}: victim ${victimUuid || "unnamed"} is the dealer or could not be resolved`);
-        continue;
-      }
-
-      dbg(`target damage recorded: ${dealer.actor.name} dealt ${r.amount} to ${victim.name}`);
-      dispatchTriggerEvent({
-        event: "DEALS_DAMAGE",
-        subjectActor: dealer.actor,
-        subjectToken: dealer.token,
-        causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
-          name: dealer.actor.name, target: victim.name, amount: r.amount,
-        }),
-        triggerDamage: Number(r.amount),
-        eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc), ability: dealer.ability,
-          victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
-      });
-      dispatchTriggerEvent({
-        event: "TAKES_DAMAGE",
-        subjectActor: victim,
-        subjectToken: doc instanceof TokenDocument ? doc : null,
-        causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
-          name: dealer.actor.name, target: victim.name, amount: r.amount,
-        }),
-        triggerDamage: Number(r.amount),
-        eventContext: { dealerOnly: true, dealerActor: dealer.actor, dealerToken: dealer.token, damageType: r.damageType ?? null, ability: dealer.ability, damageSource,
-          surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc),
-          victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
-      });
-    }
-  }
-
-  if (_seenApplications.size > 400) _seenApplications.clear();
-});
-
 Hooks.on("preUpdateActor", (actor, changed, options) => {
   const stamina = changed.system?.stamina;
   if (!stamina || (!("value" in stamina) && !("temporary" in stamina))) return;
@@ -409,7 +364,9 @@ Hooks.on("updateActor", (actor, changed, options) => {
 
   const token = actor.getActiveTokens(true, true)[0] ?? null;
   const record = _typeFor.get(actor.uuid) ?? null;
-  const damageType = record?.type ?? null;
+  const damageType = record?.type ?? options.ds?.damageType ?? null;
+  const dealer = _dealer ?? _dealerFromOrigin(options.ds?.origin);
+  if (dealer) dbg(`${actor.name}'s Stamina changed, dealt by ${dealer.actor.name}${dealer.ability ? ` with ${dealer.ability.name}` : ""}${dealer.surges ? `, ${dealer.surges} surge(s)` : ""}`);
   _typeFor.delete(actor.uuid);
   const immunityReduced = !!damageType && (actor.system.calculateImmunityAndWeakness?.({ type: damageType, ignoredImmunities: record.ignored })?.immunity ?? 0) > 0;
   const prevTotal = prev.value + prev.temporary;
@@ -431,23 +388,22 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
-      eventContext: { dealerActor: _dealer?.actor ?? null, dealerToken: _dealer?.token ?? null, damageType, ability: _dealer?.ability ?? null,
-        surgeSpend: _dealer?.surges || null, rollMods: rollModsOf(_dealer?.message, token ?? actor),
+      eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
+        surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
         immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? null,
         victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
     });
 
-    
-    if (_dealer && _dealer.actor !== actor) {
+    if (dealer && dealer.actor !== actor) {
       dispatchTriggerEvent({
         event: "DEALS_DAMAGE",
-        subjectActor: _dealer.actor,
-        subjectToken: _dealer.token,
+        subjectActor: dealer.actor,
+        subjectToken: dealer.token,
         causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
-          name: _dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
+          name: dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
-        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: _dealer.surges || null, rollMods: rollModsOf(_dealer.message, token ?? actor), ability: _dealer.ability ?? null,
+        eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: dealer.surges || null, rollMods: rollModsOf(dealer.message, token ?? actor), ability: dealer.ability ?? null,
           victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
       });
     }

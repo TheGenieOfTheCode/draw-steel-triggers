@@ -48,6 +48,21 @@ export const primaryGM = () => ctlib()?.primaryGM?.() ?? game.users.activeGM ?? 
 
 export const isPrimaryGM = () => !!primaryGM()?.isSelf;
 
+export const rolledTargets = (message) => ctlib()?.rolledTargets?.(message) ?? [];
+
+export const powerRollFor = (message, target = null) => ctlib()?.powerRollFor?.(message, target) ?? null;
+
+export const tierFor = (message, target = null) => ctlib()?.tierFor?.(message, target) ?? null;
+
+export const resultMods = () => game.modules.get("draw-steel-combat-tools")?.api?.resultModifiers ?? null;
+
+export const resultModsActive = () => !!resultMods()?.active?.();
+
+export const addTargetResult = async (message, token) => (await ctlib()?.addTargetResult?.(message, token)) ?? null;
+
+export const targetTokenUuids = (message) => rolledTargets(message).map((t) => t.tokenUuid
+  ?? fromUuidSync(t.actorUuid, { strict: false })?.getActiveTokens?.(false, true)?.[0]?.uuid ?? null).filter(Boolean);
+
 export const executeAsDirector = (socket, handler, ...args) => ctlib()?.executeAsDirector
   ? ctlib().executeAsDirector(socket, handler, ...args)
   : (socket ? socket.executeAsGM(handler, ...args) : Promise.resolve(undefined));

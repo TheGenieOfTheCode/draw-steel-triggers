@@ -1,5 +1,5 @@
 import { dispatchTriggerEvent, triggersLive, hasPotency } from "../dispatch.mjs";
-import { getSetting, dbg, isPrimaryGM } from "../../util.mjs";
+import { getSetting, dbg, isPrimaryGM, rolledTargets } from "../../util.mjs";
 import { gainsActive } from "../resource-gains.mjs";
 import { itemFeatureLines } from "../feature-triggers.mjs";
 import { recordAbilityUse } from "../ability-uses.mjs";
@@ -21,16 +21,14 @@ function _usedFromMessage(message) {
 }
 
 function _targetsOf(message) {
-  const state = message.getFlag("draw-steel-target-damage", "state");
-  return (state?.targets ?? [])
-    .map((t) => (t.tokenUuid ? fromUuidSync(t.tokenUuid) : null))
-    .filter(Boolean);
+  return rolledTargets(message).map((t) => {
+    const token = t.tokenUuid ? fromUuidSync(t.tokenUuid, { strict: false }) : null;
+    return token ?? fromUuidSync(t.actorUuid, { strict: false })?.getActiveTokens?.(false, true)?.[0] ?? null;
+  }).filter(Boolean);
 }
 
 function _rollTargetsOf(message) {
-  const part = message.system?.parts?.contents?.find((p) => p.type === "abilityResult");
-  return (part?.rolls ?? []).map((r) => r?.options?.target).filter(Boolean)
-    .map((uuid) => fromUuidSync(uuid, { strict: false })).filter(Boolean);
+  return rolledTargets(message).map((t) => fromUuidSync(t.actorUuid, { strict: false })).filter(Boolean);
 }
 
 Hooks.on("createChatMessage", (message) => {

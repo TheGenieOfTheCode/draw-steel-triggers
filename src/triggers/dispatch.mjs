@@ -1,4 +1,4 @@
-import { MODULE_ID, getSetting, dbg, isPrimaryGM } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM, rolledTargets, powerRollFor } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
 import { enqueuePromptEntries } from "./queue.mjs";
@@ -700,6 +700,7 @@ function spendWasPaid(abilityUuid) {
   return false;
 }
 
+
 function spentBeyondCost(message, abilityUuid) {
   const template = game.i18n.localize("DRAW_STEEL.Item.ability.ConfigureUse.SpentFlavor");
   const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -712,22 +713,19 @@ function spentBeyondCost(message, abilityUuid) {
 export const rollNeeds = (clause) => clause?.rollHas?.length ? clause.rollHas : clause?.edgeRequired ? ["edge"] : null;
 
 export function rollModsOf(message, target = null) {
-  const part = message?.system?.parts?.contents?.find((p) => p.type === "abilityResult");
-  const rolls = (part?.rolls ?? []).filter((r) => r?.constructor?.name === "PowerRoll");
-  if (!rolls.length) return null;
-  const overrides = message.getFlag?.("draw-steel-target-damage", "state")?.tierOverrides ?? {};
+  if (!message) return null;
   const net = (o) => (Number(o?.edges) || 0) - (Number(o?.banes) || 0);
   if (target) {
     const doc = tokenDoc(target);
-    const actor = doc?.actor ?? target.actor ?? (target.documentName === "Actor" ? target : null);
-    const keys = [doc?.uuid, actor?.uuid].filter(Boolean);
-    const override = keys.map((k) => overrides[k.replace(/\./g, "__")]).find((o) => o?.edges != null);
-    if (override) return { nets: [net(override)] };
-    const own = rolls.find((r) => keys.includes(r.options?.target));
+    const own = powerRollFor(message, doc?.actor ?? target);
     if (own) return { nets: [net(own.options)] };
   }
-  const fromOverrides = Object.values(overrides).filter((o) => o?.edges != null).map(net);
-  return { nets: fromOverrides.length ? fromOverrides : rolls.map((r) => net(r.options)) };
+  const rolls = rolledTargets(message).map((t) => powerRollFor(message, t.actorUuid)).filter(Boolean);
+  if (!rolls.length) {
+    const untargeted = powerRollFor(message);
+    if (untargeted) rolls.push(untargeted);
+  }
+  return rolls.length ? { nets: rolls.map((r) => net(r.options)) } : null;
 }
 
 function rollHasMatches(clause, ctx) {
