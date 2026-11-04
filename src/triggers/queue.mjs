@@ -1140,7 +1140,28 @@ async function _redirectHeldDamage(hold, u) {
   return true;
 }
 
+const _holdMessageId = (hold) => hold.dstd?.messageId ?? hold.damageOptions?.origin?.messageId ?? null;
+const _rowService = (name) => game.modules.get("draw-steel-ctlib")?.api?.services?.get?.(name);
+
+async function _retierOnResult(hold, u) {
+  const message = game.messages.get(_holdMessageId(hold) ?? "");
+  const key = String(hold.tokenUuid ?? hold.actorUuid ?? "").replace(/\./g, "__");
+  const api = resultMods();
+  if (!message || !key || !api?.partFor(message, key.replace(/__/g, "."))) return false;
+  Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
+  const victim = fromUuidSync(hold.actorUuid);
+  await _addRollModPills(message, { ...u, rollMod: u.retier, subjectTargetKey: key, subjectName: victim?.name ?? "" });
+  for (const x of (hold.usedEntries ?? []).filter((e) => !e.cancelled && e.halfDamage && !e.wideHalved)) {
+    const owner = x.ownerActorUuid ? fromUuidSync(x.ownerActorUuid) : null;
+    await api.addDamage(game.messages.get(message.id), key.replace(/__/g, "."), { kind: "half", label: x.itemName, src: x.ownerName ?? null,
+      srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null, source: "trigger" });
+  }
+  await _rowService("reapplyDamageRow")?.(game.messages.get(message.id), key);
+  return true;
+}
+
 async function _retierHeldDamage(hold, u) {
+  if (!hold.dstd && resultModsActive()) return _retierOnResult(hold, u);
   const message = hold.dstd?.messageId ? game.messages.get(hold.dstd.messageId) : null;
   const key = String(hold.tokenUuid ?? hold.actorUuid ?? "").replace(/\./g, "__");
   if (!message || !key) return false;
@@ -1169,7 +1190,8 @@ async function _retierHeldDamage(hold, u) {
 }
 
 async function _halveTriggeringStrike(hold, u) {
-  const message = hold.dstd?.messageId ? game.messages.get(hold.dstd.messageId) : null;
+  const messageId = _holdMessageId(hold);
+  const message = messageId ? game.messages.get(messageId) : null;
   const api = game.modules.get("draw-steel-combat-tools")?.api?.globalModifiers;
   if (!message || !api?.addDamage) return;
   const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
@@ -1193,8 +1215,9 @@ async function _takeBackStrikeDamage(entry) {
   const undo = game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("undoDamageRow");
   if (!message || !undo) return;
   const apps = Object.values(message.flags?.["draw-steel-target-damage"]?.state?.applications ?? {});
+  const onResults = !message.flags?.["draw-steel-target-damage"]?.state && resultModsActive();
   for (const key of entry.strikeRow.keys ?? []) {
-    const landed = apps.some((a) => a?.kind === "damage" && a.status === "applied" && !a.dstHeld && !a.dstRedirected
+    const landed = onResults || apps.some((a) => a?.kind === "damage" && a.status === "applied" && !a.dstHeld && !a.dstRedirected
       && String(a.target?.tokenUuid ?? a.target?.actorUuid ?? "").replace(/\./g, "__") === key);
     if (!landed || !await undo(message, key)) continue;
     if (_takenBack.size > 400) _takenBack.clear();
@@ -1216,7 +1239,7 @@ async function _settleDamageHold(hold) {
   if (wide) await _halveTriggeringStrike(hold, wide);
   const retier = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.retier);
   if (retier && await _retierHeldDamage(hold, retier)) return;
-  await _applyPotencyMods(hold.dstd?.messageId, hold.tokenUuid ? [hold.tokenUuid.replace(/\./g, "__")] : [], hold.usedEntries);
+  await _applyPotencyMods(_holdMessageId(hold), hold.tokenUuid ? [hold.tokenUuid.replace(/\./g, "__")] : [], hold.usedEntries);
 
   
   
@@ -1471,6 +1494,7 @@ export function applyPotencyMods(messageId, keys, usedEntries) {
 }
 
 async function _applyPotencyMods(messageId, keys, usedEntries) {
+  if (resultModsActive() && !game.messages.get(messageId ?? "")?.flags?.["draw-steel-target-damage"]?.state) return _applyResultPotency(messageId, keys, usedEntries);
   const api = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog;
   if (!messageId || !keys?.length || !api?.addResultPill) return;
   for (const u of usedEntries ?? []) {
@@ -1497,6 +1521,38 @@ async function _applyPotencyMods(messageId, keys, usedEntries) {
         reason: effectName ? `${u.itemName} (${effectName})` : u.itemName,
         src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
       }).catch((err) => dbg("potency pill failed", err));
+    }
+  }
+}
+
+async function _applyResultPotency(messageId, keys, usedEntries) {
+  const message = messageId ? game.messages.get(messageId) : null;
+  const api = resultMods();
+  if (!message || !keys?.length || !api?.addPotency) return;
+  for (const u of usedEntries ?? []) {
+    const mod = u.potencyMod;
+    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    const amount = _potencyAmount(mod, owner);
+    if (u.cancelled || !amount) continue;
+    if (mod.spend && !_spendUsed(u.itemUuid)) continue;
+    for (const key of keys) {
+      const target = key.replace(/__/g, ".");
+      let picked = null;
+      if (mod.scope === "one") {
+        const choices = api.potencyEffects?.(message, target) ?? [];
+        if (!choices.length) continue;
+        const pickUser = choices.length > 1 ? _pickUserFor(u.ownerActorUuid) : null;
+        const effectId = choices.length === 1 ? choices[0].effectId : pickUser && pickUser.id !== game.user.id
+          ? await socket.executeAsUser("pickPotencyEffect", pickUser.id, u.itemName, choices).catch(() => null)
+          : await _onPickPotencyEffect(u.itemName, choices);
+        picked = choices.find((c) => c.effectId === effectId) ?? null;
+        if (!picked) continue;
+      }
+      await api.addPotency(game.messages.get(message.id), target, {
+        amount, ...(picked ? { effectId: picked.effectId } : {}),
+        reason: picked ? `${u.itemName} (${picked.label})` : u.itemName,
+        src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
+      }).catch((err) => dbg("potency change failed", err));
     }
   }
 }

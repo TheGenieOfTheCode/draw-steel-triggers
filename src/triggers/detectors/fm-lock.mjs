@@ -1,4 +1,4 @@
-import { getSetting, dbg, isPrimaryGM, batchedNotice } from "../../util.mjs";
+import { getSetting, dbg, isPrimaryGM, batchedNotice, resultMods, resultModsActive } from "../../util.mjs";
 import { collectTriggerMatches, dispatchTriggerEvent, footprintGap, triggersLive } from "../dispatch.mjs";
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
@@ -319,6 +319,19 @@ async function _resumeFm(fmId, mods) {
     }
     asPrimaryGM("applyFmDeltas", payload);
     return false;
+  }
+
+  if ((deltas.length || shapes.length || pending.passiveApplied?.length) && /^part:/.test(pending.fmKey ?? "") && resultModsActive()) {
+    const passives = pending.passiveApplied ?? [];
+    const shaped = [...passives.filter((d) => d.movement && !toSlide), ...shapes];
+    asPrimaryGM("noteFmOnResult", {
+      messageId: pending.messageId, fmKey: pending.fmKey,
+      rows: [
+        ..._deltaPayload(passives.filter((d) => d.amount)),
+        ..._deltaPayload(deltas),
+        ..._deltaPayload(shaped).map((d, i) => ({ ...d, amount: 0, movement: shaped[i].movement ?? null, vertical: !!shaped[i].vertical })),
+      ],
+    });
   }
 
   if (distance <= 0) {
@@ -690,8 +703,23 @@ Hooks.once("ready", () => {
   s?.register("driveFmRedirect", _onDriveFmRedirectSettled);
   s?.register("applyFmRedirect", _onApplyFmRedirect);
   s?.register("applyFmDeltas", _onApplyFmDeltas);
+  s?.register("noteFmOnResult", _onNoteFmOnResult);
   s?.register("markFmRowHeld", _onMarkFmRowHeld);
 });
+
+
+async function _onNoteFmOnResult({ messageId, fmKey, rows }) {
+  if (!isPrimaryGM()) return;
+  const [, partId, index] = /^part:([^:]+):(\d+)$/.exec(fmKey ?? "") ?? [];
+  const message = partId ? game.messages.get(messageId) : null;
+  const api = resultMods();
+  if (!message || !api?.addForced) return;
+  for (const r of rows ?? []) {
+    const changes = { ...(r.movement ? { movement: r.movement } : {}), ...(r.vertical ? { vertical: true } : {}) };
+    await api.addForced(game.messages.get(messageId), partId, { distance: Number(r.amount) || 0, changes, label: r.modName ?? "",
+      src: r.ownerName ?? null, srcTokenId: r.srcTokenId ?? null, inert: true }, { index: Number(index) });
+  }
+}
 
 async function _onMarkFmRowHeld(messageId, rowKey, held, applied = false) {
   if (!isPrimaryGM()) return;

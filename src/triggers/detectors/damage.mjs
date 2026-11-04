@@ -68,7 +68,14 @@ function _dealerFromOrigin(origin) {
   const actor = token?.actor ?? (origin.actorUuid ? fromUuidSync(origin.actorUuid, { strict: false }) : null);
   if (!actor) return null;
   const ability = (origin.abilityUuid ? fromUuidSync(origin.abilityUuid, { strict: false }) : null) ?? _dealerFromMessage(message)?.ability ?? null;
-  return { actor, token, ability, message, surges: _surgesFor(message, origin.partId, _rollIndex.get(origin.partId)) };
+  return { actor, token, ability, message, surges: _surgesFor(message, origin.partId, _rollIndex.get(origin.partId)), dealers: _pillDealers(message, origin.partId) };
+}
+
+function _pillDealers(message, partId) {
+  const damage = message?.flags?.["draw-steel-combat-tools"]?.resultMods?.[partId]?.damage ?? {};
+  const ids = new Set(Object.values(damage).flatMap((e) => e?.pills ?? [])
+    .filter((p) => p?.dealer && p.srcTokenId && p.enabled !== false).map((p) => p.srcTokenId));
+  return [...ids].map((id) => canvas.tokens?.get(id)?.document ?? null).filter((t) => t?.actor).map((t) => ({ actor: t.actor, token: t }));
 }
 
 Hooks.once("ready", () => {
@@ -393,29 +400,32 @@ Hooks.on("updateActor", (actor, changed, options) => {
   }
 
   if (curTotal < prevTotal && !options.staminaLoss) {
+    const squad = (dealer?.dealers ?? []).filter((d) => d.actor !== actor);
     dispatchTriggerEvent({
       event: "TAKES_DAMAGE",
       subjectActor: actor,
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
-      eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
+      eventContext: { dealerActor: squad[0]?.actor ?? dealer?.actor ?? null, dealerToken: squad[0]?.token ?? dealer?.token ?? null,
+        ...(squad.length > 1 ? { dealers: squad } : {}), damageType, ability: dealer?.ability ?? null,
         dealerMessage: dealer?.message ?? null, surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
         immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? _lineSource(dealer?.ability) ?? null,
         victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded, damageAmount: prevTotal - curTotal },
     });
 
     
-    if (dealer && dealer.actor !== actor) {
+    const squadBatch = squad.length > 1 ? foundry.utils.randomID() : null;
+    for (const d of squad.length ? squad : dealer && dealer.actor !== actor ? [dealer] : []) {
       dispatchTriggerEvent({
         event: "DEALS_DAMAGE",
-        subjectActor: dealer.actor,
-        subjectToken: dealer.token,
+        subjectActor: d.actor,
+        subjectToken: d.token,
         causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
-          name: dealer.actor.name, target: actor.name, amount: prevTotal - curTotal,
+          name: d.token?.name ?? d.actor.name, target: actor.name, amount: prevTotal - curTotal,
         }),
         triggerDamage: prevTotal - curTotal,
         eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: dealer.surges || null, rollMods: rollModsOf(dealer.message, token ?? actor), ability: dealer.ability ?? null,
-          victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
+          victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded, damageMessageId: dealer.message?.id ?? null, ...(squadBatch ? { squadBatch } : {}) },
       });
     }
   }
