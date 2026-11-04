@@ -1,6 +1,6 @@
 import { setVillainUsed } from "./villain-actions.mjs";
 import { resolveStackGain } from "./resource-gains.mjs";
-import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice, resultMods, resultModsActive, targetTokenUuids } from "../util.mjs";
 import { cardContent, facesIn, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { postFeatureCard } from "../ui/feature-card.mjs";
 import { noteFeatureLineUse } from "./feature-triggers.mjs";
@@ -332,7 +332,7 @@ async function _addOwnerAsTarget(entry) {
   const actor = owner?.actor ?? owner;
   const token = actor?.getActiveTokens?.(false, true)?.[0] ?? null;
   if (!message || !token) return;
-  if (message.getFlag("draw-steel-target-damage", "state") && await addTarget(message, token)) {
+  if (await addTarget(message, token)) {
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.AddedAsTarget", { name: token.name, ability: entry.causeLabel || entry.itemName }));
     return;
   }
@@ -727,10 +727,31 @@ function _findPowerRoll(message, targetActorUuid) {
   return fallback;
 }
 
+async function _addRollModPills(message, u) {
+  const api = resultMods();
+  const target = u.subjectTargetKey.replace(/__/g, ".");
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  const base = { reason: u.itemName, src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null, source: "trigger" };
+  const mod = u.rollMod ?? {};
+  const pills = [
+    mod.edges && { kind: "edge", amount: mod.edges },
+    mod.banes && { kind: "bane", amount: mod.banes },
+    mod.negateBane && { kind: "bane", amount: -1 },
+    mod.bonus && { kind: "bonus", amount: mod.bonus },
+    mod.tierShift && { kind: "tier", amount: mod.tierShift },
+  ].filter(Boolean);
+  let added = 0;
+  for (const p of pills) if (await api.addRoll(message, target, { ...base, ...p })) added++;
+  if (!added) return;
+  const tier = api.partFor(message, target)?.tier ?? "?";
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModApplied", { modName: u.itemName, name: u.subjectName, tier }));
+}
+
 async function _applyRollModOverride(hold, u) {
   const message = game.messages.get(hold.messageId);
   if (!message || !u.subjectTargetKey) return;
-  const state = foundry.utils.deepClone(message.getFlag("draw-steel-target-damage", "state") ?? null);
+  if (resultModsActive()) return _addRollModPills(message, u);
+  const state = foundry.utils.deepClone(message.flags?.["draw-steel-target-damage"]?.state ?? null);
   if (!state) return;
   const targetTokenUuid = u.subjectTargetKey.replace(/__/g, ".");
   const targetDoc = await fromUuid(targetTokenUuid).catch(() => null);
@@ -1398,7 +1419,7 @@ export async function postRedirectCard(u, { after = true, recipients = [] } = {}
   const owner = u.ownerActorUuid ? await fromUuid(u.ownerActorUuid).catch(() => null) : null;
   const sentence = game.i18n.format(after ? "DS_TRIGGERS.Queue.RedirectAfterBody" : "DS_TRIGGERS.Queue.RedirectPostHocBody", { owner: u.ownerName, ability: u.itemName });
   const intro = withFaces(sentence, [owner]).replace(esc(u.itemName), `<strong>${esc(u.itemName)}</strong>`);
-  const pickBtn = after && game.modules.get("draw-steel-target-damage")?.active
+  const pickBtn = after && (game.modules.get("draw-steel-target-damage")?.active || resultModsActive())
     ? `<button type="button" class="dst-after-pick-btn" data-owner-actor-uuid="${u.ownerActorUuid ?? ""}" data-mod-name="${esc(u.itemName)}"><i class="fa-solid fa-bullseye" inert></i> ${game.i18n.localize("DS_TRIGGERS.Queue.AfterPickButton")}</button>`
     : "";
   return postSystemCard({
@@ -2133,6 +2154,14 @@ const DSTD_ID = "draw-steel-target-damage";
 async function _onApplyAfterRedirect(payload) {
   const message = game.messages.get(payload.messageId);
   if (!message) return;
+  const section = Array.from(message.system?.parts?.contents ?? [])
+    .find((p) => p.type === "targetResult" && p.tokenUuid === payload.removeTokenUuid);
+  if (section) {
+    if (Array.from(message.system.parts.contents).some((p) => p.type === "targetResult" && p.tokenUuid === payload.newTarget.tokenUuid)) return;
+    await section.update({ targetUuid: payload.newTarget.actorUuid, tokenUuid: payload.newTarget.tokenUuid });
+    noteTargetsChange(payload.messageId, targetTokenUuids(message));
+    return;
+  }
   const state = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state`) ?? {};
   const targets = [...(state.targets ?? [])].filter((t) => String(t.tokenUuid ?? "") !== payload.removeTokenUuid);
   if (!targets.some((t) => String(t.tokenUuid ?? "") === payload.newTarget.tokenUuid)) targets.push(payload.newTarget);
@@ -2166,6 +2195,7 @@ document.addEventListener("click", async (event) => {
     if (Date.now() - m.timestamp > 600000) break;
     const tgts = foundry.utils.getProperty(m.flags, `${DSTD_ID}.state.targets`);
     if (Array.isArray(tgts) && tgts.some((t) => String(t.tokenUuid ?? "") === ownerTokenDoc.uuid)) { strikeMsg = m; break; }
+    if (targetTokenUuids(m).includes(ownerTokenDoc.uuid)) { strikeMsg = m; break; }
   }
   if (!strikeMsg) {
     ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.AfterPickNoMessage", { owner: owner?.name ?? "?" }));

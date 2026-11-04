@@ -1,4 +1,4 @@
-import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
+import { MODULE_ID, dbg, isPrimaryGM, resultModsActive, targetTokenUuids } from "../util.mjs";
 import { getTriggeredAbilities } from "./registry.mjs";
 import { triggersLive, usedAbilityMatches, abilityDamageTypes, dealsRolledDamage, effectsMatch, footprintGap, isMinionActor, groupMatches } from "./dispatch.mjs";
 import { addDamagePill } from "./bespoke.mjs";
@@ -112,8 +112,10 @@ export function damageTypesFor(actor, ability) {
 const _done = new Set();
 
 async function _pillTargets(message) {
-  if (!isPrimaryGM() || !game.modules.get(DSTD_ID)?.active) return;
-  const targets = message.getFlag(DSTD_ID, "state")?.targets;
+  if (!isPrimaryGM()) return;
+  const onSystem = resultModsActive();
+  if (!onSystem && !game.modules.get(DSTD_ID)?.active) return;
+  const targets = onSystem ? targetTokenUuids(message).map((tokenUuid) => ({ tokenUuid })) : message.flags?.[DSTD_ID]?.state?.targets;
   if (!targets?.length) return;
   const use = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   const ability = use?.abilityUuid ? fromUuidSync(use.abilityUuid) : null;
@@ -133,6 +135,10 @@ async function _pillTargets(message) {
       const extra = !!b.type && !(dealt.size === 1 && dealt.has(b.type));
       const label = b.dice ? `${b.name} (${b.dice})` : b.name;
       dbg(`${b.name}: +${b.amount}${b.type ? ` ${b.type}` : ""} damage to ${target.name} on ${ability.name}${extra ? " as its own row" : ""}${b.auto ? "" : " (on the stack)"}`);
+      if (extra && onSystem) {
+        ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.DamageBonusByHand", { name: b.name, n: `${b.amount} ${ds.CONFIG.damageTypes?.[b.type]?.label ?? b.type}`, target: target.name }));
+        continue;
+      }
       if (extra) {
         const api = game.modules.get(DSCT_ID)?.active ? game.modules.get(DSCT_ID).api?.extraDamage : null;
         if (!api?.add) continue;
@@ -160,5 +166,6 @@ async function _pillTargets(message) {
 Hooks.on("createChatMessage", (message) => { _pillTargets(message); });
 Hooks.on("updateChatMessage", (message, changed) => {
   if (foundry.utils.hasProperty(changed, `flags.${DSTD_ID}.state.targets`)
-    || foundry.utils.hasProperty(changed, `flags.${DSCT_ID}.rollPills`)) _pillTargets(message);
+    || foundry.utils.hasProperty(changed, `flags.${DSCT_ID}.rollPills`)
+    || (changed.system?.parts && resultModsActive())) _pillTargets(message);
 });

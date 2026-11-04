@@ -1,4 +1,4 @@
-import { MODULE_ID, dbg, primaryGM } from "../util.mjs";
+import { MODULE_ID, dbg, primaryGM, addTargetResult, targetTokenUuids, resultMods, resultModsActive } from "../util.mjs";
 import { queueSocket } from "./queue.mjs";
 import { registerBespokeUse, getBespokeUse } from "./bespoke-registry.mjs";
 import { squadPills } from "./squad-groups.mjs";
@@ -31,6 +31,7 @@ export function registerDamagePillBridge() {
 }
 
 export async function addDamagePill(message, targetUuid, pill) {
+  if (resultModsActive()) return resultMods().addDamage(message, targetUuid, pill);
   const flag = message.getFlag(MODULE_ID, PILL_FLAG);
   const existing = Array.isArray(flag) ? flag : [];
   if (existing.some((e) => e.targetUuid === targetUuid && e.pill?.label === pill.label)) return;
@@ -38,6 +39,7 @@ export async function addDamagePill(message, targetUuid, pill) {
 }
 
 export async function setDamagePillEnabled(message, targetUuid, label, enabled) {
+  if (resultModsActive()) return resultMods().setDamageEnabled(message, targetUuid, { label }, enabled);
   const flag = message.getFlag(MODULE_ID, PILL_FLAG);
   if (!Array.isArray(flag)) return;
   const next = flag.map((e) => (e.targetUuid === targetUuid && e.pill?.label === label
@@ -46,26 +48,7 @@ export async function setDamagePillEnabled(message, targetUuid, label, enabled) 
 }
 
 export async function addTarget(message, tokenDoc) {
-  const state = message.getFlag(DSTD_ID, "state") ?? {};
-  const targets = [...(state.targets ?? [])];
-  const uuid = tokenDoc.uuid;
-  if (targets.some((t) => String(t.tokenUuid ?? "") === uuid)) return false;
-
-  targets.push({
-    tokenUuid: uuid,
-    tokenId: tokenDoc.id ?? null,
-    sceneId: tokenDoc.parent?.id ?? null,
-    actorUuid: tokenDoc.actor?.uuid ?? null,
-    actorId: tokenDoc.actor?.id ?? null,
-    name: tokenDoc.name,
-    tokenImg: tokenDoc.texture?.src ?? null,
-    actorImg: tokenDoc.actor?.img ?? null,
-  });
-  await message.update({
-    [`flags.${DSTD_ID}.state.targets`]: targets,
-    [`flags.${DSTD_ID}.state.updatedAt`]: Date.now(),
-  });
-  return true;
+  return !!(await addTargetResult(message, tokenDoc));
 }
 
 registerBespokeUse("harmonize", async (item, entry) => {
@@ -77,7 +60,7 @@ registerBespokeUse("harmonize", async (item, entry) => {
 
   const ally = entry.subjectTokenUuid ? fromUuidSync(entry.subjectTokenUuid) : null;
   const chooser = pickUserFor(ally?.actor);
-  const already = (message.getFlag(DSTD_ID, "state")?.targets ?? []).map((t) => String(t.tokenUuid ?? ""));
+  const already = targetTokenUuids(message);
 
   const pickedUuid = chooser && chooser.id !== game.user.id
     ? await queueSocket()?.executeAsUser("pickHarmonizeTarget", chooser.id, item.name, already).catch(() => null)

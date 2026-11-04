@@ -1,4 +1,4 @@
-import { MODULE_ID, dbg, isPrimaryGM } from "../util.mjs";
+import { MODULE_ID, dbg, isPrimaryGM, targetTokenUuids, addTargetResult, resultMods, resultModsActive } from "../util.mjs";
 import { dispatchTriggerEvent, triggersLive } from "./dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { isMaliceAbility } from "./registry.mjs";
@@ -44,8 +44,7 @@ const bleeds = (item) => ["main", "triggered"].includes(item.system.type)
   || (!!item.system.power?.roll?.enabled && [...(item.system.power.roll.characteristics ?? [])].some((c) => c === "might" || c === "agility"));
 
 async function countExtras(message, extras) {
-  const targets = (message.getFlag(DSTD_ID, "state")?.targets ?? [])
-    .map((t) => (t.tokenUuid ? fromUuidSync(t.tokenUuid) : null)).filter(Boolean);
+  const targets = targetTokenUuids(message).map((u) => fromUuidSync(u, { strict: false })).filter(Boolean);
   const bleed = game.modules.get(DSCT_ID)?.api?.rollBleeding;
   for (const m of extras) {
     const actor = fromUuidSync(m.actorUuid);
@@ -83,8 +82,13 @@ Hooks.on("createChatMessage", async (message) => {
   const rolls = rolled?.rolls ?? null;
   await message.setFlag(MODULE_ID, FLAG, rolls ? { ...squad, bursts, rolls, formula: rolled.formula } : squad);
   if (rolls) await widenTargets(message, bursts);
+  if (resultModsActive()) await addSquadPills(message);
   await countExtras(message, extras);
 });
+
+async function addSquadPills(message) {
+  for (const { targetUuid, pill } of squadPills(message)) await resultMods().addDamage(message, targetUuid, pill);
+}
 
 const members = (squad) => [squad.primary, ...squad.extras].filter((m) => m?.actorUuid && m.itemUuid);
 
@@ -119,8 +123,20 @@ async function burstRolls(squad, bursts) {
 }
 
 async function widenTargets(message, bursts) {
-  for (let i = 0; i < 20 && !message.getFlag(DSTD_ID, "state"); i++) await new Promise((r) => setTimeout(r, 150));
-  const state = message.getFlag(DSTD_ID, "state");
+  if (resultModsActive()) {
+    const have = targetTokenUuids(message);
+    const missing = [...new Set(Object.values(bursts).flat())].filter((u) => !have.includes(u));
+    if (!missing.length) return;
+    noteTargetsChange(message.id, [...have, ...missing]);
+    for (const u of missing) {
+      const doc = fromUuidSync(u, { strict: false });
+      if (doc) await addTargetResult(message, doc);
+    }
+    return;
+  }
+  if (!game.modules.get(DSTD_ID)?.active) return;
+  for (let i = 0; i < 20 && !message.flags?.[DSTD_ID]?.state; i++) await new Promise((r) => setTimeout(r, 150));
+  const state = message.flags?.[DSTD_ID]?.state;
   if (!state) return;
   const reach = new Set(Object.values(bursts).flat());
   const kept = (state.targets ?? []).filter((t) => reach.has(t.tokenUuid));
@@ -138,7 +154,7 @@ async function widenTargets(message, bursts) {
 export function squadPills(message) {
   const squad = message.getFlag(MODULE_ID, FLAG);
   if (!squad?.extras?.length) return [];
-  const targets = message.getFlag(DSTD_ID, "state")?.targets ?? [];
+  const targets = targetTokenUuids(message).map((tokenUuid) => ({ tokenUuid }));
   const label = message.title || fromUuidSync(squad.extras[0].itemUuid)?.name || "";
   if (squad.bursts && squad.rolls) {
     return targets.filter((t) => t.tokenUuid).flatMap((t) => members(squad)
@@ -154,9 +170,11 @@ export function squadPills(message) {
 Hooks.on("updateChatMessage", (message, changes) => {
   if (!isPrimaryGM()) return;
   const squad = message.getFlag(MODULE_ID, FLAG);
-  if (!squad?.extras?.length || !foundry.utils.hasProperty(changes, `flags.${DSTD_ID}.state`)) return;
-  const overrides = message.getFlag(DSTD_ID, "state")?.damageOverrides ?? {};
-  const pills = Object.values(overrides).flatMap((o) => o?.dstPills ?? []);
+  const fromStore = foundry.utils.hasProperty(changes, `flags.${DSCT_ID}.resultMods`);
+  if (!squad?.extras?.length || (!fromStore && !foundry.utils.hasProperty(changes, `flags.${DSTD_ID}.state`))) return;
+  const pills = fromStore
+    ? Object.values(message.flags?.[DSCT_ID]?.resultMods ?? {}).flatMap((m) => Object.values(m?.damage ?? {}).flatMap((e) => e?.pills ?? []))
+    : Object.values(message.flags?.[DSTD_ID]?.state?.damageOverrides ?? {}).flatMap((o) => o?.dstPills ?? []);
   for (const m of members(squad)) {
     const mine = pills.filter((p) => p.kind !== "note" && p.srcTokenId === m.tokenId);
     if (!mine.length) continue;
