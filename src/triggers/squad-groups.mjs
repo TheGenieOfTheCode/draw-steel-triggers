@@ -124,13 +124,19 @@ async function burstRolls(squad, bursts) {
 
 async function widenTargets(message, bursts) {
   if (resultModsActive()) {
+    const reach = new Set(Object.values(bursts).flat());
     const have = targetTokenUuids(message);
-    const missing = [...new Set(Object.values(bursts).flat())].filter((u) => !have.includes(u));
-    if (!missing.length) return;
-    noteTargetsChange(message.id, [...have, ...missing]);
+    const missing = [...reach].filter((u) => !have.includes(u));
+    const outside = (message.system?.parts?.contents ?? []).filter((p) => p.type === "targetResult" && p.tokenUuid && !reach.has(p.tokenUuid));
+    if (!missing.length && !outside.length) return;
+    noteTargetsChange(message.id, [...have.filter((u) => reach.has(u)), ...missing]);
     for (const u of missing) {
       const doc = fromUuidSync(u, { strict: false });
       if (doc) await addTargetResult(message, doc);
+    }
+    if (outside.length) {
+      const FD = foundry.data.operators.ForcedDeletion;
+      await message.update({ system: { parts: Object.fromEntries(outside.map((p) => [p.id, new FD()])) } });
     }
     return;
   }
