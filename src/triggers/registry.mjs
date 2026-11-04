@@ -1,12 +1,15 @@
 import { parseTrigger, generateDSID, SPECIAL_CASES } from "../parser/trigger-parser.mjs";
 import { MODULE_ID } from "../util.mjs";
-import { featureTriggerEntries } from "./feature-triggers.mjs";
+import { featureTriggerEntries, featureLineSpent } from "./feature-triggers.mjs";
 import { isDerived, derivedParse } from "./derived.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
 
 const TRIGGERED_TYPES = new Set(["triggered", "freeTriggered"]);
 
 const _parseCache = new Map();
+
+export const abilityOnce = (item) => item?.getFlag?.(MODULE_ID, "once") || null;
+export const abilityOnceKey = (item) => `ability.${item.system?._dsid || item.id}`;
 
 export function isTriggeredAbility(item) {
   return item?.type === "ability" && TRIGGERED_TYPES.has(item.system?.type);
@@ -52,12 +55,13 @@ export function getParsedTrigger(item, { ignoreManual = false } = {}) {
   const text = item.system.trigger ?? "";
   const ownerName = item.actor?.name ?? "";
   const effectText = _effectText(item);
+  const spendText = _spendText(item);
   const targetType = item.system.target?.type ?? "";
   const cached = _parseCache.get(item.uuid);
   if (cached && cached.text === text && cached.ownerName === ownerName && cached.effectText === effectText && cached.targetType === targetType) return cached.result;
 
   const side = !item.actor ? undefined : item.actor.type === "hero" ? "hero" : "monster";
-  const result = parseTrigger(text, { dsid: item.dsid, ownerName, effectText, targetType, side });
+  const result = parseTrigger(text, { dsid: item.dsid, ownerName, effectText, spendText, targetType, side });
   _parseCache.set(item.uuid, { text, ownerName, effectText, targetType, result });
   return result;
 }
@@ -80,7 +84,10 @@ function _effectText(item) {
   return parts.join(" ").replace(/<[^>]+>/g, " ");
 }
 
-export function getTriggeredAbilities(actor) {
+const _spendText = (item) => (item.system.effects?.contents ?? []).filter((e) => e.type === "spend")
+  .map((e) => e.description ?? "").join(" ").replace(/<[^>]+>/g, " ");
+
+export function getTriggeredAbilities(actor, { includeSpent = false } = {}) {
   if (!actor) return [];
   const entries = [];
   for (const item of actor.items) {
@@ -88,9 +95,12 @@ export function getTriggeredAbilities(actor) {
     const triggered = isTriggeredAbility(item);
     if (!triggered && !isImplicitMaliceTrigger(item)) continue;
     if (ignoredByRule(item)) continue;
-    entries.push({ item, free: triggered && item.system.type === "freeTriggered", parse: getParsedTrigger(item) });
+    const once = triggered ? abilityOnce(item) : null;
+    const spentOnce = once && featureLineSpent(actor, abilityOnceKey(item), once) ? once : null;
+    if (spentOnce && !includeSpent) continue;
+    entries.push({ item, free: triggered && item.system.type === "freeTriggered", parse: getParsedTrigger(item), ...(spentOnce ? { spentOnce } : {}) });
   }
-  entries.push(...featureTriggerEntries(actor));
+  entries.push(...featureTriggerEntries(actor, { includeSpent }));
   return entries;
 }
 

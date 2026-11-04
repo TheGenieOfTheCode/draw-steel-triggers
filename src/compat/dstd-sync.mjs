@@ -1,6 +1,7 @@
 import { MODULE_ID, dbg, getSetting, isPrimaryGM } from "../util.mjs";
 import { getActiveDamageHolds, queueSocket, noteHeldLinked } from "../triggers/queue.mjs";
 import { noteTargetsChange } from "../triggers/detectors/resolution.mjs";
+import { setTip, textTip } from "../ui/tips.mjs";
 
 const DSTD_ID = "draw-steel-target-damage";
 
@@ -305,8 +306,7 @@ async function _cleanupUndonePills(message) {
   const update = {};
   for (const opId of Object.keys(stored)) {
     if (apps[opId]?.status !== "undone") continue;
-    if (foundry.data?.operators?.ForcedDeletion) update[`flags.${MODULE_ID}.damagePills.${opId}`] = new foundry.data.operators.ForcedDeletion();
-    else update[`flags.${MODULE_ID}.damagePills.-=${opId}`] = null;
+    update[`flags.${MODULE_ID}.damagePills.${opId}`] = new foundry.data.operators.ForcedDeletion();
   }
   if (Object.keys(update).length) await message.update(update).catch(() => {});
 }
@@ -333,7 +333,7 @@ function _patchMessageLabels(message, root) {
         const span = btn.querySelector("span");
         const label = r.byHand ? game.i18n.localize("DS_TRIGGERS.Queue.DstdRedirectedByHand") : game.i18n.format("DS_TRIGGERS.Queue.DstdRedirected", { name: r.name });
         if (span && span.textContent !== label) span.textContent = label;
-        if (r.modName) btn.dataset.tooltip = r.modName;
+        if (r.modName) setTip(btn, textTip(r.modName, { label, categoryKey: "Category" }));
       }
       for (const undo of root.querySelectorAll(`button[data-dstd-action="undoDamage"][data-operation-id="${opId}"]`)) undo.disabled = true;
       continue;
@@ -397,6 +397,34 @@ function _applyResolutionLock(message, root) {
   }
 }
 
+async function _clearStaleHeldDamage() {
+  if (!isPrimaryGM() || !_dstdActive() || getActiveDamageHolds().size) return;
+  for (const message of game.messages.contents) {
+    const apps = foundry.utils.getProperty(message.flags, `${DSTD_ID}.state.applications`) ?? {};
+    const updates = {};
+    for (const [opId, entry] of Object.entries(apps)) {
+      if (!entry?.dstHeld) continue;
+      const path = `flags.${DSTD_ID}.state.applications.${opId}`;
+      updates[`${path}.dstHeld`] = false;
+      if (entry.status === "applied" && _snapshotsEqual(entry.before, entry.after)) {
+        Object.assign(updates, {
+          [`${path}.status`]: "undone",
+          [`${path}.undoneByUserId`]: game.user.id,
+          [`${path}.undoneByUserName`]: game.user.name,
+          [`${path}.undoneAt`]: Date.now(),
+          [`${path}.afterUndo`]: entry.before,
+        });
+      }
+    }
+    if (!Object.keys(updates).length) continue;
+    updates[`flags.${DSTD_ID}.state.updatedAt`] = Date.now();
+    dbg(`dstd sync: cleared stale held damage on ${message.id}`, updates);
+    await message.update(updates).catch(() => {});
+  }
+}
+
+Hooks.once("ready", () => _clearStaleHeldDamage());
+
 Hooks.once("ready", () => {
   const api = game.modules.get("draw-steel-combat-tools")?.api?.damagePills;
   if (!api || !_dstdActive()) return;
@@ -407,6 +435,9 @@ Hooks.once("ready", () => {
     for (const [opId, data] of Object.entries(stored)) {
       if (apps[opId]?.status !== "applied") continue;
       for (const p of data.pills ?? []) out.push({ opId, pill: p });
+    }
+    for (const [key, halves] of Object.entries(message.getFlag(MODULE_ID, "retierHalf") ?? {})) {
+      for (const h of halves ?? []) out.push({ targetUuid: key.replace(/__/g, "."), pill: { kind: "half", label: h.label, src: h.src ?? null, source: "trigger" } });
     }
     return out;
   });
@@ -470,7 +501,7 @@ async function _onApplyResolutionRedirect(payload) {
         moving.dstSrcTokenId = newTarget.tokenId ?? null;
       }
       updates[`flags.${DSTD_ID}.state.damageOverrides.${toId}`] = moving;
-      if (overrides[fromId]) updates[`flags.${DSTD_ID}.state.damageOverrides.-=${fromId}`] = null;
+      if (overrides[fromId]) updates[`flags.${DSTD_ID}.state.damageOverrides.${fromId}`] = new foundry.data.operators.ForcedDeletion();
       moved++;
     }
   }

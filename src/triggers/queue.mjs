@@ -1,20 +1,23 @@
 import { setVillainUsed } from "./villain-actions.mjs";
 import { resolveStackGain } from "./resource-gains.mjs";
-import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice, resultMods, resultModsActive, targetTokenUuids } from "../util.mjs";
+import { MODULE_ID, getSetting, dbg, isPrimaryGM, primaryGM, batchedNotice, resultMods, resultModsActive, targetTokenUuids, messageTargets, targetKeys } from "../util.mjs";
 import { cardContent, facesIn, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { postFeatureCard } from "../ui/feature-card.mjs";
+import { onSnoozeWrite } from "../ui/snooze.mjs";
+import { spendMalice } from "../ui/stack-window.mjs";
 import { noteFeatureLineUse } from "./feature-triggers.mjs";
 import { startCountdown } from "./countdowns.mjs";
-import { setTriggeredActionSpent } from "./spent-tracking.mjs";
-import { openDamageModWindow, damagePillType } from "../ui/damage-mod-window.mjs";
+import { setTriggeredActionSpent, onSpentWrite } from "./spent-tracking.mjs";
+import { openDamageModWindow, damagePillType, foldDamagePills } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares, flankingAllyOf, groupMatches, isMinionActor } from "./dispatch.mjs";
 import { triggerEffectText } from "./registry.mjs";
-import { pickHarmonizeTarget, setDamagePillEnabled, addTarget } from "./bespoke.mjs";
+import { pickHarmonizeTarget, setDamagePillEnabled, addTarget, onBespokeWrite } from "./bespoke.mjs";
 import { lineMandatory } from "./auto-use.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
+import { rollModProviderFor } from "./roll-mod-providers.mjs";
 import { deferDeath } from "../compat/death-tracker.mjs";
-import { joinSquad, noteSquadUse } from "./squad-groups.mjs";
+import { joinSquad, noteSquadUse, squadBase, squadMember } from "./squad-groups.mjs";
 import { pickStabilityShare, pickSurgeSpend, shareStability, markVictim, markDealer } from "./line-effects.mjs";
 
 let socket = null;
@@ -215,6 +218,7 @@ function _ensureDecisionTicker() {
 }
 
 function _mergeFamily(e) {
+  if (!e.kind && !e.villain && e.lock && e.resumeId && (e.subjectTokenUuid || e.fmTargetUuid)) return `lock:${e.event}`;
   if (e.kind || e.villain || e.resumeId || e.resolutionId) return null;
   if (e.damageId) return "damage";
   if (e.promptId) return "prompt";
@@ -223,14 +227,17 @@ function _mergeFamily(e) {
 
 const _asChoice = (e) => ({
   key: e.id,
-  subjectTokenUuid: e.subjectTokenUuid ?? null,
+  subjectTokenUuid: e.subjectTokenUuid ?? e.fmTargetUuid ?? null,
+  ...(e.resumeId ? { resumeId: e.resumeId, resume: e.resume ?? null } : {}),
   causeLabel: e.causeLabel ?? "",
   damageId: e.damageId ?? null,
   heldDamage: e.heldDamage ?? null,
   promptId: e.promptId ?? null,
   triggerDamage: e.triggerDamage ?? null,
   halfDamage: e.halfDamage ?? false,
+  retier: e.retier ?? null,
   damageReduction: e.damageReduction ?? null,
+  potencyMod: e.potencyMod ?? null,
   sourceMessageId: e.sourceMessageId ?? null,
 });
 
@@ -244,6 +251,16 @@ function _takeChoice(entry, choice) {
   const { key, ...fields } = choice;
   Object.assign(entry, fields);
   delete entry.choices;
+}
+
+const _holdsResume = (q, resumeId) => q.state === "pending" && (q.resumeId === resumeId || !!q.choices?.some((c) => c.resumeId === resumeId));
+
+function _releaseUnheld(resumeIds, keep = null) {
+  for (const resumeId of new Set(resumeIds)) {
+    if (!resumeId || resumeId === keep || _queue.some((q) => _holdsResume(q, resumeId))) continue;
+    dbg(`releasing held ${resumeId}: no trigger holds it any more`);
+    _fireResume(resumeId);
+  }
 }
 
 const _choiceIds = (e, field) => [e[field], ...(e.choices ?? []).map((c) => c[field])].filter(Boolean);
@@ -264,12 +281,52 @@ function _deferSquadAuto(batch) {
   }, SQUAD_SETTLE_MS));
 }
 
+function _splitSquadChooser(e, fresh) {
+  const base = squadBase(e);
+  if (!base) return false;
+  const pool = [..._queue, ...fresh].filter((q) => q !== e && q.state === "pending");
+  const mine = (m) => m.ownerActorUuid === e.ownerActorUuid && m.itemUuid === e.itemUuid;
+  const chooser = pool.find((q) => q.squadChooser === base && mine(q));
+  if (chooser) {
+    if (!_choiceIds(chooser, "subjectTokenUuid").includes(e.subjectTokenUuid)) _addChoice(chooser, e);
+    return true;
+  }
+  const host = pool.find((q) => !q.squadChooser && !q.choices?.length && squadBase(q) === base && (mine(q) || q.squad?.some(mine)));
+  if (!host || !e.subjectTokenUuid || host.subjectTokenUuid === e.subjectTokenUuid) return false;
+  if (mine(host) && !host.squad?.length) {
+    _addChoice(host, e);
+    host.squadChooser = base;
+    return true;
+  }
+  const line = foundry.utils.deepClone(host);
+  Object.assign(line, { id: foundry.utils.randomID(), ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName, itemUuid: e.itemUuid, itemName: e.itemName, squadChooser: base });
+  delete line.squad;
+  delete line.squadBatch;
+  line.choices = [{ ..._asChoice(host), key: `${line.id}:0` }, { ..._asChoice(e), key: `${line.id}:1` }];
+  line.causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ChoiceCause", { count: line.choices.length });
+  if (mine(host)) {
+    const [next, ...rest] = host.squad;
+    Object.assign(host, { ownerActorUuid: next.ownerActorUuid, ownerName: next.ownerName, itemUuid: next.itemUuid });
+    host.squad = rest;
+  } else host.squad = host.squad.filter((m) => !mine(m));
+  if (!host.squad.length) delete host.squad;
+  const list = _queue.includes(host) ? _queue : fresh;
+  list.splice(list.indexOf(host), 0, line);
+  dbg(`squad: ${e.ownerName} sees a second creature and chooses on its own line`);
+  return true;
+}
+
 function _onQueueAdd(entries) {
   if (!isPrimaryGM()) return;
 
   const fresh = [];
+  const orphaned = [];
   let merged = false;
   for (const e of entries) {
+    if (_splitSquadChooser(e, fresh)) {
+      merged = true;
+      continue;
+    }
     if (joinSquad(e, [..._queue, ...fresh])) {
       merged = true;
       if (e.squadBatch) _deferSquadAuto(e.squadBatch);
@@ -282,7 +339,10 @@ function _onQueueAdd(entries) {
       merged = true;
       continue;
     }
-    if (!e.damageId && !e.resolutionId && _queue.some((q) => _sameSource(q, e) && q.state === "pending")) continue;
+    if (!e.damageId && !e.resolutionId && _queue.some((q) => _sameSource(q, e) && q.state === "pending")) {
+      if (e.resumeId && !e.kind) orphaned.push(e.resumeId);
+      continue;
+    }
     fresh.push(e);
   }
   if (!fresh.length) {
@@ -309,6 +369,7 @@ function _onQueueAdd(entries) {
   }
   _queue.push(...fresh);
   dbg("queue add", fresh);
+  if (orphaned.length) _releaseUnheld(orphaned);
   _broadcast();
   const now = fresh.filter((e) => !e.squadBatch);
   if (now.length) Hooks.callAll("dst.queueAdded", now);
@@ -376,6 +437,10 @@ async function _onQueueResolve(id, outcome, userName) {
   if (outcome === "used") entry.usedAt = Date.now();
   if (outcome === "used" && entry.pill) await _enableBonusPill(entry.pill);
   if (outcome === "used" && entry.mark) await _applyQueuedMark(entry.mark);
+  if (outcome === "used" && entry.potencyMod && entry.potencyKeys?.messageId) {
+    await applyPotencyMods(entry.potencyKeys.messageId, entry.potencyKeys.keys, [entry]).catch((err) => dbg("potency change failed", err));
+  }
+  if (outcome === "used" && entry.strikeRow) await _takeBackStrikeDamage(entry);
   if (outcome === "used" && entry.featureLine) _useFeatureLine(entry);
   if (outcome === "used" && entry.defersDeath) {
     const run = fromUuid(entry.heldDamage?.deathActorUuid ?? entry.heldDamage?.actorUuid ?? "")
@@ -435,6 +500,8 @@ async function _onQueueResolve(id, outcome, userName) {
 
   if (outcome === "declined" && !entry.villain && !entry.gain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName, lineMandatory(entry.featureLine));
 
+  if (entry.choices?.some((c) => c.resumeId)) _releaseUnheld(entry.choices.map((c) => c.resumeId), entry.resumeId);
+
   if (entry.resumeId) {
     const stillLocked = _queue.some((e) => e.resumeId === entry.resumeId && e.state === "pending");
     if (!stillLocked) {
@@ -444,7 +511,7 @@ async function _onQueueResolve(id, outcome, userName) {
       
       _queue = _queue.filter((e) => e.resumeId !== entry.resumeId || e.kind === "held");
       if (!usedItems.size) {
-        _removeHeld(entry.resumeId);
+        _settleHeld(entry.resumeId, resume);
         _dispatchResume(resume);
       } else {
         const usedEntries = group.filter((e) => e.state === "used")
@@ -453,14 +520,14 @@ async function _onQueueResolve(id, outcome, userName) {
             itemName: e.itemName, usedAt: e.usedAt,
             redirect: e.redirect ?? null, redirectPool: e.redirectPool ?? null, rollMod: e.rollMod ?? null,
             fmMode: e.fmMode ?? null, fmChar: e.fmChar ?? null, fmAmount: e.fmAmount ?? null,
-            fmPerSurge: e.fmPerSurge ?? null, fmSurges: e.fmSurges ?? null,
+            fmPerSurge: e.fmPerSurge ?? null, fmSurges: e.fmSurges ?? null, fmCanPush: !!e.fmCanPush, fallAdjust: e.fallAdjust ?? null,
             subjectTokenUuid: e.subjectTokenUuid ?? null,
             subjectTokenUuids: e.subjectTokenUuids ?? null,
             villain: e.villain ?? null,
           }));
         const awaiting = new Set(usedEntries.filter((u) => !_postedAfterUse(u.itemUuid, u.usedAt)).map((u) => u.itemUuid));
         if (!awaiting.size) {
-          _removeHeld(entry.resumeId);
+          _settleHeld(entry.resumeId, resume);
           _finishResume(usedEntries, resume);
         } else {
           const grace = _graceMs();
@@ -499,7 +566,7 @@ async function _onQueueResolve(id, outcome, userName) {
     if (outcome === "used" && !entry.defersDeath) {
       hold.anyUsed = true;
       (hold.usedItems ??= new Set()).add(entry.itemUuid);
-      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, damageReduction: entry.damageReduction ?? null,
+      (hold.usedEntries ??= []).push({ itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName, itemName: entry.itemName, usedAt: entry.usedAt, halfDamage: entry.halfDamage ?? false, retier: entry.retier ?? null, spendWideHalf: entry.spendWideHalf ?? false, damageReduction: entry.damageReduction ?? null, potencyMod: entry.potencyMod ?? null,
         damageRedirect: entry.damageRedirect ?? null, redirectRange: entry.redirectRange ?? null, redirectFilter: entry.redirectFilter ?? null, unreducible: !!entry.unreducible });
       if (entry.damageRedirect === "director") _queueRedirectEntry(entry, hold, hold.usedEntries.at(-1));
     }
@@ -515,9 +582,10 @@ async function _onQueueResolve(id, outcome, userName) {
       (hold.usedEntries ??= []).push({
         itemUuid: entry.itemUuid, ownerActorUuid: entry.ownerActorUuid, ownerName: entry.ownerName,
         itemName: entry.itemName, usedAt: entry.usedAt,
-        rollMod: entry.rollMod ?? null, redirect: entry.redirect ?? null,
+        rollMod: entry.rollMod ?? null, potencyMod: entry.potencyMod ?? null, redirect: entry.redirect ?? null,
         reflectHalf: entry.reflectHalf ?? false, redirectPool: entry.redirectPool ?? null,
-        halfOnUse: entry.halfOnUse ?? false, postHoc: entry.postHoc ?? false,
+        halfOnUse: entry.halfOnUse ?? false, spendHalf: entry.spendHalf ?? false, postHoc: entry.postHoc ?? false,
+        abilityWide: entry.abilityWide ?? false, abilityHalf: entry.abilityHalf ?? false,
         subjectTargetKey: entry.subjectTargetKey ?? null, subjectName: entry.subjectName ?? "",
         subjectTokenUuid: entry.subjectTokenUuid ?? null, subjectTokenUuids: entry.subjectTokenUuids ?? null,
       });
@@ -609,6 +677,23 @@ function _removeResolutionHeldEntry(resolutionId) {
   _queue = _queue.filter((e) => !(e.resolutionId === resolutionId && e.kind === "resolutionHeld"));
 }
 
+const RESOLVE_MAX_MS = 600000;
+
+async function _finishResolution(resolutionId) {
+  const held = _queue.find((e) => e.resolutionId === resolutionId && e.kind === "resolutionHeld");
+  if (held) {
+    held.state = "resolving";
+    held.graceUntil = null;
+    _broadcast();
+  }
+  try {
+    await Promise.race([_finalizeResolutionHold(resolutionId), new Promise((r) => setTimeout(r, RESOLVE_MAX_MS))]);
+  } finally {
+    _removeResolutionHeldEntry(resolutionId);
+    _broadcast();
+  }
+}
+
 function _completeResolutionGroup(resolutionId) {
   const hold = _resolutionHolds.get(resolutionId);
   if (!hold) return;
@@ -616,8 +701,7 @@ function _completeResolutionGroup(resolutionId) {
     .filter((u) => !u.cancelled && !_postedAfterUse(u.itemUuid, u.usedAt))
     .map((u) => u.itemUuid));
   if (!awaiting.size) {
-    _removeResolutionHeldEntry(resolutionId);
-    _finalizeResolutionHold(resolutionId);
+    _finishResolution(resolutionId);
     return;
   }
   const grace = _graceMs();
@@ -647,9 +731,7 @@ function _endResolutionGrace(resolutionId, expired) {
     }
     hold.anyUsed = (hold.usedItems?.size ?? 0) > 0;
   }
-  _removeResolutionHeldEntry(resolutionId);
-  _broadcast();
-  _finalizeResolutionHold(resolutionId);
+  _finishResolution(resolutionId);
 }
 
 async function _finalizeResolutionHold(resolutionId) {
@@ -658,8 +740,40 @@ async function _finalizeResolutionHold(resolutionId) {
   _resolutionHolds.delete(resolutionId);
   const message = game.messages.get(hold.messageId);
   const used = (hold.usedEntries ?? []).filter((u) => !u.cancelled);
+  for (const u of used) if (u.spendHalf && _spendUsed(u.itemUuid)) u.halfOnUse = true;
   for (const u of used) {
-    if (u.rollMod) await _applyRollModOverride(hold, u).catch((err) => dbg("roll mod apply failed", err));
+    const item = fromUuidSync(u.itemUuid, { strict: false });
+    const provide = rollModProviderFor(item?.system?._dsid);
+    if (provide) {
+      try { u.rollMod = (await provide({ item, actor: item?.actor ?? null, messageId: hold.messageId, subjectTokenUuid: u.subjectTokenUuid ?? null })) ?? null; } catch (err) {
+        console.warn(`${MODULE_ID} | ${u.itemName} could not decide its roll change`, err);
+        u.rollMod = null;
+      }
+    }
+    if (!u.rollMod) continue;
+    
+    const pill = u.rollMod.diceTotal != null ? { kind: "base", amount: Number(u.rollMod.diceTotal), dice: u.rollMod.dice ?? null }
+      : u.rollMod.autoTier ? { kind: "autoTier", amount: Number(u.rollMod.autoTier) }
+      : null;
+    const keys = u.subjectTargetKey ? [u.subjectTargetKey]
+      : pill ? targetKeys(message)
+      : [];
+
+    const addPill = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.addResultPill;
+    if (pill && addPill) {
+      const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+      for (const key of keys) {
+        await addPill(hold.messageId, key, { ...pill, reason: u.itemName,
+          src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null }).catch((err) => dbg(`${pill.kind} pill failed`, err));
+      }
+      continue;
+    }
+    for (const key of keys) await _applyRollModOverride(hold, { ...u, subjectTargetKey: key }).catch((err) => dbg("roll mod apply failed", err));
+  }
+  const allKeys = targetKeys(message);
+  for (const u of used) {
+    if (u.abilityWide) await _applyAbilityWide(message, u);
+    else if (u.potencyMod) await _applyPotencyMods(hold.messageId, u.subjectTargetKey ? [u.subjectTargetKey] : allKeys, [u]);
   }
   for (const u of used) {
     if (!u.halfOnUse || !u.subjectTargetKey) continue;
@@ -684,7 +798,7 @@ async function _finalizeResolutionHold(resolutionId) {
       continue;
     }
     const actor = token.actor ?? null;
-    asPrimaryGM("applyResolutionRedirect", {
+    await asPrimaryGM("applyResolutionRedirect", {
       messageId: hold.messageId,
       origTargetUuid: rt.removeTokenUuid,
       modName: rt.modName,
@@ -747,48 +861,63 @@ async function _addRollModPills(message, u) {
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModApplied", { modName: u.itemName, name: u.subjectName, tier }));
 }
 
-async function _applyRollModOverride(hold, u) {
-  const message = game.messages.get(hold.messageId);
-  if (!message || !u.subjectTargetKey) return;
-  if (resultModsActive()) return _addRollModPills(message, u);
-  const state = foundry.utils.deepClone(message.flags?.["draw-steel-target-damage"]?.state ?? null);
-  if (!state) return;
-  const targetTokenUuid = u.subjectTargetKey.replace(/__/g, ".");
-  const targetDoc = await fromUuid(targetTokenUuid).catch(() => null);
+function _rollModResult(message, targetKey, rollMod) {
+  const state = message?.getFlag("draw-steel-target-damage", "state") ?? (message && resultModsActive() ? {} : null);
+  if (!state || !targetKey) return null;
+  const targetDoc = fromUuidSync(targetKey.replace(/__/g, "."), { strict: false });
   const roll = _findPowerRoll(message, targetDoc?.actor?.uuid ?? null);
-  if (!roll) return;
-  const natural = Number(roll.dice?.[0]?.total ?? 0);
+  if (!roll) return null;
+  const rolled = Number(roll.dice?.[0]?.total ?? 0);
+  
+  const natural = rollMod.diceTotal != null ? Number(rollMod.diceTotal) : rolled;
   const critThreshold = Number(roll.options?.criticalThreshold ?? 19);
-  const existing = state.tierOverrides?.[u.subjectTargetKey] ?? null;
+  const existing = state.tierOverrides?.[targetKey] ?? null;
   const baseEdges = existing?.edges != null ? Number(existing.edges) : Number(roll.options?.edges ?? 0);
   const baseBanes = existing?.banes != null ? Number(existing.banes) : Number(roll.options?.banes ?? 0);
   const baseBonuses = existing?.bonuses != null ? Number(existing.bonuses) : Number(roll.options?.bonuses ?? 0);
-  const edges = Math.min(2, baseEdges + (u.rollMod.edges ?? 0));
-  const banes = Math.max(0, Math.min(2, baseBanes + (u.rollMod.banes ?? 0) - (u.rollMod.negateBane && baseBanes > 0 ? 1 : 0)));
-  const bonuses = baseBonuses + (u.rollMod.bonus ?? 0);
+  const edges = Math.min(2, baseEdges + (rollMod.edges ?? 0));
+  const banes = Math.max(0, Math.min(2, baseBanes + (rollMod.banes ?? 0) - (rollMod.negateBane && baseBanes > 0 ? 1 : 0)));
+  const bonuses = baseBonuses + (rollMod.bonus ?? 0);
 
   const net0 = Number(roll.options?.edges ?? 0) - Number(roll.options?.banes ?? 0);
   const adj0 = Math.abs(net0) === 1 ? Math.sign(net0) * 2 : 0;
   const staticModifier = existing?.staticModifier != null
     ? Number(existing.staticModifier)
-    : Number(roll.total ?? 0) - natural - adj0 - Number(roll.options?.bonuses ?? 0);
+    : Number(roll.total ?? 0) - rolled - adj0 - Number(roll.options?.bonuses ?? 0);
 
   const net = edges - banes;
   const adj = Math.abs(net) === 1 ? Math.sign(net) * 2 : 0;
   const total = natural + staticModifier + adj + bonuses;
+  const shift = net - Math.sign(net);
   let tier;
   if (natural >= critThreshold) tier = 3;
   else {
     tier = 1;
     if (total >= 12) tier = 2;
     if (total >= 17) tier = 3;
-    const shift = net - Math.sign(net);
     tier = Math.min(3, Math.max(1, tier + shift));
   }
   const applyTier = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.applyTierMods;
   if (applyTier && roll.options?.dsctTier) tier = applyTier(tier, roll.options.dsctTier);
-  if (u.rollMod.tierShift) tier = Math.min(3, Math.max(1, tier + u.rollMod.tierShift));
+  if (rollMod.autoTier) tier = Math.min(3, Math.max(1, Number(rollMod.autoTier)));
+  if (rollMod.tierShift) tier = Math.min(3, Math.max(1, tier + rollMod.tierShift));
+  return { state, tier, total, natural, critThreshold, staticModifier, edges, banes, bonuses };
+}
 
+export function estimateRollModTier({ messageId, targetKey = null, rollMod }) {
+  const message = game.messages.get(messageId);
+  const key = targetKey ?? targetKeys(message)[0] ?? null;
+  return rollMod ? _rollModResult(message, key, rollMod)?.tier ?? null : null;
+}
+
+async function _applyRollModOverride(hold, u) {
+  const message = game.messages.get(hold.messageId);
+  if (!message || !u.subjectTargetKey) return;
+  if (resultModsActive()) return _addRollModPills(message, u);
+  const result = _rollModResult(message, u.subjectTargetKey, u.rollMod);
+  if (!result) return;
+  const { tier, total, natural, critThreshold, staticModifier, edges, banes, bonuses } = result;
+  const state = foundry.utils.deepClone(result.state);
   state.tierOverrides = state.tierOverrides ?? {};
   state.tierOverrides[u.subjectTargetKey] = {
     tier, total, naturalTotal: natural, staticModifier, edges, banes, bonuses,
@@ -796,6 +925,7 @@ async function _applyRollModOverride(hold, u) {
     dstModName: u.itemName,
     dstSrcName: u.ownerName ?? null,
     ...(u.rollMod.tierShift ? { dstTierShift: u.rollMod.tierShift } : {}),
+    ...(u.rollMod.diceTotal != null ? { dstDiceTotal: Number(u.rollMod.diceTotal), ...(u.rollMod.dice?.length ? { dstDice: u.rollMod.dice } : {}) } : {}),
     dstSrcTokenId: (u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null)?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
   };
   state.updatedAt = Date.now();
@@ -839,13 +969,13 @@ function _uncappedSquadHit(hold, actor) {
 }
 
 export function noteHeldLinked(hold) {
-  if (!hold?.squad?.areaCap) return;
   const damageId = [..._damageHolds].find(([, h]) => h === hold)?.[0];
   if (!damageId) return;
-  const original = _uncappedSquadHit(hold, fromUuidSync(hold.actorUuid));
-  if (!(original > hold.amount)) return;
+  const original = hold.squad?.areaCap ? _uncappedSquadHit(hold, fromUuidSync(hold.actorUuid)) : null;
   for (const e of _queue) {
-    if (e.damageId === damageId && e.heldDamage) e.heldDamage = { ...e.heldDamage, original };
+    if (e.damageId !== damageId) continue;
+    if (e.kind === "damageHeld" && hold.dstd) e.heldAt = { messageId: hold.dstd.messageId, opId: hold.dstd.opId };
+    if (original > hold.amount && e.heldDamage) e.heldDamage = { ...e.heldDamage, original };
   }
   _broadcast();
 }
@@ -1010,6 +1140,70 @@ async function _redirectHeldDamage(hold, u) {
   return true;
 }
 
+async function _retierHeldDamage(hold, u) {
+  const message = hold.dstd?.messageId ? game.messages.get(hold.dstd.messageId) : null;
+  const key = String(hold.tokenUuid ?? hold.actorUuid ?? "").replace(/\./g, "__");
+  if (!message || !key) return false;
+  const result = _rollModResult(message, key, u.retier);
+  if (!result) return false;
+  const halves = (hold.usedEntries ?? []).filter((x) => !x.cancelled && x.halfDamage && !x.wideHalved)
+    .map((x) => ({ label: x.itemName, src: x.ownerName ?? null }));
+  Hooks.callAll("dst.damageHoldResolved", { hold, finalAmount: 0 });
+  const opPath = `flags.draw-steel-target-damage.state.applications.${hold.dstd.opId}.status`;
+  for (let i = 0; i < 30 && foundry.utils.getProperty(game.messages.get(message.id) ?? {}, opPath) !== "undone"; i++) await new Promise((r) => setTimeout(r, 100));
+  const { tier, total, natural, critThreshold, staticModifier, edges, banes, bonuses } = result;
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  await game.messages.get(message.id).update({
+    [`flags.draw-steel-target-damage.state.tierOverrides.${key}`]: {
+      tier, total, naturalTotal: natural, staticModifier, edges, banes, bonuses, isCritical: natural >= critThreshold,
+      dstModName: u.itemName, dstSrcName: u.ownerName ?? null, dstSrcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
+    },
+    [`flags.draw-steel-target-damage.state.updatedAt`]: Date.now(),
+    ...(halves.length ? { [`flags.${MODULE_ID}.retierHalf.${key}`]: halves } : {}),
+  });
+  const victim = fromUuidSync(hold.actorUuid);
+  ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModApplied", { modName: u.itemName, name: victim?.name ?? "", tier }));
+  await new Promise((r) => setTimeout(r, 800));
+  await game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("reapplyDamageRow")?.(game.messages.get(message.id), key);
+  return true;
+}
+
+async function _halveTriggeringStrike(hold, u) {
+  const message = hold.dstd?.messageId ? game.messages.get(hold.dstd.messageId) : null;
+  const api = game.modules.get("draw-steel-combat-tools")?.api?.globalModifiers;
+  if (!message || !api?.addDamage) return;
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  await api.addDamage(message, [{ kind: "half", value: null, label: u.itemName, src: u.ownerName ?? null,
+    srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null, source: "trigger" }]).catch((err) => dbg(`${u.itemName} strike half failed`, err));
+  u.wideHalved = true;
+  const held = String(hold.tokenUuid ?? hold.actorUuid ?? "").replace(/\./g, "__");
+  const redeal = game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("redealDamageRow");
+  for (const t of messageTargets(message)) {
+    const key = String(t.tokenUuid ?? "").replace(/\./g, "__");
+    if (key && key !== held) await redeal?.(game.messages.get(message.id), key);
+  }
+}
+
+const _takenBack = new Set();
+
+export const strikeTakenBack = ({ messageId, keys = [] }, itemUuid) => keys.some((key) => _takenBack.has(`${messageId}:${key}:${itemUuid}`));
+
+async function _takeBackStrikeDamage(entry) {
+  const message = game.messages.get(entry.strikeRow.messageId);
+  const undo = game.modules.get("draw-steel-ctlib")?.api?.services?.get?.("undoDamageRow");
+  if (!message || !undo) return;
+  const apps = Object.values(message.getFlag("draw-steel-target-damage", "state")?.applications ?? {});
+  for (const key of entry.strikeRow.keys ?? []) {
+    const landed = apps.some((a) => a?.kind === "damage" && a.status === "applied" && !a.dstHeld && !a.dstRedirected
+      && String(a.target?.tokenUuid ?? a.target?.actorUuid ?? "").replace(/\./g, "__") === key);
+    if (!landed || !await undo(message, key)) continue;
+    if (_takenBack.size > 400) _takenBack.clear();
+    _takenBack.add(`${message.id}:${key}:${entry.itemUuid}`);
+    const victim = fromUuidSync(key.replace(/__/g, "."));
+    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.StrikeDamageTakenBack", { modName: entry.itemName, name: victim?.name ?? "" }));
+  }
+}
+
 async function _settleDamageHold(hold) {
   if (!hold.anyUsed) {
     await _applyHeldDamage(hold, hold.amount);
@@ -1018,6 +1212,11 @@ async function _settleDamageHold(hold) {
   }
   const redirect = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.damageRedirect);
   if (redirect && await _redirectHeldDamage(hold, redirect)) return;
+  const wide = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.spendWideHalf && _spendUsed(u.itemUuid));
+  if (wide) await _halveTriggeringStrike(hold, wide);
+  const retier = (hold.usedEntries ?? []).find((u) => !u.cancelled && u.retier);
+  if (retier && await _retierHeldDamage(hold, retier)) return;
+  await _applyPotencyMods(hold.dstd?.messageId, hold.tokenUuid ? [hold.tokenUuid.replace(/\./g, "__")] : [], hold.usedEntries);
 
   
   
@@ -1048,12 +1247,14 @@ async function _settleDamageHold(hold) {
     });
   }
 
-  const outcome = await openDamageModWindow({
-    title: F("HeldDamageTitle", { name: actor?.name ?? "" }),
-    hint: `${F("HeldDamageHint", { amount: amountLabel })}${mitigationNote}`,
-    base,
-    pills: seedPills,
-  });
+  const outcome = seedPills.length && getSetting("skipHeldDamageWindow") !== false
+    ? { final: foldDamagePills(base, seedPills), pills: seedPills }
+    : await openDamageModWindow({
+      title: F("HeldDamageTitle", { name: actor?.name ?? "" }),
+      hint: `${F("HeldDamageHint", { amount: amountLabel })}${mitigationNote}`,
+      base,
+      pills: seedPills,
+    });
   const result = outcome ? (cap ? Math.min(Number(outcome.final), cap) : outcome.final) : null;
 
   if (result != null && Number(result) >= 0 && hold.dstd?.messageId && hold.dstd?.opId) {
@@ -1183,14 +1384,39 @@ async function _resolveRetargetPicks(retargets, resume) {
   return out;
 }
 
-function _resumeFall(resume, usedItemUuids) {
-  if (game.users.get(resume.userId)?.active) socket?.executeForUsers("resumeFall", [resume.userId], resume.fallId, usedItemUuids);
+function _resumeFall(resume, usedEntries) {
+  const used = (usedEntries ?? []).map((u) => (u.fallAdjust && u.adjustSign ? { uuid: u.itemUuid, name: u.itemName, reduction: -u.adjustSign * _adjustAmount(u) } : u.itemUuid));
+  if (game.users.get(resume.userId)?.active) socket?.executeForUsers("resumeFall", [resume.userId], resume.fallId, used);
 }
 
-function _finishResume(usedEntries, resume) {
+const _adjustAmount = (u) => _fmAmount(u.fallAdjust ? { ...u, fmChar: u.fallAdjust.char ?? null, fmAmount: u.fallAdjust.amount ?? null } : u);
+
+async function _pickAdjustSigns(usedEntries) {
+  for (const u of usedEntries ?? []) {
+    if (u.cancelled || (u.fmMode !== "adjust" && !u.fallAdjust)) continue;
+    const pickUser = _pickUserFor(u.ownerActorUuid);
+    const amount = _adjustAmount(u);
+    u.adjustSign = pickUser ? Number(await socket.executeAsUser("pickAdjust", pickUser.id, u.itemName, amount, !!u.fallAdjust).catch(() => 0)) || 0 : 0;
+  }
+}
+
+async function _onPickAdjust(modName, amount, fall = false) {
+  return foundry.applications.api.DialogV2.wait({
+    window: { title: modName },
+    content: `<p>${foundry.utils.escapeHTML(game.i18n.format(fall ? "DS_TRIGGERS.Queue.AdjustPickFall" : "DS_TRIGGERS.Queue.AdjustPickFm", { modName, n: amount }))}</p>`,
+    buttons: [
+      { action: "up", label: game.i18n.format("DS_TRIGGERS.Queue.AdjustUp", { n: amount }), icon: "fa-solid fa-plus", callback: () => 1, default: true },
+      { action: "down", label: game.i18n.format("DS_TRIGGERS.Queue.AdjustDown", { n: amount }), icon: "fa-solid fa-minus", callback: () => -1 },
+    ],
+    rejectClose: false,
+  }).catch(() => 0) ?? 0;
+}
+
+async function _finishResume(usedEntries, resume) {
   if (getSetting("debugMode")) console.log(`DS_TRIGGERS | finishResume: used=${(usedEntries ?? []).map((u) => `${u.itemName}:${u.redirect ?? "-"}`).join(",")} resume=${resume?.itemUuid ?? resume?.fmId ?? resume?.kind ?? null}`);
+  await _pickAdjustSigns(usedEntries).catch((err) => dbg("increase or reduce pick failed", err));
   if (resume?.kind === "fall") {
-    _resumeFall(resume, (usedEntries ?? []).map((u) => u.itemUuid));
+    _resumeFall(resume, usedEntries);
     return;
   }
   if (resume?.kind === "turn") {
@@ -1208,7 +1434,74 @@ function _finishResume(usedEntries, resume) {
     });
 }
 
-function _fmSpendUsed(itemUuid) {
+async function _onPickPotencyEffect(modName, choices = []) {
+  if (choices.length < 2) return choices[0]?.effectId ?? null;
+  return foundry.applications.api.DialogV2.wait({
+    window: { title: modName },
+    content: `<p>${foundry.utils.escapeHTML(game.i18n.format("DS_TRIGGERS.Queue.PotencyPick", { modName }))}</p>`,
+    buttons: choices.map((c, i) => ({ action: c.effectId, label: c.label, default: i === 0 })),
+    rejectClose: false,
+  }).catch(() => null);
+}
+
+let _potencyChain = Promise.resolve();
+const _potencyAmount = (mod, owner) => (mod?.char
+  ? Number(mod.amount) * (Number(owner?.system?.characteristics?.[mod.char]?.value) || 0)
+  : Number(mod?.amount) || 0);
+
+async function _applyAbilityWide(message, u) {
+  const api = game.modules.get("draw-steel-combat-tools")?.api?.globalModifiers;
+  if (!message || !api) return;
+  const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+  const src = { reason: u.itemName, src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null };
+  if (u.abilityHalf) {
+    await api.addDamage(message, [{ kind: "half", value: null, label: u.itemName, src: src.src, srcTokenId: src.srcTokenId, source: "trigger" }])
+      .catch((err) => dbg(`${u.itemName} global half failed`, err));
+  }
+  const amount = _potencyAmount(u.potencyMod, owner);
+  if (amount && (!u.potencyMod.spend || _spendUsed(u.itemUuid))) {
+    await api.addRoll(message, [{ kind: "potency", amount, ...src }]).catch((err) => dbg(`${u.itemName} global potency failed`, err));
+  }
+}
+
+export function applyPotencyMods(messageId, keys, usedEntries) {
+  const run = _potencyChain.then(() => _applyPotencyMods(messageId, keys, usedEntries));
+  _potencyChain = run.catch(() => {});
+  return run;
+}
+
+async function _applyPotencyMods(messageId, keys, usedEntries) {
+  const api = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog;
+  if (!messageId || !keys?.length || !api?.addResultPill) return;
+  for (const u of usedEntries ?? []) {
+    const mod = u.potencyMod;
+    const owner = u.ownerActorUuid ? fromUuidSync(u.ownerActorUuid) : null;
+    const amount = _potencyAmount(mod, owner);
+    if (u.cancelled || !amount) continue;
+    if (mod.spend && !_spendUsed(u.itemUuid)) continue;
+    for (const key of keys) {
+      let effectId = null;
+      if (mod.scope === "one") {
+        const choices = api.potencyEffectsOf?.(messageId, key) ?? [];
+        if (!choices.length) continue;
+        const pickUser = choices.length > 1 ? _pickUserFor(u.ownerActorUuid) : null;
+        effectId = pickUser && pickUser.id !== game.user.id
+          ? await socket.executeAsUser("pickPotencyEffect", pickUser.id, u.itemName, choices).catch(() => null)
+          : await _onPickPotencyEffect(u.itemName, choices);
+        if (!effectId) continue;
+      }
+      const picked = effectId ? (api.potencyEffectsOf?.(messageId, key) ?? []).find((c) => c.effectId === effectId) : null;
+      const effectName = picked?.label?.replace(/\s*\([^)]*<[^)]*\)$/, "");
+      await api.addResultPill(messageId, key, {
+        kind: "potency", amount, ...(effectId ? { effectId } : {}),
+        reason: effectName ? `${u.itemName} (${effectName})` : u.itemName,
+        src: u.ownerName ?? null, srcTokenId: owner?.getActiveTokens?.(true, false)?.[0]?.id ?? null,
+      }).catch((err) => dbg("potency pill failed", err));
+    }
+  }
+}
+
+function _spendUsed(itemUuid) {
   const item = itemUuid ? fromUuidSync(itemUuid) : null;
   const spendIds = new Set((item?.system?.effects?.documentsByType?.spend ?? []).map((e) => e.id));
   if (!spendIds.size) return false;
@@ -1353,7 +1646,7 @@ function _fmAmount(entry) {
   const owner = entry?.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
   const amount = Math.max(0, Number(owner?.system?.characteristics?.[entry?.fmChar]?.value ?? 0));
   if (entry?.fmPerSurge) return amount * (Number(entry.fmSurges) || 0);
-  return (amount && _fmSpendUsed(entry.itemUuid)) ? amount * 2 : amount;
+  return (amount && _spendUsed(entry.itemUuid)) ? amount * 2 : amount;
 }
 
 function _collectFmMods(usedEntries) {
@@ -1366,6 +1659,8 @@ function _collectFmMods(usedEntries) {
     if (u.fmMode === "reduce" || u.fmMode === "boost") {
       const signed = { ...base, amount: u.fmMode === "reduce" ? -amount : amount };
       (out.redirect ? out.after : out.deltas).push(signed);
+    } else if (u.fmMode === "adjust") {
+      if (u.adjustSign) (out.redirect ? out.after : out.deltas).push({ ...base, amount: u.adjustSign * amount });
     } else if (u.fmMode === "slide" || u.fmMode === "pull") {
       out.movement ??= { ...base, to: u.fmMode };
     } else if (u.fmMode === "vertical") {
@@ -1377,7 +1672,7 @@ function _collectFmMods(usedEntries) {
       const driveUser = (owner
         ? game.users.find((x) => x.active && !x.isGM && owner.testUserPermission(x, "OWNER"))
         : null) ?? primaryGM();
-      out.redirect = { ...base, amount, driveUserId: driveUser?.id ?? null };
+      out.redirect = { ...base, amount, canPush: !!u.fmCanPush, driveUserId: driveUser?.id ?? null };
     }
   }
   return (out.deltas.length || out.after.length || out.redirect || out.movement || out.vertical || out.objectDamage) ? out : null;
@@ -1453,14 +1748,42 @@ function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {
   else asPrimaryGM("resumeRoll", resume.itemUuid, retargets, rollMods);
 }
 
+const _releaseAfter = new Map();
+const _fmSettling = new Map();
+const FM_SETTLE_MAX_MS = 600000;
+
 function _removeHeld(resumeId) {
   _queue = _queue.filter((e) => !(e.resumeId === resumeId && e.kind === "held"));
+  const waiting = _releaseAfter.get(resumeId);
+  if (waiting) {
+    _releaseAfter.delete(resumeId);
+    _releaseUnheld(waiting);
+  }
+}
+
+function _settleHeld(resumeId, resume) {
+  const held = _queue.find((e) => e.resumeId === resumeId && e.kind === "held");
+  if (!resume?.fmId || !held) return _removeHeld(resumeId);
+  held.state = "resolving";
+  held.graceUntil = null;
+  clearTimeout(_fmSettling.get(resume.fmId)?.timer);
+  _fmSettling.set(resume.fmId, { resumeId, timer: setTimeout(() => _onFmSettled(resume.fmId), FM_SETTLE_MAX_MS) });
+}
+
+function _onFmSettled(fmId) {
+  if (!isPrimaryGM()) return;
+  const rec = _fmSettling.get(fmId);
+  if (!rec) return;
+  clearTimeout(rec.timer);
+  _fmSettling.delete(fmId);
+  _removeHeld(rec.resumeId);
+  _broadcast();
 }
 
 function _fireResume(resumeId, expired = false) {
   const pending = _pendingResumes.get(resumeId);
   const held = _queue.find((e) => e.resumeId === resumeId && e.kind === "held");
-  _removeHeld(resumeId);
+  _settleHeld(resumeId, pending?.resume ?? held?.resume);
   if (pending) {
     clearTimeout(pending.timer);
     _pendingResumes.delete(resumeId);
@@ -1477,7 +1800,7 @@ function _fireResume(resumeId, expired = false) {
 
     const usedInGroup = _queue.filter((e) => e.resumeId === resumeId && e.state === "used");
     for (const e of _queue) {
-      if (e.resumeId === resumeId) { e.resumeId = null; e.resume = null; }
+      if (e.resumeId === resumeId && e.kind !== "held") { e.resumeId = null; e.resume = null; }
     }
     _finishResume(usedInGroup, held.resume);
   }
@@ -1662,7 +1985,7 @@ function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } 
   if (!triggerItemUuid || !triggeringUuid) return null;
   const trigItem = fromUuidSync(triggerItemUuid);
   if (!trigItem) return null;
-  if (!/within distance of the (?:triggering|ability)/i.test(triggerEffectText(trigItem))) return null;
+  if (!/within distance of the (?:triggering|ability)|able to be targeted by the triggering (?:strike|ability)/i.test(triggerEffectText(trigItem))) return null;
   const triggering = fromUuidSync(triggeringUuid);
   const range = abilityRangeSquares(triggering);
   if (!range) return null;
@@ -1674,6 +1997,29 @@ function _chooserRangeConstraint(removeDoc, { triggerItemUuid, triggeringUuid } 
   if (!originDoc) originDoc = triggering?.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
   if (!originDoc) return null;
   return { originDoc, range };
+}
+
+function _ownDistanceConstraint({ triggerItemUuid } = {}) {
+  const trigItem = triggerItemUuid ? fromUuidSync(triggerItemUuid) : null;
+  if (!trigItem || !/\bnew target must be within distance\b(?! of)/i.test(triggerEffectText(trigItem))) return null;
+  const range = abilityRangeSquares(trigItem);
+  const originDoc = trigItem.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
+  return range && originDoc ? { originDoc, range } : null;
+}
+
+function _triggeringTargetable({ triggerItemUuid, triggeringUuid } = {}) {
+  const trigItem = triggerItemUuid ? fromUuidSync(triggerItemUuid) : null;
+  if (!trigItem || !/able to be targeted by the triggering (?:strike|ability)/i.test(triggerEffectText(trigItem))) return null;
+  const triggering = triggeringUuid ? fromUuidSync(triggeringUuid) : null;
+  const attacker = triggering?.actor?.getActiveTokens?.(false, false)?.[0] ?? null;
+  const getValidTargets = game.modules.get("draw-steel-ctlib")?.api?.getValidTargets;
+  if (!attacker || typeof getValidTargets !== "function") return null;
+  try {
+    return new Set(getValidTargets(attacker, triggering.system?.target?.type ?? "creature", abilityRangeSquares(triggering) ?? 0).map((t) => t.document.uuid));
+  } catch (err) {
+    console.error("DS_TRIGGERS | triggering ability target check failed:", err);
+    return null;
+  }
 }
 
 function _rangeEnforced() {
@@ -1711,7 +2057,11 @@ async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
   try {
     const fromText = _chooserRangeConstraint(removeDoc, ctx);
     if (fromText) constraints.push(fromText);
+    const own = _ownDistanceConstraint(ctx);
+    if (own) constraints.push(own);
   } catch (err) { console.error("DS_TRIGGERS | chooser range constraint failed:", err); }
+  const targetable = _triggeringTargetable(ctx);
+  if (targetable) tokens = tokens.filter((t) => targetable.has(t.document.uuid));
   const legal = _legalRedirectTargets(ctx);
   if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: mod=${modName} candidates=${tokens.length} textConstraint=`, constraints.map((c) => ({ range: c.range, origin: c.originDoc?.name })), `legalTargets=${legal ? legal.size : "not enforced"}`);
   const gridDist = canvas.grid.distance || 1;
@@ -1719,9 +2069,9 @@ async function _onPickRedirectTarget(modName, removeTokenUuid, ctx = {}) {
     tokens = tokens.filter((t) => footprintGap(c.originDoc, t.document) < c.range * gridDist);
   }
   if (legal) tokens = tokens.filter((t) => legal.has(t.document.uuid));
-  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: eligible candidates=${tokens.length}`);
+  if (getSetting("debugMode")) console.log(`DS_TRIGGERS | pickRedirectTarget: eligible candidates=${tokens.length} (${tokens.map((t) => t.name).join(", ")})`);
   
-  if (!tokens.length && (constraints.length || legal)) {
+  if (!tokens.length && (constraints.length || legal || targetable)) {
     ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.RedirectNoneEligible", { modName }));
     return null;
   }
@@ -1798,8 +2148,11 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmChar: m._fmChar ?? null,
     fmAmount: m._fmAmount ?? null,
     fmPerSurge: m._fmPerSurge ?? null,
+    fmCanPush: !!m._fmCanPush,
+    fallAdjust: m.clause?.fallAdjust ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
     subjectTokenUuids: m._subjectTokenUuids ?? null,
+    fmTargetUuid: m._fmTargetUuid ?? null,
     villain: m._villain ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
     lock: true,
@@ -1819,6 +2172,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmDistance: held.fmDistance ?? null,
     fmRunning: held.fmDistance ?? null,
     fmTrail: [],
+    heldAt: held.heldAt ?? null,
     ownerActorUuid: held.ownerActorUuid,
     ownerName: held.ownerName,
     event,
@@ -1866,9 +2220,21 @@ export function enqueuePromptEntries(matches, { event, causeLabel, triggerDamage
     gain: m._gain ?? null,
     pill: m._pill ?? null,
     mark: m._mark ?? null,
+    potencyMod: m.clause?.potencyMod ?? null,
+    potencyKeys: m._potencyKeys ?? null,
+    strikeRow: m._strikeRow ?? null,
+    meta: m._meta ?? null,
     ...(squadBatch ? { squadBatch } : {}),
   }));
+  matches.forEach((m, i) => {
+    if (!(m._aimChoices?.length > 1)) return;
+    const e = entries[i];
+    e.subjectTokenUuid = m._aimChoices[0];
+    e.choices = m._aimChoices.map((aim, n) => ({ ..._asChoice(e), key: `${e.id}:${n}`, subjectTokenUuid: aim }));
+    e.causeLabel = game.i18n.format("DS_TRIGGERS.Queue.ChoiceCause", { count: e.choices.length });
+  });
   asPrimaryGM("queueAdd", entries);
+  return entries;
 }
 
 export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
@@ -1892,8 +2258,11 @@ export function enqueueDamageHold(matches, { causeLabel, heldDamage }) {
     subjectTokenUuid: heldDamage.tokenUuid ?? null,
     defersDeath: !!m.defersDeath,
     halfDamage: m.clause?.halfDamage ?? false,
+    retier: m.clause?.retier ?? null,
+    spendWideHalf: m.clause?.spendWideHalf === true,
     expend: m.clause?.expendEffect ?? null,
     damageReduction: m.clause?.damageReduction ?? null,
+    potencyMod: m.clause?.potencyMod ?? null,
     damageRedirect: m.clause?.damageRedirect ?? null,
     redirectRange: m.clause?.redirectRange ?? null,
     redirectFilter: m.clause?.redirectFilter ?? null,
@@ -1949,11 +2318,15 @@ export function enqueueResolutionHold(matches, { causeLabel, resolution }) {
     resume: null,
     resolutionId,
     rollMod: m.clause?.rollMod ?? null,
+    potencyMod: m.clause?.potencyMod ?? null,
     redirect: m.clause?.redirect ?? null,
     reflectHalf: m.clause?.redirect === "reflect" && !!m.clause?.reflectHalf,
     redirectPool: m.clause?.redirectPool ?? null,
     halfOnUse: m.clause?.halfOnUse === true
       || (m._postHoc === true && m.clause?.targetedHalf === true),
+    spendHalf: m.clause?.spendHalf === true,
+    abilityWide: m.clause?.abilityWide === true,
+    abilityHalf: m.clause?.abilityHalf === true,
     postHoc: m._postHoc === true,
     subjectTargetKey: m._subjectTargetKey ?? null,
     subjectTokenUuid: m._subjectTokenUuid ?? null,
@@ -1999,9 +2372,7 @@ function _onReleaseResolutionNow(resolutionId) {
       e.rollMod = null;
     }
   }
-  _removeResolutionHeldEntry(resolutionId);
-  _finalizeResolutionHold(resolutionId);
-  _broadcast();
+  _finishResolution(resolutionId);
 }
 
 export function applyHeldDamageNow(damageId) {
@@ -2073,10 +2444,28 @@ function _onQueueChoose(id, key) {
   const dropped = entry.choices.filter((c) => c !== chosen);
   _takeChoice(entry, chosen);
   dbg(`queue choose ${id}: ${entry.itemName} answers ${chosen.subjectTokenUuid}`);
+  let result = null;
+  const base = entry.squadChooser;
+  if (base) {
+    delete entry.squadChooser;
+    const group = _queue.find((q) => q !== entry && q.state === "pending" && !q.choices?.length && !q.squadChooser
+      && q.subjectTokenUuid === entry.subjectTokenUuid && squadBase(q) === base);
+    if (group) {
+      (group.squad ??= []).push(squadMember(entry));
+      _queue = _queue.filter((q) => q !== entry);
+      if (entry.damageId && _damageHolds.has(entry.damageId) && !_groupPending("damageId", entry.damageId)) _completeDamageGroup(entry.damageId);
+      result = { joined: group.id };
+    } else if (_queue.some((q) => q !== entry && q.state === "pending" && q.squadChooser === base)) result = { waiting: entry.id };
+  }
   for (const damageId of new Set(dropped.map((c) => c.damageId).filter(Boolean))) {
     if (damageId !== entry.damageId && _damageHolds.has(damageId) && !_groupPending("damageId", damageId)) _completeDamageGroup(damageId);
   }
+  const droppedIds = dropped.map((c) => c.resumeId).filter(Boolean);
+  
+  if (entry.fmMode && entry.resumeId && droppedIds.length) _releaseAfter.set(entry.resumeId, droppedIds);
+  else _releaseUnheld(droppedIds, entry.resumeId);
   _broadcast();
+  return result;
 }
 
 export function pickTriggerSubject(tokens, hint) {
@@ -2092,21 +2481,28 @@ Hooks.once("socketlib.ready", () => {
   socket.register("queueSync", _onQueueSync);
   socket.register("resumeRoll", _onResumeRoll);
   socket.register("releaseHeld", _onReleaseHeld);
+  socket.register("fmSettled", _onFmSettled);
   socket.register("applyHeldDamageNow", _onApplyHeldDamageNow);
   socket.register("releaseResolutionNow", _onReleaseResolutionNow);
   socket.register("useCancelled", _onUseCancelled);
   socket.register("teleswapped", _onTeleswapped);
+  socket.register("snoozeWrite", onSnoozeWrite);
   socket.register("redirectChosen", _onRedirectChosen);
   socket.register("pickRedirectSubject", _onPickRedirectSubject);
   socket.register("pickRedirectTarget", _onPickRedirectTarget);
   socket.register("pickDamageRedirect", _onPickDamageRedirect);
   socket.register("pickStabilityShare", _onPickStabilityShare);
   socket.register("pickSurgeSpend", _onPickSurgeSpend);
+  socket.register("pickPotencyEffect", _onPickPotencyEffect);
+  socket.register("pickAdjust", _onPickAdjust);
   socket.register("applyAfterRedirect", _onApplyAfterRedirect);
   socket.register("pickHarmonizeTarget", (name, exclude) => pickHarmonizeTarget(name, exclude));
   socket.register("queueSyncRequest", _onQueueSyncRequest);
   socket.register("villainMarkUsed", _onVillainMarkUsed);
   socket.register("villainDismiss", _onVillainDismiss);
+  socket.register("bespokeWrite", onBespokeWrite);
+  socket.register("spentWrite", onSpentWrite);
+  socket.register("spendMalice", spendMalice);
 });
 
 function _onQueueSyncRequest() {
@@ -2126,6 +2522,16 @@ async function _clearStaleResolutionLocks() {
     dbg(`cleared a stale resolution lock left on ${message.id}`);
   }
 }
+
+Hooks.on("deleteCombat", (combat) => {
+  if (!isPrimaryGM()) return;
+  const othersRunning = game.combats.some((c) => c !== combat && c.started);
+  const fighters = new Set(combat.combatants.contents.flatMap((c) => [c.actor?.uuid, c.token?.actor?.uuid, c.actorId && `Actor.${c.actorId}`]).filter(Boolean));
+  const ended = _queue.filter((e) => e.state === "pending" && e.kind !== "reaper" && (!othersRunning || fighters.has(e.ownerActorUuid)));
+  if (!ended.length) return;
+  dbg(`combat ended, clearing ${ended.length} pending stack entries`);
+  (async () => { for (const e of ended) await _onQueueResolve(e.id, "dismissed", game.user.name); })();
+});
 
 Hooks.on("deleteChatMessage", (message) => {
   if (!isPrimaryGM()) return;

@@ -1,10 +1,11 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, rolledTargets, powerRollFor } from "../util.mjs";
 import { getTriggeredAbilities, isMaliceAbility } from "./registry.mjs";
 import { isTriggeredActionSpent } from "./spent-tracking.mjs";
-import { enqueuePromptEntries } from "./queue.mjs";
+import { enqueuePromptEntries, applyPotencyMods, strikeTakenBack } from "./queue.mjs";
 import { abilityRowsHTML, cardContent, postSystemCard, withFaces } from "../ui/system-card.mjs";
 import { malicePill, sendMaliceCard } from "./malice.mjs";
 import { isActorSnoozed, isSnoozedForAudience } from "../ui/snooze.mjs";
+import { partSnoozeId } from "./firing.mjs";
 import { noteGainEvent } from "./resource-gains.mjs";
 import { lingeringEffect } from "./lingering.mjs";
 import { carriesEffect, carriesMark, labelKnown, featureLineSpent } from "./feature-triggers.mjs";
@@ -69,7 +70,8 @@ export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor,
 
 export const activeCombat = () => {
   const active = game.scenes.active;
-  return game.combats.find((c) => c.started && (!c.scene || c.scene.id === active?.id)) ?? null;
+  const onScene = (c) => c?.started && (!c.scene || c.scene.id === active?.id);
+  return [game.combats.active, ...game.combats].find(onScene) ?? null;
 };
 
 export const triggersLive = () => !!activeCombat() || getSetting("combatOnly") === false;
@@ -251,9 +253,20 @@ const isKitAbility = (used, owner) => {
 };
 const ownerKitWeapons = (owner) => kitsOf(owner).some((k) => (k.system?.equipment?.weapon?.size ?? 0) > 0);
 
+const ALLY_TARGET_TYPES = new Set(["ally", "selfAlly"]);
+
+function targetsAnAlly(used, context) {
+  const user = tokenDoc(context.userToken);
+  const targets = (context.usedTargets ?? []).map(tokenDoc).filter(Boolean);
+  if (!targets.length) return ALLY_TARGET_TYPES.has(used.system?.target?.type);
+  return targets.some((t) => t !== user && t.actor !== used.actor && opposed(user, t) === false);
+}
+
 export function usedAbilityMatches(clause, used, owner, context = {}) {
   if (!used) return !clause.abilityDsid && !clause.abilityType && !clause.abilityKeywords?.length && !clause.abilityDealsDamage
-    && clause.abilityCostMax == null && clause.abilityCostMin == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency;
+    && clause.abilityCostMax == null && clause.abilityCostMin == null && clause.abilityCategory == null && clause.abilityTargetCount == null && !clause.abilityPotency
+    && !clause.targetsAlly;
+  if (clause.targetsAlly && !targetsAnAlly(used, context)) return false;
 
   if (clause.abilityDealsDamage && !abilityDealsDamage(used)) return false;
   const sys = used.system ?? {};
@@ -370,7 +383,7 @@ function grabsHeldBy(ownerActor, status) {
   return count;
 }
 
-function damageOutcomeMatches(outcomes, ctx) {
+export function damageOutcomeMatches(outcomes, ctx) {
   const prev = Number(ctx.victimPrev), cur = Number(ctx.victimCur), winded = Number(ctx.victimWinded);
   if (!Number.isFinite(prev) || !Number.isFinite(cur)) return true;
   return outcomes.some((o) => o === "zero" ? prev > 0 && cur <= 0
@@ -477,8 +490,9 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (clause.damageOutcome?.length && !damageOutcomeMatches(clause.damageOutcome, ctx)) return false;
       if (clause.ownerGrabbing === "any" && !holdsAnyGrab(ownerActor)) return false;
       if (clause.dealerNotGrabbed && ctx.dealerActor && grabbedBy(ctx.dealerActor, ownerActor)) return false;
-      if (!clause.dealerScope) return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length || clause.damageSource?.length);
+      if (!clause.dealerScope && clause.rangeOn !== "dealer") return !ctx.dealerOnly || !!(rollNeeds(clause) || clause.abilityKeywords?.length || clause.damageSource?.length);
       if (!ctx.dealerActor) return false;
+      if (!clause.dealerScope) return true;
       return scopeMatches({ scope: clause.dealerScope }, ownerActor, ownerDisposition, ctx.dealerActor, ctx.dealerToken?.disposition ?? null);
     case "TARGETED_BY_ABILITY":
     case "TARGETED_BY_STRIKE":
@@ -597,11 +611,12 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
 
 function statusMatches(clause, ownerActor, subjectActor) {
   if (clause.subjectConcealed && !isConcealed(subjectActor)) return false;
+  if (clause.subjectStates?.length && !clause.subjectStates.some((s) => subjectActor?.statuses?.has(s))) return false;
   if (clause.tauntedByOwner && !subjectActor?.system?.statuses?.taunted?.sources?.has?.(ownerActor.uuid)) return false;
   return !(clause.ownerLacks && ownerActor.statuses?.has(clause.ownerLacks));
 }
 
-function organizationMatches(clause, subjectActor) {
+export function organizationMatches(clause, subjectActor) {
   if (clause.subjectKeywords?.length && subjectActor) {
     const kw = subjectActor.system?.monster?.keywords;
     if (!clause.subjectKeywords.some((k) => kw?.has?.(k) ?? kw?.includes?.(k))) return false;
@@ -713,6 +728,15 @@ function spentBeyondCost(message, abilityUuid) {
 
 export const rollNeeds = (clause) => clause?.rollHas?.length ? clause.rollHas : clause?.edgeRequired ? ["edge"] : null;
 
+export const resolutionHolds = (message) => {
+  if (!getSetting("resolutionHolds") || !message) return false;
+  const targets = rolledTargets(message);
+  return targets.length > 0 && !!powerRollFor(message, targets[0].actorUuid);
+};
+
+export const heldAbilityWide = (m, rollerActor) => !m.malice && !!m.clause?.abilityWide && m.actor !== rollerActor
+  && (m.parse?.confidence === "high" || m.parse?.source === "manual");
+
 export function rollModsOf(message, target = null) {
   if (!message) return null;
   const net = (o) => (Number(o?.edges) || 0) - (Number(o?.banes) || 0);
@@ -749,7 +773,9 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
   const maliceLineSeen = new Set();
   const featureSeen = new Set();
 
+  const subjectScene = tokenDoc(subjectToken)?.parent ?? null;
   for (const { actor, disposition, token } of candidates) {
+    if (subjectScene && token?.parent && token.parent !== subjectScene) continue;
     const fallen = actor.statuses?.has(defeated);
     const ownDeath = event === "DIES" && !!subjectActor && (actor === subjectActor || actor.uuid === subjectActor.uuid);
     if (fallen && !ownDeath && (event !== "MOVES" || !lingeringEffect(actor))) continue;
@@ -763,7 +789,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
       if (entry.item.featureLine && entry.parse?.confidence !== "high" && entry.parse?.source !== "manual") continue;
       
       
-      if (isSnoozedForAudience(actor, entry.item.system?._dsid ?? entry.item.dsid ?? null)) continue;
+      const dsid = entry.item.system?._dsid ?? entry.item.dsid ?? null;
+      if (isSnoozedForAudience(actor, dsid)) continue;
       
       const malice = isMaliceAbility(entry.item) && !entry.featureLine;
       
@@ -781,7 +808,8 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         maliceSeen.add(entry.item.name);
       }
       const clause = entry.parse?.clauses?.find(c =>
-        eventHits(c.event, event) && (!fallen || ownDeath || c.entersSpace) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
+        eventHits(c.event, event) && (!fallen || ownDeath || c.entersSpace)
+        && !(dsid && entry.parse.clauses.length > 1 && isSnoozedForAudience(actor, partSnoozeId(dsid, c))) && (event !== "USES_ABILITY" || usedAbilityMatches(c, usedAbility, actor, usedContext))
         && eventContextMatches(c, event, actor, subjectActor, subjectToken, usedContext, entry.item, disposition)
         && organizationMatches(c, subjectActor)
         && rollHasMatches(c, usedContext)
@@ -792,6 +820,9 @@ export function collectTriggerMatches(event, subjectActor = null, subjectToken =
         && ((malice && !takesTurn) || ((c.asSource || scopeMatches(c.scope === "TARGET" && entry.watch ? { ...c, scope: "ANY" } : c, actor, disposition, subjectActor, subjectDisposition))
           && rangeMatches(c, entry.item, actor, token, subjectActor, subjectToken, usedContext))));
       if (!clause) continue;
+      
+      const ownLine = entry.item.featureLine?.key;
+      if (ownLine && (usedContext.damageSource === ownLine || usedContext.ability?.getFlag?.(MODULE_ID, "derived")?.lineKey === ownLine)) continue;
       if (entry.watch === "subject" && !entry.watchMark && !watchedCreatures(subjectActor, usedContext).some((a) => carriesEffect(a, entry.originUuid))) continue;
       if (entry.watch === "used" && !usedSubjectOk(entry, token, subjectActor, subjectToken, usedContext)) continue;
       if (entry.spendUsed && !spendWasPaid(entry.originUuid)) continue;
@@ -844,29 +875,70 @@ function aimOf(m, subjectToken, ctx) {
     const held = (canvas.tokens?.placeables ?? []).filter((t) => t.actor && t.actor !== m.actor && grabbedBy(t.actor, m.actor));
     return held.length === 1 ? tokenUuidOf(held[0]) : "";
   }
+  if (!m.item.featureLine && ctx.dealerToken && (m.clause?.rangeOn === "dealer" || m.clause?.dealerScope)
+    && tokenUuidOf(subjectToken) === tokenUuidOf(ownTokenOf(m.actor)) && m.item.system?.target?.type !== "self") return tokenUuidOf(ctx.dealerToken);
   if (m.item.system?.distance?.type === "burst" || m.item.flags?.["draw-steel-combat-tools"]?.areaFilter?.carriers) return "";
   const effect = String(m.item.featureLine?.effect ?? "").trim().toLowerCase();
   if (/^(?:you|the self) (?:can|may) (?:choose|pick|select|target) (?!to\b)|^you or (?:one|an|another) ally\b|\bon you or (?:another|one) (?:creature|ally)\b/.test(effect)) return "";
-  const namesOther = /\b(?:that creature|the triggering creature|that enemy|that target|the target)\b/.test(effect);
+  const namesOther = /\b(?:that creature|the triggering creature|that enemy|that target|the target)\b/.test(effect)
+    || /\b(?:push|pull|slide|knock|taunt|frighten|grab|strike|attack)(?:es|s)? (?:them|it)\b/.test(effect);
   if (/^(?:you|the self)\b/.test(effect) && !(namesOther && /^(?:you|the self) (?:can|may)\b/.test(effect))) return tokenUuidOf(ownTokenOf(m.actor));
   if (!namesOther && !/^(?:they|it|that (?:enemy|creature|ally|target)|the (?:enemy|creature|target|triggering creature))\b/.test(effect)) return null;
   if (m.clause?.through && ctx.throughToken) return tokenUuidOf(ctx.throughToken);
   const subject = tokenUuidOf(subjectToken);
   if (subject && (subject !== tokenUuidOf(ownTokenOf(m.actor)) || m.clause?.scope !== "SELF")) return subject;
-  if (ctx.victimToken) return tokenUuidOf(ctx.victimToken);
+  if (ctx.victimToken && tokenUuidOf(ctx.victimToken) !== tokenUuidOf(ownTokenOf(m.actor))) return tokenUuidOf(ctx.victimToken);
   if (ctx.dealerToken) return tokenUuidOf(ctx.dealerToken);
+  if (ctx.victimToken) return tokenUuidOf(ctx.victimToken);
   const source = ctx.sourceActorUuids?.map((uuid) => fromUuidSync(uuid)).find(Boolean);
   return source ? tokenUuidOf(ownTokenOf(source)) ?? "" : "";
+}
+
+function matchesForDealers(event, subjectActor, subjectToken, usedAbility, context) {
+  const merged = new Map();
+  for (const dealer of context.dealers) {
+    const ctx = { ...context, dealerActor: dealer.actor, dealerToken: dealer.token };
+    for (const m of collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, ctx)) {
+      let clauseKey = "";
+      try { clauseKey = JSON.stringify(m.clause ?? null); } catch { clauseKey = String(m.clause?.event ?? ""); }
+      const key = [m.actor.uuid, m.item.uuid ?? m.item.id, m.item.featureLine?.key ?? "", clauseKey].join("|");
+      const aim = aimOf(m, subjectToken, ctx);
+      const have = merged.get(key);
+      if (!have) merged.set(key, Object.assign(m, { _ctx: ctx, _dealerAims: [aim] }));
+      else if (!have._dealerAims.includes(aim)) have._dealerAims.push(aim);
+    }
+  }
+  return [...merged.values()];
+}
+
+const targetKey = (t) => {
+  const uuid = typeof t === "string" ? t : t?.uuid ?? t?.document?.uuid ?? null;
+  return uuid ? uuid.replace(/\./g, "__") : null;
+};
+
+function potencyTargets(event, { subjectTokenUuid, usedTargets, sourceMessageId, eventContext }) {
+  if (event === "RESISTS_POTENCY" && sourceMessageId && subjectTokenUuid) return { messageId: sourceMessageId, keys: [targetKey(subjectTokenUuid)] };
+  if (event === "USES_ABILITY" && sourceMessageId && usedTargets?.length) {
+    const keys = usedTargets.map(targetKey).filter(Boolean);
+    return keys.length ? { messageId: sourceMessageId, keys } : null;
+  }
+  if (event === "DEALS_DAMAGE" && eventContext.damageMessageId && eventContext.victimToken) {
+    return { messageId: eventContext.damageMessageId, keys: [targetKey(eventContext.victimToken)] };
+  }
+  return null;
 }
 
 export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken = null, causeLabel = "", triggerDamage = null, usedAbility = null, usedTargets = null, sourceMessageId = null, eventContext = {}, filter = null, gains = true }) {
   const subjectTokenUuid = subjectToken?.uuid ?? subjectToken?.document?.uuid ?? null;
   if (!isPrimaryGM()) return;
-  if (gains) noteGainEvent({ event, subjectActor, subjectToken, usedAbility, triggerDamage, eventContext, causeLabel });
+  if (gains) noteGainEvent({ event, subjectActor, subjectToken, usedAbility, usedTargets, triggerDamage, eventContext, causeLabel });
 
-  let matches = collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
+  let matches = eventContext.dealers?.length > 1
+    ? matchesForDealers(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext })
+    : collectTriggerMatches(event, subjectActor, subjectToken, usedAbility, { usedTargets, userToken: subjectToken, triggerDamage, ...eventContext });
   if (filter) matches = matches.filter(filter);
-  
+  if (event === "USES_ABILITY" && resolutionHolds(game.messages.get(sourceMessageId))) matches = matches.filter((m) => !heldAbilityWide(m, subjectActor));
+
   const markNow = (m) => autoApplies({ mandatory: matchMandatory(m), line: m.item?.featureLine });
   const queuedMarks = [];
   const marking = matches.filter((m) => m.clause?.markVictim);
@@ -887,17 +959,32 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
     const sourceId = m.item.getFlag?.(MODULE_ID, "derived")?.sourceId;
     const source = m.item.feature ?? (sourceId ? m.actor?.items?.get(sourceId) : null) ?? m.item;
     if (!markNow(m)) {
-      if (eventContext.dealerActor) queuedMarks.push(Object.assign(m, { _mark: { kind: "dealer", ownerUuid: m.actor.uuid, otherUuid: eventContext.dealerActor.uuid, spec: m.clause.markDealer, sourceUuid: source?.uuid ?? null } }));
+      const dealerActor = (m._ctx ?? eventContext).dealerActor;
+      if (dealerActor) queuedMarks.push(Object.assign(m, { _mark: { kind: "dealer", ownerUuid: m.actor.uuid, otherUuid: dealerActor.uuid, spec: m.clause.markDealer, sourceUuid: source?.uuid ?? null } }));
       continue;
     }
-    markDealer(m.actor, eventContext.dealerActor ?? null, m.clause.markDealer, source)
-      .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${eventContext.dealerActor?.name}`, err));
+    const dealerActor = (m._ctx ?? eventContext).dealerActor ?? null;
+    markDealer(m.actor, dealerActor, m.clause.markDealer, source)
+      .catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not mark ${dealerActor?.name}`, err));
   }
   if (dealerMarks.length) matches = matches.filter((m) => !m.clause?.markDealer);
   if (queuedMarks.length) enqueuePromptEntries(queuedMarks, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId });
   if ((event === "TURN_START" || event === "TURN_END") && getSetting("turnInterrupts")) {
     matches = matches.filter((m) => !m.clause?.turnLock);
   }
+  const potencyAt = potencyTargets(event, { subjectTokenUuid, usedTargets, sourceMessageId, eventContext });
+  if (event === "DEALS_DAMAGE" && potencyAt) matches = matches.filter((m) => !strikeTakenBack(potencyAt, m.item.uuid));
+  if (potencyAt) {
+    for (const m of matches.filter((x) => x.clause?.potencyMod && (x.parse?.confidence === "high" || x.parse?.source === "manual"))) {
+      m._potencyKeys = potencyAt;
+      if (m.item.featureLine?.action || !markNow(m)) continue;
+      applyPotencyMods(potencyAt.messageId, potencyAt.keys, [{ itemUuid: m.item.uuid, itemName: m.item.featureLine?.itemName ?? m.item.name, ownerActorUuid: m.actor.uuid,
+        ownerName: m.actor.name, potencyMod: m.clause.potencyMod }]).catch((err) => console.warn(`${MODULE_ID} | ${m.item.name} could not change the potency`, err));
+      m._potencyDone = true;
+    }
+    matches = matches.filter((m) => !m._potencyDone);
+  }
+  if (event === "DEALS_DAMAGE" && potencyAt) for (const m of matches) if (m.clause?.strikeDamage) m._strikeRow = potencyAt;
   if (!matches.length) return;
 
   const promptsOn = DAMAGE_PROMPTS.has(event) ? getSetting("damagePrompts")
@@ -907,12 +994,14 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   const optionalLine = (m) => !!m.item.featureLine && (!!m.item.featureLine.action || OPTIONAL.test(m.item.featureLine.effect ?? ""));
   const automated = (m) => !!m.item.getFlag?.(MODULE_ID, "derived") && (m.item.system?.effects?.contents ?? []).some((e) => e.type !== "base");
   for (const m of matches) {
-    const aim = aimOf(m, subjectToken, eventContext);
+    const aim = aimOf(m, subjectToken, m._ctx ?? eventContext);
     if (aim !== null) m._subjectTokenUuid = aim;
+    const aims = (m._dealerAims ?? []).filter(Boolean);
+    if (aims.length > 1) m._aimChoices = aims;
   }
   const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m) || automated(m)));
   if (prompts.length) {
-    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null, squadBatch: eventContext.squadDeath ?? null });
+    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null, squadBatch: eventContext.squadDeath ?? eventContext.squadBatch ?? null });
     matches = matches.filter((m) => !prompts.includes(m));
   }
 
@@ -948,7 +1037,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
       if (!a.malice) return 0;
       return (a.item.system.resource ?? 999) - (b.item.system.resource ?? 999);
     });
-    _sendReminderCard(group, { event, causeLabel, subjectActor, people: [subjectToken ?? subjectActor, ...Object.values(eventContext ?? {}), usedTargets ?? []] });
+    _sendReminderCard(group, { event, causeLabel, subjectActor, people: [subjectToken ?? subjectActor, ...Object.entries(eventContext ?? {}).map(([k, v]) => (k === "dealers" ? v.map((d) => d.token ?? d.actor) : v)), usedTargets ?? []] });
   }
 }
 

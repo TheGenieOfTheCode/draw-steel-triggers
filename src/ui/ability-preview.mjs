@@ -1,6 +1,6 @@
 const DIST_ICONS = { melee: "fa-sword", ranged: "fa-bow-arrow", meleeRanged: "fa-swords", self: "fa-user" };
 
-function neutralizeStatusLinks(html) {
+export function neutralizeStatusLinks(html) {
   const div = document.createElement("div");
   div.innerHTML = html;
   for (const el of div.querySelectorAll('.roll-link[data-type="status"], .roll-link[data-type="custom"]')) {

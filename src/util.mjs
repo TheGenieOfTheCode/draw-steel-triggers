@@ -60,6 +60,14 @@ export const resultModsActive = () => !!resultMods()?.active?.();
 
 export const addTargetResult = async (message, token) => (await ctlib()?.addTargetResult?.(message, token)) ?? null;
 
+export const messageTargets = (message) => {
+  const rolled = rolledTargets(message);
+  return rolled.length ? rolled : (message?.getFlag?.("draw-steel-target-damage", "state")?.targets ?? []);
+};
+
+export const targetKeys = (message) => messageTargets(message)
+  .map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).filter(Boolean);
+
 export const targetTokenUuids = (message) => rolledTargets(message).map((t) => t.tokenUuid
   ?? fromUuidSync(t.actorUuid, { strict: false })?.getActiveTokens?.(false, true)?.[0]?.uuid ?? null).filter(Boolean);
 

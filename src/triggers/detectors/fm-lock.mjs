@@ -3,6 +3,7 @@ import { collectTriggerMatches, dispatchTriggerEvent, footprintGap, triggersLive
 import { enqueueLockEntries, queueSocket, asPrimaryGM } from "../queue.mjs";
 import { noteTargetsChange } from "./resolution.mjs";
 import { autoApplies } from "../auto-use.mjs";
+import { setTip, tip } from "../../ui/tips.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
@@ -111,6 +112,8 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
     m._fmChar = mod.char ?? null;
     m._fmAmount = mod.amount ?? null;
     m._fmPerSurge = mod.perSurge ?? null;
+    m._fmCanPush = !!mod.canPush;
+    m._fmTargetUuid = (target.document ?? target)?.uuid ?? null;
   }
   if (!matches.length) return;
 
@@ -121,6 +124,8 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
     origTargetUuid: (target.document ?? target)?.uuid ?? null,
     sourceTokenId: source?.id ?? null, at: Date.now(),
     messageId: ctx.messageId ?? null,
+    fmKey: ctx.fmKey ?? null,
+    origin: ctx.origin ?? null,
     baseDistance, baseType, passiveApplied,
     lineIds: found.map(lineId),
     moveBase: {
@@ -154,6 +159,14 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   if (ctx.noObstacleCollisionDamage) detailParts.push(game.i18n.localize("DS_TRIGGERS.Queue.FmDetailNoObstacleCollision"));
   if (ctx.fastMove) detailParts.push(game.i18n.localize("DS_TRIGGERS.Queue.FmDetailFastMove"));
 
+  let heldAt = null;
+  if (ctx.messageId) {
+    const origKey = String((target.document ?? target)?.uuid ?? "").replace(/\./g, "__");
+    const rowKey = fmSubKey(ctx.fmKey ?? null, origKey, origKey, String(baseType ?? "push").toLowerCase());
+    _pendingFm.get(fmId).rowKey = rowKey;
+    heldAt = { messageId: ctx.messageId, rowKey };
+    asPrimaryGM("markFmRowHeld", ctx.messageId, rowKey, true);
+  }
   dbg(`fm lock: ${ctx.type} ${ctx.distance} on ${target.name} held by ${matches.length} triggers`);
   enqueueLockEntries(matches, {
     event: "FM_LOCK",
@@ -164,6 +177,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
       itemName: fmTitle,
       heldDetail: detailParts.join(" · ") || null,
       fmDistance: Number(ctx.distance) || 0,
+      heldAt,
       ownerActorUuid: targetActor.uuid,
       ownerName: target.name,
     },
@@ -181,9 +195,21 @@ function _deltaPayload(deltas) {
 }
 
 async function _onResumeFm(fmId, mods) {
+  let handedOff = false;
+  try { handedOff = await _resumeFm(fmId, mods); }
+  finally { if (!handedOff) asPrimaryGM("fmSettled", fmId); }
+}
+
+async function _onDriveFmRedirectSettled(payload) {
+  try { await _onDriveFmRedirect(payload); }
+  finally { if (payload.fmId) asPrimaryGM("fmSettled", payload.fmId); }
+}
+
+async function _resumeFm(fmId, mods) {
   const pending = _pendingFm.get(fmId);
-  if (!pending) return;
+  if (!pending) return false;
   _pendingFm.delete(fmId);
+  if (pending.messageId && pending.rowKey) await asPrimaryGM("markFmRowHeld", pending.messageId, pending.rowKey, false);
 
   const before = mods?.deltas ?? [];
   const after = mods?.after ?? [];
@@ -216,14 +242,19 @@ async function _onResumeFm(fmId, mods) {
       origTargetTokenId: pending.targetTokenId,
       origTargetUuid: pending.origTargetUuid,
       messageId: pending.messageId,
+      fmKey: pending.fmKey ?? null,
       moveBase: pending.moveBase,
+      fmId,
+      origin: pending.origin ?? null,
+      type: pending.type ?? null,
+      canPush: !!mods.redirect.canPush,
     };
     if (mods.redirect.driveUserId && mods.redirect.driveUserId !== game.user.id) {
       queueSocket()?.executeForUsers("driveFmRedirect", [mods.redirect.driveUserId], payload);
-    } else {
-      _onDriveFmRedirect(payload);
+      return true;
     }
-    return;
+    await _onDriveFmRedirect(payload);
+    return false;
   }
 
   if (mods?.redirect) {
@@ -246,7 +277,8 @@ async function _onResumeFm(fmId, mods) {
     ...(mods?.vertical ? [{ ...mods.vertical, amount: 0, vertical: true }] : []),
   ];
 
-  if ((deltas.length || shapes.length) && pending.messageId && game.modules.get(DSTD_ID)?.active
+  
+  if ((deltas.length || shapes.length) && pending.messageId && pending.origin !== "enricher" && game.modules.get(DSTD_ID)?.active
     && game.messages.get(pending.messageId)) {
     
     const passives = pending.passiveApplied ?? [];
@@ -254,6 +286,7 @@ async function _onResumeFm(fmId, mods) {
     const payload = {
       messageId: pending.messageId,
       origTargetUuid: pending.origTargetUuid,
+      fmKey: pending.fmKey ?? null,
       distance: pending.baseDistance ?? pending.distance,
       moveBase: pending.moveBase,
       deltas: [
@@ -285,19 +318,25 @@ async function _onResumeFm(fmId, mods) {
       ui.notifications.warn(game.i18n.localize(reduced ? "DS_TRIGGERS.Queue.FmStoppedCounter" : "DS_TRIGGERS.Queue.FmStopped"));
     }
     asPrimaryGM("applyFmDeltas", payload);
-    return;
+    return false;
   }
 
   if (distance <= 0) {
     ui.notifications.warn(game.i18n.localize(reduced ? "DS_TRIGGERS.Queue.FmStoppedCounter" : "DS_TRIGGERS.Queue.FmStopped"));
-    return;
+    return false;
   }
-  pending.resume({
+  const moved = pending.resume({
     distance,
+    modifierNotes: deltas.filter((d) => d.amount).map((d) => `${d.amount > 0 ? "+" : ""}${d.amount} ${d.modName}`),
     ...(toSlide ? { type: String(pending.type).replace(/push/i, (w) => (w[0] === "P" ? cap(mods.movement.to) : mods.movement.to)) } : {}),
     ...(mods?.vertical ? { verticalHeight: distance } : {}),
     ...(mods?.objectDamage ? { bonusObjectDmg: pending.bonusObjectDmg + mods.objectDamage } : {}),
   });
+  if (pending.messageId && pending.rowKey) {
+    Promise.resolve(moved).then(() => asPrimaryGM("markFmRowHeld", pending.messageId, pending.rowKey, false, true)).catch(() => {});
+  }
+  await Promise.resolve(moved).catch(() => {});
+  return false;
 }
 
 async function _onDriveFmRedirect(payload) {
@@ -311,7 +350,9 @@ async function _onDriveFmRedirect(payload) {
   const origTarget = canvas.tokens.get(payload.origTargetTokenId);
   const maxWidth = origTarget?.document?.width ?? 1;
   const gridDist = canvas.grid.distance || 1;
-  
+  const original = fmTypeOf(payload.type) ?? "push";
+  const movement = payload.canPush && original !== "push" ? await _pickRedirectMovement(payload.modName, original) : payload.canPush ? "push" : original;
+
   const ownerIsSource = !!payload.sourceTokenId && payload.sourceTokenId === ownerToken.id;
   const eligible = canvas.tokens.placeables.filter((t) =>
     t.actor && !(ownerIsSource && t.id === ownerToken.id)
@@ -321,16 +362,24 @@ async function _onDriveFmRedirect(payload) {
     ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectNoTargets", { modName: payload.modName }));
     return;
   }
-  let picked = eligible[0];
+  
+  const keep = eligible.find((t) => t.id === origTarget?.id) ?? null;
+  let picked = keep ?? eligible[0];
   const picker = game.modules.get("draw-steel-ctlib")?.api?.runColoredTokenPicker;
   if (picker) {
     picked = await picker({
       tokens: eligible,
       colorMap: new Map(eligible.map((t) => [t.id, "#d9a63f"])),
-      hint: game.i18n.format("DS_TRIGGERS.Queue.FmRedirectPick", { modName: payload.modName }),
-    }).catch(() => null);
+      hint: game.i18n.format(keep ? "DS_TRIGGERS.Queue.FmRedirectPickKeep" : "DS_TRIGGERS.Queue.FmRedirectPick", { modName: payload.modName, name: keep?.name ?? "" }),
+      preselect: keep,
+    }).catch(() => null) ?? keep;
     if (!picked) return;
   }
+  const rowless = payload.origin === "enricher";
+  
+  const trailing = (payload.after ?? []).reduce((n, d) => n + (Number(d.amount) || 0), 0);
+  const cancelled = picked.id === ownerToken.id && movement !== "slide";
+  const amount = cancelled ? -((Number(payload.distance) || 0) + trailing) : Number(payload.amount) || 0;
 
   
   
@@ -341,31 +390,32 @@ async function _onDriveFmRedirect(payload) {
   
   const sameTarget = !!origTarget && picked.id === origTarget.id;
 
-  if (payload.messageId && game.modules.get(DSTD_ID)?.active && sameTarget) {
+  if (payload.messageId && !rowless && game.modules.get(DSTD_ID)?.active && sameTarget) {
     asPrimaryGM("applyFmDeltas", {
       messageId: payload.messageId,
       origTargetUuid: payload.origTargetUuid,
+      fmKey: payload.fmKey ?? null,
       moveBase: payload.moveBase,
 
       
       distance: Number(payload.baseDistance ?? payload.distance) || 0,
       deltas: [...(payload.carried ?? []), {
-        amount: Number(payload.amount) || 0,
+        amount,
         modName: payload.modName,
         ownerName: payload.ownerName ?? owner?.name ?? "",
         ownerActorUuid: payload.ownerActorUuid ?? null,
         srcTokenId: ownerToken.id,
         newSourceTokenId: ownerToken.id,
-        forcePush: true,
+        forcePush: movement === "push",
       }, ...(payload.after ?? [])],
     });
-    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectSameTarget", {
+    if (!cancelled) ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectSameTarget", {
       modName: payload.modName, name: picked.name,
     }));
     return;
   }
 
-  if (payload.messageId && game.modules.get(DSTD_ID)?.active) {
+  if (payload.messageId && !rowless && game.modules.get(DSTD_ID)?.active) {
     const doc = picked.document;
     asPrimaryGM("applyFmRedirect", {
       messageId: payload.messageId,
@@ -378,25 +428,46 @@ async function _onDriveFmRedirect(payload) {
       modName: payload.modName,
       ownerName: payload.ownerName ?? owner?.name ?? "",
       srcTokenId: ownerToken.id,
-      amount: Number(payload.amount) || 0,
+      amount,
       carried: payload.carried ?? [],
       after: payload.after ?? [],
+      fmKey: payload.fmKey ?? null,
       moveBase: payload.moveBase,
+      movement,
     });
-    ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectApplied", {
+    if (!cancelled) ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.FmRedirectApplied", {
       modName: payload.modName, name: picked.name ?? doc.name,
     }));
     return;
   }
 
   
-  const trailing = (payload.after ?? []).reduce((n, d) => n + (Number(d.amount) || 0), 0);
-  const distance = Math.max(0, (Number(payload.distance) || 0) + (Number(payload.amount) || 0) + trailing);
+  const distance = Math.max(0, (Number(payload.distance) || 0) + amount + trailing);
+  
+  let fastMove = false;
+  try { fastMove = !!game.settings.get(DSCT_ID, "fmAutoForOwnAbilities"); } catch {}
   await api.forcedMovement({
-    type: "Push", distance,
+    type: cap(movement), distance, fastMove,
     sourceId: ownerToken.id, targetId: picked.id,
   });
 }
+
+async function _pickRedirectMovement(modName, original) {
+  const L = (k, data) => game.i18n.format(`DS_TRIGGERS.Queue.${k}`, data ?? {});
+  const kind = (m) => game.i18n.localize(`DS_TRIGGERS.Queue.FmKind_${m}`);
+  return await foundry.applications.api.DialogV2.wait({
+    window: { title: modName },
+    content: `<p>${foundry.utils.escapeHTML(L("RedirectMovePick", { modName, kind: kind(original).toLowerCase() }))}</p>`,
+    buttons: [
+      { action: "original", label: L("RedirectMoveOriginal", { kind: kind(original) }), icon: "fa-solid fa-arrow-right", callback: () => original, default: true },
+      { action: "push", label: kind("push"), icon: "fa-solid fa-arrow-right-from-bracket", callback: () => "push" },
+    ],
+    rejectClose: false,
+  }).catch(() => null) ?? original;
+}
+
+const fmSubKey = (fmKey, origKey, targetKey, movement) => (fmKey && fmKey.startsWith(`${origKey}:`)
+  ? `${targetKey}${fmKey.slice(origKey.length)}` : `${targetKey}:${movement}`);
 
 function _baseModState(base) {
   return {
@@ -423,7 +494,7 @@ async function _onApplyFmDeltas(payload) {
 
   const modState = _baseModState(payload.moveBase ?? {});
   const origKey = String(payload.origTargetUuid ?? "").replace(/\./g, "__");
-  const origSubKey = `${origKey}:${modState.movement}`;
+  const origSubKey = fmSubKey(payload.fmKey, origKey, origKey, modState.movement);
   const allFm = foundry.utils.getProperty(message.flags, `${DSCT_ID}.dstdFmState`) ?? {};
 
   
@@ -470,7 +541,7 @@ async function _onApplyFmDeltas(payload) {
     noteTargetsChange(payload.messageId, targets.map((t) => String(t.tokenUuid ?? t.actorUuid ?? "")));
 
     const newKey = String(c.newTarget.tokenUuid ?? c.newTarget.actorUuid ?? "").replace(/\./g, "__");
-    const newSubKey = `${newKey}:${modState.movement}`;
+    const newSubKey = fmSubKey(payload.fmKey, origKey, newKey, modState.movement);
     const newExisting = allFm[newSubKey] ? foundry.utils.deepClone(allFm[newSubKey]) : null;
 
     
@@ -526,8 +597,8 @@ async function _onApplyFmRedirect(payload) {
   const modState = _baseModState(payload.moveBase ?? {});
   const newTargetKey = String(payload.newTarget.tokenUuid ?? payload.newTarget.actorUuid ?? "").replace(/\./g, "__");
   const origTargetKey = String(payload.origTargetUuid ?? "").replace(/\./g, "__");
-  const subKey = `${newTargetKey}:${modState.movement}`;
-  const origSubKey = `${origTargetKey}:${modState.movement}`;
+  const subKey = fmSubKey(payload.fmKey, origTargetKey, newTargetKey, modState.movement);
+  const origSubKey = fmSubKey(payload.fmKey, origTargetKey, origTargetKey, modState.movement);
   const allFm = foundry.utils.getProperty(message.flags, `${DSCT_ID}.dstdFmState`) ?? {};
 
   
@@ -557,9 +628,10 @@ async function _onApplyFmRedirect(payload) {
       dstTrigger: true,
     });
   }
-  if (modState.movement !== "push") {
+  const movement = payload.movement ?? "push";
+  if (modState.movement !== movement) {
     modStack.push({
-      modState: [{ ...modState, movement: "push" }],
+      modState: [{ ...modState, movement }],
       noteName: payload.modName, noteDesc: "",
       noteSrc: payload.ownerName || null, srcTokenId: payload.srcTokenId ?? null,
       dstRedirect: true,
@@ -615,7 +687,57 @@ Hooks.once("ready", () => {
   const s = queueSocket();
   s?.register("forcedMovementEvent", _onForcedMovement);
   s?.register("resumeForcedMove", _onResumeFm);
-  s?.register("driveFmRedirect", _onDriveFmRedirect);
+  s?.register("driveFmRedirect", _onDriveFmRedirectSettled);
   s?.register("applyFmRedirect", _onApplyFmRedirect);
   s?.register("applyFmDeltas", _onApplyFmDeltas);
+  s?.register("markFmRowHeld", _onMarkFmRowHeld);
+});
+
+async function _onMarkFmRowHeld(messageId, rowKey, held, applied = false) {
+  if (!isPrimaryGM()) return;
+  const message = game.messages.get(messageId);
+  if (!message || !rowKey) return;
+  const path = `flags.${DSCT_ID}.dstdFmState.${rowKey}`;
+  if (held) await message.update({ [`${path}.dstHeld`]: true });
+  else if (applied) await message.update({ [`${path}.applied`]: true, [`${path}.dstHeld`]: new foundry.data.operators.ForcedDeletion() });
+  else if (foundry.utils.getProperty(message, `${path}.dstHeld`)) await message.update({ [`${path}.dstHeld`]: new foundry.data.operators.ForcedDeletion() });
+}
+
+async function _clearStaleHeldFmRows() {
+  if (!isPrimaryGM() || _pendingFm.size) return;
+  for (const message of game.messages.contents) {
+    const fm = message.flags?.[DSCT_ID]?.dstdFmState ?? {};
+    const updates = {};
+    for (const [rowKey, row] of Object.entries(fm)) if (row?.dstHeld) updates[`flags.${DSCT_ID}.dstdFmState.${rowKey}.dstHeld`] = new foundry.data.operators.ForcedDeletion();
+    if (!Object.keys(updates).length) continue;
+    dbg(`fm-lock: cleared a stale held forced movement row on ${message.id}`);
+    await message.update(updates).catch(() => {});
+  }
+}
+
+Hooks.once("ready", () => _clearStaleHeldFmRows());
+
+function _markHeldFmRows({ message, root }) {
+  const fm = message.flags?.[DSCT_ID]?.dstdFmState ?? {};
+  for (const row of root.querySelectorAll("[data-dsct-fm-key]")) {
+    const rowKey = row.dataset.dsctFmKey.slice(row.dataset.dsctFmKey.indexOf(":") + 1);
+    if (!fm[rowKey]?.dstHeld) continue;
+    const [apply, ...rest] = [...row.children].filter((c) => c.tagName === "BUTTON");
+    if (!apply) continue;
+    apply.disabled = true;
+    apply.classList.add("dst-dstd-held-btn");
+    const icon = apply.querySelector("i");
+    if (icon && !icon.classList.contains("fa-hourglass-half")) icon.className = "fa-solid fa-hourglass-half";
+    const span = apply.querySelector("span");
+    const label = game.i18n.localize("DS_TRIGGERS.Queue.DstdHeldLabel");
+    if (span && span.textContent !== label) span.textContent = label;
+    setTip(apply, tip("FmHeld", { body: game.i18n.localize("DS_TRIGGERS.Queue.FmRowHeldTip") }));
+    for (const b of rest) b.disabled = true;
+  }
+}
+
+Hooks.once("setup", () => {
+  game.modules.get("draw-steel-ctlib")?.api?.registerPanelDecorator?.({
+    id: "triggers-held-fm", priority: 510, watch: "any", immediate: true, retry: [100, 400], decorate: _markHeldFmRows,
+  });
 });

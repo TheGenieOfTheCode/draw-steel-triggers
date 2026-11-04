@@ -12,6 +12,7 @@ const num = (v, min = 0) => Math.max(min, Math.floor(Number(v) || 0));
 
 const TARGETING = new Set(["TARGETED_BY_STRIKE", "TARGETED_BY_ABILITY"]);
 const PRE_ROLL_MODS = new Set([...TARGETING, "MAKES_STRIKE", "POWER_ROLL"]);
+const POTENCY_ON_POST = new Set(["DEALS_DAMAGE", "USES_ABILITY", "RESISTS_POTENCY"]);
 const held = (c) => c.event === "WOULD_TAKE_DAMAGE";
 
 function rollModSummary(mod) {
@@ -38,7 +39,7 @@ export const IMPACTS = [
     add: (c) => { c.event = "WOULD_TAKE_DAMAGE"; },
     remove: (c) => {
       c.event = "TAKES_DAMAGE";
-      for (const k of ["halfDamage", "damageReduction", "damageRedirect", "redirectRange", "redirectPool", "unreducible"]) delete c[k];
+      for (const k of ["halfDamage", "damageReduction", "damageRedirect", "redirectRange", "redirectPool", "unreducible", "potencyMod"]) delete c[k];
     },
     summary: () => L("hold.Summary"),
   },
@@ -76,6 +77,32 @@ export const IMPACTS = [
       if (v.mode === "level") c.damageReduction = "level";
       else if (v.mode === "char") c.damageReduction = { base: num(v.amount), char: v.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0] };
       else c.damageReduction = num(v.amount);
+    },
+  },
+  {
+    id: "potencyMod", icon: "fa-solid fa-scale-unbalanced",
+    keys: ["potencyMod"],
+    supports: (c) => held(c) || TARGETING.has(c.event) || POTENCY_ON_POST.has(c.event),
+    has: (c) => !!c.potencyMod,
+    add: (c) => { c.potencyMod = { amount: -1, scope: "one" }; },
+    summary: (c) => {
+      const m = c.potencyMod;
+      const n = m.char
+        ? `${m.amount < 0 ? "-" : "+"}${Math.abs(m.amount) === 1 ? "" : `${Math.abs(m.amount)} x `}${charLabel(m.char)}`
+        : `${m.amount > 0 ? "+" : ""}${m.amount}`;
+      return L(m.scope === "all" ? "potencyMod.SummaryAll" : "potencyMod.SummaryOne", { n }) + (m.spend ? L("potencyMod.SpendSuffix") : "");
+    },
+    fields: (c) => [
+      { name: "amount", label: L("FieldAmount"), type: "number", value: c.potencyMod.amount ?? -1, min: -9 },
+      { name: "char", label: L("FieldChar"), hint: L("potencyMod.CharHint"), type: "select", options: [
+        opt("", L("potencyMod.CharNone"), c.potencyMod.char ?? ""), ...charOptions().map((o) => opt(o.value, o.label, c.potencyMod.char))] },
+      { name: "scope", label: L("potencyMod.Scope"), type: "select", options: [
+        opt("one", L("potencyMod.One"), c.potencyMod.scope), opt("all", L("potencyMod.All"), c.potencyMod.scope)] },
+      { name: "spend", label: L("potencyMod.Spend"), hint: L("potencyMod.SpendHint"), type: "checkbox", checked: !!c.potencyMod.spend },
+    ],
+    read: (c, v) => {
+      const amount = Math.trunc(Number(v.amount) || 0) || -1;
+      c.potencyMod = { amount, ...(v.char ? { char: v.char } : {}), scope: v.scope === "all" ? "all" : "one", ...(v.spend ? { spend: true } : {}) };
     },
   },
   {
@@ -176,11 +203,11 @@ export const IMPACTS = [
     summary: (c) => L(`fmMod.${c.fmMod.mode}`, { n: amountOf(c.fmMod) }),
     fields: (c) => {
       const m = c.fmMod;
-      const counted = ["boost", "reduce", "redirect", "objectDamage"].includes(m.mode);
+      const counted = ["boost", "reduce", "adjust", "redirect", "objectDamage"].includes(m.mode);
       const from = m.char ? "char" : "amount";
       return [
         { name: "mode", label: L("fmMod.Mode"), type: "select", rerender: true,
-          options: ["boost", "reduce", "redirect", "slide", "pull", "vertical", "objectDamage", "stability"].map((k) => opt(k, L(`fmMod.Mode_${k}`), m.mode)) },
+          options: ["boost", "reduce", "adjust", "redirect", "slide", "pull", "vertical", "objectDamage", "stability"].map((k) => opt(k, L(`fmMod.Mode_${k}`), m.mode)) },
         ...(counted ? [
           { name: "from", label: L("FieldBy"), type: "select", rerender: true, options: [opt("amount", L("FieldAmount"), from), opt("char", L("FieldChar"), from)] },
           from === "char"
@@ -192,7 +219,7 @@ export const IMPACTS = [
     },
     read: (c, v) => {
       const mod = { mode: v.mode || "boost" };
-      if (["boost", "reduce", "redirect", "objectDamage"].includes(mod.mode)) {
+      if (["boost", "reduce", "adjust", "redirect", "objectDamage"].includes(mod.mode)) {
         if (v.from === "char") mod.char = v.char || c.fmMod?.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0];
         else mod.amount = num(v.amount ?? c.fmMod?.amount ?? 1);
       }
@@ -214,6 +241,28 @@ export const IMPACTS = [
       ...(c.fallReduction === "jump" ? [] : [{ name: "amount", label: L("FieldAmount"), type: "number", value: c.fallReduction }]),
     ],
     read: (c, v) => { c.fallReduction = v.by === "jump" ? "jump" : num(v.amount ?? 1, 1); },
+  },
+  {
+    id: "fallAdjust", icon: "fa-solid fa-arrows-up-down",
+    keys: ["fallAdjust"],
+    supports: (c) => c.event === "FALL_START",
+    has: (c) => !!c.fallAdjust,
+    add: (c) => { c.fallAdjust = { amount: 1 }; },
+    summary: (c) => L("fallAdjust.Summary", { n: amountOf(c.fallAdjust) }),
+    fields: (c) => {
+      const from = c.fallAdjust.char ? "char" : "amount";
+      return [
+        { name: "from", label: L("FieldBy"), type: "select", rerender: true, options: [opt("amount", L("FieldAmount"), from), opt("char", L("FieldChar"), from)] },
+        from === "char"
+          ? { name: "char", label: L("FieldChar"), type: "select", options: charOptions().map((o) => opt(o.value, o.label, c.fallAdjust.char)) }
+          : { name: "amount", label: L("FieldAmount"), type: "number", value: c.fallAdjust.amount ?? 1 },
+      ];
+    },
+    read: (c, v) => {
+      c.fallAdjust = v.from === "char"
+        ? { char: v.char || c.fallAdjust?.char || Object.keys(ds.CONFIG?.characteristics ?? {})[0] }
+        : { amount: num(v.amount ?? c.fallAdjust?.amount ?? 1, 1) };
+    },
   },
   {
     id: "fallSafe", icon: "fa-solid fa-parachute-box",

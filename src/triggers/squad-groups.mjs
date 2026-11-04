@@ -1,5 +1,5 @@
 import { MODULE_ID, dbg, isPrimaryGM, targetTokenUuids, addTargetResult, resultMods, resultModsActive } from "../util.mjs";
-import { dispatchTriggerEvent, triggersLive } from "./dispatch.mjs";
+import { dispatchTriggerEvent, triggersLive, activeCombat } from "./dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./spent-tracking.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
@@ -8,27 +8,36 @@ const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
 const FLAG = "squad";
 
-const groupOf = (actor) => game.combat?.combatants.find((c) => c.actor === actor)?.group?.id ?? null;
+const groupOf = (actor) => (activeCombat() ?? game.combat)?.combatants.find((c) => c.actor === actor)?.group?.id ?? null;
 const tokenIdOf = (actor) => actor?.token?.id ?? actor?.getActiveTokens?.(false, true)[0]?.id ?? null;
 
-function squadKey(e) {
+export function squadBase(e) {
   if (e.kind || e.villain || e.gain || (e.featureLine && !e.squadBatch) || e.state !== "pending") return null;
   const actor = fromUuidSync(e.ownerActorUuid);
   if (!actor?.system?.isMinion) return null;
   const group = groupOf(actor);
   const item = fromUuidSync(e.itemUuid);
   const dsid = item?.system?._dsid || item?.name;
-  const batch = e.squadBatch ?? e.promptId ?? e.damageId ?? e.resolutionId ?? e.resumeId;
-  if (!group || !dsid || !batch) return null;
-  return [group, dsid, e.event, e.squadBatch ? "" : e.subjectTokenUuid ?? "", batch].join("|");
+  if (!group || !dsid) return null;
+  return [group, dsid, e.event].join("|");
 }
+
+function squadKey(e) {
+  if (e.choices?.length || e.squadChooser) return null;
+  const base = squadBase(e);
+  const batch = e.squadBatch ?? e.promptId ?? e.damageId ?? e.resolutionId ?? e.resumeId;
+  if (!base || !batch) return null;
+  return [base, e.squadBatch ? "" : e.subjectTokenUuid ?? "", batch].join("|");
+}
+
+export const squadMember = (e) => ({ ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName, itemUuid: e.itemUuid, tokenId: tokenIdOf(fromUuidSync(e.ownerActorUuid)) });
 
 export function joinSquad(e, pool) {
   const key = squadKey(e);
   if (!key) return false;
   const into = pool.find((q) => q !== e && squadKey(q) === key);
   if (!into) return false;
-  (into.squad ??= []).push({ ownerActorUuid: e.ownerActorUuid, ownerName: e.ownerName, itemUuid: e.itemUuid, tokenId: tokenIdOf(fromUuidSync(e.ownerActorUuid)) });
+  (into.squad ??= []).push(squadMember(e));
   dbg(`squad: ${e.ownerName} joins ${into.ownerName}'s ${into.itemName} (${into.squad.length + 1} minions)`);
   return true;
 }
@@ -165,10 +174,10 @@ export function squadPills(message) {
   if (squad.bursts && squad.rolls) {
     return targets.filter((t) => t.tokenUuid).flatMap((t) => members(squad)
       .filter((m) => squad.bursts[m.tokenId]?.includes(t.tokenUuid) && squad.rolls[m.tokenId] != null)
-      .map((m) => ({ targetUuid: t.tokenUuid, pill: { kind: "delta", splitBase: true, value: squad.rolls[m.tokenId], ...(squad.formula ? { formula: squad.formula } : {}), label, src: m.name, srcTokenId: m.tokenId, source: "trigger" } })));
+      .map((m) => ({ targetUuid: t.tokenUuid, pill: { kind: "delta", splitBase: true, value: squad.rolls[m.tokenId], ...(squad.formula ? { formula: squad.formula } : {}), label, src: m.name, srcTokenId: m.tokenId, source: "trigger", dealer: true } })));
   }
   const pills = [
-    ...members(squad).map((m) => ({ kind: "delta", repeat: true, splitBase: true, value: null, label, src: m.name, srcTokenId: m.tokenId, source: "trigger" })),
+    ...members(squad).map((m) => ({ kind: "delta", repeat: true, splitBase: true, value: null, label, src: m.name, srcTokenId: m.tokenId, source: "trigger", dealer: true })),
   ];
   return targets.filter((t) => t.tokenUuid).flatMap((t) => pills.map((pill) => ({ targetUuid: t.tokenUuid, pill })));
 }

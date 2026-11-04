@@ -1,5 +1,5 @@
 import { featureTriggerLines, abilityTriggerLines, abilityEffectHTML, abilitySpendHTML, defersDeath, marksSpace } from "../parser/feature-triggers.mjs";
-import { MODULE_ID, getSetting } from "../util.mjs";
+import { MODULE_ID, getSetting, isPrimaryGM } from "../util.mjs";
 import { derivedFor, derivedParse, derivedOnce, derivedActive, isDerived } from "./derived.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
@@ -327,13 +327,23 @@ function _stamp(combat = game.combat) {
   return { combat: combat?.id ?? null, round: combat?.round ?? 0, turn: combat?.turn ?? 0 };
 }
 
+const USES_FLAG = "lineUses";
+const _flagKey = (key) => String(key).replace(/\./g, "_");
+const _combatantOf = (actor, combat = game.combat) => combat?.combatants?.find((c) => c.actor?.uuid === actor?.uuid) ?? null;
+
 export function noteFeatureLineUse(actor, key) {
-  _uses.set(_useKey(actor, key), _stamp());
+  const stamp = _stamp();
+  _uses.set(_useKey(actor, key), stamp);
+  const combatant = _combatantOf(actor);
+  if (combatant && isPrimaryGM()) {
+    combatant.update({ [`flags.${MODULE_ID}.${USES_FLAG}.${_flagKey(key)}`]: stamp })
+      .catch((err) => console.warn(`${MODULE_ID} | could not record a line use on ${combatant.name}`, err));
+  }
 }
 
 export function featureLineSpent(actor, key, once) {
   if (!once) return false;
-  const used = _uses.get(_useKey(actor, key));
+  const used = _uses.get(_useKey(actor, key)) ?? _combatantOf(actor)?.getFlag(MODULE_ID, USES_FLAG)?.[_flagKey(key)];
   const now = _stamp();
   if (!used || used.combat !== now.combat) return false;
   if (once === "encounter") return true;
@@ -342,7 +352,7 @@ export function featureLineSpent(actor, key, once) {
   return false;
 }
 
-export function featureTriggerEntries(actor) {
+export function featureTriggerEntries(actor, { includeSpent = false } = {}) {
   if (!actor || !FEATURE_ACTOR_TYPES.has(actor.type) || !featureTriggersActive()) return [];
   const entries = [];
   const seen = new Set();
@@ -361,16 +371,20 @@ export function featureTriggerEntries(actor) {
       if (derived) {
         const once = derivedOnce(derived);
         const parse = derivedParse(derived);
-        if (!parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN") || featureLineSpent(actor, line.key, once)) continue;
+        if (!parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN")) continue;
+        const spentOnce = featureLineSpent(actor, line.key, once) ? once : null;
+        if (spentOnce && !includeSpent) continue;
         const action = ["triggered", "freeTriggered"].includes(derived.system.type) ? derived.system.type : null;
         derived.featureLine = { ...lineProxy(item, line).featureLine, name: derived.name, trigger: derived.system.trigger, action, once, derived: true };
-        entries.push({ item: derived, free: action === "freeTriggered", noAction: !action, parse, featureLine: true, ...watch });
+        entries.push({ item: derived, free: action === "freeTriggered", noAction: !action, parse, featureLine: true, spentOnce, ...watch });
         continue;
       }
       if (!line.enabled || !line.parse?.clauses?.some((c) => c.event && c.event !== "UNKNOWN")) continue;
-      if (featureLineSpent(actor, line.key, line.once)) continue;
+      const spentOnce = featureLineSpent(actor, line.key, line.once) ? line.once : null;
+      if (spentOnce && !includeSpent) continue;
       entries.push({
         item: lineProxy(item, line),
+        spentOnce,
         free: line.action === "freeTriggered",
         noAction: !line.action,
         parse: line.parse,

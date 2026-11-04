@@ -1,8 +1,9 @@
 import { getSetting, dbg, isPrimaryGM, rolledTargets, tierFor, powerRollFor } from "../../util.mjs";
-import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds } from "../dispatch.mjs";
+import { collectTriggerMatches, triggersLive, rollModsOf, rollNeeds, resolutionHolds, heldAbilityWide } from "../dispatch.mjs";
 import { enqueueResolutionHold, enqueuePromptEntries, getQueueMirror } from "../queue.mjs";
 import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 import { baneAbility } from "../line-effects.mjs";
+import { rollModProviderFor } from "../roll-mod-providers.mjs";
 
 const _handled = new Set();
 const _handledAt = new Map();
@@ -132,7 +133,8 @@ function _addRollerMatches({ message, matches, seen, targets, rollerActor, abili
 function _addRollModMatches({ message, matches, seen, rollerActor, ability, dealer }) {
   const rollerToken = dealer.dealerToken;
   const found = collectTriggerMatches("POWER_ROLL", rollerActor, rollerToken, null, { ...dealer, rollMods: rollModsOf(message) })
-    .filter((m) => !m.malice && rollNeeds(m.clause) && (m.actor !== rollerActor || !!m.clause?.selfRoll)
+    .filter((m) => !m.malice && (rollNeeds(m.clause) || m.clause?.postRoll === true)
+      && (m.actor !== rollerActor || !!m.clause?.selfRoll || (m.clause?.postRoll === true && /^self/.test(m.item.system?.target?.type ?? "")))
       && (m.parse?.confidence === "high" || m.parse?.source === "manual"));
   for (const m of found) {
     if (seen.has(m.item.uuid)) continue;
@@ -142,6 +144,22 @@ function _addRollModMatches({ message, matches, seen, rollerActor, ability, deal
     m._subjectTokenUuids = rollerToken?.uuid ? [rollerToken.uuid] : null;
     m._subjectName = rollerToken?.name ?? rollerActor?.name ?? "";
     m._causeLabel = game.i18n.format("DS_TRIGGERS.Queue.Cause.POWER_ROLL", { roller: m._subjectName, ability: ability.name });
+    matches.push(m);
+  }
+}
+
+function _addAbilityWideMatches({ matches, seen, rollerActor, ability, dealer, usedTargets }) {
+  const rollerToken = dealer.dealerToken;
+  const found = collectTriggerMatches("USES_ABILITY", rollerActor, rollerToken, ability, { usedTargets })
+    .filter((m) => heldAbilityWide(m, rollerActor));
+  for (const m of found) {
+    if (seen.has(m.item.uuid)) continue;
+    seen.add(m.item.uuid);
+    m._subjectTargetKey = null;
+    m._subjectTokenUuid = rollerToken?.uuid ?? null;
+    m._subjectTokenUuids = rollerToken?.uuid ? [rollerToken.uuid] : null;
+    m._subjectName = rollerToken?.name ?? rollerActor?.name ?? "";
+    m._causeLabel = game.i18n.format("DS_TRIGGERS.Reminder.UsesAbility", { name: m._subjectName, ability: ability.name });
     matches.push(m);
   }
 }
@@ -165,8 +183,9 @@ function _dispatchResolution(message, matches, ability, rollerActor) {
   });
   const stillModifiable = game.i18n.localize("DS_TRIGGERS.Queue.StillModifiable");
   const holdAll = getSetting("holdInertTriggers");
-  const held = holdAll ? matches : matches.filter((m) => changesTheStrike(m.clause));
-  const offered = holdAll ? [] : matches.filter((m) => !changesTheStrike(m.clause));
+  const changes = (m) => changesTheStrike(m.clause) || !!rollModProviderFor(m.item?.system?._dsid);
+  const held = holdAll ? matches : matches.filter(changes);
+  const offered = holdAll ? [] : matches.filter((m) => !changes(m));
 
   if (offered.length) {
     dbg(`resolution: ${offered.length} trigger(s) offered after ${ability.name} instead of holding it`);
@@ -190,7 +209,7 @@ function _dispatchResolution(message, matches, ability, rollerActor) {
 
 async function _tryDispatch(message) {
   if (!isPrimaryGM()) return;
-  if (!getSetting("resolutionHolds")) return;
+  if (!resolutionHolds(message)) return;
   if (!triggersLive()) return;
   if (_handled.has(message.id)) return;
   if (Date.now() - (message.timestamp ?? 0) > 30000) return;
@@ -248,6 +267,7 @@ async function _tryDispatch(message) {
     }
   }
   _addRollModMatches({ message, matches, seen, rollerActor, ability, dealer });
+  _addAbilityWideMatches({ matches, seen, rollerActor, ability, dealer, usedTargets: targetPairs.map((p) => p.tokenDoc).filter(Boolean) });
   if (_addRollerMatches({ message, matches, seen, targets, rollerActor, ability })) watching = true;
 
   if (watching && !_anyApplied(message)) { _tierWatch.set(message.id, { at: Date.now() }); _pruneTierWatch(); }

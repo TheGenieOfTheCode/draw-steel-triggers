@@ -1,6 +1,7 @@
 import { MODULE_ID } from "../util.mjs";
 import { generateDSID } from "../parser/trigger-parser.mjs";
 import { FEATURE_ITEM_TYPES, ignoredList, ignoreFeature, unignoreFeature, ignoreEntryId, ignoredFeatures } from "../triggers/feature-triggers.mjs";
+import { setTip, tip, tipAttrs } from "./tips.mjs";
 
 const L = (key, data) => (data ? game.i18n.format(`DS_TRIGGERS.Settings.FeatureIgnore.${key}`, data) : game.i18n.localize(`DS_TRIGGERS.Settings.FeatureIgnore.${key}`));
 const esc = (s) => foundry.utils.escapeHTML(String(s ?? ""));
@@ -43,8 +44,8 @@ function suggestionsFor(query, index) {
 
 function renderPills(host) {
   const list = ignoredList().sort((a, b) => a.name.localeCompare(b.name));
-  host.innerHTML = `${list.map((e) => `<button type="button" class="dst-ignore-pill" data-dsid="${esc(ignoreEntryId(e))}" data-tooltip="${esc(L("PillTooltip", { dsid: e.dsid }))}" aria-label="${esc(L("PillAria", { name: e.name }))}"><span>${esc(e.name)}</span><i class="fa-solid fa-xmark"></i></button>`).join("")}
-    <button type="button" class="dst-ignore-pill dst-ignore-add" data-tooltip="${esc(L("AddTooltip"))}" aria-label="${esc(L("AddTooltip"))}"><i class="fa-solid fa-plus"></i></button>
+  host.innerHTML = `${list.map((e) => `<button type="button" class="dst-ignore-pill" data-dsid="${esc(ignoreEntryId(e))}" ${tipAttrs(tip("IgnoredFeature", { title: e.name, body: L("PillTooltip", { dsid: e.dsid }) }))} aria-label="${esc(L("PillAria", { name: e.name }))}"><span>${esc(e.name)}</span><i class="fa-solid fa-xmark"></i></button>`).join("")}
+    <button type="button" class="dst-ignore-pill dst-ignore-add" ${tipAttrs(tip("IgnoreAdd", { body: L("AddTooltip") }))} aria-label="${esc(L("AddTooltip"))}"><i class="fa-solid fa-plus"></i></button>
     ${list.length ? "" : `<span class="dst-ignore-empty">${esc(L("Empty"))}</span>`}`;
 }
 
@@ -121,7 +122,7 @@ Hooks.on("renderSettingsConfig", (_app, html) => {
   const label = () => {
     const text = host.hidden ? L("Show", { n: ignoredList().length }) : L("Hide");
     toggle.innerHTML = `<i class="fa-solid ${host.hidden ? "fa-eye" : "fa-eye-slash"}"></i>`;
-    toggle.dataset.tooltip = text;
+    setTip(toggle, tip("IgnoreToggle", { title: text }));
     toggle.setAttribute("aria-label", text);
     toggle.setAttribute("aria-pressed", String(!host.hidden));
   };

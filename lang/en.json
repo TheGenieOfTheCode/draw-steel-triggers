@@ -1,5 +1,20 @@
 {
   "DS_TRIGGERS": {
+    "Tip": {
+      "Category": "Triggers",
+      "StackCategory": "Trigger Stack",
+      "EditorCategory": "Trigger Builder",
+      "GainCategory": "Resource Gain",
+      "Resync": { "category": "Derived Trigger" },
+      "FmHeld": { "title": "Held", "category": "Trigger Stack" },
+      "MaliceAvailable": { "title": "Available Features", "category": "Malice" },
+      "GainUndo": { "category": "Resource Gain" },
+      "IgnoredFeature": { "category": "Ignored Feature" },
+      "IgnoreAdd": { "title": "Ignore a Feature", "category": "Ignored Features" },
+      "IgnoreToggle": { "category": "Ignored Features", "body": "Shows or hides the list of features Triggers leaves alone." },
+      "AbilityLink": { "category": "Ability" },
+      "OpenEditor": { "title": "Trigger Builder", "category": "Triggers" }
+    },
     "Sheet": {
       "MaliceActions": "Malice Actions"
     },
@@ -51,13 +66,22 @@
         "melodrama-a-hero-spends-their-last-recovery": "Drama from a Last Recovery",
         "melodrama-a-hero-unwillingly-falls-5-or-more-squares": "Drama from a Long Fall",
         "melodrama-the-chosen-event-grants-you-drama": "Drama from the Chosen Event",
-        "melodrama-the-director-deals-damage-to-a-hero-using-a-villain-action-or-an-abili": "Drama from Villainous Damage"
+        "melodrama-the-director-deals-damage-to-a-hero-using-a-villain-action-or-an-abili": "Drama from Villainous Damage",
+        "melodrama-natural-2-a-creature-rolls-a-natural-2-on-a-power-roll": "Drama from a Natural 2",
+        "melodrama-villainous-damage-the-director-deals-damage-to-a-hero-using-a-villain-": "Drama from Villainous Damage",
+        "melodrama-long-fall-a-hero-unwillingly-falls-5-or-more-squares": "Drama from a Long Fall",
+        "melodrama-three-surges-a-hero-deals-damage-with-3-surges": "Drama from Three Surges",
+        "melodrama-last-recovery-a-hero-spends-their-last-recovery": "Drama from a Last Recovery"
       },
       "WidgetAuto": "Triggers gains this automatically. Click to open the trigger builder.",
       "WidgetOff": "Turned off. Click to open the trigger builder.",
       "WidgetManual": "Triggers reads this line but cannot detect it yet: {why}. Click to open the trigger builder.",
       "WidgetOptional": "One of the events you can choose. Turn it on in the trigger builder.",
       "WidgetUpgrade": "Raises the gain from {base}.",
+      "WidgetUpgradeOrphan": "Raises a gain {name} doesn't have, so it grants nothing. Click to open the trigger builder.",
+      "WidgetBonusDomain": "Adds {amount} to every gain from a domain.",
+      "WidgetBonusChosen": "Adds {amount} to {name}.",
+      "WidgetBonusPick": "Pick the event this adds to in the trigger builder. Click to open it.",
       "ManualGeneric": "an event Triggers does not detect yet",
       "Legend": "Heroic resource gain",
       "Enabled": "Gain automatically",
@@ -67,6 +91,13 @@
       "OnceEncounter": "Once per encounter",
       "OnceNone": "Every time",
       "Upgraded": "Raised to {amount} by {name}.",
+      "Bonus": "{amount} more from {name}.",
+      "BonusTarget": "Adds to",
+      "BonusNone": "Not chosen yet",
+      "BonusHint": {
+        "domain": "Adds to every gain that comes from one of your domains.",
+        "chosen": "Adds to the one event you pick here. The list shows the gains you have turned on."
+      },
       "ManualWhy": "Not detected yet: {why}. Change the clauses below to have Triggers gain it anyway.",
       "Checks": "Also checks: {list}.",
       "Gate": {
@@ -79,7 +110,12 @@
         "maliceAbility": "the ability costs Malice",
         "lineOfEffect": "the creature is within your line of effect",
         "threeHeroes": "three or more heroes used an ability this turn",
-        "heroDeath": "a hero died"
+        "heroDeath": "a hero died",
+        "turnDamageOverLevel": "the creature took more damage this turn than {base} + your level",
+        "inNullField": "the creature is in the area of your Null Field",
+        "maliceDamage": "the damage came from a Villain action or an ability that costs Malice, or Malice was spent on it",
+        "unwillingFall": "the hero falls {fall} or more squares, and not by their own move",
+        "lastRecovery": "the hero has no Recoveries left"
       }
     },
     "Settings": {
@@ -92,18 +128,6 @@
         "Features": "Feature Triggers",
         "Resources": "Heroic Resources",
         "Debug": "Debug"
-      },
-      "MultiplierOverride": {
-        "Name": "Multiplier Override",
-        "Hint": "Halving and doubling pills always apply after plus and minus bonuses, and sort to the right of them to reflect the order."
-      },
-      "NoMultiplierStacking": {
-        "Name": "No Multiplier Stacking",
-        "Hint": "Multiple halving or multiple doubling pills do not stack; duplicates beyond the first have no effect and show as inactive."
-      },
-      "PillDamageEditor": {
-        "Name": "Pill Damage Editor",
-        "Hint": "Replaces Draw Steel Target Damage's edit damage dialog with the pill window, where halves, doubles, custom amounts and surges each show as a named pill. Turn off to use the original editor."
       },
       "ResolutionHolds": {
         "Name": "Post-Roll Resolution Holds",
@@ -155,11 +179,11 @@
       },
       "DerivedChatLinks": {
         "Name": "Link Derived Triggers in Chat",
-        "Hint": "An ability's chat card shows each trigger that became its own ability as a link to it, instead of the trigger's full text. Abilities only."
+        "Hint": "An ability's chat message shows each trigger that became its own ability as a link to it, instead of the trigger's full text. Abilities only."
       },
       "FeatureShareCards": {
-        "Name": "Feature Cards on Share",
-        "Hint": "Share on a feature, perk, ancestry trait or complication posts a card shaped like an ability, with buttons for its gains, damage, conditions and rolls."
+        "Name": "Feature Messages on Share",
+        "Hint": "Share on a feature, perk, ancestry trait or complication posts a message shaped like an ability, with buttons for its gains, damage, conditions and rolls."
       },
       "BasicMalice": {
         "Name": "Add Basic Malice Features",
@@ -179,13 +203,25 @@
       "ResourceGains": {
         "Name": "Heroic Resource Gains",
         "Hint": "Heroic resource gains written in each hero's features, such as a Fury taking damage. Gain them automatically, or offer each one on the Trigger Stack for the player to use or decline.",
-        "Auto": "Gain automatically",
+        "Auto": "Gain Automatically",
         "Stack": "Offer on the Trigger Stack",
         "Off": "Off"
       },
       "ResourcesUiSync": {
         "Name": "Resources UI Sync",
-        "Hint": "Mark each gain as used in Draw Steel - Resources UI, and let its undo button take a gain back."
+        "Hint": "Mark each gain as used in Draw Steel - Resources UI, and let its undo button take a gain back. Works while Resources UI's combat tracking is on."
+      },
+      "TokenBadges": {
+        "Name": "Trigger Badges on Tokens",
+        "Hint": "When a token gets a trigger, a badge shows over it, with a count when more than one is waiting. Click it to open the Trigger Stack at that trigger."
+      },
+      "BadgesFade": {
+        "Name": "Fade Trigger Badges",
+        "Hint": "Badges fade a few seconds after they appear. With this off, a badge stays on the token until its triggers are decided, counting down as they are."
+      },
+      "BadgesInsteadOfStack": {
+        "Name": "Badges Instead of Opening the Stack",
+        "Hint": "Let the badge tell you about a new trigger instead of opening the Trigger Stack. Turn this off to have the stack open itself too."
       },
       "RosterGains": {
         "Name": "Resource Gains in the Trigger List",
@@ -203,6 +239,10 @@
         "Name": "Condition Prompts",
         "Hint": "When a creature gains a condition, an effect on it ends, or a grab is broken, matching triggered abilities appear in the Trigger Stack with Use and Decline instead of a chat reminder."
       },
+      "FreeStrikeCards": {
+        "Name": "Free Strike Messages",
+        "Hint": "A monster's Free Strike posts its damage to chat as that monster, so it's applied from the chat message and triggers know who struck."
+      },
       "DamageInterrupts": {
         "Name": "Damage Interrupts",
         "Hint": "Hold incoming damage before it lands when the target or an ally has a triggered ability that modifies it, such as halving. The Director confirms the final amount after triggers resolve. Only applies during combat."
@@ -219,6 +259,10 @@
         "Name": "Skip Empty Ability Dialogs",
         "Hint": "Using a trigger from the stack skips the ability's dialog when it has no power roll, no resource to spend and no damage type to pick."
       },
+      "SkipHeldDamageWindow": {
+        "Name": "Skip the Held Damage Window",
+        "Hint": "When the stack's triggers already change held damage, such as halving it, apply the result straight away instead of opening the damage window."
+      },
       "AutoUseMandatory": {
         "Name": "Automatically Use Mandatory Costless Triggers",
         "Hint": "Triggers that always happen and cost nothing, such as damage bonuses and changes to forced movement or falls, apply on their own. When off, they wait on the Trigger Stack like any other."
@@ -233,7 +277,7 @@
       },
       "RollLockGrace": {
         "Name": "Roll Lock Grace Period",
-        "Hint": "After Use is chosen, the held roll resumes once the triggered ability posts, or after this many seconds if it never does."
+        "Hint": "After Use is chosen, a held roll, held damage or held results go ahead once the triggered ability posts, or after this many seconds if it never does."
       }
     },
     "Badge": {
@@ -309,7 +353,7 @@
       "RedirectReflect": "Reflects back at the striker",
       "RedirectChooser": "A chosen creature becomes the target (manual pick)",
       "RedirectSwap": "Owner becomes the target and switches places",
-      "RedirectAfter": "Post-roll manual retarget card",
+      "RedirectAfter": "Post-roll manual retarget message",
       "EventGroupCommon": "Common",
       "EventGroupRare": "Rare",
       "EventGroupBespoke": "Bespoke",
@@ -330,27 +374,36 @@
         "FORCE_MOVES": "A creature pushes, pulls, or slides someone else. Fires after the move. Needs the Combat Tools tier.",
         "FALL_START": "A creature starts to fall. The fall waits until the triggers are decided. Needs the Combat Tools tier.",
         "SPENDS_RECOVERY": "A hero spends a Recovery.",
+        "GAINS_TEMP_STAMINA": "A creature gains temporary Stamina. Chat reminder.",
+        "GAINS_SURGE": "A hero gains one or more surges. Chat reminder.",
+        "TELEPORTS": "A creature teleports, by a Combat Tools teleport or by moving with the teleport movement action. Chat reminder.",
+        "OPPORTUNITY_ATTACK": "A creature makes an opportunity attack: a free strike against an enemy moving away without shifting. Chat reminder.",
+        "SIZE_CHANGES": "An effect that changes a creature's size is applied to it. Chat reminder.",
+        "FORM_CHANGES": "A creature changes its form, through an ability it uses or one used on it. Chat reminder.",
+        "MALICE_SPENT": "The Director spends Malice. The Malice set at the start of combat and cleared at its end does not count. Chat reminder.",
+        "NATURAL_19_20": "A creature rolls a natural 19 or 20 on a power roll. Heroic Resource gains only; use Power Roll Result for a triggered ability.",
+        "NATURAL_2": "A creature rolls a natural 2 on a power roll. Heroic Resource gains only.",
         "HERO_TOKEN_EARNED": "The party earns a hero token. The start-of-session reset does not count.",
         "TURN_START": "A creature's turn begins. Chat reminder, or holds the activation for abilities that take the turn.",
         "TURN_END": "A creature's turn ends. Chat reminder, or holds the next activation for abilities that take the turn.",
         "ROUND_START": "A new combat round begins. Chat reminder.",
         "CONDITION_GAIN": "A creature gains a condition such as bleeding or prone, or an effect that ends on a save or at turn end. Prompts on the stack.",
-        "USES_ABILITY": "A creature uses an ability, action, or maneuver. Not detected yet.",
-        "POWER_ROLL_RESULT": "A specific power roll outcome, like tier 1 or a critical. Not detected yet.",
+        "USES_ABILITY": "A creature uses an ability, action, or maneuver. Prompts on the stack.",
+        "POWER_ROLL_RESULT": "A specific power roll outcome, like tier 1 or a critical. Holds the result while a trigger that changes it is decided, otherwise prompts after the roll.",
         "ZONE_ENTER": "A creature enters a linked zone or area. Not detected yet.",
         "ZONE_TURN_START": "A creature starts its turn inside a linked zone. Not detected yet.",
         "EFFECT_ENDS": "A named effect on a creature ends. Prompts on the stack.",
-        "SAVING_THROW": "A creature makes a saving throw. Not detected yet.",
+        "SAVING_THROW": "A creature makes a saving throw. Chat reminder.",
         "REGAINS_STAMINA": "A creature regains Stamina. Chat reminder.",
         "LOSES_STAMINA": "A creature loses Stamina for any reason, damage or otherwise. Use this rather than Takes Damage for something that reacts to bleeding. Chat reminder.",
-        "MARKED": "The watched creature is marked. Needs Draw Steel: Combat Tools data.",
-        "RESOURCE_GAIN": "A creature gains a heroic resource. Special case abilities only.",
+        "MARKED": "The watched creature is marked. Not detected yet.",
+        "RESOURCE_GAIN": "A creature gains a Heroic Resource. Not detected yet.",
         "STAMINA_BELOW": "Stamina falls below a set threshold. Prompts on the stack.",
         "MECHANISM": "A siege engine or mechanism is operated. Special case abilities only.",
         "NARRATIVE": "A narrative moment the Director calls for. Never automated.",
-        "GRAB_ENDS": "A grab held by the watched creature ends. Prompts on the stack. Combat Tools tier.",
+        "GRAB_ENDS": "A grab ends, on the watched creature or, for a grab it holds, on the creature it had. Prompts on the stack. Combat Tools tier.",
         "RESISTS_POTENCY": "An ability with a potency targets a creature, which must resist it.",
-        "TEST_FAILED": "An ally fails a test. Special case abilities only.",
+        "TEST_FAILED": "A creature fails a test. Not detected yet.",
         "UNKNOWN": "The parser could not classify this trigger. Reminder only."
       },
       "ScopeHint": "Who the event must happen to, from this ability's owner's point of view.",
@@ -395,6 +448,7 @@
       "TimingAfterShort": "after the roll",
       "TimingHint": "Before the roll, the trigger can change the roll or retarget the strike. After the roll, it fires once the result is known and holds the damage and effects while the owner decides.",
       "AddImpact": "Add Impact",
+      "LinkedText": "Linked Text",
       "NoImpacts": "Nothing happens automatically when this trigger is used. Add an impact with the + above.",
       "NoImpactsPossible": "None of this trigger's events support an automatic impact yet. Using it from the stack still posts the ability.",
       "DuplicateClause": "Duplicate Clause",
@@ -425,6 +479,20 @@
           "Level": "The owner's level",
           "Char": "An amount plus a characteristic",
           "Hint": "Using the trigger subtracts this from the held damage."
+        },
+        "potencyMod": {
+          "Label": "Change the Potency",
+          "SummaryOne": "Potency {n} on one effect",
+          "SummaryAll": "Potency {n} on every effect",
+          "SpendSuffix": " (when spent)",
+          "CharNone": "None, a flat number",
+          "CharHint": "With a characteristic, the potency changes by its score times the amount, so -1 lowers it by the full score.",
+          "Scope": "Effects",
+          "One": "One effect, picked when it lands",
+          "All": "Every potency effect",
+          "Spend": "Only when the spend is paid",
+          "SpendHint": "The change happens only if the trigger's use spent its heroic resource.",
+          "Hint": "Using the trigger changes the potency of the triggering chat message's effects for the target. Draw Steel: Combat Tools shows it on the chat message and checks it."
         },
         "redirectHeld": {
           "Label": "Redirect the Held Damage",
@@ -470,6 +538,7 @@
           "Mode_vertical": "The movement can be vertical",
           "Mode_objectDamage": "Extra damage on hitting an object",
           "Mode_stability": "Share stability with the target",
+          "Mode_adjust": "Move further or less (picked on use)",
           "PerSurge": "Per surge, up to",
           "PerSurgeHint": "0 applies it once. Above 0, the owner spends up to this many surges and the change counts once for each.",
           "boost": "+{n} distance",
@@ -480,7 +549,13 @@
           "vertical": "Can be vertical",
           "objectDamage": "+{n} object damage",
           "stability": "Shares stability",
+          "adjust": "±{n} distance",
           "Hint": "Using the trigger changes the forced movement before it happens."
+        },
+        "fallAdjust": {
+          "Label": "Raise or Lower the Fall",
+          "Summary": "±{n} fall height",
+          "Hint": "Using the trigger raises or lowers the effective height of the fall; the owner picks which on use."
         },
         "fallReduce": {
           "Label": "Shorten the Fall",
@@ -505,10 +580,10 @@
           "SummaryOptional": "+{n} damage, if you turn it on",
           "Highest": "Highest characteristic",
           "Optional": "Offer it",
-          "OptionalHint": "The damage card shows it switched off, for the player to turn on.",
+          "OptionalHint": "The chat message shows it switched off, for the player to turn on.",
           "Dice": "Dice",
           "Type": "Damage Type",
-          "TypeHint": "A type other than the ability's own becomes its own damage row on the card, so immunities and weaknesses apply to it separately.",
+          "TypeHint": "A type other than the ability's own becomes its own damage row on the chat message, so immunities and weaknesses apply to it separately.",
           "SameType": "Same as the ability",
           "VsKeyword": "More Against",
           "VsHint": "Uses a different amount when the creature hit has this keyword.",
@@ -573,7 +648,7 @@
         "Unlink": "Unlink the effect text",
         "NothingToLink": "Add an impact first, then link words to it.",
         "enhanced": {
-          "Hint": "Added by Combat Tools' Enhanced Features: a button on the ability's chat card when it is used. Edit it on the ability's Impact tab in the item sheet."
+          "Hint": "Added by Combat Tools' Enhanced Features: a button on the ability's chat message when it is used. Edit it on the ability's Impact tab in the item sheet."
         }
       },
       "RangeMeasureDealer": "Measured to the attacker",
@@ -603,6 +678,7 @@
       "ReaperSomeone": "Someone",
       "HeldDamageEach": "{entry} each",
       "ChooseTooltip": "This was triggered more than once. Pick which creature it answers, and it is used against them.",
+      "ChooseRandomTooltip": "Target Random",
       "ChoiceCause": "Triggered by {count} creatures. Choose one.",
       "Resolving": "being resolved",
       "Area": "Area",
@@ -621,6 +697,13 @@
         "FORCE_MOVES": "force moving a creature",
         "FALL_START": "falling",
         "SPENDS_RECOVERY": "spending a Recovery",
+        "GAINS_TEMP_STAMINA": "gaining temporary Stamina",
+        "GAINS_SURGE": "gaining a surge",
+        "TELEPORTS": "teleporting",
+        "OPPORTUNITY_ATTACK": "making an opportunity attack",
+        "SIZE_CHANGES": "changing size",
+        "FORM_CHANGES": "changing form",
+        "MALICE_SPENT": "the Director spending Malice",
         "HERO_TOKEN_EARNED": "earning a hero token",
         "RESISTS_POTENCY": "resisting a potency",
         "STAMINA_BELOW": "dropping in Stamina",
@@ -633,6 +716,9 @@
       "PickChoice": "{modName} | Click the creature this answers. Escape to cancel.",
       "Dismiss": "Dismiss",
       "DismissTooltip": "Resolve without posting anything (Director only).",
+      "SnoozeShort": "Snooze",
+      "SnoozedShort": "Snoozed",
+      "SnoozeCreatureShort": "Snooze Creature",
       "Empty": "No pending triggers.",
       "ShowAbility": "Show ability",
       "Now": "NOW",
@@ -640,6 +726,18 @@
       "AgeMinutes": "{n}m ago",
       "AgeHours": "{n}h ago",
       "InStack": "{count} in stack",
+      "Chip": {
+        "Damage": "{n} {type}damage",
+        "Hold": "Holds damage",
+        "FreeStrike": "Free strike",
+        "FreeStrikeDamage": "Free strike: {n} damage",
+        "FreeStrikeEach": "{n} damage from each of {count} creatures, landing as one hit.",
+        "DefersDeath": "Puts off dying",
+        "PowerRoll": "Power roll",
+        "Manual": "Manual: read the effect",
+        "ChangesRoll": "Changes the roll",
+        "EnhancedTip": "Combat Tools applies this when you use it."
+      },
       "HeldBy": "Held by {name}",
       "CostMalice": "{n} Malice",
       "Cause": {
@@ -658,8 +756,11 @@
       "TurnTaken": "{owner} used {ability}: {taker} takes their turn now. {name}'s turn is put back.",
       "TurnTakenNoNext": "{owner} used {ability}: {taker} takes their turn now.",
       "TurnTakenManual": "{owner} used {ability}. Activate whoever takes the turn by hand; {name}'s turn is put back.",
+      "TurnTakenManualNoNext": "{owner} used {ability}. Activate whoever takes the turn by hand.",
       "TurnPutBack": "{owner} used {ability}: {name}'s turn is put back. Resolve the ability, then activate {name} again or skip them by hand.",
+      "TurnPutBackNoNext": "{owner} used {ability}. Resolve the ability, then activate whoever acts next by hand.",
       "TurnTakenActed": "{owner} used {ability}, but {taker} has already taken their turn this round, so nobody takes the turn. {name}'s turn is put back.",
+      "TurnTakenActedNoNext": "{owner} used {ability}, but {taker} has already taken their turn this round, so nobody takes the turn.",
       "BonusTurnTaken": "{owner} used {ability}: {taker} takes a bonus turn now. {name}'s turn is put back, and {taker}'s own activation returns afterwards.",
       "BonusTurnTakenNoNext": "{owner} used {ability}: {taker} takes a bonus turn now, and their own activation returns afterwards.",
       "SquadTurnTaken": "{owner} used {ability}: {taker}'s squad takes its turn now. {name}'s turn is put back.",
@@ -683,6 +784,7 @@
       "ReleaseResolution": "Resolve Now",
       "ReleaseResolutionTooltip": "End the resolution window immediately (Director only). Undecided triggers become simple prompts.",
       "RollModApplied": "{modName}: {name}'s result is now tier {tier}.",
+      "StrikeDamageTakenBack": "{modName}: the strike's damage to {name} was taken back. Add the change to that damage and apply it again.",
       "RollModInjected": "{modName}: {effect} applied to the roll.",
       "RedirectApplied": "{modName}: {newName} becomes the target instead of {oldName}.",
       "RedirectNoToken": "{modName}: its owner has no token on this scene, so the strike was left where it was.",
@@ -694,6 +796,7 @@
       "FmCauseMover": "Triggered by {name} force moving a creature. The movement is held.",
       "FmLockCause": "Triggered by {name} being force moved.",
       "OpenStackButton": "Open Trigger Stack",
+      "OpenStackButtonCount": "{title}: {n} waiting",
       "FmHeldTitle": "{type} {distance}: {source} → {target}",
       "FmHeldTitleNoSource": "{type} {distance} on {target}",
       "FmDetailVertical": "Vertical {n}",
@@ -727,6 +830,7 @@
       "FmStoppedCounter": "The forced movement was reduced to 0 squares. The target may push the source instead (see the trigger's effect).",
       "FmRedirected": "{owner} redirects the forced movement with {modName}. They choose the new target and destination.",
       "FmRedirectPick": "{modName} | Click the new target to force move. Escape to cancel.",
+      "FmRedirectPickKeep": "{modName} | Enter keeps {name} as the target, or click another creature to force move instead.",
       "PickSubject": "{modName} | Click which target's targeting is replaced. Escape to cancel.",
       "PickTarget": "{modName} | Click the new target. Escape to cancel.",
       "PickerUnavailable": "The target picker needs Draw Steel: CTLib, which isn't enabled; apply the redirect by hand.",
@@ -734,9 +838,14 @@
       "AfterPickOnlyOwner": "Only the trigger's owner or a Director can pick the redirect target.",
       "AfterPickNoMessage": "No recent strike message found targeting {owner}. Apply the redirect by hand.",
       "AfterPickApplied": "{modName}: {name} is now targeted in place of {owner}.",
-      "FmRedirectApplied": "{modName}: {name} is now the movement's target. Their row carries the push and bonus distance; click the movement button when ready.",
+      "FmRedirectApplied": "{modName}: {name} is now the movement's target. Their row carries the movement and bonus distance; click the movement button when ready.",
       "FmRedirectManual": "{modName}: apply the redirect by hand (no Combat Tools movement available on this client).",
       "FmRedirectNoTargets": "{modName}: no eligible creature is adjacent, apply the redirect by hand.",
+      "RedirectMovePick": "{modName}: keep the original {kind} or push the new target instead? You become the source, so a push or pull can't move you.",
+      "RedirectMoveOriginal": "Keep the {kind}",
+      "FmKind_push": "Push",
+      "FmKind_pull": "Pull",
+      "FmKind_slide": "Slide",
       "PostHocCause": "Triggered by {owner} becoming a target of {roller}'s {ability}.",
       "RedirectSwapNote": "{a} and {b} switch places. Move the tokens to swap their positions.",
       "HeldDamageEntry": "{amount} incoming damage",
@@ -772,6 +881,10 @@
       "PlayerPriorityTooltip": "Player triggered actions resolve first. Director triggers unlock when they are decided. Shift-click to override.",
       "NotYoursTooltip": "Only {owner}'s player or the Director can answer this one.",
       "PlayerPriorityWarn": "Player triggered actions resolve first. Wait for them to be decided, or shift-click to override.",
+      "SquadChoose": "Choose Target",
+      "SquadChooseTooltip": "This minion can answer more than one creature. Pick one, and it joins the other minions acting against that creature.",
+      "SquadWaitTooltip": "Waiting for minions that are still choosing a target. Those who pick this creature join this group. Shift-click to override.",
+      "SquadWaitWarn": "Minions are still choosing a target. Wait for them to choose, or shift-click to override.",
       "HeldDamageApply": "Apply",
       "HeldDamageDiscard": "Discard",
       "HeldDamageDiscarded": "Held damage for {name} discarded. No Stamina was changed.",
@@ -780,6 +893,7 @@
       "Half": "half",
       "DstdHeldLabel": "Triggers Pending",
       "ResolutionLocked": "Triggers are still pending on this ability. Resolve them first, then apply its results.",
+      "FmRowHeldTip": "Held on the Trigger Stack while triggered abilities are decided.",
       "WaitingOn": "waiting on {count} more triggers",
       "GraceCountdown": "Resumes in {seconds}s",
       "State": {
@@ -790,10 +904,15 @@
       },
       "LockCause": "{roller} is using {ability}.",
       "RollHeld": "{name} is held while triggered abilities are decided. See the Trigger Stack.",
+      "PotencyPick": "Which effect does {modName} change the potency of?",
+      "AdjustPickFm": "Does {modName} increase or reduce the forced movement distance by {n}?",
+      "AdjustPickFall": "Does {modName} increase or reduce the effective height of the fall by {n}?",
+      "AdjustUp": "Increase (+{n})",
+      "AdjustDown": "Reduce (−{n})",
       "NoBaneToNegate": "{modName} has no bane to negate on this roll.",
       "NotEnoughMalice": "{name} costs {n} Malice and the Director has {have}.",
       "AddedAsTarget": "{name} is now a target too.",
-      "TargetByHand": "Add {name} to the targets by hand. This card has no target list to join.",
+      "TargetByHand": "Add {name} to the targets by hand. This message has no target list to join.",
       "RollReleased": "The triggers are decided. {name} continues.",
       "DeclineRecord": "{owner} declined to use {ability}.",
       "DeclineRecordMandatory": "{owner} declined {ability}, a mandatory trigger.",
@@ -807,8 +926,10 @@
       "RosterEmptyGM": "Nothing is being checked right now. Start an encounter, or turn off combat only, and the creatures' triggers appear here.",
       "RosterEmptyPlayer": "No character assigned, so there is nothing to list. Ask your Director to assign one in User Configuration.",
       "SnoozeTooltip": "Stop offering this trigger for a while",
+      "SnoozeEntryTooltip": "Snooze this trigger: it stays here, but won't be offered again for a while",
       "SnoozeAllTooltip": "Snooze every trigger for me",
       "SnoozeActorTooltip": "Snooze every trigger this creature has",
+      "SnoozePartTooltip": "Snooze only this part of the trigger",
       "RosterSearch": "Filter triggers",
       "RosterSearchHint": "Names, or 'trigger text' in single quotes, or \"effect text\" in double quotes",
       "RosterNoMatch": "No trigger matches the filter.",
@@ -819,13 +940,18 @@
       "SectionHeroes": "Heroes",
       "SectionMine": "Mine",
       "SectionGains": "Heroic Resource Gains",
-      "RosterToggle": "Show or hide the trigger list",
+      "RosterToggle": "Toggle Triggers List",
+      "ClearStack": "Clear Trigger Stack",
+      "UsedThisRound": "Used this round",
+      "UsedThisEncounter": "Used this encounter",
+      "UsedThisTurn": "Used this turn",
+      "ResetPosition": "Reset Position",
       "TierByHand": "{modName}: change the tier by hand, the roll window can't.",
       "RedirectNoFlanker": "{modName}: no creature is flanking, so the strike was not redirected.",
       "DamageRedirectAsk": "Where does the damage go?",
       "RedirectCause": "{amount} damage to {name} waits for where it goes",
       "RedirectKeepTooltip": "Don't redirect: the damage stays with the creature it hit.",
-      "RedirectSwapHint": "Swap places with the button on the {modName} card, and the creature swapped in takes it. Or pick one here.",
+      "RedirectSwapHint": "Swap places with the button on the {modName} message, and the creature swapped in takes it. Or pick one here.",
       "RedirectPickHint": "Pick who takes it, or deal it by hand.",
       "RedirectPickButton": "Pick a Creature",
       "RedirectNoneButton": "No Target",
@@ -896,8 +1022,8 @@
       "OnceEncounter": "1/encounter",
       "Apply": "Apply {status}",
       "Roll": "Roll {formula}",
-      "MenuTrigger": "Chat Card: Trigger",
-      "MenuFullDescription": "Chat Card: Full Description",
+      "MenuTrigger": "Chat Message: Trigger",
+      "MenuFullDescription": "Chat Message: Full Description",
       "Prerequisite": "Prerequisite",
       "Prerequisites": "Prerequisites",
       "PrereqLevel": "{ordinal} Level {cls}",
@@ -913,8 +1039,10 @@
     "FreeStrike": {
       "Macro": "Free Strike (Selected Token)",
       "Title": "Which free strike?",
-      "None": "Select a token with a free strike first."
+      "None": "Select a token with a free strike first.",
+      "Link": "free strike"
     },
+    "MacroFolder": "Draw Steel: Triggers",
     "AbilityUse": {
       "Description": "Draw Steel: Triggers watches this ability's triggers until {until}. Disable or delete this effect to stop them.",
       "DescriptionDying": "Draw Steel: Triggers watches this ability's triggers until {until}, or until you are dying. Disable or delete this effect to stop them.",
@@ -1012,6 +1140,12 @@
       "ForceMoved": "Triggered by {name} being force moved.",
       "ForceMoves": "Triggered by {name} force moving {target}.",
       "SpendsRecovery": "Triggered by {name} spending a Recovery.",
+      "GainsTempStamina": "Triggered by {name} gaining {amount} temporary Stamina.",
+      "GainsSurge": "Triggered by {name} gaining surges.",
+      "Teleports": "Triggered by {name} teleporting.",
+      "SizeChanges": "Triggered by {name} changing size.",
+      "FormChanges": "Triggered by {name} changing form through {ability}.",
+      "MaliceSpent": "Triggered by the Director spending {amount} Malice.",
       "HeroTokenEarned": "Triggered by the party earning {count} hero token(s).",
       "ResistsPotency": "Triggered by {name} resisting the potency of {ability}.",
       "MovesThrough": "Triggered by {name} moving through {target}.",
@@ -1027,6 +1161,10 @@
       "EffectEnds": "Triggered by {effect} ending on {name}.",
       "GrabEnds": "Triggered by the grab on {name} ending.",
       "GrabEndsBy": "Triggered by {by}'s grab on {name} ending."
+    },
+    "Spent": {
+      "EffectName": "Unspent Triggered Action",
+      "EffectHint": "This creature still has its triggered action this round. It switches off when one is used and comes back at the start of the next round."
     },
     "Snooze": {
       "Button": "Snooze Triggers",
@@ -1213,6 +1351,7 @@
           "notSelf": "The subject is not this creature",
           "victimNotSelf": "The creature hit is not this creature",
           "groupName": "The subject has this keyword, or the word in its name",
+          "organizationInclude": "The subject is one of these organizations",
           "organization": "The subject is not one of these organizations",
           "victimNotMentor": "The subject is not this retainer's mentor",
           "captainOnly": "This creature is its squad's captain",
@@ -1223,6 +1362,7 @@
           "notSelf": "not this creature",
           "victimNotSelf": "hits someone else",
           "groupName": "{v}",
+          "organizationInclude": "{v}",
           "organization": "not {v}",
           "victimNotMentor": "not the mentor",
           "captainOnly": "captain only",
@@ -1327,6 +1467,7 @@
           "abilityTargetCount": "Targets exactly this many",
           "abilityTargetSide": "Those targets are",
           "targetsOwner": "Targets this creature",
+          "targetsAlly": "Targets an ally of the creature using it",
           "excludeSelfTarget": "Does not also target this creature",
           "rolledDamage": "Its damage comes from a power roll",
           "abilityDealsDamage": "It deals damage (power roll, damage button or damage link)",
@@ -1346,6 +1487,7 @@
           "abilityTargetCount": "{v} target(s)",
           "abilityTargetSide": "{v}",
           "targetsOwner": "targets this creature",
+          "targetsAlly": "targets an ally",
           "excludeSelfTarget": "not also targeting this creature",
           "rolledDamage": "rolled damage",
           "abilityDealsDamage": "deals damage",

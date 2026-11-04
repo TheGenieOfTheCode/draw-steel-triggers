@@ -92,6 +92,7 @@ const NAMES = {
   "treasure-kuranzoi-prismscale-a-creature-within-5-squares-deals-damage-to-you": "Captured Moment",
   "treasure-kuranzoi-prismscale-you-capture-a-moment-of-time-in-the-armor": "Shattered Moment",
   "treasure-kuranzoi-prismscale-you-capture-a-moment-of-time-in-the-armor~2": "Released Moment",
+  "treasure-bloodbound-band-any-other-bonded-creature-takes-damage": "Blood Debt",
   "treasure-lance-of-the-sundered-star-the-weapon-is-used-with-a-weapon-ability-tha": "Ride Them Down",
   "treasure-lance-of-the-sundered-star-the-weapon-is-used-with-a-weapon-ability-tha~2": "Sundering Lift",
   "treasure-paper-trappings-you-are-paper-thin": "Paper Constriction",

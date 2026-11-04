@@ -1,12 +1,13 @@
 import { dispatchTriggerEvent, triggersLive, hasPotency } from "../dispatch.mjs";
 import { getSetting, dbg, isPrimaryGM, rolledTargets } from "../../util.mjs";
 import { gainsActive } from "../resource-gains.mjs";
-import { itemFeatureLines } from "../feature-triggers.mjs";
+import { itemFeatureLines, noteFeatureLineUse } from "../feature-triggers.mjs";
+import { abilityOnce, abilityOnceKey } from "../registry.mjs";
 import { recordAbilityUse } from "../ability-uses.mjs";
 
 const ABILITY_PART = "abilityUse";
 
-function _usedFromMessage(message) {
+export function usedFromMessage(message) {
   const part = message.system?.parts?.contents?.find((p) => p.type === ABILITY_PART);
   if (!part?.abilityUuid) return null;
   const item = fromUuidSync(part.abilityUuid);
@@ -20,7 +21,7 @@ function _usedFromMessage(message) {
   return { item, actor, token };
 }
 
-function _targetsOf(message) {
+export function targetsOf(message) {
   return rolledTargets(message).map((t) => {
     const token = t.tokenUuid ? fromUuidSync(t.tokenUuid, { strict: false }) : null;
     return token ?? fromUuidSync(t.actorUuid, { strict: false })?.getActiveTokens?.(false, true)?.[0] ?? null;
@@ -33,13 +34,13 @@ function _rollTargetsOf(message) {
 
 Hooks.on("createChatMessage", (message) => {
   if (!isPrimaryGM()) return;
+  const used = usedFromMessage(message);
+  if (used?.actor && abilityOnce(used.item)) noteFeatureLineUse(used.actor, abilityOnceKey(used.item));
   if (!getSetting("chatReminders") && !getSetting("damagePrompts") && !gainsActive()) return;
   if (!triggersLive()) return;
-
-  const used = _usedFromMessage(message);
   if (!used) return;
 
-  const targets = _targetsOf(message);
+  const targets = targetsOf(message);
   dbg(`ability used: ${used.actor.name} used ${used.item.name} `
     + `(${used.item.system.type}, cost ${used.item.system.resource ?? 0}, ${targets.length} targets)`);
   dispatchTriggerEvent({

@@ -197,7 +197,7 @@ function _holdMatches(actor, token, damageType, ctx = {}) {
   let matches = collectTriggerMatches("WOULD_TAKE_DAMAGE", actor, token, null, { ...dealt, ...ctx }).filter((m) =>
     !m.malice && (m.parse?.confidence === "high" || m.parse?.source === "manual")
     && !(m.clause.damageReduction && autoPassive(m)));
-  if (damageType) matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType));
+  matches = matches.filter((m) => !m.clause.damageTypes || m.clause.damageTypes.includes(damageType || "untyped"));
   return matches;
 }
 
@@ -399,11 +399,12 @@ Hooks.on("updateActor", (actor, changed, options) => {
       subjectToken: token,
       causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: actor.name, amount: prevTotal - curTotal }),
       eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
-        surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
-        immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? null,
-        victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
+        dealerMessage: dealer?.message ?? null, surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token ?? actor),
+        immunityReduced, fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced, damageSource: options.dsTriggersSource ?? record?.source ?? _lineSource(dealer?.ability) ?? null,
+        victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded, damageAmount: prevTotal - curTotal },
     });
 
+    
     if (dealer && dealer.actor !== actor) {
       dispatchTriggerEvent({
         event: "DEALS_DAMAGE",
@@ -417,6 +418,15 @@ Hooks.on("updateActor", (actor, changed, options) => {
           victimPrev: prev.value, victimCur: cur.value, victimWinded: prev.winded },
       });
     }
+  }
+  if ((cur.temporary ?? 0) > prev.temporary) {
+    dispatchTriggerEvent({
+      event: "GAINS_TEMP_STAMINA",
+      subjectActor: actor,
+      subjectToken: token,
+      causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.GainsTempStamina", { name: actor.name, amount: (cur.temporary ?? 0) - prev.temporary }),
+      eventContext: { amount: (cur.temporary ?? 0) - prev.temporary },
+    });
   }
   if (cur.value < prev.value) {
     dispatchTriggerEvent({

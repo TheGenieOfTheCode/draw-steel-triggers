@@ -1,4 +1,5 @@
 import { MODULE_ID } from "../util.mjs";
+import { richify } from "./tips.mjs";
 import { QUALIFIERS, QUALIFIER_GROUPS, qualifierById, readSettings, formValue, parseFormValue, ruleFits, qualifierFits, CONDITIONS } from "./qualifier-library.mjs";
 
 const L = (k, data) => data
@@ -172,6 +173,7 @@ export class QualifierPicker extends ds.applications.api.DSApplication {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    richify(this.element, "EditorCategory");
     this._abort?.abort();
     this._abort = new AbortController();
     const { signal } = this._abort;

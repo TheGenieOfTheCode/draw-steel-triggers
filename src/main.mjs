@@ -1,4 +1,4 @@
-import { parseTrigger, generateDSID, SPECIAL_CASES } from "./parser/trigger-parser.mjs";
+import { parseTrigger, generateDSID, SPECIAL_CASES, provideEvent } from "./parser/trigger-parser.mjs";
 import { MODULE_ID, getSetting, dbg } from "./util.mjs";
 import {
   isTriggeredAbility,
@@ -15,8 +15,9 @@ import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spen
 import { computeAutomationLevel } from "./ui/badge.mjs";
 import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import { StackWindow } from "./ui/stack-window.mjs";
+import "./ui/token-badge.mjs";
 import { toggleSnooze, isActorSnoozed, isTriggerSnoozed, setSnooze, clearSnooze, listSnoozes, registerSnoozeHooks } from "./ui/snooze.mjs";
-import { getQueueMirror, noteUseCancelled, setReaper } from "./triggers/queue.mjs";
+import { getQueueMirror, noteUseCancelled, setReaper, estimateRollModTier } from "./triggers/queue.mjs";
 import "./triggers/detectors/combat.mjs";
 import "./triggers/detectors/damage.mjs";
 import "./triggers/detectors/ability-use.mjs";
@@ -24,6 +25,7 @@ import "./triggers/detectors/conditions.mjs";
 import "./triggers/detectors/turn-lock.mjs";
 import "./triggers/villain-actions.mjs";
 import "./triggers/countdowns.mjs";
+import { freeStrike, offerFreeStrike } from "./triggers/free-strike.mjs";
 import { ownsResourceGain, canUndoResourceGain, undoResourceGain } from "./triggers/resource-gains.mjs";
 import "./ui/line-widgets.mjs";
 import "./ui/ignore-pills.mjs";
@@ -32,7 +34,10 @@ import "./triggers/detectors/roll-lock.mjs";
 import "./triggers/detectors/resolution.mjs";
 import "./triggers/detectors/fm-lock.mjs";
 import "./triggers/detectors/movement.mjs";
+import "./triggers/detectors/size-changes.mjs";
+import { registerFormChanges } from "./triggers/detectors/form-changes.mjs";
 import "./triggers/detectors/hero-events.mjs";
+import "./triggers/detectors/resource-changes.mjs";
 import "./triggers/detectors/fall-lock.mjs";
 import "./triggers/detectors/strained-damage.mjs";
 import "./triggers/detectors/saves.mjs";
@@ -43,8 +48,9 @@ import "./ui/malice-section.mjs";
 import "./ui/derived-chat-links.mjs";
 import "./triggers/derived-names.mjs";
 import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
-import { registerDerivedNames, itemEffectiveLines } from "./triggers/feature-triggers.mjs";
+import { registerDerivedNames, itemEffectiveLines, clearFeatureLineCache } from "./triggers/feature-triggers.mjs";
 import { registerIgnoreRule, unregisterIgnoreRule, ignoredByRule, refreshIgnored } from "./triggers/ignore-rules.mjs";
+import { registerRollModProvider, unregisterRollModProvider } from "./triggers/roll-mod-providers.mjs";
 import "./compat/dstd-sync.mjs";
 import "./compat/system-results.mjs";
 
@@ -121,6 +127,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "skipHeldDamageWindow", {
+    name: "DS_TRIGGERS.Settings.SkipHeldDamageWindow.Name",
+    hint: "DS_TRIGGERS.Settings.SkipHeldDamageWindow.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
   game.settings.register(MODULE_ID, "autoUseMandatory", {
     name: "DS_TRIGGERS.Settings.AutoUseMandatory.Name",
     hint: "DS_TRIGGERS.Settings.AutoUseMandatory.Hint",
@@ -136,6 +150,30 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: false
+  });
+  game.settings.register(MODULE_ID, "tokenBadges", {
+    name: "DS_TRIGGERS.Settings.TokenBadges.Name",
+    hint: "DS_TRIGGERS.Settings.TokenBadges.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
+  });
+  game.settings.register(MODULE_ID, "badgesFade", {
+    name: "DS_TRIGGERS.Settings.BadgesFade.Name",
+    hint: "DS_TRIGGERS.Settings.BadgesFade.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
+  game.settings.register(MODULE_ID, "badgesInsteadOfStack", {
+    name: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Name",
+    hint: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
   });
   game.settings.register(MODULE_ID, "rollLock", {
     name: "DS_TRIGGERS.Settings.RollLock.Name",
@@ -168,6 +206,14 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: false
+  });
+  game.settings.register(MODULE_ID, "freeStrikeCards", {
+    name: "DS_TRIGGERS.Settings.FreeStrikeCards.Name",
+    hint: "DS_TRIGGERS.Settings.FreeStrikeCards.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
   });
   game.settings.register(MODULE_ID, "damageInterrupts", {
     name: "DS_TRIGGERS.Settings.DamageInterrupts.Name",
@@ -219,14 +265,6 @@ Hooks.once("init", () => {
     default: true,
     onChange: (on) => onDerivedSetting(on),
   });
-  game.settings.register(MODULE_ID, "autoSpendConsumables", {
-    name: "DS_TRIGGERS.Settings.AutoSpendConsumables.Name",
-    hint: "DS_TRIGGERS.Settings.AutoSpendConsumables.Hint",
-    scope: "world",
-    config: true,
-    type: Boolean,
-    default: false,
-  });
   game.settings.register(MODULE_ID, "derivedChatLinks", {
     name: "DS_TRIGGERS.Settings.DerivedChatLinks.Name",
     hint: "DS_TRIGGERS.Settings.DerivedChatLinks.Hint",
@@ -234,6 +272,14 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true,
+  });
+  game.settings.register(MODULE_ID, "autoSpendConsumables", {
+    name: "DS_TRIGGERS.Settings.AutoSpendConsumables.Name",
+    hint: "DS_TRIGGERS.Settings.AutoSpendConsumables.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: false,
   });
   game.settings.register(MODULE_ID, "featureShareCards", {
     name: "DS_TRIGGERS.Settings.FeatureShareCards.Name",
@@ -287,6 +333,12 @@ Hooks.once("init", () => {
     default: true,
     requiresModule: { id: "draw-steel-resources-ui", label: "Resources UI" },
   });
+  game.settings.register(MODULE_ID, "stackPosition", {
+    scope: "client",
+    config: false,
+    type: Object,
+    default: null,
+  });
   game.settings.register(MODULE_ID, "rosterGains", {
     name: "DS_TRIGGERS.Settings.RosterGains.Name",
     hint: "DS_TRIGGERS.Settings.RosterGains.Hint",
@@ -307,6 +359,7 @@ Hooks.once("init", () => {
   const module = game.modules.get(MODULE_ID);
   module.api = {
     dispatchTriggerEvent,
+    registerFormChanges,
     isTriggeredActionSpent,
     setTriggeredActionSpent,
     computeAutomationLevel,
@@ -339,52 +392,54 @@ Hooks.once("init", () => {
     refreshDerived,
     registerIgnoreRule,
     unregisterIgnoreRule,
+    registerRollModProvider,
+    unregisterRollModProvider,
+    estimateRollModTier,
     isIgnored: ignoredByRule,
+    freeStrike,
+    offerFreeStrike,
+    provideEvent: (event) => {
+      provideEvent(event);
+      clearParseCache();
+      clearFeatureLineCache();
+      if (game.ready) refreshDerived();
+    },
     refreshIgnored,
     derivedLines: (item) => itemEffectiveLines(item).map((l) => ({ key: l.key, name: l.name, trigger: l.trigger, effect: l.effect })),
   };
 });
 
-const SETTING_HEADERS = {
-  combatOnly: "General",
-  damagePrompts: "Stack",
-  rollLock: "Rolls",
-  damageInterrupts: "DamageMovement",
-  turnInterrupts: "Turns",
-  featureTriggers: "Features",
-  resourceGains: "Resources",
-  debugMode: "Debug",
-};
-
-const HEADER_FALLBACK = { Resources: ["rosterGains"] };
-const SUB_SETTINGS = ["allSceneTokens", "derivedChatLinks", "autoUseTriggers"];
-const SUB_PARENTS = { autoUseTriggers: "autoUseMandatory" };
-
-Hooks.on("renderSettingsConfig", (_app, html) => {
-  const root = html instanceof HTMLElement ? html : html?.[0];
-  if (!root) return;
-  const groupOf = (key) => root.querySelector(`[name="${MODULE_ID}.${key}"]`)?.closest(".form-group")
-    ?? root.querySelector(`[data-setting-id="${MODULE_ID}.${key}"]`);
-  for (const [key, header] of Object.entries(SETTING_HEADERS)) {
-    const el = [key, ...(HEADER_FALLBACK[header] ?? [])].map(groupOf).find(Boolean);
-    if (!el || el.previousElementSibling?.classList?.contains("dst-settings-header")) continue;
-    const h = document.createElement("h3");
-    h.className = "dst-settings-header";
-    h.textContent = game.i18n.localize(`DS_TRIGGERS.Settings.Headers.${header}`);
-    el.insertAdjacentElement("beforebegin", h);
-  }
-  for (const key of SUB_SETTINGS) groupOf(key)?.classList.add("dst-sub-setting");
-  for (const [childKey, parentKey] of Object.entries(SUB_PARENTS)) {
-    const parent = root.querySelector(`[name="${MODULE_ID}.${parentKey}"]`);
-    const child = root.querySelector(`[name="${MODULE_ID}.${childKey}"]`);
-    if (!parent || !child) continue;
-    const sync = () => {
-      child.disabled = !parent.checked;
-      groupOf(childKey)?.classList.toggle("dst-setting-off", !parent.checked);
-    };
-    parent.addEventListener("change", sync);
-    sync();
-  }
+Hooks.once("ready", () => {
+  const H = (key) => `DS_TRIGGERS.Settings.Headers.${key}`;
+  game.modules.get("draw-steel-ctlib")?.api?.registerSettingsLayout?.(MODULE_ID, [
+    { label: H("General"), wiki: "How-Triggers-Work", items: ["combatOnly", "allSceneTokens", "requireLineOfEffect", "spentTracking", "chatReminders"] },
+    { label: H("Stack"), wiki: "The-Trigger-Stack", items: ["damagePrompts", "conditionPrompts", "stackDecisionTimer", "skipEmptyDialogs", "skipHeldDamageWindow",
+      "autoUseMandatory", "autoUseTriggers", "tokenBadges", "badgesFade", "badgesInsteadOfStack"] },
+    { label: H("Rolls"), wiki: "Trigger-Effects#roll-modifying", items: ["rollLock", "rollLockGrace", "resolutionHolds", "holdInertTriggers", "freeStrikeCards"] },
+    { label: H("DamageMovement"), wiki: "Trigger-Effects#damage-modifying", items: ["damageInterrupts", "fmInterrupts"] },
+    { label: H("Turns"), items: ["turnInterrupts", "offerVillainActions"] },
+    { label: H("Features"), wiki: "Feature-Triggers", items: ["featureTriggers", "derivedTriggers", "derivedChatLinks", "autoSpendConsumables", "featureShareCards",
+      "basicMalice", "featureIgnore"] },
+    { label: H("Resources"), wiki: "Heroic-Resource-Gains", items: ["resourceGains", "resourcesUiSync", "rosterGains"] },
+    { label: H("Debug"), items: ["debugMode"] },
+  ], {
+    indent: ["allSceneTokens"],
+    dependencies: { autoUseTriggers: "autoUseMandatory", derivedChatLinks: "derivedTriggers", badgesInsteadOfStack: "tokenBadges", badgesFade: "tokenBadges" },
+    wiki: {
+      base: "https://github.com/TheGenieOfTheCode/draw-steel-triggers/wiki/",
+      pages: {
+        requireLineOfEffect: "Ability-Triggers#distance-and-line-of-effect",
+        stackDecisionTimer: "The-Trigger-Stack#the-decision-timer",
+        tokenBadges: "The-Trigger-Stack#trigger-badges",
+        autoUseMandatory: "Feature-Triggers#mandatory-optional-and-costless-lines",
+        derivedTriggers: "Feature-Triggers#derived-trigger-abilities",
+        autoSpendConsumables: "Feature-Triggers#consumables",
+        featureShareCards: "Feature-Triggers#feature-messages-on-share",
+        featureIgnore: "Feature-Triggers#ignored-features",
+        resourcesUiSync: "Heroic-Resource-Gains#resources-ui-sync",
+      },
+    },
+  });
 });
 
 registerSnoozeHooks();

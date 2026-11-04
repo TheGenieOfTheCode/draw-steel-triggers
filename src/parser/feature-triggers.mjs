@@ -1,4 +1,4 @@
-import { parseTrigger, generateDSID } from "./trigger-parser.mjs";
+import { parseTrigger, generateDSID, eventProvided } from "./trigger-parser.mjs";
 import { featureGainLines } from "./feature-lines.mjs";
 
 const decode = (s) => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -114,8 +114,9 @@ export function featureTriggerLines(html, { dsid = "", name = "", resource = nul
   const keys = new Set();
   const skip = new Set(benefits.map((n) => plainWords(n)));
   const { rest, rows } = tierRows(html);
-  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip, ability });
-  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip, ability });
+  const story = leadFlavor(html);
+  collectLines(rest, null, { gains, base, lines, keys, ownerName, dsid, name, skip, ability, story });
+  for (const row of rows) collectLines(row.html, row.tier, { gains, base, lines, keys, ownerName, dsid, name, skip, ability, story });
   for (const levels of [levelRows(rest), levelParagraphs(rest)]) {
     let next = 0;
     for (const line of lines) {
@@ -293,7 +294,7 @@ const CURATED_LINES = [
   [/Field Commander/, /end this slide adjacent/, { later: "Chained trigger: the Baton's own slide" }],
   [/^Evil Revealed$/, /./, { later: "Seeing through disguises" }],
   [/^Saint['’]s Vigilance$/, /./, { later: "Combat Tools: finding hidden creatures" }],
-  [/Blade of the Luxurious Fop/, /opportunity attack/, { later: "Opportunity attacks" }],
+  [/Blade of the Luxurious Fop/, /opportunity attack/, { later: "Opportunity attacks against enemies of a given size" }],
   [/Chain of the Sea and Sky/, /feet are not touching/, { later: "Combat Tools: off the ground" }],
   [/^Chosen One$/, /destiny points/, { later: "Destiny points" }],
   [/^Rivalry$/, /squads uses a damaging ability against the creature/, { later: "Rivals: the rival's chosen creature" }],
@@ -303,7 +304,7 @@ const CURATED_LINES = [
   [/^Corrupted Mentor$/, /Each time you use Corrupt Spirit/, { trigger: "You use an ability", clause: { abilityDsid: "corrupt-spirit", aim: "self" } }],
   [/^Corrupted Mentor$/, /take holy damage/, { clause: { aim: "self" } }],
   [/^Coward$/, /run in terror/, { later: "Combat Tools: frightened movement" }],
-  [/^Curse of Punishment$/, /./, { later: "Combat Tools: dying at 0 Recoveries" }],
+  [/^Curse of Punishment$/, /./, { later: "Death Tracker: dying at 0 Recoveries" }],
   [/^Doomsight$/, /negative of your winded value/, { later: "Death Tracker: hero deaths" }],
   [/^Tough But Withered$/, /negative of your winded value/, { later: "Death Tracker: hero deaths" }],
   [/^Glancing Bow$/, /./, { later: "Companion" }],
@@ -347,7 +348,7 @@ const CURATED_LINES = [
   [/^Leading$/, /they can shift instead/, { drop: true }],
   [/^Escort the Prisoners$/, /carry an adjacent restrained enemy/, { drop: true }],
   [/^(?:Rampage|There For Each Other|Essence|Pack Harness|Rampant Shield|Horned Champion|Slake My Thirst in Blood)$/, /Feral Strike|The Pack Defends|call forth a minion|banish one copy|companion uses an ability|Charge main action|deinonychus is rampaging/, { later: "1.2" }],
-  [/^Look On My Work and Despair$/, /use your Judgment ability/, { later: "Combat Tools: Judgment rider" }],
+  [/^Look On My Work and Despair$/, /use your Judgment ability/, { later: "Judgement rider" }],
   [/^Psionic Martial Arts$/, /use Intuition instead of Might/, { later: "Combat Tools: ability override" }],
   [/^(?:Vuken Growing Ferocity|Cryokinetic Mastery|Four-Armed Martial Arts|Everybody Move!)$/, /target one additional/, { later: "Extra targets for the ability in use" }],
   [/^Psi Boost$/, /psi boost/, { later: "Combat Tools: psi boost picker" }],
@@ -355,12 +356,13 @@ const CURATED_LINES = [
   [/^Burning Ash$/, /teleport away from or into a space/, { later: "Combat Tools: teleports" }],
   [/^(?:Trained Assassin|Chaos Incarnate|Masterwork)$/, /surges? (?:that you can use only|per ferocity)|incorporates 1 or more surges/, { later: "Surges on the strike in progress" }],
   [/^(?:Insight|Antihero)$/, /costs 1 fewer insight|spend 1 antihero token in place of/, { later: "Resource cost changes" }],
-  [/^Glowing Recovery$/, /Catch Breath/, { later: "Combat Tools: Catch Breath" }],
+  [/^Glowing Recovery$/, /Catch Breath/, { later: "Catch Breath spending extra Recoveries" }],
   [/^(?:Vampire Scion|Ghoul or Vampire)$/, /melee free strike against an adjacent creature/, { later: "Free strike bite" }],
   [/^(?:Blood Mage|Brittlebreaker)$/, /take damage equal to your level|take half as much total damage/, { later: "Optional self damage" }],
   [/^Furious Charge$/, /number of squares you moved/, { later: "Squares moved during the charge" }],
   [/^Disciple of the Green$/, /melee free strike as part of the Charge action/, { later: "Free strike inside an action" }],
   [/^(?:Giant['’]s-Blood Flame|Icemaker Maul)$/, /ignited this way|in the ice field/, { later: "Treasure state" }],
+  [/^Knife of Nine$/, /signature ability using the weapon/, { later: "Treasure state" }],
   [/^Thunderhead Bident$/, /each enemy adjacent to the target/, { later: "Burst around the target" }],
   [/^Gloaming Wyrmscale Aura$/, /enemies is in the area/, { later: "Aura condition" }],
   [/^Thief of Joy$/, /torque['’]s maneuver and the target creature is the same level/, { later: "The Thief of Joy maneuver (Combat Tools)" }],
@@ -372,7 +374,7 @@ const CURATED_LINES = [
     effects: [{ on: "victim", has: true, kind: "name", value: "Revenger’s Wrap", by: "self" }] } }],
   [/^Barbed Tail$/, /deal extra damage with the strike equal to your highest characteristic score/, { clause: { damageBonus: "highest", optional: true } }],
   [/^Minion Mower$/, /targets a minion and at least one more minion is within distance/, { clause: { damageBonus: 3, victimOrganization: ["minion"], alsoMinionNear: true } }],
-  [/^Bloodbound Band$/, /any other bonded creature takes damage/, { clause: { scope: "ALLY",
+  [/^Bloodbound Band$/, /any other bonded creature takes damage/, { effect: "first", clause: { scope: "ALLY",
     effects: [{ on: "subject", has: true, kind: "name", value: "Bonded", by: "anyone" }] } }],
   [/^Foesense Lenses$/, /creature whose senses you are using/, { clause: { effects: [{ on: "victim", has: true, kind: "name", value: "Foesense", by: "self" }] } }],
   [/^Chaos Incarnate$/, /first becomes aware of you in combat/, { trigger: "A creature starts their turn", clause: { scope: "ANY", firstTurn: true,
@@ -415,14 +417,14 @@ const CURATED_LINES = [
   [/^Lightning Soul$/, /spend a surge to deal extra damage/, { clause: { qualifiers: ["spend a surge"], damageTypeChange: "lightning" },
     note: "Turns all the damage to lightning for now. Revisit once the errata says whether only the surge damage changes" }],
   [/^Marauder of the Primordial Chaos$/, /first becomes aware/, { later: "Potency tests" }],
-  [/^Melee Superiority$/, /opportunity attack/, { later: "Opportunity attacks" }],
+  [/^Melee Superiority$/, /opportunity attack/, { later: "Opportunity attacks", until: "OPPORTUNITY_ATTACK" }],
   [/^Mindlink$/, /linked creature spends/, { later: "Linked creatures" }],
-  [/^Mundane$/, /more than three magic treasures/, { later: "Combat Tools: ability automation" }],
+  [/^Mundane$/, /more than three magic treasures/, { later: "Treasure count" }],
   [/^(?:No Matter the Cost|Soul Flense)$/, /./, { later: "Summoner" }],
   [/^Piety$/, /praying for piety/, { later: "Praying for piety" }],
   [/^Rampage$/, /size is increased this way/, { later: "Combat Tools: Rampage" }],
   [/^Revenger['’]s Wrap$/, /three or more creatures marked for revenge/,{ later: "Combat Tools: ability automation" }],
-  [/^Vuken$/, /hybrid form/, { later: "Combat Tools: the Hybrid Form choice" }],
+  [/^Vuken$/, /hybrid form/, { later: "The Hybrid Form choice" }],
 
   [/^Flying Circus$/, /willing ally on their turn/, { triggers: [["An ally starts their turn adjacent to you"], ["An ally moves adjacent to you", { arrives: true }]],
     note: "Willingness is confirmed by hand" }],
@@ -440,13 +442,13 @@ const CURATED_LINES = [
 
   [/^Cross of the Scorned Puppeteer$/, /enemy minion is reduced/, { clause: { organization: { include: ["minion"] } } }],
   [/^Applause$/, /failure or a tier 1 outcome on a test/, { kind: "trigger", clause: { testOnly: true }, note: "Waits on test rolls: Triggers does not watch tests yet" }],
-  [/^Gift of Foresight$/, /resisting potencies/, { later: "Combat Tools: passive effect" }],
+  [/^Gift of Foresight$/, /resisting potencies/, { later: "Passive effect" }],
   [/^Blood Essence Vial$/, /adjacent creature who has blood/, { clause: { qualifiers: ["adjacent creature", "who has blood"] } }],
   [/^Thief of Joy$/, /deals damage to another creature/, { triggers: [
     ["A creature within 10 squares of you deals damage", { effects: [{ on: "owner", has: true, kind: "name", value: "Envy", by: "anyone" }], expendEffect: "Envy", aim: "none" }],
     ["A creature within 10 squares of you deals damage", { event: "WOULD_TAKE_DAMAGE", scope: "ANY", rangeOn: "dealer", halfDamage: true,
       effects: [{ on: "owner", has: true, kind: "name", value: "Disdain", by: "anyone" }], expendEffect: "Disdain" }]] }],
-  [/^Prophecy$/, /replace the total on the dice/, { later: "Combat Tools: Prophecy" }],
+  [/^Prophecy$/, /replace the total on the dice/, { later: "Stored dice for Prophecy" }],
   [/^Words Become Wonders at Next Breath$/, /magic or psionic ability/, { trigger: "You or a creature makes a power roll",
     clause: { abilityKeywords: ["magic", "psionic"], selfRoll: true, lineOfEffect: "subject" } }],
   [/^Command$/, /deal rolled damage to a creature marked by you/, { trigger: "A creature marked by you is targeted by an ability that deals rolled damage",
@@ -464,7 +466,7 @@ const CURATED_LINES = [
     ["An ally makes a saving throw", { saveSucceeds: true, effects: [{ on: "subject", has: true, kind: "name", value: "Scene Partner", by: "anyone" }] }]] }],
   [/^Psionic (?:Conductor|Amplifier)$/, /voiceless talker/, { clause: { scope: "ALLY", subjectKeywords: ["voicelessTalker"] } }],
   [/^Spiny$/, /grabs the animal/, { trigger: "An adjacent enemy grabs the self or uses a melee ability against the self" }],
-  [/^Lightweight$/, /attempts to force move you/, { later: "Combat Tools: passive effect" }],
+  [/^Lightweight$/, /attempts to force move you/, { later: "Combat Tools: size for forced movement" }],
   [/^Can['’]t Take Hold$/, /magic or psionic ability/, { clause: { abilityKeywords: ["magic", "psionic"] } }],
   [/^Primordial Strength$/, /damage an object with a weapon strike/, { clause: { victimType: "object", abilityKeywords: ["weapon", "strike"], abilityKeywordsAll: true, damageBonus: "might" } }],
   [/^The Flame Primordial$/, /deal fire damage to a creature or object/, { clause: { damageBonus: "1d6", damageBonusType: "fire" } }],
@@ -579,6 +581,12 @@ const SENTENCE_LINES = [
   [/^Music of the Spheres$/, /^As a main action, you sing or play a note\b/i, { trigger: "", action: "main" }],
   [/^Evolutionary Circuit$/, /\bany psionic strike made by a voiceless talker deals an extra 5 damage\b/i, { trigger: "You make a psionic strike" }],
   [/^Elemental Ferocity$/, /^If this damage reduces the enemy to 0 Stamina\b/i, { trigger: "You reduce an enemy to 0 Stamina", effect: "you gain 10 temporary Stamina." }],
+  [/^(?:Corven|Raden) Growing Ferocity$/, /\bthe potency of any effects targeting you is reduced by \d+ for you\b/i, { trigger: "You resist a potency" }],
+  [/^Heat Drain$/, /\bwhenever the target damages another creature while restrained this way, any potency associated with the damage is reduced\b/i, { trigger: "The target damages another creature" }],
+  [/^Accursed Slam$/,/\bthe potency of any ability used against them increases by \d+ for the target\b/i, { trigger: "The target resists a potency" }],
+  
+  [/./, /\bcan take their turn immediately after yours\b/i, { trigger: "You end your turn",
+    effect: "The target takes their turn immediately after yours if they haven't acted this round.", clause: { turnLock: true } }],
 ];
 
 const sentenceLine = (name, sentence) => SENTENCE_LINES.find(([n, s]) => n.test(name) && s.test(sentence))?.[2] ?? null;
@@ -591,7 +599,12 @@ const LIST_ITEM = /^(?:when|whenever|if|each time)\s+(.+?),\s*(.+)$/i;
 
 const EFFECT_COST = /^(?:and )?(?:you can )?spend (\d+) ([\w’'-]+(?: resource)?) to\b/i;
 
-function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set(), ability = false }) {
+const leadFlavor = (html) => {
+  const m = String(html ?? "").match(/^\s*<p>\s*<em>([\s\S]*?)<\/em>\s*<\/p>/i);
+  return m ? m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim() : "";
+};
+
+function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, name = "", skip = new Set(), ability = false, story = "" }) {
   let lead = null;
   let leads = 0;
   let benefitsOf = null;
@@ -627,7 +640,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       const spends = free || /\btriggered action\b/i.test(sentence);
       const synth = sentenceLine(name, sentence);
       if (synth) {
-        found.push({ index, sentence, trigger: synth.trigger, effect: synth.effect ?? sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "), action: synth.action ?? null, synth: true });
+        found.push({ index, sentence, trigger: synth.trigger, effect: synth.effect ?? sentence.replace(/^.*?\bdamages you\b,? (?:is )?/i, "that creature is "),
+          action: synth.action ?? null, synth: true, ...(synth.clause ? { clause: synth.clause } : {}) });
         return;
       }
       if (!spends && !WHEN.test(sentence)) return;
@@ -663,16 +677,17 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
         host.effect = `${host.effect} ${f.sentence}`.trim();
         return;
       }
-      const pick = curatedLine(name, f.sentence, ability) ?? {};
+      const raw = curatedLine(name, f.sentence, ability) ?? {};
+      const pick = raw.until && eventProvided(raw.until) ? (({ later, until, ...rest }) => rest)(raw) : raw;
       if (pick.drop) return;
-      const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...pick };
+      const curated = { ...(CURATED[dsid || generateDSID(base)] ?? {}), ...(f.clause ? { clause: f.clause } : {}), ...pick };
       const kind = curated.later ? "later" : curated.kind ?? (OUT_OF_COMBAT.test(f.sentence) ? "outOfCombat" : "trigger");
       const once = curated.once ?? onceOf(f.sentence) ?? (/\buntil the end of the round\b/i.test(effect) ? "round" : null);
       const parseText = curated.trigger ?? (ownerName ? asOwner(f.trigger, ownerName) : f.trigger);
       let key = generateDSID(`${base} ${f.trigger.replace(/\b[MARIP]<(\w+)/g, "$1 potency")}`).slice(0, 80) + (tier ? `-t${tier.min}` : "");
       for (let n = 2; keys.has(key); n++) key = `${key.replace(/~\d+$/, "")}~${n}`;
       keys.add(key);
-      const flavor = i === 0 ? sentences.slice(0, f.index).join(" ").trim() : "";
+      const flavor = story;
       const paid = effect.match(EFFECT_COST);
       const cost = f.cost ?? (paid ? { amount: Number(paid[1]), resource: paid[2].toLowerCase() } : null);
       const parseOne = (text) => parseTrigger(`${text}.`, { effectText: effect, ownerName, side: ownerName ? "monster" : "hero" });
@@ -695,7 +710,8 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       if (!curated.note && !curated.later && parse.clauses.length > 1 && parse.clauses.some((c) => c.scope === "COMPANION")) curated.note = "Companion half: Later";
       const zoneLater = !ability && !curated.later && kind === "trigger" && zoneOnly(parse);
       if (zoneLater) curated.later = "Zones";
-      const line = { key, sentence: f.sentence, action: f.action, kind: zoneLater ? "later" : kind, once, trigger: f.trigger, effect, flavor,
+      const shown = curated.effect === "first" ? String(f.effect ?? "").replace(/\s+/g, " ").trim() : effect;
+      const line = { key, sentence: f.sentence, action: f.action, kind: zoneLater ? "later" : kind, once, trigger: f.trigger, effect: shown, flavor,
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
         ...(curated.neverAutoUse ? { neverAutoUse: true } : {}), ...((curated.countdown ?? victoryCountdown(effect)) ? { countdown: curated.countdown ?? victoryCountdown(effect) } : {}), ...(curated.director ? { director: true } : {}),

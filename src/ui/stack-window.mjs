@@ -1,18 +1,136 @@
-import { MODULE_ID, getSetting } from "../util.mjs";
+import { MODULE_ID, getSetting, rolledTargets } from "../util.mjs";
 import { autoUseLevel, lineMandatory } from "../triggers/auto-use.mjs";
-import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, chooseRedirectEntry, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch } from "../triggers/queue.mjs";
+import { getQueueMirror, canActOn, resolveQueueEntry, chooseQueueSubject, pickTriggerSubject, addRollBypass, releaseHeld, applyHeldDamageNow, chooseRedirectEntry, releaseResolutionNow, watchUseCancellation, markVillainUsed, retargetEpoch, asPrimaryGM } from "../triggers/queue.mjs";
 import { buildAbilityPreview, featureLinePreview } from "./ability-preview.mjs";
 import { buildRoster } from "./roster.mjs";
-import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor } from "./snooze.mjs";
+import { snoozeFor, setSnooze, clearSnooze, promptSnooze, toggleSnooze, actorSnoozeFor, exactSnoozeFor } from "./snooze.mjs";
 import { runBespokeUse } from "../triggers/bespoke.mjs";
 import { maliceValue } from "../triggers/malice.mjs";
+import { squadBase } from "../triggers/squad-groups.mjs";
+import { impactChips } from "./stack-impacts.mjs";
+import { featureSnoozeId } from "../triggers/feature-triggers.mjs";
+import { gainSnoozeId } from "../triggers/resource-gains.mjs";
+import { richify } from "./tips.mjs";
+
+const UNSNOOZABLE_KINDS = new Set(["held", "damageHeld", "resolutionHeld", "reaper", "redirect"]);
+
+function snoozeIdOf(entry) {
+  if (UNSNOOZABLE_KINDS.has(entry.kind) || entry.villain) return null;
+  if (entry.gain?.line) return gainSnoozeId({ key: entry.gain.line });
+  if (entry.lineKey) return featureSnoozeId(entry.lineKey);
+  return entry.itemUuid ? fromUuidSync(entry.itemUuid)?.system?._dsid ?? null : null;
+}
+
+const snoozeActorsOf = (entry) => [...new Set([entry.ownerActorUuid, ...(entry.squad ?? []).map((m) => m.ownerActorUuid)].filter(Boolean))];
 
 const STACK_WIDTH = 500;
+const EDGE_GAP = 8;
+
+function stackRightEdge() {
+  const side = ui.sidebar?.element?.getBoundingClientRect();
+  if (!side?.width) return window.innerWidth;
+  const chat = document.getElementById("chat-notifications")?.getBoundingClientRect();
+  const tabs = document.getElementById("sidebar-tabs")?.getBoundingClientRect();
+  if (!chat?.width || !tabs?.width) return side.left;
+  const chatLeftCollapsed = window.innerWidth - tabs.width - (side.left - chat.right) - chat.width;
+  return Math.min(side.left, chatLeftCollapsed);
+}
 const CTLIB_ID = "draw-steel-ctlib";
 
 const ctlib = () => (game.modules.get(CTLIB_ID)?.active ? game.modules.get(CTLIB_ID).api : null);
 
-const tokenOfActor = (uuid) => {
+export const reducedEffects = () => ctlib()?.reducedEffects?.() ?? !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+const UNSIDED_KINDS = new Set(["held", "damageHeld", "resolutionHeld", "reaper", "redirect"]);
+const colourOf = (user) => user?.color?.css ?? (user?.color ? String(user.color) : null);
+
+export function sideOf(entry) {
+  if (UNSIDED_KINDS.has(entry.kind)) return null;
+  if (!entry.playerSide) return { side: "director", colour: colourOf(game.users.activeGM ?? game.users.find((u) => u.isGM)) };
+  const actor = entry.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
+  const players = actor ? game.users.filter((u) => !u.isGM && actor.testUserPermission(u, "OWNER")) : [];
+  const player = players.find((u) => u.character === actor) ?? players.find((u) => u.active) ?? players[0];
+  return { side: "hero", colour: colourOf(player) };
+}
+
+const HELD_KINDS = new Set(["held", "damageHeld", "resolutionHeld"]);
+const MOMENT_GAP_MS = 2000;
+
+function momentsOf(entries) {
+  const sorted = [...entries].filter((e) => Number.isFinite(e.createdAt)).sort((a, b) => a.createdAt - b.createdAt);
+  const out = new Map();
+  let moment = -1;
+  let last = -Infinity;
+  for (const e of sorted) {
+    if (e.createdAt - last > MOMENT_GAP_MS) moment++;
+    last = e.createdAt;
+    out.set(e.id, moment);
+  }
+  return out;
+}
+
+function heldKeys(e) {
+  if (e.kind === "held") return e.resumeId ? [`r:${e.resumeId}`] : [];
+  if (e.kind === "damageHeld") return (e.damageIds ?? [e.damageId]).filter(Boolean).map((id) => `d:${id}`);
+  if (e.kind === "resolutionHeld") return e.resolutionId ? [`s:${e.resolutionId}`] : [];
+  return [];
+}
+
+const holdingKeys = (e) => [e.resumeId && `r:${e.resumeId}`, e.resolutionId && `s:${e.resolutionId}`,
+  ...(e.choices ?? []).map((c) => c.resumeId && `r:${c.resumeId}`),
+  ...[e.damageId, ...(e.choices ?? []).map((c) => c.damageId)].filter(Boolean).map((id) => `d:${id}`)].filter(Boolean);
+
+function arrangeHolds(entries, isLocked) {
+  const blockOf = new Map();
+  const blocks = [];
+  const reapers = [];
+  const heads = entries.filter((e) => HELD_KINDS.has(e.kind)).map((held) => ({ helds: [held], holders: [], at: Infinity }));
+  for (const block of heads) for (const key of heldKeys(block.helds[0])) blockOf.set(key, block);
+  entries.forEach((e, i) => {
+    if (e.kind === "reaper") return reapers.push(e);
+    if (HELD_KINDS.has(e.kind)) return;
+    const hit = [...new Set(holdingKeys(e).map((k) => blockOf.get(k)).filter(Boolean))];
+    if (!hit.length) return blocks.push({ holders: [e], helds: [], at: i });
+    const [block, ...others] = hit;
+    for (const other of others) {
+      block.helds.push(...other.helds);
+      block.holders.push(...other.holders);
+      block.at = Math.min(block.at, other.at);
+      other.merged = true;
+      for (const held of other.helds) for (const key of heldKeys(held)) blockOf.set(key, block);
+    }
+    block.holders.push(e);
+    block.at = Math.min(block.at, i);
+  });
+  for (const block of heads) {
+    if (block.merged) continue;
+    if (block.at === Infinity) block.at = entries.indexOf(block.helds[0]);
+    blocks.push(block);
+  }
+  const unlockedFirst = (list) => [...list.filter((e) => !isLocked(e)), ...list.filter(isLocked)];
+  const lockedBlock = (b) => b.holders.length > 0 && b.holders.every(isLocked);
+  const directorBlock = (b) => !b.holders.some((e) => e.playerSide);
+  const ordered = blocks.sort((a, b) => (lockedBlock(a) - lockedBlock(b)) || (directorBlock(a) - directorBlock(b)) || (a.at - b.at));
+  const roles = new Map();
+  const maybe = new Set();
+  const list = [];
+  for (const block of ordered) {
+    const holders = unlockedFirst(block.holders);
+    list.push(...holders);
+    if (holders.length && block.helds.length) {
+      const choosing = holders.some((h) => h.choices?.length > 1);
+      holders.forEach((h) => roles.set(h.id, "holder"));
+      for (const held of block.helds) {
+        roles.set(held.id, "held");
+        if (choosing) maybe.add(held.id);
+      }
+    }
+    list.push(...block.helds);
+  }
+  return { list: [...list, ...reapers], roles, maybe };
+}
+
+export const tokenOfActor = (uuid) => {
   const actor = uuid ? fromUuidSync(uuid) : null;
   if (!actor) return null;
   if (actor.token) return actor.token;
@@ -91,6 +209,38 @@ function mergeSquadHolds(entries, mirror) {
 const ROSTER_OPEN_WIDTH = 758;
 const DSCT_ID = "draw-steel-combat-tools";
 
+function useMessageRendered(itemUuid, timeoutMs = 1500, settleMs = 800) {
+  return new Promise((resolve) => {
+    let timer = null;
+    let rendered = null;
+    const finish = () => {
+      Hooks.off("renderChatMessageHTML", renderHook);
+      Hooks.off("updateChatMessage", updateHook);
+      clearTimeout(timer);
+      requestAnimationFrame(() => resolve());
+    };
+    const recorded = (message) => !!message.getFlag?.("draw-steel-target-damage", "state") || rolledTargets(message).length > 0;
+    const renderHook = Hooks.on("renderChatMessageHTML", (message) => {
+      if (rendered || !message.system?.parts?.contents?.some((p) => p.type === "abilityUse" && p.abilityUuid === itemUuid)) return;
+      rendered = message.id;
+      if (recorded(message)) return finish();
+      clearTimeout(timer);
+      timer = setTimeout(finish, settleMs);
+    });
+    const updateHook = Hooks.on("updateChatMessage", (message) => {
+      if (message.id === rendered && recorded(message)) finish();
+    });
+    timer = setTimeout(finish, timeoutMs);
+  });
+}
+
+export async function spendMalice(cost) {
+  const held = maliceValue();
+  if (!game.user.isGM || held < cost) return false;
+  await game.settings.set("draw-steel", "malice", { ...game.settings.get("draw-steel", "malice"), value: held - cost });
+  return true;
+}
+
 async function useWithTriggerContext(item, entry) {
   const subject = entry.subjectTokenUuid ? fromUuidSync(entry.subjectTokenUuid) : null;
   const token = subject?.object ?? (subject?.documentName === "Token" ? subject : null);
@@ -101,15 +251,19 @@ async function useWithTriggerContext(item, entry) {
   if (Number.isFinite(entry.triggerDamage)) {
     game.modules.get(DSCT_ID)?.api?.setTriggerDamage?.(entry.triggerDamage);
   }
+  game.modules.get(DSCT_ID)?.api?.setTriggerSubject?.(entry.eventSubjectUuid ?? entry.subjectTokenUuid ?? null);
   if (borrowed) {
     token.setTarget(true, { user: game.user, releaseOthers: true });
     game.modules.get(DSCT_ID)?.api?.allowOutOfRange?.(item.uuid);
   }
+  
+  const rendered = borrowed ? useMessageRendered(item.uuid) : null;
 
   try {
     await item.system.use();
     await runBespokeUse(item, entry);
   } finally {
+    if (rendered) await rendered;
     if (borrowed && retargetEpoch() === epoch) {
       for (const t of game.user.targets) t.setTarget(false, { user: game.user, releaseOthers: false });
       for (const t of previous) t.setTarget(true, { user: game.user, releaseOthers: false });
@@ -134,8 +288,14 @@ Hooks.on("renderAbilityConfigurationDialog", (app) => {
   if (!use) return;
   _stackUses.delete(uuid);
   if (!use.auto && !getSetting("skipEmptyDialogs")) return;
+  if (app.options?.ability?.system?.power?.roll?.enabled) return;
+  const reveal = () => { if (app.rendered) app.element.style.visibility = ""; };
+  app.element.style.visibility = "hidden";
   setTimeout(() => {
-    if (app.rendered && !hasDecisions(app)) app.element.querySelector("button[type=submit]")?.click();
+    if (!app.rendered) return;
+    if (hasDecisions(app)) return reveal();
+    app.element.querySelector("button[type=submit]")?.click();
+    setTimeout(reveal, 1000);
   }, 150);
 });
 
@@ -166,6 +326,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     actions: {
       useEntry: StackWindow.#onUse,
       chooseSubject: StackWindow.#onChooseSubject,
+      chooseRandom: StackWindow.#onChooseRandom,
       declineEntry: StackWindow.#onDecline,
       dismissEntry: StackWindow.#onDismiss,
       markVillainUsed: StackWindow.#onMarkVillainUsed,
@@ -176,10 +337,13 @@ export class StackWindow extends ds.applications.api.DSApplication {
       redirectNone: StackWindow.#onRedirectNone,
       openOwner: StackWindow.#onOpenOwner,
       snoozeTrigger: StackWindow.#onSnoozeTrigger,
+      snoozeEntry: StackWindow.#onSnoozeEntry,
       snoozeActor: StackWindow.#onSnoozeActor,
       snoozeAll: StackWindow.#onSnoozeAll,
       toggleRosterEmbed: StackWindow.#onToggleRosterEmbed,
       toggleRoster: StackWindow.#onToggleRoster,
+      clearStack: StackWindow.#onClearStack,
+      resetPosition: StackWindow.#onResetPosition,
     },
   };
 
@@ -196,7 +360,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   static refresh() {
-    if (this._instance?.rendered) this._instance.render();
+    if (!this._instance?.rendered || this._refreshTimer) return;
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      if (this._instance?.rendered) this._instance.render();
+    }, 30);
   }
 
   
@@ -216,12 +384,58 @@ export class StackWindow extends ds.applications.api.DSApplication {
   _getFrameButtons(options) {
     return [
       ...super._getFrameButtons(options),
+      ...(game.user.isGM ? [{
+        icon: "fa-solid fa-trash-can-xmark",
+        label: "DS_TRIGGERS.Queue.ClearStack",
+        action: "clearStack",
+      }] : []),
       {
         icon: "fa-solid fa-bell-slash",
         label: "DS_TRIGGERS.Queue.RosterToggle",
         action: "toggleRoster",
       },
     ];
+  }
+
+  _getHeaderControls() {
+    return [
+      ...super._getHeaderControls(),
+      { icon: "fa-solid fa-arrows-to-circle", label: "DS_TRIGGERS.Queue.ResetPosition", action: "resetPosition" },
+    ];
+  }
+
+  static #onResetPosition() {
+    this._userPlaced = false;
+    game.settings.set(MODULE_ID, "stackPosition", null).catch(() => {});
+    this._anchor();
+  }
+
+  _onFirstRender(context, options) {
+    super._onFirstRender?.(context, options);
+    const saved = game.settings.get(MODULE_ID, "stackPosition");
+    if (Number.isFinite(saved?.left) && Number.isFinite(saved?.top)) {
+      this._userPlaced = true;
+      this.setPosition({ left: saved.left, top: saved.top });
+    }
+  }
+
+  _placedByUser() {
+    this._userPlaced = true;
+    game.settings.set(MODULE_ID, "stackPosition", { left: Math.round(this.position.left), top: Math.round(this.position.top) }).catch(() => {});
+  }
+
+  _anchor() {
+    if (this._userPlaced || this._dragging || this.minimized || !this.rendered) return;
+    const width = Number.isFinite(this.position.width) ? this.position.width : this.element.offsetWidth;
+    const height = this.element.offsetHeight;
+    const left = Math.max(0, stackRightEdge() - width - EDGE_GAP);
+    let bottom = window.innerHeight - EDGE_GAP;
+    const bar = ui.hotbar?.element?.getBoundingClientRect();
+    if (bar?.width && left < bar.right && left + width > bar.left) bottom = Math.min(bottom, bar.top - EDGE_GAP);
+    const top = Math.max(0, bottom - height);
+    if (Math.abs(left - this.position.left) < 1 && Math.abs(top - this.position.top) < 1) return;
+    this._anchoring = true;
+    try { this.setPosition({ left, top }); } finally { this._anchoring = false; }
   }
 
   async _prepareContext(_options) {
@@ -237,9 +451,18 @@ export class StackWindow extends ds.applications.api.DSApplication {
       if (groupKey(a) && groupKey(a) === groupKey(b)) return (b.playerSide ? 1 : 0) - (a.playerSide ? 1 : 0);
       return 0;
     });
-    const shown = mergeSquadHolds(ordered, getQueueMirror());
-    const isGated = (e) => !e.playerSide && !isHeldKind(e) && groupKey(e)
-      && getQueueMirror().some((q) => !isHeldKind(q) && groupKey(q) === groupKey(e) && q.playerSide && q.state === "pending");
+    const moments = momentsOf(getQueueMirror().filter((q) => !isHeldKind(q) && q.kind !== "reaper"));
+    const gateKeys = (e) => [groupKey(e), ...(e.choices ?? []).map((c) => c.promptId ?? c.damageId ?? null)].filter(Boolean);
+    const isGated = (e) => !e.playerSide && !isHeldKind(e) && e.kind !== "reaper"
+      && getQueueMirror().some((q) => !isHeldKind(q) && q.playerSide && q.state === "pending"
+        && ((moments.get(q.id) != null && moments.get(q.id) === moments.get(e.id)) || gateKeys(e).includes(groupKey(q))));
+    const awaitsChoosers = (e) => {
+      if (e.choices?.length || e.squadChooser) return false;
+      const base = squadBase(e);
+      return !!base && getQueueMirror().some((q) => q.state === "pending" && q.squadChooser === base);
+    };
+    const { list: shown, roles: holdRoles, maybe: holdMaybe } = arrangeHolds(mergeSquadHolds(ordered, getQueueMirror()),
+      (e) => e.state === "pending" && (isGated(e) || awaitsChoosers(e)));
     const embeds = await Promise.all(shown.map((e) => e.featureLine ? Promise.resolve(featureLinePreview(e.featureLine))
       : e.itemUuid
       ? buildAbilityPreview(fromUuidSync(e.itemUuid), { includeMeta: true, includeTrigger: true, includeTriggeredAction: true }).catch(() => "")
@@ -255,7 +478,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
       rosterOpen: (this._rosterOpen ??= !shown.length),
       maliceChipURI: ctlib()?.resourceTokenURI?.("malice"),
       labels: {
-        use: L("Use"), choose: L("Choose"), chooseTooltip: L("ChooseTooltip"), decline: L("Decline"), dismiss: L("Dismiss"),
+        use: L("Use"), choose: L("Choose"), chooseTooltip: L("ChooseTooltip"), chooseRandomTooltip: L("ChooseRandomTooltip"), decline: L("Decline"), dismiss: L("Dismiss"),
         dismissTooltip: L("DismissTooltip"), empty: L("Empty"),
         markUsed: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsed"),
         markUsedTooltip: game.i18n.localize("DS_TRIGGERS.Villain.MarkUsedTooltip"),
@@ -264,6 +487,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         redirectPick: L("RedirectPickButton"), redirectNone: L("RedirectNoneButton"), redirectNoneTooltip: L("RedirectNoneTooltip"), redirectKeepTooltip: L("RedirectKeepTooltip"),
         releaseResolution: L("ReleaseResolution"), releaseResolutionTooltip: L("ReleaseResolutionTooltip"),
         gatedTooltip: L("PlayerPriorityTooltip"),
+        squadWaitTooltip: L("SquadWaitTooltip"),
         showAbility: L("ShowAbility"),
         free: game.i18n.localize("DS_TRIGGERS.Reminder.Free"),
         noAction: game.i18n.localize("DS_TRIGGERS.Reminder.NoAction"),
@@ -271,8 +495,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
         rosterEmptyGM: L("RosterEmptyGM"),
         rosterEmptyPlayer: L("RosterEmptyPlayer"),
         snoozeTooltip: L("SnoozeTooltip"),
+        snoozeEntryTooltip: L("SnoozeEntryTooltip"),
         snoozeAllTooltip: L("SnoozeAllTooltip"),
         snoozeActorTooltip: L("SnoozeActorTooltip"),
+        snoozeShort: L("SnoozeShort"), snoozedShort: L("SnoozedShort"), snoozeCreatureShort: L("SnoozeCreatureShort"),
+        snoozePartTooltip: L("SnoozePartTooltip"),
         rosterSearch: L("RosterSearch"),
         rosterSearchHint: L("RosterSearchHint"),
         rosterNoMatch: L("RosterNoMatch"),
@@ -288,7 +515,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         const embedHTML = embeds[i];
         const embedOpen = this._openEmbeds?.has(e.id) ?? false;
         const pendingCount = isHeld
-          ? getQueueMirror().filter((q) => q.resumeId === e.resumeId && q.state === "pending").length
+          ? getQueueMirror().filter((q) => q.state === "pending" && (q.resumeId === e.resumeId || q.choices?.some((c) => c.resumeId === e.resumeId))).length
           : isDamageHeld
             ? getQueueMirror().filter((q) => q.state === "pending" && [q.damageId, ...(q.choices ?? []).map((c) => c.damageId)].includes(e.damageId)).length
             : isResolutionHeld
@@ -311,8 +538,14 @@ export class StackWindow extends ds.applications.api.DSApplication {
         }
 
         
+        const side = sideOf(e);
         return {
           ...e,
+          chips: UNSIDED_KINDS.has(e.kind) ? [] : impactChips(e, (docs) => faceChain(docs)),
+          holdRole: holdRoles.get(e.id) ?? null,
+          holdMaybe: holdMaybe.has(e.id),
+          side: side?.side ?? null,
+          sideColour: side?.colour ?? null,
           embedHTML,
           embedOpen,
           iconSrc: item?.img ?? null,
@@ -341,6 +574,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
           fmStopped: e.fmRunning === 0,
           isPending: e.state === "pending",
           isChoosing: !!e.choices?.length,
+          canRandom: new Set((e.choices ?? []).map((c) => c.subjectTokenUuid).filter(Boolean)).size > 1,
           choiceCauseHTML: e.choices?.length ? choiceCauseHTML(e) : null,
           isReaper: e.kind === "reaper",
           isArea: isDamageHeld && !!e.heldDamage?.squad?.areaCap,
@@ -359,12 +593,21 @@ export class StackWindow extends ds.applications.api.DSApplication {
           reaperStatus: e.status === "picking"
             ? game.i18n.format("DS_TRIGGERS.Queue.ReaperPicking", { name: e.picker ?? game.i18n.localize("DS_TRIGGERS.Queue.ReaperSomeone") })
             : e.status === "impending" ? L("ReaperImpending") : null,
-          gated: isGated(e),
+          gated: isGated(e) || awaitsChoosers(e),
+          gate: awaitsChoosers(e) ? "squad" : isGated(e) ? "player" : null,
+          chooseLabel: e.squadChooser ? L("SquadChoose") : null,
+          chooseTip: e.squadChooser ? L("SquadChooseTooltip") : null,
           
           
           showButtons: !isHeld && !isDamageHeld && !isResolutionHeld && e.kind !== "redirect" && e.state === "pending",
           showMarkUsed: !!e.villain && game.user.isGM && e.state === "pending",
           notYours: !canActOn(e),
+          ...(() => {
+            const id = e.state === "pending" && canActOn(e) ? snoozeIdOf(e) : null;
+            const owner = id && e.ownerActorUuid ? fromUuidSync(e.ownerActorUuid) : null;
+            const snooze = owner ? snoozeFor(owner, id) : null;
+            return { snoozeId: owner ? id : null, snoozed: !!snooze, snoozeLabel: snooze?.label ?? "" };
+          })(),
           notYoursTooltip: game.i18n.format("DS_TRIGGERS.Queue.NotYoursTooltip", { owner: e.ownerName }),
           showRelease: isHeld && game.user.isGM,
           showApplyNow: isDamageHeld && game.user.isGM && e.state !== "resolving",
@@ -382,14 +625,83 @@ export class StackWindow extends ds.applications.api.DSApplication {
     };
   }
 
+  async _preRender(context, options) {
+    await super._preRender(context, options);
+    const rows = [...(this.element?.querySelectorAll(".dst-stack-list > .dst-stack-entry[data-entry-id]") ?? [])];
+    const staying = new Set((context.entries ?? []).map((e) => e.id));
+    this._oldRows = rows.map((row, i) => ({ row, id: row.dataset.entryId, after: rows.slice(i + 1).map((r) => r.dataset.entryId),
+      ghost: row.classList.contains("dst-stack-entry--leaving") })).filter((o) => !staying.has(o.id));
+    for (const o of this._oldRows) if (!o.ghost) o.height = o.row.offsetHeight;
+  }
+
+  _funnelOut() {
+    const OUT_MS = 280;
+    const STAGGER_MS = 70;
+    const old = this._oldRows ?? [];
+    this._oldRows = null;
+    const list = this.element.querySelector(".dst-stack-list");
+    const live = new Set([...this.element.querySelectorAll(".dst-stack-entry[data-entry-id]")].map((r) => r.dataset.entryId));
+    const leaving = old.filter((o) => !live.has(o.id));
+    if (!leaving.length || reducedEffects()) return;
+    const host = list ?? this.element.querySelector(".dst-stack")?.insertAdjacentElement("afterbegin", Object.assign(document.createElement("ul"), { className: "dst-stack-list dst-stack-list--ghosts" }));
+    if (!host) return;
+    const gap = parseFloat(getComputedStyle(host).rowGap) || 0;
+    const place = (o) => {
+      const anchor = o.after.map((id) => host.querySelector(`:scope > .dst-stack-entry[data-entry-id="${CSS.escape(id)}"]`)).find(Boolean);
+      host.insertBefore(o.row, anchor ?? null);
+    };
+    for (const o of leaving.filter((o) => o.ghost)) place(o);
+    const anims = leaving.filter((o) => !o.ghost).map((o, i) => {
+      const ghost = o.row;
+      ghost.classList.add("dst-stack-entry--leaving");
+      ghost.inert = true;
+      place(o);
+      return ghost.animate([
+        { opacity: 1, transform: "none", height: `${o.height}px`, marginBottom: "0px", clipPath: "inset(0 0 0 0 round 6px)" },
+        { opacity: 0, transform: "translateY(-10px) scale(0.96)", height: "0px", paddingTop: "0px", paddingBottom: "0px", borderWidth: "0px",
+          marginBottom: `${-gap}px`, clipPath: "inset(0 0 100% 0 round 6px)" },
+      ], { duration: OUT_MS, delay: i * STAGGER_MS, easing: "cubic-bezier(0.4, 0, 0.6, 1)", fill: "forwards" }).finished
+        .catch(() => {}).finally(() => ghost.remove());
+    });
+    Promise.all(anims).then(() => {
+      if (!list) host.remove();
+      if (this.rendered && !this._userSized) this.setPosition({ height: "auto" });
+    });
+  }
+
   _onRender(_context, _options) {
+    richify(this.element, "StackCategory");
+    const list = this.element.querySelector(".dst-stack");
+    if (list && this._stackScroll) list.scrollTop = this._stackScroll;
+    if (list && this._scrollWatched !== list) {
+      this._scrollWatched = list;
+      list.addEventListener("scroll", () => { this._stackScroll = list.scrollTop; }, { passive: true });
+    }
     
     
     
     const handle = this.element.querySelector(".window-resize-handle");
     if (handle && this._resizeHookedOn !== handle) {
       this._resizeHookedOn = handle;
-      handle.addEventListener("pointerdown", () => { this._userSized = true; });
+      handle.addEventListener("pointerdown", () => {
+        this._userSized = true;
+        this._dragging = true;
+        window.addEventListener("pointerup", () => { this._dragging = false; this._placedByUser(); }, { once: true });
+      });
+    }
+    const header = this.element.querySelector(".window-header");
+    if (header && this._dragHookedOn !== header) {
+      this._dragHookedOn = header;
+      header.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || event.target.closest("button, a, input, .header-control")) return;
+        this._dragging = true;
+        const start = { left: this.position.left, top: this.position.top };
+        window.addEventListener("pointerup", () => {
+          this._dragging = false;
+          if (Math.abs(this.position.left - start.left) > 2 || Math.abs(this.position.top - start.top) > 2) this._placedByUser();
+          else this._anchor();
+        }, { once: true });
+      });
     }
     
     const stackKey = getQueueMirror().map((e) => `${e.id}:${e.state}`).join("|");
@@ -412,6 +724,8 @@ export class StackWindow extends ds.applications.api.DSApplication {
     
     
     this.element.querySelector('.header-control[data-action="toggleRoster"]')?.classList.toggle("is-open", !!this._rosterOpen);
+    const clear = this.element.querySelector('.header-control[data-action="clearStack"]');
+    if (clear) clear.disabled = !getQueueMirror().some((e) => e.state === "pending");
     if (this._widthFor !== !!this._rosterOpen) {
       this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
       this._widthFor = !!this._rosterOpen;
@@ -434,7 +748,15 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this._fitRoster();
 
     ctlib()?.activateFaces?.(this.element);
+    this._funnelIn();
+    this._funnelOut();
+    if (this._focusId) this._focusEntry(this._focusId);
     this._openEmbeds ??= new Set();
+    for (const chip of this.element.querySelectorAll(".dst-impact--manual[data-entry-id]")) {
+      const open = () => this.element.querySelector(`.dst-stack-embed-toggle[data-entry-id="${CSS.escape(chip.dataset.entryId)}"]`)?.click();
+      chip.addEventListener("click", open);
+      chip.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); open(); } });
+    }
     for (const toggle of this.element.querySelectorAll(".dst-stack-embed-toggle")) {
       toggle.addEventListener("click", () => {
         const id = toggle.dataset.entryId;
@@ -476,6 +798,56 @@ export class StackWindow extends ds.applications.api.DSApplication {
     }
   }
 
+  static focus(entryId) {
+    const app = this._instance?.rendered ? this._instance : null;
+    if (app) return app._focusEntry(entryId);
+    this._instance ??= new StackWindow();
+    this._instance._focusId = entryId;
+    this._instance.render({ force: true });
+  }
+
+  _focusEntry(entryId) {
+    this._focusId = null;
+    if (this.minimized) this.maximize();
+    this.bringToFront?.();
+    const rows = [entryId].flat().map((id) => this.element?.querySelector(`.dst-stack-entry[data-entry-id="${CSS.escape(id)}"]`)).filter(Boolean);
+    rows[0]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    for (const row of rows) {
+      row.style.setProperty("--dst-flash-colour", row.style.getPropertyValue("--dst-side") || "var(--dst-gold-text, #d9a63f)");
+      row.classList.remove("dst-flash");
+      void row.offsetWidth;
+      row.classList.add("dst-flash");
+    }
+  }
+
+  _funnelIn() {
+    const FUNNEL_MS = 320;
+    const STAGGER_MS = 110;
+    const rows = [...this.element.querySelectorAll(".dst-stack-entry[data-entry-id]")];
+    const now = performance.now();
+    this._seenEntries ??= new Map();
+    let next = Math.max(now, ...[...this._seenEntries.values()].map((t) => t + STAGGER_MS));
+    for (const row of rows) {
+      const id = row.dataset.entryId;
+      if (!this._seenEntries.has(id)) {
+        this._seenEntries.set(id, next);
+        next += STAGGER_MS;
+      }
+    }
+    const live = new Set(rows.map((r) => r.dataset.entryId));
+    for (const id of this._seenEntries.keys()) if (!live.has(id)) this._seenEntries.delete(id);
+    if (reducedEffects()) return;
+    for (const row of rows) {
+      const delay = this._seenEntries.get(row.dataset.entryId) - now;
+      if (delay + FUNNEL_MS <= 0) continue;
+      row.animate([
+        { opacity: 0, transform: "translateY(-14px) scale(0.96)", clipPath: "inset(0 0 100% 0 round 6px)" },
+        { opacity: 1, transform: "translateY(2px) scale(1)", clipPath: "inset(0 0 0 0 round 6px)", offset: 0.75 },
+        { opacity: 1, transform: "none", clipPath: "inset(0 0 0 0 round 6px)" },
+      ], { duration: FUNNEL_MS, delay, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "backwards" });
+    }
+  }
+
   close(options) {
     clearInterval(this._graceTicker);
     clearTimeout(this._drawerTimer);
@@ -492,7 +864,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static #gated(event, target) {
     if (!target.classList.contains("dst-use-gated") || (game.user.isGM && event?.shiftKey)) return false;
-    ui.notifications.warn("DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
+    ui.notifications.warn(target.dataset.gate === "squad" ? "DS_TRIGGERS.Queue.SquadWaitWarn" : "DS_TRIGGERS.Queue.PlayerPriorityWarn", { localize: true });
     return true;
   }
 
@@ -511,7 +883,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.NotEnoughMalice", { n: maliceCost, have: held, name: entry.itemName }));
         return;
       }
-      await game.settings.set("draw-steel", "malice", { ...game.settings.get("draw-steel", "malice"), value: held - maliceCost });
+      if (!(game.user.isGM ? await spendMalice(maliceCost) : await asPrimaryGM("spendMalice", maliceCost))) return;
     }
     if (entry.gain || entry.pill || (entry.featureLine && !entry.derived)) {
       resolveQueueEntry(entry.id, "used");
@@ -533,7 +905,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   }
 
   
-  static async #onChooseSubject(event, target) {
+  static async #onChooseSubject(event, target, { random = false } = {}) {
     const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
     if (!entry?.choices?.length || !canActOn(entry)) return;
     if (StackWindow.#gated(event, target)) return;
@@ -542,19 +914,26 @@ export class StackWindow extends ds.applications.api.DSApplication {
       const token = c.subjectTokenUuid ? fromUuidSync(c.subjectTokenUuid)?.object : null;
       if (token && !byToken.has(token.id)) byToken.set(token.id, { token, choice: c });
     }
+    const options = [...byToken.values()];
     let choice = null;
-    if (byToken.size <= 1) choice = [...byToken.values()][0]?.choice ?? entry.choices[0];
+    if (options.length <= 1) choice = options[0]?.choice ?? entry.choices[0];
+    else if (random) choice = options[Math.floor(Math.random() * options.length)].choice;
     else {
-      const picked = await pickTriggerSubject([...byToken.values()].map((v) => v.token),
+      const picked = await pickTriggerSubject(options.map((v) => v.token),
         game.i18n.format("DS_TRIGGERS.Queue.PickChoice", { modName: entry.itemName }));
       choice = picked ? byToken.get(picked.id)?.choice : null;
     }
     if (!choice) return;
-    await chooseQueueSubject(entry.id, choice.key);
+    const placed = await chooseQueueSubject(entry.id, choice.key);
+    if (placed?.joined || placed?.waiting) return;
     const { key, ...fields } = choice;
     const chosen = { ...entry, ...fields };
     delete chosen.choices;
     await StackWindow.#useEntry(chosen);
+  }
+
+  static #onChooseRandom(event, target) {
+    return StackWindow.#onChooseSubject(event, target, { random: true });
   }
 
   static #onDecline(_event, target) {
@@ -565,6 +944,11 @@ export class StackWindow extends ds.applications.api.DSApplication {
 
   static #onDismiss(_event, target) {
     resolveQueueEntry(target.dataset.id, "dismissed");
+  }
+
+  static async #onClearStack() {
+    if (!game.user.isGM) return;
+    for (const e of getQueueMirror().filter((q) => q.state === "pending")) await resolveQueueEntry(e.id, "dismissed");
   }
 
   static #onMarkVillainUsed(_event, target) {
@@ -636,10 +1020,29 @@ export class StackWindow extends ds.applications.api.DSApplication {
     if (none) none.hidden = !terms.length || shown > 0;
   }
 
+  static async #onSnoozeEntry(event, target) {
+    event.preventDefault();
+    event.stopPropagation();
+    const entry = getQueueMirror().find((e) => e.id === target.dataset.id);
+    const id = entry ? snoozeIdOf(entry) : null;
+    if (!id || !canActOn(entry)) return;
+    const actors = snoozeActorsOf(entry).map((uuid) => fromUuidSync(uuid)).filter(Boolean);
+    const snoozed = actors.map((a) => [a, snoozeFor(a, id)]).filter(([, s]) => s);
+    if (snoozed.length) {
+      for (const [actor, s] of snoozed) await clearSnooze(actor, s.key);
+      this.render();
+      return;
+    }
+    const choice = await promptSnooze(entry.itemName);
+    if (!choice) return;
+    for (const actor of actors) await setSnooze(actor, { dsid: id, ownerUuid: actor.uuid, ...choice });
+    this.render();
+  }
+
   static async #onSnoozeTrigger(_event, target) {
-    const { dsid, actorUuid, name } = target.dataset;
+    const { dsid, actorUuid, name, part } = target.dataset;
     const actor = actorUuid ? fromUuidSync(actorUuid) : null;
-    const existing = snoozeFor(actor, dsid);
+    const existing = part ? exactSnoozeFor(actor, dsid) : snoozeFor(actor, dsid);
     if (existing) {
       await clearSnooze(actor, existing.key);
       this.render();
@@ -672,6 +1075,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
   _onPosition(position) {
     super._onPosition?.(position);
     this._fitRoster();
+    if (!this._anchoring) this._anchor();
   }
 
   _onClose(options) {
@@ -688,7 +1092,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
     this.element.querySelector('.header-control[data-action="toggleRoster"]')?.classList.toggle("is-open", this._rosterOpen);
     
     
-    this.element.style.transition = "width 0.25s ease";
+    this.element.style.transition = "width 0.25s ease, left 0.25s ease";
     this.setPosition({ width: this._rosterOpen ? ROSTER_OPEN_WIDTH : STACK_WIDTH });
     this._widthFor = this._rosterOpen;
     clearTimeout(this._drawerTimer);
@@ -732,7 +1136,9 @@ export class StackWindow extends ds.applications.api.DSApplication {
 }
 
 Hooks.on("dst.queueChanged", () => StackWindow.refresh());
-Hooks.on("dst.queueOpenRequested", () => StackWindow.open());
+Hooks.on("dst.queueOpenRequested", () => {
+  if (getSetting("tokenBadges") === false || getSetting("badgesInsteadOfStack") === false) StackWindow.open();
+});
 Hooks.on("dst.queueAdded", (entries) => StackWindow.autoUse(entries));
 
 for (const hook of ["createCombat", "deleteCombat"]) Hooks.on(hook, () => StackWindow.refresh());
@@ -762,3 +1168,56 @@ Hooks.on("getSceneControlButtons", (controls) => {
     tokenControl.tools["dst-stack"] = tool;
   }
 });
+
+function markStackButton() {
+  const mirror = getQueueMirror();
+  const triggers = mirror.filter((e) => !HELD_KINDS.has(e.kind) && e.kind !== "reaper" && e.state === "pending").length;
+  const title = game.i18n.localize("DS_TRIGGERS.Queue.OpenStackButton");
+  for (const btn of document.querySelectorAll('[data-tool="dst-stack"]')) {
+    btn.classList.toggle("dst-stack-lit", mirror.length > 0);
+    if (triggers) btn.dataset.dstCount = triggers > 9 ? "9+" : String(triggers);
+    else delete btn.dataset.dstCount;
+    btn.setAttribute("aria-label", triggers ? game.i18n.format("DS_TRIGGERS.Queue.OpenStackButtonCount", { title, n: triggers }) : title);
+  }
+}
+
+
+const HELD_BUTTONS = "button.dst-dstd-res-locked, button.dst-dstd-held-btn:not(.dst-dstd-redirected-btn)";
+
+function holdsButton(e, messageId, button) {
+  if (e.kind === "resolutionHeld") return e.resolution?.messageId === messageId && (!button || button.classList.contains("dst-dstd-res-locked"));
+  if (!button || e.heldAt?.messageId !== messageId) return false;
+  if (e.heldAt.opId) return e.heldAt.opId === button.dataset.operationId;
+  const row = button.closest("[data-dsct-fm-key]")?.dataset.dsctFmKey ?? "";
+  return !!e.heldAt.rowKey && e.heldAt.rowKey === row.slice(row.indexOf(":") + 1);
+}
+
+function holdersOf(messageId, button = null) {
+  const mirror = getQueueMirror();
+  const keys = new Set(mirror.filter((e) => HELD_KINDS.has(e.kind) && holdsButton(e, messageId, button)).flatMap(heldKeys));
+  return mirror.filter((e) => !HELD_KINDS.has(e.kind) && holdingKeys(e).some((k) => keys.has(k))).map((e) => e.id);
+}
+
+document.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  const li = event.target?.closest?.("li.chat-message[data-message-id]");
+  if (!li) return;
+  const banner = event.target.closest(".dst-dstd-res-banner");
+  const button = banner ? null : [...li.querySelectorAll(HELD_BUTTONS)].find((b) => {
+    const r = b.getBoundingClientRect();
+    return event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+  });
+  if (!banner && !button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const holders = holdersOf(li.dataset.messageId, button);
+  if (holders.length) StackWindow.focus(holders);
+  else StackWindow.open();
+}, { capture: true });
+
+Hooks.on("dst.queueChanged", markStackButton);
+Hooks.on("renderSceneControls", markStackButton);
+
+const reanchorStack = () => setTimeout(() => StackWindow._instance?._anchor(), 300);
+Hooks.on("collapseSidebar", reanchorStack);
+window.addEventListener("resize", reanchorStack);

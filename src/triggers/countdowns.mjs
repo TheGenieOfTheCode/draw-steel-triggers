@@ -29,7 +29,7 @@ export async function startCountdown(actor, key, countdown) {
 
 export async function clearCountdown(actor, key) {
   if (!actor?.getFlag?.(MODULE_ID, FLAG)?.[flagKey(key)]) return;
-  await actor.update({ [`flags.${MODULE_ID}.${FLAG}.-=${flagKey(key)}`]: null });
+  await actor.update({ [`flags.${MODULE_ID}.${FLAG}.${flagKey(key)}`]: new foundry.data.operators.ForcedDeletion() });
 }
 
 Hooks.on("preUpdateActor", (actor, changes, options) => {

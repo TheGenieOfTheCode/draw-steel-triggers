@@ -10,6 +10,7 @@ import { COUNTDOWN_RESOURCES } from "../triggers/countdowns.mjs";
 import { QUALIFIERS, qualifierById, hasQualifier, writeSettings, clearQualifier } from "./qualifier-library.mjs";
 import { QualifierPicker, optionLabel, conditionLabel } from "./qualifier-picker.mjs";
 import { IMPACTS, impactById, impactLabel, impactHint, moveImpact, pruneImpacts, removeImpact } from "./editor-impacts.mjs";
+import { richify, setTip, tip } from "./tips.mjs";
 
 const L = (k, data) => data
   ? game.i18n.format(`DS_TRIGGERS.Editor.${k}`, data)
@@ -20,7 +21,7 @@ const Q = (k, data) => data
   : game.i18n.localize(`DS_TRIGGERS.Qualifier.${k}`);
 
 const FLAG_TO_QUALIFIER = {
-  damageTypes: "damage", edgeRequired: "roll", excludeSelfTarget: "ability", effectName: "which", zone: "zone", targetsOwner: "ability",
+  damageTypes: "damage", edgeRequired: "roll", excludeSelfTarget: "ability", effectName: "which", zone: "zone", targetsOwner: "ability", targetsAlly: "ability", organizationInclude: "creatureIs",
   victimNotSelf: "creatureIs", sourceScope: "hasEffect", rolledDamage: "ability", abilityDealsDamage: "ability", fmPowerRoll: "ability", organization: "creatureIs", tauntedByOwner: "hasEffect",
   ownerLacks: "hasEffect", ownerEffect: "hasEffect", through: "movement", entersSpace: "movement", lineOfEffect: "lineOfEffect",
   victimNotMentor: "creatureIs", fmType: "movement", victimEndsAdjacent: "movement", firstTurn: "acted", damageOutcome: "damage",
@@ -189,10 +190,11 @@ const EVENT_GROUPS = [
     "FORCE_MOVES", "ROUND_START", "POWER_ROLL_RESULT", "ZONE_ENTER", "ZONE_TURN_START",
     "EFFECT_ENDS", "SAVING_THROW", "REGAINS_STAMINA", "LOSES_STAMINA", "MARKED",
     "WINDED_OR_DYING", "FALL_START", "SPENDS_RECOVERY", "HERO_TOKEN_EARNED", "RESISTS_POTENCY",
+    "GAINS_TEMP_STAMINA", "GAINS_SURGE", "TELEPORTS", "SIZE_CHANGES", "FORM_CHANGES", "MALICE_SPENT", "NATURAL_19_20", "NATURAL_2",
+    "STAMINA_BELOW", "GRAB_ENDS", "RESOURCE_GAIN", "TEST_FAILED",
   ]],
   ["Bespoke", [
-    "RESOURCE_GAIN", "STAMINA_BELOW", "MECHANISM", "NARRATIVE",
-    "GRAB_ENDS", "TEST_FAILED", "UNKNOWN",
+    "MECHANISM", "NARRATIVE", "UNKNOWN",
   ]],
 ];
 const SCOPES = [
@@ -285,6 +287,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     this.item = item;
     this._line = line;
     this._lineType = line ? (line.lineType ?? "gain") : null;
+    if (this._isBonus) this.tabGroups.primary = "config";
     this._triggerText = line ? (line.trigger ? `${line.trigger}.` : "") : (item.system.trigger ?? "");
     this._effectText = line ? (line.effect ?? "") : triggerEffectText(item);
     const parse = line ? line.parse : getParsedTrigger(item);
@@ -475,9 +478,10 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     const rows = [];
     if (this._lineType === "gain") {
       const folded = this.item.actor ? heroGainLines(this.item.actor).find((e) => e.line.key === line.key)?.line : null;
-      const summary = folded?.upgradedBy
-        ? game.i18n.format("DS_TRIGGERS.Gain.Upgraded", { amount: folded.amount, name: folded.upgradedBy })
-        : L("Impact.gain.Summary", { n: line.amount });
+      const summary = [folded?.upgradedBy
+        ? game.i18n.format("DS_TRIGGERS.Gain.Upgraded", { amount: folded.baseAmount ?? folded.amount, name: folded.upgradedBy })
+        : L("Impact.gain.Summary", { n: line.amount }),
+      ...(folded?.bonuses ?? []).map((b) => game.i18n.format("DS_TRIGGERS.Gain.Bonus", { amount: b.amount, name: b.name }))].join(" ");
       return [row("gain", "fa-solid fa-bolt", summary, { fields: [{ name: "amount", label: game.i18n.localize("DS_TRIGGERS.Gain.Amount"), type: "text", value: line.amount, attrs: 'data-gain-field="amount"' }] })];
     }
     const actor = this.item.actor;
@@ -548,6 +552,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         addClause: L("AddClause"), options: L("RowOptions"), expand: L("RowExpand"),
         impacts: L("Impacts"), clause: L("Clause"), wholeTrigger: L("WholeTrigger"), effect: L("EffectText"), effectHint: L("Impact.EffectHint"),
         addImpact: L("AddImpact"), noImpacts: L("NoImpacts"), noImpactsPossible: L("NoImpactsPossible"),
+        linkedText: L("LinkedText"),
         malice: L("Malice"), save: L("Save"), reset: L("Reset"),
       },
       hints: {
@@ -566,6 +571,21 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         { value: "false", label: L("MaliceNever"), selected: this._malice === false },
       ],
     };
+  }
+
+  get _isBonus() {
+    return this._lineType === "gain" && this._line?.kind === "bonus";
+  }
+
+  _getTabsConfig(group) {
+    const config = super._getTabsConfig(group);
+    if (!this._isBonus || group !== "primary" || !config) return config;
+    return { ...config, tabs: [{ id: "config" }], initial: "config" };
+  }
+
+  _configureRenderOptions(options) {
+    super._configureRenderOptions(options);
+    if (this._isBonus) options.parts = options.parts.filter((p) => p !== "trigger" && p !== "impact");
   }
 
   async _preparePartContext(partId, context, options) {
@@ -621,6 +641,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    richify(this.element, "EditorCategory");
     const titleEl = this.element.querySelector(".window-header .window-title");
     if (titleEl) titleEl.innerHTML = `<img class="dst-window-emblem" src="modules/${MODULE_ID}/icons/emblem-coin.png" alt="">${this.title}`;
     this._listenerAbort?.abort();
@@ -843,6 +864,8 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
       if (enabled) this._line.enabled = enabled.checked;
       if (amount?.value.trim()) this._line.amount = amount.value.trim().replace(/\s+/g, "");
       if (once) this._line.once = once.value || null;
+      const target = el.querySelector('select[data-gain-field="bonusTarget"]');
+      if (target) this._line.bonusTarget = target.value || null;
     }
     const maliceSel = el.querySelector('select[data-field="malice"]');
     if (maliceSel) this._malice = maliceSel.value === "default" ? undefined : maliceSel.value === "true";
@@ -992,14 +1015,22 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     const line = this._line;
     const saved = this.item.getFlag(MODULE_ID, `gainLines.${line.key}`)?.name ?? "";
     line.customName ??= saved || null;
-    const gates = (line.gates ?? []).map((id) => game.i18n.localize(`DS_TRIGGERS.Gain.Gate.${id}`));
+    const gates = (line.gates ?? []).map((id) => game.i18n.format(`DS_TRIGGERS.Gain.Gate.${id}`, { base: line.turnDamageBase ?? 5, fall: line.fallMin ?? 5 }));
+    const isBonus = line.kind === "bonus";
+    const targets = isBonus && line.bonusFor === "chosen" && this.item.actor
+      ? namedGainLines(this.item.actor).filter((e) => (e.line.kind === "trigger" && e.line.enabled) || e.line.key === line.bonusTarget)
+      : null;
     return {
+      isBonus,
+      bonusHint: isBonus ? game.i18n.localize(`DS_TRIGGERS.Gain.BonusHint.${line.bonusFor}`) : "",
+      bonusTargets: targets ? [{ value: "", label: game.i18n.localize("DS_TRIGGERS.Gain.BonusNone"), selected: !line.bonusTarget },
+        ...targets.map((e) => ({ value: e.line.key, label: e.line.name, selected: e.line.key === line.bonusTarget }))] : null,
       legend: game.i18n.localize("DS_TRIGGERS.Gain.Legend"),
       sentence: line.sentence,
       name: line.customName ?? "",
       namePlaceholder: line.customName ? "" : this._shownName(),
       enabled: !!line.enabled,
-      manualWhy: line.manual?.length ? game.i18n.format("DS_TRIGGERS.Gain.ManualWhy", { why: line.manual.join(", ") }) : "",
+      manualWhy: !isBonus && line.manual?.length ? game.i18n.format("DS_TRIGGERS.Gain.ManualWhy", { why: line.manual.join(", ") }) : "",
       checks: gates.length ? game.i18n.format("DS_TRIGGERS.Gain.Checks", { list: gates.join(", ") }) : "",
       onceOptions: [["round", "OnceRound"], ["encounter", "OnceEncounter"], ["", "OnceNone"]].map(([value, key]) => ({
         value, label: game.i18n.localize(`DS_TRIGGERS.Gain.${key}`), selected: (line.once ?? "") === value,
@@ -1008,6 +1039,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
         name: game.i18n.localize("DS_TRIGGERS.Gain.Name"),
         enabled: game.i18n.localize("DS_TRIGGERS.Gain.Enabled"),
         once: game.i18n.localize("DS_TRIGGERS.Gain.Once"),
+        bonusTarget: game.i18n.localize("DS_TRIGGERS.Gain.BonusTarget"),
       },
     };
   }
@@ -1028,10 +1060,9 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
     }
     if (this._line) {
       const line = this._line;
-      await this.item.update({ [`flags.${MODULE_ID}.gainLines.${line.key}`]: {
-        clauses: this._exportClauses(), enabled: !!line.enabled, amount: line.amount, once: line.once ?? null,
-        name: line.customName ?? null,
-      } });
+      await this.item.update({ [`flags.${MODULE_ID}.gainLines.${line.key}`]: this._isBonus
+        ? { enabled: !!line.enabled, name: line.customName ?? null, bonusTarget: line.bonusTarget ?? null }
+        : { clauses: this._exportClauses(), enabled: !!line.enabled, amount: line.amount, once: line.once ?? null, name: line.customName ?? null } });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.Saved", { name: this.item.name }));
       this.close();
       return;
@@ -1059,7 +1090,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
   static async #onResetParser() {
     this._syncFromDOM();
     if (this._line) {
-      await this.item.update({ [`flags.${MODULE_ID}.${this._lineFlag()}.-=${this._line.key}`]: null });
+      await this.item.update({ [`flags.${MODULE_ID}.${this._lineFlag()}.${this._line.key}`]: new foundry.data.operators.ForcedDeletion() });
       ui.notifications.info(game.i18n.format("DS_TRIGGERS.Editor.ResetDone", { name: this.item.name }));
       this.close();
       return;
@@ -1080,7 +1111,7 @@ export class TriggerEditor extends ds.applications.api.DSApplication {
 Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   const item = app.document;
   if (item?.type !== "ability" || !app.isEditable) return;
-  if (!isTriggeredAbility(item) && !isMaliceAbility(item) && !isImplicitMaliceTrigger(item)) return;
+  if (!isTriggeredAbility(item) && !isMaliceAbility(item) && !isImplicitMaliceTrigger(item) && !derivedInfo(item)) return;
   const anchor = element.querySelector('input[name="system.trigger"]')
     ?? element.querySelector('select[name="system.type"]');
   if (!anchor) return;
@@ -1090,7 +1121,7 @@ Hooks.on("renderDrawSteelItemSheet", (app, element) => {
   btn.type = "button";
   btn.className = "dst-trigger-edit-btn";
   btn.innerHTML = `<i class="fa-solid fa-wrench"></i>`;
-  btn.dataset.tooltip = game.i18n.localize("DS_TRIGGERS.Editor.OpenTooltip");
+  setTip(btn, tip("OpenEditor", { body: game.i18n.localize("DS_TRIGGERS.Editor.OpenTooltip") }));
   btn.addEventListener("click", () => new TriggerEditor(item).render({ force: true }));
   
   const wrap = document.createElement("div");
