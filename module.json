@@ -14,11 +14,10 @@
   "authors": [{ "name": "Ady", "discord": "AdyGenie" }],
   "url": "https://github.com/TheGenieOfTheCode/draw-steel-triggers",
   "relationships": {
-    "systems": [{ "id": "draw-steel", "type": "system", "compatibility": {} }],
+    "systems": [{ "id": "draw-steel", "type": "system", "compatibility": { "minimum": "1.2" } }],
     "requires": [
       { "id": "draw-steel-ctlib", "type": "module", "manifest": "https://github.com/TheGenieOfTheCode/draw-steel-ctlib/releases/latest/download/module.json", "compatibility": {} },
-      { "id": "socketlib", "type": "module", "compatibility": { "minimum": "1.1.3" } },
-      { "id": "draw-steel-target-damage", "type": "module", "compatibility": {} }
+      { "id": "socketlib", "type": "module", "compatibility": { "minimum": "1.1.3" } }
     ],
     "recommends": [
       { "id": "draw-steel-combat-tools", "type": "module", "reason": "[Combat Tools] Performs forced movement, so triggers set off by being pushed, pulled or slid can fire.", "compatibility": {} },

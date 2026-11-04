@@ -490,5 +490,6 @@ async function _onApplyResolutionRedirect(payload) {
 }
 
 Hooks.once("ready", () => {
+  if (!_dstdActive()) return;
   queueSocket()?.register("applyResolutionRedirect", _onApplyResolutionRedirect);
 });
