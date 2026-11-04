@@ -60,15 +60,17 @@ export const resultModsActive = () => !!resultMods()?.active?.();
 
 export const addTargetResult = async (message, token) => (await ctlib()?.addTargetResult?.(message, token)) ?? null;
 
-export const messageTargets = (message) => {
-  const rolled = rolledTargets(message);
-  return rolled.length ? rolled : (message?.flags?.["draw-steel-target-damage"]?.state?.targets ?? []);
+const storedTargets = (message) => {
+  const stored = message?.flags?.["draw-steel-target-damage"]?.state?.targets;
+  return Array.isArray(stored) && stored.length ? stored : null;
 };
+
+export const messageTargets = (message) => storedTargets(message) ?? rolledTargets(message);
 
 export const targetKeys = (message) => messageTargets(message)
   .map((t) => String(t.tokenUuid ?? t.actorUuid ?? "").replace(/\./g, "__")).filter(Boolean);
 
-export const targetTokenUuids = (message) => rolledTargets(message).map((t) => t.tokenUuid
+export const targetTokenUuids = (message) => (storedTargets(message) ?? rolledTargets(message)).map((t) => t.tokenUuid
   ?? fromUuidSync(t.actorUuid, { strict: false })?.getActiveTokens?.(false, true)?.[0]?.uuid ?? null).filter(Boolean);
 
 export const executeAsDirector = (socket, handler, ...args) => ctlib()?.executeAsDirector

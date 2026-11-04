@@ -5,6 +5,8 @@ import { changesTheStrike } from "../../parser/trigger-parser.mjs";
 import { baneAbility } from "../line-effects.mjs";
 import { rollModProviderFor } from "../roll-mod-providers.mjs";
 
+const DSTD_ID = "draw-steel-target-damage";
+const dstdOn = () => !!game.modules.get(DSTD_ID)?.active;
 const _handled = new Set();
 const _handledAt = new Map();
 const _knownTargets = new Map();
@@ -15,7 +17,8 @@ Hooks.on("ctlib.applyTargetResult", (part) => {
   if (id) _applied.add(id);
 });
 
-const _targetsOf = (message) => rolledTargets(message).map((t) => ({ tokenUuid: t.tokenUuid, actorUuid: t.actorUuid }));
+const _targetsOf = (message) => (dstdOn() ? (message.flags?.[DSTD_ID]?.state?.targets ?? [])
+  : rolledTargets(message).map((t) => ({ tokenUuid: t.tokenUuid, actorUuid: t.actorUuid })));
 
 function _pruneHandled() {
   const now = Date.now();
@@ -51,10 +54,18 @@ function _seedKnownTargets(message) {
 const _tierWatch = new Map();
 
 function _tierFor(message, target) {
+  const state = message.flags?.[DSTD_ID]?.state;
+  if (state) {
+    const key = String(target?.tokenUuid ?? target?.actorUuid ?? "").replace(/\./g, "__");
+    const override = state.tierOverrides?.[key];
+    if (override?.tier != null) return Number(override.tier);
+  }
   return tierFor(message, target ? (target.actorUuid ?? target.tokenUuid) : null);
 }
 
-const _anyApplied = (message) => _applied.has(message.id);
+const _anyApplied = (message) => (message.flags?.[DSTD_ID]?.state
+  ? Object.values(message.flags[DSTD_ID].state.applications ?? {}).some((a) => a && a.status !== "undone")
+  : _applied.has(message.id));
 
 function _isCritical(message) {
   const first = rolledTargets(message)[0];
@@ -332,6 +343,7 @@ async function _tryPostHocDispatch(message, addedTargets) {
 
   const abilityUse = message.system?.parts?.contents?.find((p) => p.type === "abilityUse");
   if (!abilityUse?.abilityUuid) return;
+  if (dstdOn() && !message.rolls?.length) return;
   const ability = await fromUuid(abilityUse.abilityUuid).catch(() => null);
   if (!ability || ability.type !== "ability") return;
   const strike = ability.system.keywords?.has?.("strike") ?? false;
@@ -389,7 +401,7 @@ Hooks.on("createChatMessage", async (message) => {
 
 Hooks.on("updateChatMessage", async (message, changes) => {
   if (!isPrimaryGM()) return;
-  if (!changes?.system?.parts) return;
+  if (dstdOn() ? !foundry.utils.hasProperty(changes, `flags.${DSTD_ID}`) : !changes?.system?.parts) return;
   const known = _knownTargets.get(message.id);
   if (!known) {
     await _tryDispatch(message);

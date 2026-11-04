@@ -330,8 +330,10 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   if (next === undefined || !Number.isFinite(prev) || !(prev - Number(next) > 0)) return;
   if (!getSetting("damageInterrupts")) return;
   if (!triggersLive()) return;
+  const tokenId = options?.dstd?.primaryTargetId;
+  const named = tokenId ? group.parent?.scene?.tokens?.get(tokenId) ?? canvas.scene?.tokens?.get(tokenId) ?? null : null;
   const hitDoc = _hitToken ? fromUuidSync(_hitToken, { strict: false }) : null;
-  const hit = hitDoc && Array.from(group.members ?? []).some((c) => c.token === hitDoc) ? hitDoc : null;
+  const hit = named ?? (hitDoc && Array.from(group.members ?? []).some((c) => c.token === hitDoc) ? hitDoc : null);
   const damageType = options?.ds?.damageType || null;
   const death = Number(next) <= 0 ? _lastMinionDeath(group, hit, damageType) : null;
   const token = hit ?? death?.token ?? null;
@@ -361,6 +363,113 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
   });
   batchedNotice("HeldDamageNotice", token.name);
   return false;
+});
+
+const DSTD_ID = "draw-steel-target-damage";
+const _seenApplications = new Set();
+
+function _dealersFromPills(r, victim) {
+  const ids = new Set((r?.override?.dstPills ?? [])
+    .filter((p) => p?.srcTokenId && (p.dstSquad || p.dealer) && p.enabled !== false)
+    .map((p) => p.srcTokenId));
+  return [...ids].map((id) => canvas.tokens?.get(id)?.document ?? null)
+    .filter((token) => token?.actor && token.actor !== victim)
+    .map((token) => ({ actor: token.actor, token }));
+}
+
+const _names = (dealers) => new Intl.ListFormat(game.i18n.lang, { type: "conjunction" })
+  .format([...new Set(dealers.map((d) => d.token?.name ?? d.actor.name))]);
+
+const _damageRecords = (record) => (Array.isArray(record?.records) ? record.records : [record])
+  .filter((r) => r?.kind === "damage" && r?.status === "applied" && Number(r?.amount) > 0);
+
+Hooks.on("updateChatMessage", (message) => {
+  
+  const state = message.flags?.[DSTD_ID]?.state;
+  const applications = state?.applications;
+  if (!applications) return;
+
+  
+  const age = Date.now() - Number(state.updatedAt ?? 0);
+  if (!(age >= 0) || age > 15000) return;
+
+  const dealer = _dealerFromMessage(message);
+  if (!dealer) {
+    dbg(`target damage recorded on ${message.id} but its speaker resolves to no actor`);
+    return;
+  }
+
+  const keyFor = (operationId, r) =>
+    `${message.id}:${operationId}:${r.target?.tokenUuid ?? r.target?.actorUuid ?? ""}`;
+  const damageSource = message.getFlag(MODULE_ID, "damageSource") ?? _lineSource(dealer.ability);
+
+  for (const [operationId, record] of Object.entries(applications)) {
+    
+    for (const r of (Array.isArray(record?.records) ? record.records : [record])) {
+      if (r?.status !== "applied") _seenApplications.delete(keyFor(operationId, r));
+    }
+
+    for (const r of _damageRecords(record)) {
+      const victimUuid = r.target?.tokenUuid ?? r.target?.actorUuid ?? "";
+      const key = keyFor(operationId, r);
+      if (_seenApplications.has(key)) continue;
+      _seenApplications.add(key);
+
+      const doc = victimUuid ? fromUuidSync(victimUuid) : null;
+      const victim = doc?.actor ?? doc ?? null;
+      if (victim && victim === dealer.actor && damageSource) {
+        dbg(`target damage recorded: ${victim.name} took ${r.amount} from their own ${damageSource}`);
+        dispatchTriggerEvent({
+          event: "TAKES_DAMAGE",
+          subjectActor: victim,
+          subjectToken: doc instanceof TokenDocument ? doc : null,
+          causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: victim.name, amount: r.amount }),
+          triggerDamage: Number(r.amount),
+          eventContext: { damageType: r.damageType ?? null, ability: dealer.ability, damageSource },
+          filter: (m) => !!m.clause?.damageSource?.length,
+          gains: false,
+        });
+        continue;
+      }
+      const pillDealers = _dealersFromPills(r, victim);
+      if (!victim || (!pillDealers.length && victim === dealer.actor)) {
+        dbg(`skipped a damage record on ${message.id}: victim ${victimUuid || "unnamed"} is the dealer or could not be resolved`);
+        continue;
+      }
+      const dealers = pillDealers.length ? pillDealers : [{ actor: dealer.actor, token: dealer.token }];
+      const squadBatch = dealers.length > 1 ? foundry.utils.randomID() : null;
+
+      dbg(`target damage recorded: ${_names(dealers)} dealt ${r.amount} to ${victim.name}`);
+      for (const d of dealers) {
+        dispatchTriggerEvent({
+          event: "DEALS_DAMAGE",
+          subjectActor: d.actor,
+          subjectToken: d.token,
+          causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
+            name: d.token?.name ?? d.actor.name, target: victim.name, amount: r.amount,
+          }),
+          triggerDamage: Number(r.amount),
+          eventContext: { victimActor: victim, victimToken: doc instanceof TokenDocument ? doc : null, damageType: r.damageType ?? null, surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc), ability: dealer.ability,
+            victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded,
+            damageMessageId: message?.id ?? null, ...(squadBatch ? { squadBatch } : {}) },
+        });
+      }
+      dispatchTriggerEvent({
+        event: "TAKES_DAMAGE",
+        subjectActor: victim,
+        subjectToken: doc instanceof TokenDocument ? doc : null,
+        causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", {
+          name: _names(dealers), target: victim.name, amount: r.amount,
+        }),
+        triggerDamage: Number(r.amount),
+        eventContext: { dealerOnly: true, dealerActor: dealers[0].actor, dealerToken: dealers[0].token, ...(dealers.length > 1 ? { dealers } : {}), damageType: r.damageType ?? null, ability: dealer.ability, damageSource, dealerMessage: message,
+          surgeSpend: Number(r.surgeSpend?.surges) || null, rollMods: rollModsOf(message, doc),
+          victimCur: victim.system?.stamina?.value, victimPrev: Number(victim.system?.stamina?.value) + Number(r.amount), victimWinded: victim.system?.stamina?.winded },
+      });
+    }
+  }
+
+  if (_seenApplications.size > 400) _seenApplications.clear();
 });
 
 Hooks.on("preUpdateActor", (actor, changed, options) => {

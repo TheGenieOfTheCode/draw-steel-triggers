@@ -51,7 +51,26 @@ export async function setDamagePillEnabled(message, targetUuid, label, enabled) 
 
 export async function addTarget(message, tokenDoc) {
   if (!message.isOwner) return !!(await asPrimaryGM("bespokeWrite", "target", message.id, tokenDoc.uuid));
-  return !!(await addTargetResult(message, tokenDoc));
+  const state = message.flags?.[DSTD_ID]?.state;
+  if (!state) return !!(await addTargetResult(message, tokenDoc));
+  const targets = [...(state.targets ?? [])];
+  const uuid = tokenDoc.uuid;
+  if (targets.some((t) => String(t.tokenUuid ?? "") === uuid)) return false;
+  targets.push({
+    tokenUuid: uuid,
+    tokenId: tokenDoc.id ?? null,
+    sceneId: tokenDoc.parent?.id ?? null,
+    actorUuid: tokenDoc.actor?.uuid ?? null,
+    actorId: tokenDoc.actor?.id ?? null,
+    name: tokenDoc.name,
+    tokenImg: tokenDoc.texture?.src ?? null,
+    actorImg: tokenDoc.actor?.img ?? null,
+  });
+  await message.update({
+    [`flags.${DSTD_ID}.state.targets`]: targets,
+    [`flags.${DSTD_ID}.state.updatedAt`]: Date.now(),
+  });
+  return true;
 }
 
 export async function onBespokeWrite(op, messageId, ...args) {

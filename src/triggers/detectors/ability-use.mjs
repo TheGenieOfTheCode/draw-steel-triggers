@@ -1,5 +1,5 @@
 import { dispatchTriggerEvent, triggersLive, hasPotency } from "../dispatch.mjs";
-import { getSetting, dbg, isPrimaryGM, rolledTargets } from "../../util.mjs";
+import { getSetting, dbg, isPrimaryGM, rolledTargets, messageTargets } from "../../util.mjs";
 import { gainsActive } from "../resource-gains.mjs";
 import { itemFeatureLines, noteFeatureLineUse } from "../feature-triggers.mjs";
 import { abilityOnce, abilityOnceKey } from "../registry.mjs";
@@ -22,7 +22,7 @@ export function usedFromMessage(message) {
 }
 
 export function targetsOf(message) {
-  return rolledTargets(message).map((t) => {
+  return messageTargets(message).map((t) => {
     const token = t.tokenUuid ? fromUuidSync(t.tokenUuid, { strict: false }) : null;
     return token ?? fromUuidSync(t.actorUuid, { strict: false })?.getActiveTokens?.(false, true)?.[0] ?? null;
   }).filter(Boolean);

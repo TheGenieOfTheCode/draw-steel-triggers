@@ -730,6 +730,9 @@ export const rollNeeds = (clause) => clause?.rollHas?.length ? clause.rollHas : 
 
 export const resolutionHolds = (message) => {
   if (!getSetting("resolutionHolds") || !message) return false;
+  if (game.modules.get("draw-steel-target-damage")?.active) {
+    return !!message.rolls?.length && (message.flags?.["draw-steel-target-damage"]?.state?.targets?.length ?? 0) > 0;
+  }
   const targets = rolledTargets(message);
   return targets.length > 0 && !!powerRollFor(message, targets[0].actorUuid);
 };
@@ -740,11 +743,17 @@ export const heldAbilityWide = (m, rollerActor) => !m.malice && !!m.clause?.abil
 export function rollModsOf(message, target = null) {
   if (!message) return null;
   const net = (o) => (Number(o?.edges) || 0) - (Number(o?.banes) || 0);
+  const overrides = message.flags?.["draw-steel-target-damage"]?.state?.tierOverrides ?? {};
   if (target) {
     const doc = tokenDoc(target);
+    const actor = doc?.actor ?? target.actor ?? (target.documentName === "Actor" ? target : null);
+    const override = [doc?.uuid, actor?.uuid].filter(Boolean).map((k) => overrides[k.replace(/\./g, "__")]).find((o) => o?.edges != null);
+    if (override) return { nets: [net(override)] };
     const own = powerRollFor(message, doc?.actor ?? target);
     if (own) return { nets: [net(own.options)] };
   }
+  const fromOverrides = Object.values(overrides).filter((o) => o?.edges != null).map(net);
+  if (fromOverrides.length) return { nets: fromOverrides };
   const rolls = rolledTargets(message).map((t) => powerRollFor(message, t.actorUuid)).filter(Boolean);
   if (!rolls.length) {
     const untargeted = powerRollFor(message);
