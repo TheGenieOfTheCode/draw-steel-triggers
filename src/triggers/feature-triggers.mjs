@@ -6,7 +6,7 @@ import { ignoredByRule } from "./ignore-rules.mjs";
 import { countdownLeft } from "./countdowns.mjs";
 import { useLive, useTargets } from "./ability-uses.mjs";
 
-export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer"]);
+export const FEATURE_ACTOR_TYPES = new Set(["hero", "npc", "retainer", "companion"]);
 export const FEATURE_ITEM_TYPES =new Set(["feature", "subclass", "ancestryTrait", "perk", "title", "complication", "treasure", "kit", "career", "culture"]);
 const LINES_FLAG = "featureLines";
 const TRIGGERED = new Set(["triggered", "freeTriggered"]);

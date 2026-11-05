@@ -138,7 +138,7 @@ export function decorate(container, item) {
       from = place(container, line.sentence, from, widgetFor(item, effectiveLine(item, line)));
     }
   }
-  if (!FEATURE_ACTOR_TYPES.has(item.actor.type) || (item.actor.type !== "hero" && !game.user.isGM)) return;
+  if (!FEATURE_ACTOR_TYPES.has(item.actor.type) || (!["hero", "companion"].includes(item.actor.type) && !game.user.isGM)) return;
   let from = 0;
   for (const line of itemEffectiveLines(item)) {
     if (container.querySelector(`.dst-line-widget[data-line-key="${line.key}"]`)) continue;

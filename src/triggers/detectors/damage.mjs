@@ -1,4 +1,4 @@
-import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor, triggersLive, rollModsOf } from "../dispatch.mjs";
+import { dispatchTriggerEvent, collectTriggerMatches, isMinionActor, triggersLive, rollModsOf, mentorOf } from "../dispatch.mjs";
 import { enqueueDamageHold, consumeDamageBypass, deathOfferedFor, damageBypassed } from "../queue.mjs";
 import { deferDeathApi } from "../../compat/death-tracker.mjs";
 import { MODULE_ID, getSetting, dbg, batchedNotice } from "../../util.mjs";
@@ -103,7 +103,7 @@ Hooks.once("ready", () => {
   
   libWrapper.register(MODULE_ID, "ds.data.pseudoDocuments.messageParts.AbilityResult.prototype.modifyDamageDialog", async function (wrapped, ...args) {
     let actor = this.ability?.actor;
-    if (actor?.type === "retainer") actor = actor.system.retainer?.mentor ?? actor;
+    if (actor && actor.type !== "hero") actor = mentorOf(actor) ?? actor;
     const before = Number(actor?.system?.hero?.surges ?? 0);
     const roll = await wrapped(...args);
     const spent = before - Number(actor?.system?.hero?.surges ?? 0);

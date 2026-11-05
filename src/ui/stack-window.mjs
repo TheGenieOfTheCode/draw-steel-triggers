@@ -528,7 +528,7 @@ export class StackWindow extends ds.applications.api.DSApplication {
         let costBadge = null;
         if (e.featureLine?.maliceCost) costBadge = { malice: true, label: game.i18n.format("DS_TRIGGERS.Queue.CostMalice", { n: e.featureLine.maliceCost }) };
         else if (Number.isFinite(sys?.resource) && sys.resource > 0) {
-          const malice = ownerDoc?.type !== "hero" && ownerDoc?.type !== "character";
+          const malice = !["hero", "character", "companion"].includes(ownerDoc?.type);
           costBadge = {
             malice,
             label: malice

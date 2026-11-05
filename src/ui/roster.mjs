@@ -1,21 +1,21 @@
 import { getTriggeredAbilities, isMaliceAbility, triggerEffectText } from "../triggers/registry.mjs";
-import { candidateEntries } from "../triggers/dispatch.mjs";
+import { candidateEntries, mentorOf } from "../triggers/dispatch.mjs";
 import { sourceOf, isDerived } from "../triggers/derived.mjs";
 import { snoozeFor, actorSnoozeFor, exactSnoozeFor } from "./snooze.mjs";
 import { heroGainLines, gainsActive, gainSnoozeId, lineText } from "../triggers/resource-gains.mjs";
 import { MODULE_ID } from "../util.mjs";
 import { clauseFires, triggerCanFire, partSnoozeId } from "../triggers/firing.mjs";
 
-const COMPANION = "draw-steel-companion.companion";
+const COMPANIONS = new Set(["companion", "draw-steel-companion.companion"]);
 
-const _isCompanionOrRetainer = (actor) => actor?.type === "retainer" || actor?.type === COMPANION;
+const _isCompanionOrRetainer = (actor) => actor?.type === "retainer" || COMPANIONS.has(actor?.type);
 
-const _mentorOf = (actor) => actor?.system?.retainer?.mentor ?? null;
+const _mentorOf = mentorOf;
 
 function _cost(actor, item) {
   const resource = item.system?.resource;
   if (!Number.isFinite(resource) || resource <= 0) return null;
-  const malice = actor?.type !== "hero" && actor?.type !== "character";
+  const malice = !["hero", "character", "companion"].includes(actor?.type);
   return {
     malice,
     label: malice

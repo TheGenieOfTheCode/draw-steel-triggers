@@ -25,7 +25,7 @@ const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
 const FIXED_DISPOSITIONS = { FRIENDLY: "FRIENDLY", NEUTRAL: "NEUTRAL", HOSTILE: "HOSTILE", SECRET: "SECRET" };
 const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", "MENTOR", ...Object.keys(FIXED_DISPOSITIONS)]);
 
-const mentorOf = (actor) => actor?.system?.retainer?.mentor ?? actor?.system?.companion?.master ?? null;
+export const mentorOf = (actor) => actor?.system?.retainer?.mentor ?? actor?.system?.companion?.master ?? null;
 
 const kwWords = (s) => String(s ?? "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z]+/).filter(Boolean).map((w) => w.replace(/s$/, ""));
 
@@ -530,7 +530,7 @@ function eventContextMatches(clause, event, ownerActor, subjectActor, subjectTok
       if (!clause.through || !ctx.throughActor) return false;
       if (clause.throughMark && !carriesVictimMark(ctx.throughActor, ownerActor, clause.throughMark)) return false;
       if (clause.victimNotMentor) {
-        const mentor = ownerActor.system?.retainer?.mentor;
+        const mentor = mentorOf(ownerActor);
         if (mentor && (ctx.throughActor === mentor || ctx.throughActor.id === mentor.id)) return false;
       }
       if (!clause.throughScope) return true;
