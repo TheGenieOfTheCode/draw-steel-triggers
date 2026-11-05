@@ -274,6 +274,8 @@ const _turnStamp = (combat) => (combat?.started ? `${combat.id}|${combat.round}|
 
 export function turnPeakResource(actor) {
   const now = _resourceValue(actor);
+  const tracked = actor?.system?.hero?.primary?.tracking;
+  if (Number.isFinite(tracked)) return _combatOf(actor) ? Math.max(now, tracked) : now;
   const stamp = _turnStamp(_combatOf(actor));
   if (!stamp) return now;
   const peak = _peaks.get(actor.uuid);
