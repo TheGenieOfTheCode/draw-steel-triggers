@@ -689,7 +689,7 @@ function _onForcedMovement({ type, targetUuid, sourceUuid, keywords = [], resist
 }
 
 Hooks.on("dsct.forcedMovement", (ctx) => {
-  if (!(Number(ctx?.moved) > 0) && !ctx?.resisted) return;
+  if (!(Number(ctx?.moved) > 0) && !ctx?.resisted && !ctx?.blocked) return;
   const uuidOf = (t) => (t?.document ?? t)?.uuid ?? null;
   const payload = { type: ctx.type ?? null, targetUuid: uuidOf(ctx.target), sourceUuid: uuidOf(ctx.source), keywords: [...(ctx.keywords ?? [])], resisted: !!ctx.resisted };
   if (isPrimaryGM()) _onForcedMovement(payload);
