@@ -228,7 +228,8 @@ const opposed = (docA, docB) => {
 function keywordsMatch(clause, ability) {
   if (!clause.abilityKeywords?.length) return true;
   const kw = ability?.system?.keywords;
-  const has = (k) => kw?.has?.(k) ?? kw?.includes?.(k) ?? false;
+  const unused = ability?.system?.distance?.type === "meleeRanged" ? (ability.system.damageDisplay === "ranged" ? "melee" : "ranged") : null;
+  const has = (k) => k !== unused && (kw?.has?.(k) ?? kw?.includes?.(k) ?? false);
   if (clause.abilityKeywordGroups?.length) return clause.abilityKeywordGroups.every((g) => g.some(has));
   return clause.abilityKeywordsAll ? clause.abilityKeywords.every(has) : clause.abilityKeywords.some(has);
 }
