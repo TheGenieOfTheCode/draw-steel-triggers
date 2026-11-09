@@ -6,11 +6,11 @@ import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 import { DAMAGE_MODIFYING } from "../parser/trigger-parser.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
 import { isTriggerSnoozed } from "../ui/snooze.mjs";
+import { carriesMark } from "./feature-triggers.mjs";
 import { cardContent, postSystemCard, speakerFor, withFaces } from "../ui/system-card.mjs";
 import { tip, tipAttrs } from "../ui/tips.mjs";
 
 const RUI = "draw-steel-resources-ui";
-const CT = "draw-steel-combat-tools";
 const FLAG = "resourceGains";
 const LINES_FLAG = "gainLines";
 
@@ -36,17 +36,8 @@ const _near = (a, b, squares) => {
   return footprintGap(a, b) < squares * canvas.grid.distance;
 };
 
-const _origin = (effect) => {
-  try { return effect.origin ? fromUuidSync(effect.origin)?.actor ?? null : null; } catch { return null; }
-};
-
-const _taggedBy = (target, hero, ctKey, systemName) => {
-  if (!target || !hero) return false;
-  if (game.modules.get(CT)?.active) return target.effects.some((e) => e.flags?.[CT]?.[ctKey]?.actorId === hero.id);
-  return target.effects.some((e) => e.name === systemName && _origin(e) === hero);
-};
-const judgedBy = (target, hero) => _taggedBy(target, hero, "judgement", "Judgement");
-const markedBy = (target, hero) => _taggedBy(target, hero, "mark", "Mark");
+const judgedBy = (target, hero) => carriesMark(target, hero, "judged");
+const markedBy = (target, hero) => carriesMark(target, hero, "marked");
 
 const _typed = (e) => {
   const type = e.eventContext?.damageType;
