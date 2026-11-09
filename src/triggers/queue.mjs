@@ -5,13 +5,14 @@ import { cardContent, facesIn, postSystemCard, withFaces } from "../ui/system-ca
 import { postFeatureCard } from "../ui/feature-card.mjs";
 import { onSnoozeWrite } from "../ui/snooze.mjs";
 import { spendMalice } from "../ui/stack-window.mjs";
-import { noteFeatureLineUse } from "./feature-triggers.mjs";
+import { noteFeatureLineUse, forgetFeatureLineUse } from "./feature-triggers.mjs";
+import { refundConsumable } from "./consumables.mjs";
 import { startCountdown } from "./countdowns.mjs";
 import { setTriggeredActionSpent, onSpentWrite } from "./spent-tracking.mjs";
 import { openDamageModWindow, damagePillType, foldDamagePills } from "../ui/damage-mod-window.mjs";
 import { noteTargetsChange } from "./detectors/resolution.mjs";
 import { footprintGap, abilityRangeSquares, flankingAllyOf, groupMatches, isMinionActor } from "./dispatch.mjs";
-import { triggerEffectText } from "./registry.mjs";
+import { triggerEffectText, isMaliceAbility } from "./registry.mjs";
 import { pickHarmonizeTarget, setDamagePillEnabled, addTarget, onBespokeWrite } from "./bespoke.mjs";
 import { lineMandatory } from "./auto-use.mjs";
 import { hasBespokeUse } from "./bespoke-registry.mjs";
@@ -447,6 +448,7 @@ async function _onQueueResolve(id, outcome, userName) {
       && q.featureLine?.exclusive === entry.featureLine.exclusive)) _onQueueResolve(other.id, "dismissed");
   }
   if (outcome === "used") entry.usedAt = Date.now();
+  if (outcome === "used" && entry.lock && entry.lockKey && entry.resume?.itemUuid) _noteLockUse(entry);
   if (outcome === "used" && entry.pill) await _enableBonusPill(entry.pill);
   if (outcome === "used" && entry.mark) await _applyQueuedMark(entry.mark);
   if (outcome === "used" && entry.potencyMod && entry.potencyKeys?.messageId) {
@@ -635,6 +637,127 @@ function _useFeatureLine(entry) {
     speaker: ds.documents.DrawSteelChatMessage.getSpeaker({ actor: owner }),
     flags: { [MODULE_ID]: { reminder: { event: "FEATURE_USE" }, featureUse: { itemUuid: entry.itemUuid, key: entry.featureLine.key } } },
   });
+}
+
+const LOCK_USE_TTL = 600000;
+const _lockUses = new Map();
+const _reactionSpends = new Map();
+
+function _noteLockUse(entry) {
+  const list = (_lockUses.get(entry.resume.itemUuid) ?? []).filter((e) => Date.now() - e.usedAt < LOCK_USE_TTL);
+  list.push(entry);
+  _lockUses.set(entry.resume.itemUuid, list);
+  const spend = _reactionSpends.get(entry.itemUuid);
+  if (spend && Date.now() - spend.at < 120000) {
+    entry.spent = spend.amount;
+    _reactionSpends.delete(entry.itemUuid);
+  }
+}
+
+function _onReactionSpent(itemUuid, amount) {
+  if (!isPrimaryGM()) return;
+  const entry = [..._lockUses.values()].flat()
+    .filter((e) => e.itemUuid === itemUuid && e.spent == null && Date.now() - e.usedAt < LOCK_USE_TTL).at(-1);
+  if (entry) entry.spent = amount;
+  else _reactionSpends.set(itemUuid, { amount, at: Date.now() });
+}
+
+const _resourceBefore = new Map();
+const _coreResourceValue = (actor) => {
+  const res = actor?.system?.coreResource;
+  return res ? Number(foundry.utils.getProperty(res.target, res.path)) : NaN;
+};
+const _isReaction = (item) => item?.system?.type === "triggered" || isMaliceAbility(item);
+
+Hooks.on("ds.preUseAbility", (item) => {
+  if (_isReaction(item)) _resourceBefore.set(item.uuid, _coreResourceValue(item.actor));
+});
+
+Hooks.on("ds.useAbility", (item) => {
+  if (!_resourceBefore.has(item?.uuid)) return;
+  const spent = _resourceBefore.get(item.uuid) - _coreResourceValue(item.actor);
+  _resourceBefore.delete(item.uuid);
+  if (spent > 0) asPrimaryGM("reactionSpent", item.uuid, spent);
+});
+
+async function _onLockModeRefund({ itemUuid, keys = [], from, to, userId } = {}) {
+  if (!isPrimaryGM()) return;
+  const held = fromUuidSync(itemUuid);
+  for (const entry of _lockUses.get(itemUuid) ?? []) {
+    if (entry.refunded || !keys.includes(entry.lockKey)) continue;
+    entry.refunded = true;
+    const owner = fromUuidSync(entry.ownerActorUuid);
+    if (!owner) continue;
+    const back = [];
+    const resource = owner.system?.coreResource?.name ?? "";
+    const line = entry.derived ? null : entry.featureLine;
+    if (entry.featureLine) forgetFeatureLineUse(owner, entry.featureLine.key);
+    const lineCost = Number(line?.resourceCost) || 0;
+    const pool = line?.resourcePath ?? "system.hero.primary.value";
+    const have = Number(foundry.utils.getProperty(owner, pool));
+    if (lineCost && Number.isFinite(have)) await owner.update({ [pool]: have + lineCost });
+    if (entry.spent > 0) await owner.system.updateResource?.(entry.spent);
+    const paid = lineCost + (Number(entry.spent) || 0);
+    if (paid) back.push(`${paid} ${resource}`);
+    const item = fromUuidSync(entry.itemUuid);
+    if (line?.action === "triggered" || (item?.type === "ability" && item.system.type === "triggered" && !isMaliceAbility(item))) {
+      await setTriggeredActionSpent(owner, false);
+      back.push(game.i18n.localize("DS_TRIGGERS.Queue.ModeRefundAction"));
+    }
+    const consumable = await refundConsumable(owner.uuid, entry.usedAt - 5000).catch((err) => dbg("consumable refund failed", err));
+    if (consumable?.restored) back.push(consumable.name);
+    if (entry.fmSurges) {
+      await owner.update({ "system.hero.surges": (Number(owner.system?.hero?.surges) || 0) + entry.fmSurges });
+      back.push(game.i18n.format("DS_TRIGGERS.Queue.ModeRefundSurges", { n: entry.fmSurges }));
+    }
+    if (entry.villain) _recordVillain(entry, false);
+    if (entry.halvesOnUse) Hooks.callAll("dst.targetedHalfRevoked", { abilityUuid: itemUuid, targetActorUuid: entry.ownerActorUuid, modName: entry.itemName });
+    if (entry.reflectHalf && held?.actor) Hooks.callAll("dst.targetedHalfRevoked", { abilityUuid: itemUuid, targetActorUuid: held.actor.uuid, modName: entry.itemName });
+    dbg(`lock refund: ${entry.ownerName} ${entry.itemName} (${from} -> ${to})`);
+    await _postModeRefundCard(entry, owner, held, { from, to, back, userId });
+  }
+}
+
+function _postModeRefundCard(entry, owner, held, { from, to, back, userId }) {
+  const esc = foundry.utils.escapeHTML;
+  const mode = (m) => game.i18n.localize(`DS_TRIGGERS.Queue.Mode.${m === "ranged" ? "Ranged" : "Melee"}`);
+  const sentence = game.i18n.format("DS_TRIGGERS.Queue.ModeRefundBody", {
+    owner: entry.ownerName, reaction: entry.itemName, ability: held?.name ?? "", from: mode(from), to: mode(to),
+  });
+  const intro = withFaces(sentence, [owner]).replace(esc(entry.itemName), `<strong>${esc(entry.itemName)}</strong>`);
+  const refunded = back.length ? `<p>${esc(game.i18n.format("DS_TRIGGERS.Queue.ModeRefundBack", { list: back.join(", ") }))}</p>` : "";
+  const stays = entry.redirect || entry.fmMode || entry.expend || entry.addSelfTarget
+    ? `<p>${esc(game.i18n.localize("DS_TRIGGERS.Queue.ModeRefundStays"))}</p>` : "";
+  const recipients = new Set(game.users.filter((u) => u.isGM).map((u) => u.id));
+  if (userId) recipients.add(userId);
+  for (const u of game.users) if (!u.isGM && owner.testUserPermission?.(u, "OWNER")) recipients.add(u.id);
+  return postSystemCard({
+    title: game.i18n.localize("DS_TRIGGERS.Queue.ModeRefundTitle"),
+    flavor: null,
+    kind: "Reminder",
+    content: cardContent({ intro, body: refunded + stays }),
+    whisper: [...recipients],
+    flags: { [MODULE_ID]: { reminder: { event: "MODE_REFUND" } } },
+  });
+}
+
+export function withdrawRollMods(app, gone) {
+  const removePill = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.removePill;
+  const modifiers = app.options?.context?.modifiers;
+  let bumped = false;
+  for (const g of gone) {
+    for (const r of (app._dstRollMods ?? []).filter((x) => !x.withdrawn && x.modName === g.itemName && x.ownerActorUuid === g.ownerActorUuid)) {
+      r.withdrawn = true;
+      if (r.asPills) removePill?.(app, { reason: r.modName, src: r.src });
+      else if (modifiers) {
+        bumped = true;
+        modifiers.edges = Math.max(0, (modifiers.edges ?? 0) - r.edges);
+        modifiers.banes = Math.max(0, (modifiers.banes ?? 0) - r.banes);
+        modifiers.bonuses = (modifiers.bonuses ?? 0) - r.bonus;
+      }
+    }
+  }
+  if (bumped) app.render();
 }
 
 export const deathOfferedFor = (actorUuid) =>
@@ -2039,6 +2162,10 @@ function _applyRollMods(app, mods) {
       modifiers.bonuses = (modifiers.bonuses ?? 0) + (m.bonus ?? 0);
       if (m.tierShift) ui.notifications.warn(game.i18n.format("DS_TRIGGERS.Queue.TierByHand", { modName: m.modName }));
     }
+    (app._dstRollMods ??= []).push({
+      ownerActorUuid: m.ownerActorUuid ?? null, modName: m.modName, src: m.src ?? null, asPills,
+      edges: m.edges ?? 0, banes: m.banes ?? 0, bonus: m.bonus ?? 0,
+    });
     ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModInjected", {
       modName: m.modName, effect: _rollModLabel(m),
     }));
@@ -2241,6 +2368,7 @@ export function enqueueLockEntries(matches, { event, causeLabel, resume, held })
     fmTargetUuid: m._fmTargetUuid ?? null,
     villain: m._villain ?? null,
     playerSide: m.actor.hasPlayerOwner ?? false,
+    lockKey: m._lockKey ?? null,
     lock: true,
     state: "pending",
     createdAt: Date.now(),
@@ -2571,6 +2699,8 @@ Hooks.once("socketlib.ready", () => {
   socket.register("applyHeldDamageNow", _onApplyHeldDamageNow);
   socket.register("releaseResolutionNow", _onReleaseResolutionNow);
   socket.register("useCancelled", _onUseCancelled);
+  socket.register("lockModeRefund", _onLockModeRefund);
+  socket.register("reactionSpent", _onReactionSpent);
   socket.register("teleswapped", _onTeleswapped);
   socket.register("snoozeWrite", onSnoozeWrite);
   socket.register("redirectChosen", _onRedirectChosen);

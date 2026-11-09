@@ -44,6 +44,17 @@ async function useOne(messageId) {
   await message.setFlag(MODULE_ID, FLAG, { ...data, done: true, left });
 }
 
+export async function refundConsumable(actorUuid, since) {
+  const message = game.messages.contents.filter((m) => m.timestamp >= since).reverse()
+    .find((m) => { const d = m.getFlag(MODULE_ID, FLAG); return d && !d.refunded && d.actorUuid === actorUuid; });
+  if (!message) return null;
+  const data = message.getFlag(MODULE_ID, FLAG);
+  const item = (await fromUuid(data.actorUuid))?.items.get(data.itemId);
+  if (data.done && item) await item.update({ "system.quantity": quantityOf(item) + 1 });
+  await message.setFlag(MODULE_ID, FLAG, { ...data, done: true, refunded: true });
+  return { name: item?.name ?? null, restored: !!(data.done && item) };
+}
+
 Hooks.once("ready", () => queueSocket()?.register("consumableUseOne", useOne));
 
 Hooks.on("renderChatMessageHTML", (message, html) => {
@@ -55,6 +66,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     button.disabled = true;
     button.innerHTML = `<i class="fa-solid fa-check" inert></i> ${esc(text)}`;
   };
+  if (data.refunded) return finished(L("Refunded"));
   if (data.done) return finished(L("Spent", { left: data.left ?? quantityOf(item) }));
   if (!item) return finished(L("Gone"));
   if (quantityOf(item) <= 0) return finished(L("Spent", { left: 0 }));

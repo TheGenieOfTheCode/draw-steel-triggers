@@ -343,6 +343,15 @@ export function noteFeatureLineUse(actor, key) {
   }
 }
 
+export function forgetFeatureLineUse(actor, key) {
+  _uses.delete(_useKey(actor, key));
+  const combatant = _combatantOf(actor);
+  if (combatant?.getFlag(MODULE_ID, USES_FLAG)?.[_flagKey(key)] && isPrimaryGM()) {
+    combatant.update({ [`flags.${MODULE_ID}.${USES_FLAG}.${_flagKey(key)}`]: new foundry.data.operators.ForcedDeletion() })
+      .catch((err) => console.warn(`${MODULE_ID} | could not clear a line use on ${combatant.name}`, err));
+  }
+}
+
 export function featureLineSpent(actor, key, once) {
   if (!once) return false;
   const used = _uses.get(_useKey(actor, key)) ?? _combatantOf(actor)?.getFlag(MODULE_ID, USES_FLAG)?.[_flagKey(key)];

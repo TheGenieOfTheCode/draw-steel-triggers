@@ -191,6 +191,13 @@ function _dstdOperationId(target, partId, rollIndex) {
   return `damage-${partId ?? "part"}-${rollIndex}-${_dstdHash(key)}`.replace(/[^A-Za-z0-9_-]/g, "-");
 }
 
+Hooks.on("dst.targetedHalfRevoked", (data) => {
+  for (let i = _pendingHalves.length - 1; i >= 0; i--) {
+    const p = _pendingHalves[i];
+    if (!p.claimed && p.abilityUuid === data.abilityUuid && p.targetActorUuid === data.targetActorUuid && p.modName === data.modName) _pendingHalves.splice(i, 1);
+  }
+});
+
 Hooks.on("dst.targetedHalfUsed", (data) => {
   if (!_dstdActive()) return;
   _pendingHalves.push({ ...data, expires: Date.now() + 120000 });
