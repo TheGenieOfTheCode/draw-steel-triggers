@@ -127,7 +127,7 @@ export function itemFeatureLines(item, { withIgnored = false } = {}) {
     return ignored.size ? cached.lines.filter((l) => !ignored.has(l.key)) : cached.lines;
   }
   const opts = { dsid: item.system?._dsid ?? "", name: item.name, resource, ownerName, benefits };
-  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies, distance: item.system?.distance, spendHtml: abilitySpendHTML(item) })
+  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: applies, distance: item.system?.distance, target: item.system?.target, spendHtml: abilitySpendHTML(item) })
     .filter((l) => l.watch !== "self" && (!malice || l.watch === "used"))
     : featureTriggerLines(html, opts);
   const lines = found.filter((l) => l.kind === "trigger")

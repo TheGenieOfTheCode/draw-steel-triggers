@@ -216,8 +216,11 @@ export function abilitySpendHTML(ability) {
 
 const flatText = (h) => decode(String(h ?? "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim().toLowerCase();
 
-export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false, distance = null, spendHtml = "" } = {}) {
+const TARGET_SCOPES = { enemy: "ENEMY", ally: "ALLY" };
+
+export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = "", appliesEffects = false, distance = null, target = null, spendHtml = "" } = {}) {
   const aura = distance?.type === "aura" ? Number(distance.primary) || null : null;
+  const targetScope = TARGET_SCOPES[target?.type] ?? null;
   const spendText = spendHtml ? flatText(spendHtml) : "";
   return featureTriggerLines(html, { dsid, name, ownerName, ability: true }).map((l) => {
     const spendUsed = !!spendText && spendText.includes(flatText(l.sentence));
@@ -226,6 +229,9 @@ export function abilityTriggerLines(html, { dsid = "", name = "", ownerName = ""
       : (area && !aura) || zoneOnly(l.parse) ? "parked"
         : appliesEffects && !area ? (NEEDS_SUBJECT.test(l.trigger) ? "subject" : "active")
           : "used");
+    if (targetScope && TARGET_SUBJECT.test(l.trigger) && l.parse?.clauses?.length) {
+      l.parse.clauses = l.parse.clauses.map((c) => (c.scope === "ANY" ? { ...c, scope: targetScope } : c));
+    }
     const mark = l.trigger.match(MARKED);
     const watchMark = mark ? (mark[1] ?? mark[2]).toLowerCase() : null;
     const inAura = !!aura && (area || USE_TARGET.test(l.trigger));
@@ -429,6 +435,10 @@ const CURATED_LINES = [
   [/^Flying Circus$/, /willing ally on their turn/, { triggers: [["An ally starts their turn adjacent to you"], ["An ally moves adjacent to you", { arrives: true }]],
     note: "Willingness is confirmed by hand" }],
   [/^Goaded$/, /marked by you uses a strike/, { clause: { scope: "SELF_OR_ALLY", qualifiers: [], lineOfEffect: undefined, redirect: "chooser", redirectPool: "selfOrAlly" } }],
+  [/^Null Field$/, /first time on a turn that a target takes damage/i, { shown: "A target in your Null Field takes damage while you have Gravitic Disruption active",
+    clause: { effects: [{ on: "owner", has: true, kind: "name", value: "Gravitic Disruption", by: "anyone" }] } }],
+  [/^Null Field$/, /against a target that has a potency effect/i, { shown: "You or any ally uses an ability against a target that has a potency effect while you have Synaptic Break active",
+    clause: { effects: [{ on: "owner", has: true, kind: "name", value: "Synaptic Break", by: "anyone" }] } }],
   [/^Cryokinetic Mastery$/, /grab a creature or an enemy moves/, { trigger: "You grab a creature", note: "Null Field half: Later (zones)" }],
   [/^Disciple of the Green$/, /outcome on a melee free strike/, { clause: { abilityDsid: "melee-free-strike" } }],
   [/^Loner$/, /reduces one of your allies to 0 Stamina/, { trigger: "An ally takes damage", clause: { damageOutcome: ["zero"] },
@@ -712,6 +722,7 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
       if (zoneLater) curated.later = "Zones";
       const shown = curated.effect === "first" ? String(f.effect ?? "").replace(/\s+/g, " ").trim() : effect;
       const line = { key, sentence: f.sentence, action: f.action, kind: zoneLater ? "later" : kind, once, trigger: f.trigger, effect: shown, flavor,
+        ...(curated.shown ? { shownTrigger: curated.shown } : {}),
         ...(cost ? { cost } : {}), ...(f.exclusive ? { exclusive: f.exclusive } : {}),
         ...(curated.later ? { later: curated.later } : {}), ...(curated.note ? { note: curated.note } : {}),
         ...(curated.neverAutoUse ? { neverAutoUse: true } : {}), ...((curated.countdown ?? victoryCountdown(effect)) ? { countdown: curated.countdown ?? victoryCountdown(effect) } : {}), ...(curated.director ? { director: true } : {}),

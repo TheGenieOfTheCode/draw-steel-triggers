@@ -131,7 +131,7 @@ function lineEmbed(item, line, reads, { buttons: withButtons = true } = {}) {
   const rows = prereqs.length
     ? row(L(prereqs.length > 1 ? "Prerequisites" : "Prerequisite"), prereqs.map((c, i) =>
       `<span class="dst-prereq">${esc(i ? `${L("And")} ${c}` : cap(c))}${i < prereqs.length - 1 ? "," : ""}</span>`).join(" "))
-      + row(triggerLabel, esc(line.trigger), "dst-trigger-row") + effectRow
+      + row(triggerLabel, esc(line.shownTrigger ?? line.trigger), "dst-trigger-row") + effectRow
     : effectRow;
   return `<document-embed class="draw-steel ability dst-feature-card">
 <h5>${esc(line.name ?? item.name)}</h5>
@@ -140,7 +140,7 @@ function lineEmbed(item, line, reads, { buttons: withButtons = true } = {}) {
   <dl>
     <dt class="keywords">${L("Keywords")}</dt><dd class="keywords">${typePill(item)}</dd>
     <dt class="type">${L("Type")}</dt><dd class="type">${esc(type)}</dd>
-    ${prereqs.length ? "" : `<dt class="trigger">${triggerLabel}</dt><dd class="trigger">${esc(line.trigger)}</dd>`}
+    ${prereqs.length ? "" : `<dt class="trigger">${triggerLabel}</dt><dd class="trigger">${esc(line.shownTrigger ?? line.trigger)}</dd>`}
   </dl>
 </section>
 <section class="effect after">${rows}</section>

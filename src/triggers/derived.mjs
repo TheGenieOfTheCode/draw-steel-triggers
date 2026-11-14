@@ -260,7 +260,7 @@ function specFor(source, line, useMacro = null, strikeMacro = null) {
   const system = {
     type: line.action ?? "none",
     resource: linePool(source.actor, line) === "system.hero.primary.value" ? lineCost(source.actor, line) : null,
-    trigger: line.trigger,
+    trigger: line.shownTrigger ?? line.trigger,
     story: String(line.flavor ?? "").replace(/^\s*[^.:!?]{1,30}:\s+/, ""),
     keywords: [],
     ...reachOf(line.parse, line.effect),
@@ -308,7 +308,7 @@ export function derivedParse(item, { ignoreManual = false } = {}) {
   const d = derivedInfo(item);
   const source = d && !d.edited ? sourceOf(item) : null;
   const line = source ? itemFeatureLines(source, { withIgnored: true }).find((l) => l.key === d.lineKey) : null;
-  if (line?.parse && line.trigger.replace(/[.!]+$/, "") === text) return line.parse;
+  if (line?.parse && [line.trigger, line.shownTrigger].some((t) => t && t.replace(/[.!]+$/, "") === text)) return line.parse;
   const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
   const effectText = (item.system?.effects?.contents ?? []).map((e) => e.description ?? "").join(" ").replace(/<[^>]+>/g, " ");
   const cached = _parseCache.get(item.uuid);
