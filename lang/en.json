@@ -999,6 +999,8 @@
     },
     "Derived": {
       "From": "From {source}",
+      "NoteName": "Derived",
+      "Note": "From {source} by Draw Steel: Triggers.",
       "Edited": "Edited",
       "Resync": "Resync",
       "ResyncTip": "Replace your edits with the source text again.",
