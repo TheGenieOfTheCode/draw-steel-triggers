@@ -369,6 +369,55 @@ Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
 const DSTD_ID = "draw-steel-target-damage";
 const _seenApplications = new Set();
 
+Hooks.on("preUpdateCombatantGroup", (group, changes, options) => {
+  if (group.type !== "squad" || !foundry.utils.hasProperty(changes, "system.staminaValue")) return;
+  options.dsTriggersSquadPrev = Number(group.system?.staminaValue);
+});
+
+Hooks.on("updateCombatantGroup", (group, changed, options) => {
+  const prev = options.dsTriggersSquadPrev;
+  if (!Number.isFinite(prev) || options.dsblUndo || game.modules.get(DSTD_ID)?.active) return;
+  const amount = prev - Number(group.system?.staminaValue);
+  if (!(amount > 0)) return;
+  const members = Array.from(group.members ?? []);
+  const hitDoc = _hitToken ? fromUuidSync(_hitToken, { strict: false }) : null;
+  const token = (hitDoc && members.some((c) => c.token === hitDoc) ? hitDoc : null)
+    ?? members.find((c) => c.token && !c.isDefeated)?.token ?? members.find((c) => c.token)?.token ?? null;
+  const actor = token?.actor;
+  if (!actor) return;
+  const record = _typeFor.get(actor.uuid) ?? null;
+  _typeFor.delete(actor.uuid);
+  const damageType = options.ds?.damageType ?? record?.type ?? null;
+  const dealer = _dealer ?? _dealerFromOrigin(options.ds?.origin) ?? _dealerFromSource(record?.flat);
+  dispatchTriggerEvent({
+    event: "LOSES_STAMINA",
+    subjectActor: actor,
+    subjectToken: token,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.LosesStamina", { name: token.name, amount }),
+  });
+  if (options.staminaLoss) return;
+  dispatchTriggerEvent({
+    event: "TAKES_DAMAGE",
+    subjectActor: actor,
+    subjectToken: token,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.TakesDamage", { name: token.name, amount }),
+    eventContext: { dealerActor: dealer?.actor ?? null, dealerToken: dealer?.token ?? null, damageType, ability: dealer?.ability ?? null,
+      dealerMessage: dealer?.message ?? null, surgeSpend: dealer?.surges || null, rollMods: rollModsOf(dealer?.message, token),
+      fromFalling: !!record?.fall, fromForcedMovement: !!record?.forced,
+      damageSource: record?.source ?? _lineSource(dealer?.ability) ?? null, damageAmount: amount },
+  });
+  if (!dealer || dealer.actor === actor) return;
+  dispatchTriggerEvent({
+    event: "DEALS_DAMAGE",
+    subjectActor: dealer.actor,
+    subjectToken: dealer.token,
+    causeLabel: game.i18n.format("DS_TRIGGERS.Reminder.DealsDamage", { name: dealer.token?.name ?? dealer.actor.name, target: token.name, amount }),
+    triggerDamage: amount,
+    eventContext: { victimActor: actor, victimToken: token, damageType, surgeSpend: dealer.surges || null, rollMods: rollModsOf(dealer.message, token),
+      ability: dealer.ability ?? null, damageMessageId: dealer.message?.id ?? null },
+  });
+});
+
 function _dealersFromPills(r, victim) {
   const ids = new Set((r?.override?.dstPills ?? [])
     .filter((p) => p?.srcTokenId && (p.dstSquad || p.dealer) && p.enabled !== false)
