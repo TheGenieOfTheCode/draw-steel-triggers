@@ -9,6 +9,7 @@ export const SPECIAL_CASES = {
   "wasnt-aiming-for-you":       { clauses: [{ event: "POWER_ROLL_RESULT", scope: "SELF", qualifiers: ["tier 1", "signature ability"], tierFilter: [1], postRoll: true, signatureOnly: true, rollerScoped: true }] },
   "brain-drain":                { clauses: [{ event: "RESISTS_POTENCY", scope: "GRABBED_CREATURE" }] },
   "still-your-tongue":          { clauses: [{ event: "NARRATIVE", scope: "ANY" }] },
+  "strike-for-me":              { clauses: [{ event: "NARRATIVE", scope: "SELF", qualifiers: ["granted a free strike or signature ability"] }], flag: "REVISIT" },
   "timely-distraction":         { clauses: [{ event: "TEST_FAILED", scope: "ALLY" }] },
   "hesitation-is-weakness":     { clauses: [{ event: "TURN_END", scope: "ALLY", qualifiers: [], ownerUnacted: true, turnLock: true }] },
   "prescient-grace":            { clauses: [{ event: "TURN_START", scope: "ENEMY", qualifiers: ["within 10 squares"], anyHeroUnacted: true, turnLock: true }] },
