@@ -189,6 +189,10 @@
         "Name": "Add Basic Malice Features",
         "Hint": "Monsters that join a combat get Brutal Effectiveness and Malicious Strike on their sheet, the two Malice features every monster can use."
       },
+      "TrackByHand": {
+        "Name": "Track by Hand Message",
+        "Hint": "When a combat starts, each player gets a whispered chat message listing what Triggers doesn't automate for their heroes. The Director gets the rest."
+      },
       "FeatureIgnore": {
         "Name": "Ignored Features",
         "Hint": "Features that never get feature triggers. Click a feature to stop ignoring it. The Ignore button in a feature's trigger builder adds to this list too.",
@@ -975,6 +979,23 @@
       "DamageRedirectSkipped": "{modName}: no creature was picked, so the damage was not redirected.",
       "DamageRedirectByHand": "{modName} redirected {amount} damage away from {name}. Deal it by hand where it lands."
     },
+    "TrackByHand": {
+      "Title": "Track by Hand",
+      "Intro": "Triggers doesn't remind you about these. Keep track of them yourself.",
+      "Level": {
+        "none": "Not Automated",
+        "unknown": "Not Recognized",
+        "partial": "Partly Automated",
+        "later": "Not Automated",
+        "passive": "Passive",
+        "effect": "Effect by Hand"
+      },
+      "Reason": {
+        "Area": "Uses an Area",
+        "Choice": "Needs a Choice Made in Play",
+        "Summons": "Summons and Companions"
+      }
+    },
     "MaliceCard": {
       "Header": "Malice Features",
       "Title": "{name}'s Malice",
@@ -1026,7 +1047,8 @@
         "Declined": "Declined",
         "SquadTurn": "Squad Turn",
         "Derived": "Derived Ability",
-        "Consumable": "Consumable"
+        "Consumable": "Consumable",
+        "Track": "Hand Tracked"
       },
       "TypeOnce": "{action} ({once})",
       "OnceRound": "1/round",

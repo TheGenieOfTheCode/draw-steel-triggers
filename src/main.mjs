@@ -47,6 +47,7 @@ import "./ui/feature-card.mjs";
 import "./ui/malice-section.mjs";
 import "./ui/derived-chat-links.mjs";
 import "./triggers/derived-names.mjs";
+import { postTrackByHand } from "./triggers/track-by-hand.mjs";
 import { onDerivedSetting, refreshDerived } from "./triggers/derived.mjs";
 import { registerDerivedNames, itemEffectiveLines, clearFeatureLineCache } from "./triggers/feature-triggers.mjs";
 import { registerIgnoreRule, unregisterIgnoreRule, ignoredByRule, refreshIgnored } from "./triggers/ignore-rules.mjs";
@@ -297,6 +298,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: true
   });
+  game.settings.register(MODULE_ID, "trackByHand", {
+    name: "DS_TRIGGERS.Settings.TrackByHand.Name",
+    hint: "DS_TRIGGERS.Settings.TrackByHand.Hint",
+    scope: "world",
+    config: true,
+    type: Boolean,
+    default: true
+  });
   game.settings.register(MODULE_ID, "featureIgnore", {
     name: "DS_TRIGGERS.Settings.FeatureIgnore.Name",
     hint: "DS_TRIGGERS.Settings.FeatureIgnore.Hint",
@@ -405,6 +414,7 @@ Hooks.once("init", () => {
       if (game.ready) refreshDerived();
     },
     refreshIgnored,
+    postTrackByHand: (combat = game.combat) => postTrackByHand(combat),
     derivedLines: (item) => itemEffectiveLines(item).map((l) => ({ key: l.key, name: l.name, trigger: l.trigger, effect: l.effect })),
   };
 });
@@ -419,7 +429,7 @@ Hooks.once("ready", () => {
     { label: H("DamageMovement"), wiki: "Trigger-Effects#damage-modifying", items: ["damageInterrupts", "fmInterrupts"] },
     { label: H("Turns"), items: ["turnInterrupts", "offerVillainActions"] },
     { label: H("Features"), wiki: "Feature-Triggers", items: ["featureTriggers", "derivedTriggers", "derivedChatLinks", "autoSpendConsumables", "featureShareCards",
-      "basicMalice", "featureIgnore"] },
+      "basicMalice", "trackByHand", "featureIgnore"] },
     { label: H("Resources"), wiki: "Heroic-Resource-Gains", items: ["resourceGains", "resourcesUiSync", "rosterGains"] },
     { label: H("Debug"), items: ["debugMode"] },
   ], {

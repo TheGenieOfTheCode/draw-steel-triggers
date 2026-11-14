@@ -136,6 +136,22 @@ export function itemFeatureLines(item, { withIgnored = false } = {}) {
   return ignored.size ? lines.filter((l) => !ignored.has(l.key)) : lines;
 }
 
+export function itemAllLines(item) {
+  if (!item || !isLineSource(item)) return [];
+  if (ignoredFeatures().has(String(item.system?._dsid ?? "").toLowerCase()) || ignoredByRule(item)) return [];
+  const ability = item.type === "ability";
+  const html = ability ? abilityEffectHTML(item) : item.system?.description?.value ?? "";
+  const ownerName = item.actor && item.actor.type !== "hero" ? item.actor.name : "";
+  const opts = { dsid: item.system?._dsid ?? "", name: item.name, resource: ability ? null : resourceOf(item.actor), ownerName,
+    benefits: ability ? [] : grantedBenefits(item) };
+  const malice = ability && isMaliceAbility(item);
+  const found = ability ? abilityTriggerLines(html, { ...opts, appliesEffects: appliesEffects(item), distance: item.system?.distance,
+    target: item.system?.target, spendHtml: abilitySpendHTML(item) }).filter((l) => l.watch !== "self" && (!malice || l.watch === "used"))
+    : featureTriggerLines(html, opts);
+  const ignored = ignoredLines();
+  return found.filter((l) => !ignored.has(l.key));
+}
+
 const _benefitsByPool = new Map();
 function grantedBenefits(item) {
   const advancements = item.system?.advancements;

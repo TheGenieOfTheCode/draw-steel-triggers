@@ -147,6 +147,12 @@ function lineEmbed(item, line, reads, { buttons: withButtons = true } = {}) {
 ${withButtons ? footer(buttons) : ""}</document-embed>`;
 }
 
+export async function anyLineEmbed(item, line) {
+  const actor = item.actor;
+  const ctx = { item, actor, rollData: actor?.getRollData?.() ?? item.getRollData?.() ?? {} };
+  return lineEmbed(item, line, await readAll(item.system?.description?.value ?? "", ctx), { buttons: false });
+}
+
 export async function featureLineEmbed(item, lineKey) {
   const actor = item.actor;
   const ctx = { item, actor, rollData: actor?.getRollData?.() ?? item.getRollData?.() ?? {} };

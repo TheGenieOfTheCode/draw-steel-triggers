@@ -125,7 +125,7 @@ function compactEmbed(html, { item, name, owner, pills, action = true }) {
 
 export async function abilityRowsHTML(rows) {
   const items = await Promise.all(rows.map(async (r) => {
-    const embed = await embedFor(r.item);
+    const embed = r.embed ?? await embedFor(r.item);
     const attrs = Object.entries(r.attrs ?? {}).map(([k, v]) => ` ${k}="${esc(v)}"`).join("");
     if (!embed) return `<li class="dst-card-row"${attrs}><strong>${esc(r.name ?? r.item?.name)}</strong></li>`;
     return `<li class="dst-card-row"${attrs}>${compactEmbed(embed, r)}</li>`;

@@ -1882,6 +1882,9 @@ body.draw-steel-target-damage-hide-system section[data-message-part="dstFreeStri
 
 .dst-card-row { margin: 0; }
 
+.dst-hand-actor .dst-card-list { gap: 0; }
+.dst-hand-actor .dst-card-row + .dst-card-row { margin-top: -27px; }
+
 .dst-card-row > document-embed > h5 {
   display: flex;
   align-items: center;
