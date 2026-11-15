@@ -23,7 +23,7 @@ function _lockMatches(event, subjectActor, subjectToken, rollerActor, ability = 
 
 Hooks.once("setup", () => Hooks.on("ds.canRenderAbilityConfigurationDialog", (app) => {
   if (!getSetting("rollLock")) return;
-  if (app.rendered) return;
+  if (app.rendered || app.options?.rollLockBypass) return;
   const ability = app.options?.ability;
   if (ability?.type !== "ability") return;
   if (consumeRollBypass(ability.uuid)) return;
@@ -147,7 +147,7 @@ function _recheckMode(app) {
   const ability = app.options?.ability;
   const state = ability ? _lockModes.get(ability.uuid) : null;
   const mode = _modeOf(ability);
-  if (!app.rendered || !state || !mode || state.mode === mode) return;
+  if (!app.rendered || app.options?.rollLockBypass || !state || !mode || state.mode === mode) return;
   if (!getSetting("rollLock") || !triggersLive() || !ability.actor) return;
   const matches = _collectLockMatches(app, ability, ability.actor);
   const keys = new Map(matches.map((m) => [m._lockKey, { itemName: m.item.name, ownerActorUuid: m.actor.uuid }]));
