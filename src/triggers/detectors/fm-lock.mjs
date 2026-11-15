@@ -18,7 +18,9 @@ const cardKey = (messageId, targetUuid) => `${messageId}|${targetUuid}`;
 function _pruneFm() {
   const now = Date.now();
   for (const [id, rec] of _pendingFm) {
-    if (now - rec.at > 300000) _pendingFm.delete(id);
+    if (now - rec.at <= 300000) continue;
+    _pendingFm.delete(id);
+    if (rec.messageId && rec.rowKey) asPrimaryGM("markFmRowHeld", rec.messageId, rec.rowKey, false);
   }
   for (const [k, rec] of _resolvedOnCard) {
     if (now - rec.at > 1800000) _resolvedOnCard.delete(k);
@@ -162,7 +164,7 @@ Hooks.on("dsct.preForcedMovement", (ctx) => {
   let heldAt = null;
   if (ctx.messageId) {
     const origKey = String((target.document ?? target)?.uuid ?? "").replace(/\./g, "__");
-    const rowKey = fmSubKey(ctx.fmKey ?? null, origKey, origKey, String(baseType ?? "push").toLowerCase());
+    const rowKey = /^part:/.test(ctx.fmKey ?? "") ? ctx.fmKey : fmSubKey(ctx.fmKey ?? null, origKey, origKey, String(baseType ?? "push").toLowerCase());
     _pendingFm.get(fmId).rowKey = rowKey;
     heldAt = { messageId: ctx.messageId, rowKey };
     asPrimaryGM("markFmRowHeld", ctx.messageId, rowKey, true);
