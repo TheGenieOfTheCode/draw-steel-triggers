@@ -751,7 +751,10 @@ export function withdrawRollMods(app, gone) {
     for (const r of (app._dstRollMods ?? []).filter((x) => !x.withdrawn && x.modName === g.itemName && x.ownerActorUuid === g.ownerActorUuid)) {
       r.withdrawn = true;
       if (r.asPills) removePill?.(app, { reason: r.modName, src: r.src });
-      else if (modifiers) {
+      else if (r.negated?.length) {
+        bumped = true;
+        for (const s of r.negated) _modifiersAt(app, s).banes += 1;
+      } else if (modifiers) {
         bumped = true;
         modifiers.edges = Math.max(0, (modifiers.edges ?? 0) - r.edges);
         modifiers.banes = Math.max(0, (modifiers.banes ?? 0) - r.banes);
@@ -2119,6 +2122,17 @@ function _rollModLabel(m) {
   return parts.join(" + ");
 }
 
+const _modifiersAt = (app, scope) => (scope === "global" ? app.options.context.modifiers : app.options.context.targets[scope].modifiers);
+
+function _baneScopes(app, scope) {
+  const ctx = app.options?.context ?? {};
+  const globalBanes = Number(ctx.modifiers?.banes) || 0;
+  const targetBanes = (id) => Number(ctx.targets?.[id]?.modifiers?.banes) || 0;
+  if (scope !== "global" && targetBanes(scope) > 0) return [scope];
+  if (globalBanes > 0) return ["global"];
+  if (scope !== "global") return [];
+  return Object.keys(ctx.targets ?? {}).filter((id) => targetBanes(id) > 0);
+}
 
 function _pillScope(app, tokenUuid) {
   if (!tokenUuid) return "global";
@@ -2149,13 +2163,24 @@ function _applyRollMods(app, mods) {
     let asPills = false;
     const scope = _pillScope(app, m.scopeTokenUuid);
     if (m.negateBane) {
-      const pillBanes = (app._dsctSources ?? []).filter((p) => p.kind === "bane" && p.enabled !== false && (p.scope === "global" || p.scope === scope))
-        .reduce((n, p) => n + (Number(p.amount) || 0), 0);
-      if (!(pillBanes || modifiers?.banes)) {
+      const scopes = _baneScopes(app, scope);
+      if (!scopes.length) {
         ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.NoBaneToNegate", { modName: m.modName }));
         continue;
       }
-      m.edges = 1;
+      asPills = !!addPill && scopes.every((s) => addPill(app, {
+        kind: "bane", amount: -1, reason: m.modName, src: m.src ?? null, srcTokenId: m.srcTokenId ?? null, scope: s,
+      }));
+      if (!asPills) {
+        bumped = true;
+        for (const s of scopes) _modifiersAt(app, s).banes -= 1;
+      }
+      (app._dstRollMods ??= []).push({
+        ownerActorUuid: m.ownerActorUuid ?? null, modName: m.modName, src: m.src ?? null, asPills, negated: asPills ? [] : scopes,
+        edges: 0, banes: 0, bonus: 0,
+      });
+      ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollModInjected", { modName: m.modName, effect: _rollModLabel(m) }));
+      continue;
     }
     if (addPill) {
       const specs = [];

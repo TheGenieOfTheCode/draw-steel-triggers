@@ -105,7 +105,17 @@ function _collectLockMatches(app, ability, rollerActor) {
       add(_lockMatches("WOULD_TAKE_DAMAGE", subjectActor, tokenDoc, rollerActor).filter(notAlsoTargeted), "WOULD_TAKE_DAMAGE");
     }
   }
-  return matches;
+  const banes = _rawBanes(app);
+  return matches.filter((m) => !_onlyNegatesBane(m._rollMod) || banes > 0);
+}
+
+const _onlyNegatesBane = (mod) => !!mod?.negateBane && !mod.edges && !mod.banes && !mod.bonus && !mod.tierShift;
+
+function _rawBanes(app) {
+  const ctx = app.options?.context ?? {};
+  const extra = game.modules.get("draw-steel-combat-tools")?.api?.rollDialog?.extraBanes?.(app) ?? { global: 0, targets: {} };
+  const perTarget = Object.entries(ctx.targets ?? {}).map(([id, t]) => (Number(t?.modifiers?.banes) || 0) + (extra.targets[id] ?? 0));
+  return (Number(ctx.modifiers?.banes) || 0) + extra.global + (perTarget.length ? Math.max(...perTarget) : 0);
 }
 
 const _heldTargets = (app) => Object.values(app?.options?.context?.targets ?? {})
