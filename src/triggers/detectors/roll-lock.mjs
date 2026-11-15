@@ -39,7 +39,7 @@ Hooks.once("setup", () => Hooks.on("ds.canRenderAbilityConfigurationDialog", (ap
   const matches = _collectLockMatches(app, ability, rollerActor);
   _noteLockMode(ability, matches);
   if (!matches.length) return;
-  _holdRoll(ability, rollerActor, matches);
+  _holdRoll(ability, rollerActor, matches, app);
   return false;
 }));
 
@@ -108,7 +108,10 @@ function _collectLockMatches(app, ability, rollerActor) {
   return matches;
 }
 
-function _holdRoll(ability, rollerActor, matches) {
+const _heldTargets = (app) => Object.values(app?.options?.context?.targets ?? {})
+  .map((t) => t?.tokenUuid ?? t?.token?.uuid).filter(Boolean);
+
+function _holdRoll(ability, rollerActor, matches, app) {
   const causeLabel = game.i18n.format("DS_TRIGGERS.Queue.LockCause", {
     roller: rollerActor.name, ability: ability.name,
   });
@@ -116,7 +119,7 @@ function _holdRoll(ability, rollerActor, matches) {
   enqueueLockEntries(matches, {
     event: "ROLL_LOCK",
     causeLabel,
-    resume: { userId: game.user.id, itemUuid: ability.uuid },
+    resume: { userId: game.user.id, itemUuid: ability.uuid, targets: _heldTargets(app) },
     held: {
       itemUuid: ability.uuid,
       itemName: ability.name,
@@ -161,7 +164,7 @@ function _recheckMode(app) {
     asPrimaryGM("lockModeRefund", { itemUuid: ability.uuid, keys: gone.map(([k]) => k), from, to: mode, userId: game.user.id });
   }
   if (fresh.length) {
-    _holdRoll(ability, ability.actor, fresh);
+    _holdRoll(ability, ability.actor, fresh, app);
     app.close();
   }
 }

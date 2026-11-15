@@ -163,6 +163,7 @@ export function getQueueMirror() {
   return _mirror;
 }
 
+
 export function addRollBypass(itemUuid) {
   _rollBypass.add(itemUuid);
 }
@@ -172,6 +173,7 @@ export function consumeRollBypass(itemUuid) {
   _rollBypass.delete(itemUuid);
   return true;
 }
+
 
 export function getActiveDamageHolds() {
   return _damageHolds;
@@ -1953,8 +1955,9 @@ function _dispatchResume(resume, retargets = [], rollMods = [], fmMods = null) {
   }
   if (!resume?.userId || !resume?.itemUuid) return;
   const user = game.users.get(resume.userId);
-  if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid, retargets, rollMods);
-  else asPrimaryGM("resumeRoll", resume.itemUuid, retargets, rollMods);
+  const targets = resume.targets ?? [];
+  if (user?.active) socket.executeForUsers("resumeRoll", [resume.userId], resume.itemUuid, retargets, rollMods, targets);
+  else asPrimaryGM("resumeRoll", resume.itemUuid, retargets, rollMods, targets);
 }
 
 const _releaseAfter = new Map();
@@ -2073,10 +2076,18 @@ Hooks.on("createChatMessage", (message) => {
 
 const _pendingRollMods = new Map();
 
-async function _onResumeRoll(itemUuid, retargets = [], rollMods = []) {
+function _restoreHeldTargets(uuids) {
+  if (!uuids?.length || !canvas.ready) return;
+  const ids = uuids.map((uuid) => fromUuidSync(uuid)).filter((doc) => doc?.parent === canvas.scene).map((doc) => doc.id);
+  if (ids.length) canvas.tokens.setTargets(ids);
+}
+
+async function _onResumeRoll(itemUuid, retargets = [], rollMods = [], targets = []) {
   const item = await fromUuid(itemUuid).catch(() => null);
   if (!item) return;
   if (retargets.some((r) => r.ignoreRange)) game.modules.get("draw-steel-combat-tools")?.api?.allowOutOfRange?.(itemUuid);
+  
+  _restoreHeldTargets(targets);
   await _applyRetargets(item, retargets);
   if (rollMods.length) {
     for (const m of rollMods) {
@@ -2107,6 +2118,7 @@ function _rollModLabel(m) {
   if (m.negateBane && !m.edges) parts.push(game.i18n.localize("DS_TRIGGERS.Editor.RollModNegateBane"));
   return parts.join(" + ");
 }
+
 
 function _pillScope(app, tokenUuid) {
   if (!tokenUuid) return "global";
