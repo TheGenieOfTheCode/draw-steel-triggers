@@ -3,7 +3,7 @@ import { itemEffectiveLines } from "../triggers/feature-triggers.mjs";
 import { derivedActive, derivedFor, isDerived } from "../triggers/derived.mjs";
 
 const norm = (s) => String(s ?? "").replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim().toLowerCase();
-const opening = (s) => norm(s).replace(/^(?:whenever|when|if|each time)\s+/, "").slice(0, 48);
+const opening = (s) => norm(s).replace(/^(?:additionally|also|in addition),?\s+/, "").replace(/^(?:whenever|when|if|each time)\s+/, "").slice(0, 48);
 
 async function linkTriggers(embed) {
   const ability = fromUuidSync(embed.dataset.uuid);
@@ -18,6 +18,8 @@ async function linkTriggers(embed) {
     const hit = pairs.find(({ line }) => text.length && opening(text) === opening(line.sentence)
       && text.length <= norm(line.sentence).length * 1.3 + 10);
     if (!hit) continue;
+    const list = block.nextElementSibling;
+    if (/:\s*$/.test(block.textContent) && list?.matches("ul, ol")) list.remove();
     block.innerHTML = await TE.enrichHTML(`@UUID[${hit.derived.uuid}]{${hit.derived.name}}`, { relativeTo: hit.derived });
     block.classList.add("dst-derived-link");
   }

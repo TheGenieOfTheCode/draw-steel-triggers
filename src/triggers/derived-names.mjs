@@ -51,7 +51,7 @@ const NAMES = {
   "lightning-soul-you-spend-a-surge-to-deal-extra-damage": "Arc Surge",
   "longclaw-you-or-your-companion-causes-a-creature-to-become-bleeding-or-uses-an-a": "Blood Bond",
   "longclaw-you-or-your-companion-grabs-a-creature-or-a-creature-grabs-either-of-yo": "Rending Grip",
-  "mark-a-creature-marked-by-you-is-reduced-to-0-stamina": "Mark Anew",
+  "mark-a-creature-marked-by-you-is-reduced-to-0-stamina": "On to the Next",
   "mark-you-or-any-ally-uses-an-ability-to-deal-rolled-damage-to-a-creature-marked-": "Seize the Opening",
   "metakinetic-mastery-you-force-move-a-target-t12": "Kinetic Force",
   "metakinetic-mastery-you-take-damage-or-are-force-moved-t4": "Absorbed Impact",
