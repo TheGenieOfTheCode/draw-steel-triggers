@@ -419,13 +419,23 @@ export class StackWindow extends ds.applications.api.DSApplication {
     }
   }
 
+  _returnHome() {
+    const home = game.settings.get(MODULE_ID, "stackPosition");
+    if (!Number.isFinite(home?.top)) return;
+    const top = Math.max(0, Math.min(home.top, window.innerHeight - this.element.offsetHeight));
+    if (Math.abs(top - this.position.top) < 1) return;
+    this._anchoring = true;
+    try { this.setPosition({ top }); } finally { this._anchoring = false; }
+  }
+
   _placedByUser() {
     this._userPlaced = true;
     game.settings.set(MODULE_ID, "stackPosition", { left: Math.round(this.position.left), top: Math.round(this.position.top) }).catch(() => {});
   }
 
   _anchor() {
-    if (this._userPlaced || this._dragging || this.minimized || !this.rendered) return;
+    if (this._dragging || this.minimized || !this.rendered) return;
+    if (this._userPlaced) return this._returnHome();
     const width = Number.isFinite(this.position.width) ? this.position.width : this.element.offsetWidth;
     const height = this.element.offsetHeight;
     const left = Math.max(0, stackRightEdge() - width - EDGE_GAP);
