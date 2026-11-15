@@ -44,9 +44,28 @@ export function maliceTypeName(actor) {
 
 const _adding = new Map();
 
+const slug = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+function basicKeyOf(item) {
+  const source = item._stats?.compendiumSource ?? item.flags?.core?.sourceId;
+  for (const [key, uuid] of Object.entries(BASIC_MALICE)) if (source === uuid) return key;
+  for (const key of [maliceKey(item), slug(item.name)]) if (key in BASIC_MALICE) return key;
+  return null;
+}
+
 async function addBasics(actor) {
-  const have = new Set(actor.items.map(maliceKey));
-  const missing = Object.entries(BASIC_MALICE).filter(([key]) => !have.has(key));
+  const byKey = new Map();
+  for (const item of actor.items) {
+    const key = basicKeyOf(item);
+    if (key) byKey.set(key, [...(byKey.get(key) ?? []), item]);
+  }
+  const extra = [];
+  for (const list of byKey.values()) {
+    const ours = list.filter((item) => item.getFlag(MODULE_ID, "basicMalice"));
+    extra.push(...ours.slice(ours.length === list.length ? 1 : 0).map((item) => item.id));
+  }
+  if (extra.length) await actor.deleteEmbeddedDocuments("Item", extra);
+  const missing = Object.entries(BASIC_MALICE).filter(([key]) => !byKey.has(key));
   if (!missing.length) return;
   const docs = (await Promise.all(missing.map(([, uuid]) => fromUuid(uuid).catch(() => null)))).filter(Boolean);
   const data = docs.map((doc) => {
