@@ -25,7 +25,7 @@ let socket = null;
 
 let _queue = [];
 let _mirror = [];
-const _rollBypass = new Set();
+const _rollBypass = new Map();
 const _damageBypass = new Set();
 
 const _pendingResumes = new Map();
@@ -163,17 +163,27 @@ export function getQueueMirror() {
   return _mirror;
 }
 
+const ROLL_BYPASS_TTL = 60000;
 
 export function addRollBypass(itemUuid) {
-  _rollBypass.add(itemUuid);
+  _rollBypass.set(itemUuid, Date.now());
 }
 
 export function consumeRollBypass(itemUuid) {
-  if (!_rollBypass.has(itemUuid)) return false;
+  const at = _rollBypass.get(itemUuid);
   _rollBypass.delete(itemUuid);
-  return true;
+  return at != null && Date.now() - at < ROLL_BYPASS_TTL;
 }
 
+Hooks.on("createChatMessage", (message) => {
+  for (const part of message.system?.parts?.contents ?? []) {
+    if (part.type === "abilityUse" && part.abilityUuid) _rollBypass.delete(part.abilityUuid);
+  }
+});
+
+Hooks.on("closeAbilityConfigurationDialog", (app) => {
+  if (app.options?.rollLockBypass && app.options.ability?.uuid) _rollBypass.delete(app.options.ability.uuid);
+});
 
 export function getActiveDamageHolds() {
   return _damageHolds;
