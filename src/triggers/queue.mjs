@@ -2093,7 +2093,7 @@ async function _onResumeRoll(itemUuid, retargets = [], rollMods = []) {
   }
   addRollBypass(itemUuid);
   ui.notifications.info(game.i18n.format("DS_TRIGGERS.Queue.RollReleased", { name: item.name }));
-  item.system.use();
+  item.system.use({}, { rollLockBypass: true, rollResume: true });
 }
 
 function _rollModLabel(m) {
