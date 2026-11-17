@@ -1200,6 +1200,18 @@
       "GrabEnds": "Triggered by the grab on {name} ending.",
       "GrabEndsBy": "Triggered by {by}'s grab on {name} ending."
     },
+    "UseUndo": {
+      "Title": "Trigger Use Undone",
+      "BodyUndone": "{owner} gets {reaction} back: everything it applied was undone.",
+      "BodyDeleted": "{owner} gets {reaction} back: its chat message was deleted.",
+      "Back": "Given back: {list}.",
+      "Action": "the triggered action",
+      "Once": {
+        "round": "{name} for this round",
+        "encounter": "{name} for this encounter",
+        "turn": "{name} for this turn"
+      }
+    },
     "Spent": {
       "EffectName": "Unspent Triggered Action",
       "EffectHint": "This creature still has its triggered action this round. It switches off when one is used and comes back at the start of the next round."
