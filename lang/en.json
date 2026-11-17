@@ -1200,6 +1200,12 @@
       "GrabEnds": "Triggered by the grab on {name} ending.",
       "GrabEndsBy": "Triggered by {by}'s grab on {name} ending."
     },
+    "Rampage": {
+      "Rampaging": "{name} has {n} rampage and is rampaging.",
+      "FeralCause": "{hero}'s turn ended while {name} is rampaging: they must use Feral Strike as a free maneuver.",
+      "Surges": "{hero} gains {n} surges: Feral Strike damaged {allies} allies.",
+      "Slake": "{hero} gains 2 surges: Slake My Thirst in Blood, while {name} is rampaging."
+    },
     "UseUndo": {
       "Title": "Trigger Use Undone",
       "BodyUndone": "{owner} gets {reaction} back: everything it applied was undone.",

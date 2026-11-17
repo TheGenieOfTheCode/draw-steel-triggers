@@ -4,6 +4,7 @@ import { triggersLive, usedAbilityMatches, abilityDamageTypes, dealsRolledDamage
 import { addDamagePill } from "./bespoke.mjs";
 import { autoApplies } from "./auto-use.mjs";
 import { enqueuePromptEntries, applyPotencyMods } from "./queue.mjs";
+import { rampageDamageBonus } from "./rampage.mjs";
 
 const DSCT_ID = "draw-steel-combat-tools";
 const DSTD_ID = "draw-steel-target-damage";
@@ -94,6 +95,8 @@ export function damageBonusFor(actor, attackerToken, targetToken, message = null
         perRound: entry.item.featureLine?.once === "round", auto: autoApplies({ mandatory: !c.optional, perRound: entry.item.featureLine?.once === "round", line: entry.item.featureLine }) });
     }
   }
+  const rampage = rampageDamageBonus(actor, ability);
+  if (rampage) out.push(rampage);
   return out;
 }
 

@@ -13,6 +13,7 @@ import {
 import { dispatchTriggerEvent } from "./triggers/dispatch.mjs";
 import { isTriggeredActionSpent, setTriggeredActionSpent } from "./triggers/spent-tracking.mjs";
 import { registerUseUndo } from "./triggers/use-undo.mjs";
+import { registerRampage } from "./triggers/rampage.mjs";
 import { computeAutomationLevel } from "./ui/badge.mjs";
 import { TriggerEditor } from "./ui/trigger-editor.mjs";
 import { StackWindow } from "./ui/stack-window.mjs";
@@ -58,6 +59,7 @@ import "./compat/system-results.mjs";
 
 Hooks.once("init", () => {
   registerUseUndo();
+  registerRampage();
   game.settings.register(MODULE_ID, "combatOnly", {
     name: "DS_TRIGGERS.Settings.CombatOnly.Name",
     hint: "DS_TRIGGERS.Settings.CombatOnly.Hint",
