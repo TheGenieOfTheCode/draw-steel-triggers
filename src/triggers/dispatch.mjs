@@ -23,9 +23,23 @@ const PROMPT_EVENTS = new Set([...DAMAGE_PROMPTS, ...CONDITION_PROMPTS, "USES_AB
 const SAVE_OR_EOT = new Set(["save", "turnEnd"]);
 
 const FIXED_DISPOSITIONS = { FRIENDLY: "FRIENDLY", NEUTRAL: "NEUTRAL", HOSTILE: "HOSTILE", SECRET: "SECRET" };
-const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", "MENTOR", ...Object.keys(FIXED_DISPOSITIONS)]);
+const BASE_SCOPES = new Set(["SELF", "ALLY", "ENEMY", "ANY", "GROUP", "SELF_OR_ALLY", "MENTOR", "COMPANION", "SUMMONS", "SUMMONED_BY", ...Object.keys(FIXED_DISPOSITIONS)]);
 
 export const mentorOf = (actor) => actor?.system?.retainer?.mentor ?? actor?.system?.companion?.master ?? null;
+
+const ctlib = () => game.modules.get("draw-steel-ctlib")?.api;
+const sameActorAs = (a, b) => !!a && !!b && (a === b || a.uuid === b.uuid || (a.id === b.id && !a.isToken && !b.isToken));
+
+export const companionTokensOf = (actor) => ctlib()?.companionsOf?.(actor) ?? [];
+
+export function summonedFor(clause, ownerActor, subjectActor) {
+  const source = ctlib()?.summonSourceOf?.(subjectActor);
+  if (!source) return false;
+  const origin = fromUuidSync(source, { strict: false });
+  const summoner = origin?.documentName === "Actor" ? origin : origin?.actor ?? null;
+  if (!sameActorAs(summoner, ownerActor)) return false;
+  return !clause.summonDsid || (origin?.system?._dsid ?? "") === clause.summonDsid;
+}
 
 const kwWords = (s) => String(s ?? "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z]+/).filter(Boolean).map((w) => w.replace(/s$/, ""));
 
@@ -64,6 +78,9 @@ export function scopeMatches(clause, ownerActor, ownerDisposition, subjectActor,
       const mentor = mentorOf(ownerActor);
       return !!mentor && (mentor === subjectActor || mentor.id === subjectActor.id);
     }
+    case "COMPANION": return subjectActor.type === "companion" && sameActorAs(subjectActor.system?.companion?.master, ownerActor);
+    case "SUMMONS":
+    case "SUMMONED_BY": return summonedFor(clause, ownerActor, subjectActor);
     default: return false;
   }
 }
@@ -133,7 +150,16 @@ export function footprintGap(docA, docB) {
   );
 }
 
+export function nearCompanion(clause, ownerActor, subjectToken) {
+  const doc = tokenDoc(subjectToken);
+  if (!doc) return false;
+  const range = Number.isFinite(clause.range) && clause.range > 0 ? clause.range : 1;
+  return companionTokensOf(ownerActor).some((c) => c.document !== doc && c.document.parent === doc.parent
+    && footprintGap(c.document, doc) < range * canvas.grid.distance);
+}
+
 function rangeMatches(clause, item, ownerActor, ownerToken, subjectActor, subjectToken, ctx = {}) {
+  if (clause.rangeFrom === "companion") return nearCompanion(clause, ownerActor, subjectToken);
   if (clause.rangeOn === "dealer") {
     subjectActor = ctx.dealerActor ?? null;
     subjectToken = tokenDoc(ctx.dealerToken);
@@ -717,7 +743,6 @@ function spendWasPaid(abilityUuid) {
   return false;
 }
 
-
 function spentBeyondCost(message, abilityUuid) {
   const template = game.i18n.localize("DRAW_STEEL.Item.ability.ConfigureUse.SpentFlavor");
   const escaped = template.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1011,7 +1036,7 @@ export function dispatchTriggerEvent({ event, subjectActor = null, subjectToken 
   }
   const prompts = matches.filter((m) => promptable(m) && ((PROMPT_EVENTS.has(event) && promptsOn) || optionalLine(m) || automated(m)));
   if (prompts.length) {
-    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null, squadBatch: eventContext.squadDeath ?? eventContext.squadBatch ?? null });
+    enqueuePromptEntries(prompts, { event, causeLabel, triggerDamage: triggerDamage ?? eventContext.damageAmount ?? null, subjectTokenUuid, sourceMessageId, damageType: eventContext.damageType ?? null, squadBatch: eventContext.squadDeath ?? eventContext.squadBatch ?? null });
     matches = matches.filter((m) => !prompts.includes(m));
   }
 

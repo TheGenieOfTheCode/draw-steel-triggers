@@ -85,6 +85,13 @@ export async function onBespokeWrite(op, messageId, ...args) {
   return false;
 }
 
+registerBespokeUse("ride-along-your-companion-takes-damage-while-you-are-riding-along", async (item, entry) => {
+  const hero = item.actor;
+  const amount = Number(entry.triggerDamage);
+  if (!hero || !Number.isFinite(amount) || amount <= 0) return;
+  await hero.system.takeDamage(amount, { type: entry.damageType ?? "", ignoredImmunities: ["all"] });
+});
+
 registerBespokeUse("harmonize", async (item, entry) => {
   const message = entry.sourceMessageId ? game.messages.get(entry.sourceMessageId) : null;
   if (!message) {

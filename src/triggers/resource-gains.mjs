@@ -1,7 +1,7 @@
 import { MODULE_ID, getSetting, dbg, isPrimaryGM, executeAsDirector } from "../util.mjs";
 import { isMaliceAbility } from "./registry.mjs";
 import { ignoredByRule } from "./ignore-rules.mjs";
-import { eventHits, footprintGap, scopeMatches, usedAbilityMatches, isMinionActor, damageOutcomeMatches, organizationMatches } from "./dispatch.mjs";
+import { eventHits, footprintGap, scopeMatches, usedAbilityMatches, isMinionActor, damageOutcomeMatches, organizationMatches, nearCompanion } from "./dispatch.mjs";
 import { featureGainLines, lineAutomated } from "../parser/feature-lines.mjs";
 import { DAMAGE_MODIFYING } from "../parser/trigger-parser.mjs";
 import { enqueuePromptEntries, getQueueMirror } from "./queue.mjs";
@@ -251,7 +251,9 @@ function _lineMatches(line, e, hero, heroToken) {
     if (e.event === "TAKES_DAMAGE" && ctx.dealerOnly && !line.gates.includes("dealerJudged") && !squadVictim(e.subjectActor)) return false;
     const subjectToken = _token(e.subjectToken);
     if (!scopeMatches(clause, hero, _token(heroToken)?.disposition ?? null, e.subjectActor, subjectToken?.disposition ?? null)) return false;
-    if (Number.isFinite(clause.range) && clause.range > 0 && e.subjectActor && e.subjectActor !== hero
+    if (clause.rangeFrom === "companion") {
+      if (!nearCompanion(clause, hero, subjectToken)) return false;
+    } else if (Number.isFinite(clause.range) && clause.range > 0 && e.subjectActor && e.subjectActor !== hero
       && !_near(heroToken, subjectToken, clause.range)) return false;
     if (clause.damageTypes?.length && !clause.damageTypes.includes(ctx.damageType)) return false;
     if (clause.conditions?.length && !clause.conditions.includes(ctx.condition)) return false;

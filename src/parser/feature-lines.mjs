@@ -59,7 +59,6 @@ const PICK_EVENT = "the event it adds to, which you pick in the trigger builder"
 
 const MANUAL = [
   [/null field(?! ability(?: \([^)]*\))? uses a main action)/i, "the area of the Null Field"],
-  [/\bcompanion\b/i, "a creature adjacent to your companion"],
   [/summoner['’]s range/i, "the Summoner's Range"],
   [/\bunwillingly\b/i, UNWILLING],
   [/that can be (?:spent|used) only/i, "a gain that can be spent on only one thing"],

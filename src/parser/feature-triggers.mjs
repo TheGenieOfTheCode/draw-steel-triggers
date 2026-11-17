@@ -318,6 +318,7 @@ const CURATED_LINES = [
   [/^Infernal Contract$/, /present for a battle/, { later: "Surprised" }],
   [/^Leader Formation$/, /./, { later: "Summoner" }],
   [/^Rampage$/, /spends ferocity|gains 8 rampage/, { later: "Companion rampage" }],
+  [/^There For Each Other$/, /The Pack Defends/i, { clause: { abilityDsid: "bh-the-pack-defends" } }],
 
   [/^Chimeric Manifestation$/, /./, { drop: true }],
   [/^Minion Chain$/, /./, { later: "1.2" }],
@@ -353,7 +354,7 @@ const CURATED_LINES = [
   [/^Flameshade Gloves$/, /place one hand upon a mundane object/, { drop: true }],
   [/^Leading$/, /they can shift instead/, { drop: true }],
   [/^Escort the Prisoners$/, /carry an adjacent restrained enemy/, { drop: true }],
-  [/^(?:Rampage|There For Each Other|Essence|Pack Harness|Rampant Shield|Horned Champion|Slake My Thirst in Blood)$/, /Feral Strike|The Pack Defends|call forth a minion|banish one copy|companion uses an ability|Charge main action|deinonychus is rampaging/, { later: "1.2" }],
+  [/^(?:Rampage|Essence|Pack Harness|Rampant Shield|Horned Champion|Slake My Thirst in Blood)$/, /Feral Strike|call forth a minion|banish one copy|companion uses an ability|Charge main action|deinonychus is rampaging/, { later: "1.2" }],
   [/^Look On My Work and Despair$/, /use your Judgment ability/, { later: "Judgement rider" }],
   [/^Psionic Martial Arts$/, /use Intuition instead of Might/, { later: "Combat Tools: ability override" }],
   [/^(?:Vuken Growing Ferocity|Cryokinetic Mastery|Four-Armed Martial Arts|Everybody Move!)$/, /target one additional/, { later: "Extra targets for the ability in use" }],
@@ -571,8 +572,10 @@ const ABILITY_LINES = [
   [/^Echoes of Laughter$/, /gnoll is killed/i, { drop: true }],
   [/^Shadow Stockade$/, /no longer restrained/i, { drop: true }],
   [/^(?:Blackout|Bead of Hell|Shadow Stockade|Crag Burst|Iron Jaws|Armageddon|Convocation of Verdure)$/, /./, { later: "Placed areas" }],
-  [/^(?:Guest Star|Cavalry Call|Summon Source of Earth)$/, /./, { later: "Summoner" }],
-  [/^Ride Along$/, /companion takes damage/i, { later: "Companion" }],
+  [/^Guest Star$/, /./, { later: "Summoner" }],
+  [/^Cavalry Call$/, /deals damage to an enemy/i, { clause: { scope: "SUMMONED_BY", summonDsid: "cavalry-call", groupName: null } }],
+  [/^Summon Source of Earth$/, /Stamina is reduced to 0/i, { kind: "trigger", trigger: "A creature is reduced to 0 Stamina", clause: { scope: "SUMMONED_BY", summonDsid: "summon-source-of-earth" } }],
+  [/^Ride Along$/, /companion takes damage/i, { watch: "used" }],
   [/^(?:Avalanche Rush|Inertia Soak)$/, /./, { later: "Movement inside an ability" }],
   [/^Sticky Bomb$/, /bomb detonates/i, { later: "Timers" }],
   [/^There Is No Space Between$/, /./, { later: "Portals" }],
@@ -717,7 +720,6 @@ function collectLines(html, tier, { gains, base, lines, keys, ownerName, dsid, n
         if (parse.clauses.every((c) => c.event !== "UNKNOWN" && c.scope !== "UNKNOWN")) parse.confidence = "high";
       }
       if (curated.damageModifying === false) parse.damageModifying = false;
-      if (!curated.note && !curated.later && parse.clauses.length > 1 && parse.clauses.some((c) => c.scope === "COMPANION")) curated.note = "Companion half: Later";
       const zoneLater = !ability && !curated.later && kind === "trigger" && zoneOnly(parse);
       if (zoneLater) curated.later = "Zones";
       const shown = curated.effect === "first" ? String(f.effect ?? "").replace(/\s+/g, " ").trim() : effect;

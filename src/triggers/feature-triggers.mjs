@@ -14,7 +14,6 @@ const TRIGGERED = new Set(["triggered", "freeTriggered"]);
 const MANUAL = [
   [/summoner['’]s range/i, "SummonerRange"],
   [/\bunwillingly\b/i, "Unwilling"],
-  [/\bcompanion\b/i, "Companion"],
 ];
 
 const _lineCache = new Map();
@@ -388,9 +387,9 @@ export function featureTriggerEntries(actor, { includeSpent = false } = {}) {
     if (item.type === "treasure" && item.system?.category === "consumable" && Number(item.system?.quantity ?? 1) <= 0) continue;
     for (const line of _bestTiers(actor, itemEffectiveLines(item))) {
       if (seen.has(line.key)) continue;
-      seen.add(line.key);
       if (line.watch === "parked") continue;
       if (line.watch === "used" ? !useLive(item) : line.watch && !abilityLineLive(item, line)) continue;
+      seen.add(line.key);
       if (line.countdown && countdownLeft(actor, line.key) > 0) continue;
       const watch = line.watch ? { watch: line.watch, originUuid: item.uuid, watchMark: line.watchMark ?? null, spendUsed: !!line.spendUsed,
         ...(line.watch === "used" ? { useTargets: line.used?.target ? useTargets(item) : null, aura: line.used?.aura ?? null, maliceLine: isMaliceAbility(item) } : {}) } : {};

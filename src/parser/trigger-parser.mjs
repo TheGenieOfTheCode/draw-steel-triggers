@@ -973,7 +973,8 @@ function parseTriggerClauses(text, { dsid, ownerName, effectText, targetType, si
     if (scope === "UNKNOWN") unsure = true;
     const qualifiers = QUALIFIERS.map(rx => lc.match(rx)?.[0]).filter(Boolean);
     const entry = { event: events[0] || "UNKNOWN", events, scope, qualifiers };
-    
+    if (/^(?:a|an|any|one) creature adjacent to your companion\b/.test(lc)) Object.assign(entry, { scope: "ANY", range: 1, rangeFrom: "companion" });
+
     if (POST_ROLL_PHRASE.test(lc) && entry.event === "POWER_ROLL" && hits.includes("TARGETED_BY_STRIKE")) {
       entry.event = "TARGETED_BY_STRIKE";
       entry.events = ["TARGETED_BY_STRIKE"];
