@@ -90,7 +90,7 @@ function _onUseCancelled(itemUuid) {
       e.useCancelled = true;
       e.state = "declined";
       if (e.villain) _recordVillain(e, false);
-      else _postDeclineRecord(e.ownerActorUuid, e.ownerName, e.itemName);
+      else _postDeclineRecord(e.ownerActorUuid, e.ownerName, e.itemName, false, declineMoment(e));
       touched = true;
     }
   }
@@ -101,7 +101,7 @@ function _onUseCancelled(itemUuid) {
     const u = (pending.usedEntries ?? []).find((x) => x.itemUuid === itemUuid && !x.cancelled);
     if (u) {
       u.cancelled = true;
-      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName, false, declineMoment(u, `r:${resumeId}`));
     }
     if (!pending.awaiting.size) _fireResume(resumeId);
     touched = true;
@@ -114,7 +114,7 @@ function _onUseCancelled(itemUuid) {
     const u = (hold.usedEntries ?? []).find((x) => x.itemUuid === itemUuid && !x.cancelled);
     if (u) {
       u.cancelled = true;
-      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName, false, declineMoment(u, `d:${damageId}`));
     }
     const grace = _pendingDamageGraces.get(damageId);
     if (grace) {
@@ -131,7 +131,7 @@ function _onUseCancelled(itemUuid) {
     const u = (hold.usedEntries ?? []).find((x) => x.itemUuid === itemUuid && !x.cancelled);
     if (u) {
       u.cancelled = true;
-      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName, false, declineMoment(u, `s:${resolutionId}`));
     }
     const grace = _pendingResolutionGraces.get(resolutionId);
     if (grace) {
@@ -144,7 +144,13 @@ function _onUseCancelled(itemUuid) {
   if (touched) _broadcast();
 }
 
-export async function _postDeclineRecord(ownerActorUuid, ownerName, itemName, mandatory = false) {
+const declineMoment = (e, key = null) => ({
+  key: key ?? (e.resumeId ? `r:${e.resumeId}` : e.damageId ? `d:${e.damageId}` : e.resolutionId ? `s:${e.resolutionId}` : e.promptId ? `p:${e.promptId}` : null),
+  at: Number.isFinite(e.createdAt) ? e.createdAt : Date.now(),
+  itemUuid: e.itemUuid ?? null,
+});
+
+export async function _postDeclineRecord(ownerActorUuid, ownerName, itemName, mandatory = false, moment = null) {
   const owner = await fromUuid(ownerActorUuid).catch(() => null);
   const recipients = game.users.filter((u) => u.isGM || (owner && owner.testUserPermission(u, "OWNER"))).map((u) => u.id);
   const esc = foundry.utils.escapeHTML;
@@ -155,7 +161,10 @@ export async function _postDeclineRecord(ownerActorUuid, ownerName, itemName, ma
     kind: "Declined",
     content: cardContent({ intro: facesIn(sentence, [owner]) }),
     whisper: recipients,
-    flags: { [MODULE_ID]: { notice: "decline" } },
+    flags: { [MODULE_ID]: { notice: "decline", decline: {
+      owner: ownerActorUuid ?? null, ownerName, ability: itemName, mandatory: !!mandatory,
+      itemUuid: moment?.itemUuid ?? null, moment: moment?.key ?? null, at: moment?.at ?? Date.now(),
+    } } },
   });
 }
 
@@ -524,7 +533,7 @@ async function _onQueueResolve(id, outcome, userName) {
 
   if (entry.gain) resolveStackGain(entry, outcome);
 
-  if (outcome === "declined" && !entry.villain && !entry.gain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName, lineMandatory(entry.featureLine));
+  if (outcome === "declined" && !entry.villain && !entry.gain) _postDeclineRecord(entry.ownerActorUuid, entry.ownerName, entry.itemName, lineMandatory(entry.featureLine), declineMoment(entry));
 
   if (entry.choices?.some((c) => c.resumeId)) _releaseUnheld(entry.choices.map((c) => c.resumeId), entry.resumeId);
 
@@ -815,7 +824,7 @@ function _endDamageGrace(damageId, expired) {
   if (hold && expired && pending.awaiting.size) {
     for (const u of hold.usedEntries ?? []) {
       if (!pending.awaiting.has(u.itemUuid)) continue;
-      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName, false, declineMoment(u, `d:${damageId}`));
       hold.usedItems?.delete(u.itemUuid);
     }
     hold.anyUsed = (hold.usedItems?.size ?? 0) > 0;
@@ -875,7 +884,7 @@ function _endResolutionGrace(resolutionId, expired) {
   if (hold && expired && pending.awaiting.size) {
     for (const u of hold.usedEntries ?? []) {
       if (!pending.awaiting.has(u.itemUuid)) continue;
-      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+      _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName, false, declineMoment(u, `s:${resolutionId}`));
       u.cancelled = true;
       hold.usedItems?.delete(u.itemUuid);
     }
@@ -2015,7 +2024,7 @@ function _fireResume(resumeId, expired = false) {
     if (expired && pending.awaiting.size) {
 
       for (const u of pending.usedEntries ?? []) {
-        if (pending.awaiting.has(u.itemUuid)) _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName);
+        if (pending.awaiting.has(u.itemUuid)) _postDeclineRecord(u.ownerActorUuid, u.ownerName, u.itemName, false, declineMoment(u, `r:${resumeId}`));
       }
     }
     const applied = (pending.usedEntries ?? []).filter((u) => !u.cancelled && (!expired || !pending.awaiting.has(u.itemUuid)));
