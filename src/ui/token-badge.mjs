@@ -130,10 +130,44 @@ function showBadge(token, entry, colour) {
   canvas.app.ticker.add(badge.tick);
 }
 
+const PAN_GATHER_MS = 300;
+const PAN_MARGIN = 80;
+const _panTokens = new Set();
+let _panTimer = null;
+
+const pans = () => game.settings.get(MODULE_ID, "panToTriggers") === true;
+
+const canActOn = (entry) => {
+  if (game.user.isGM) return !entry.playerSide;
+  const actor = entry.ownerActorUuid ? fromUuidSync(entry.ownerActorUuid) : null;
+  return !!entry.playerSide && !!actor?.isOwner;
+};
+
+const onScreen = (token) => {
+  const { x, y } = canvas.clientCoordinatesFromCanvas(token.center);
+  return x > PAN_MARGIN && y > PAN_MARGIN && x < window.innerWidth - PAN_MARGIN && y < window.innerHeight - PAN_MARGIN;
+};
+
+function panToGathered() {
+  _panTimer = null;
+  const tokens = [..._panTokens].filter((t) => !t.destroyed && t.visible);
+  _panTokens.clear();
+  if (!tokens.length || !canvas?.ready || tokens.every(onScreen)) return;
+  const x = tokens.reduce((n, t) => n + t.center.x, 0) / tokens.length;
+  const y = tokens.reduce((n, t) => n + t.center.y, 0) / tokens.length;
+  canvas.animatePan({ x, y, duration: reducedMotion() ? 0 : 400 });
+}
+
+function queuePan(entries) {
+  for (const entry of entries) if (canActOn(entry)) for (const token of tokensFor(entry)) _panTokens.add(token);
+  if (_panTokens.size && !_panTimer) _panTimer = setTimeout(panToGathered, PAN_GATHER_MS);
+}
+
 function onQueueChanged(mirror) {
   const entries = mirror ?? [];
   const pending = entries.filter((e) => e.state === "pending");
   const fresh = _known === null ? (fades() ? [] : pending) : pending.filter((e) => !_known.has(e.id));
+  if (_known !== null && pans() && canvas?.ready) queuePan(fresh.filter(sideOf));
   _known = new Set(pending.map((e) => e.id));
   for (const badge of [..._badges.values()]) {
     badge.entryIds = badge.entryIds.filter((id) => _known.has(id));

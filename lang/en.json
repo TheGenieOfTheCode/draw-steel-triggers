@@ -219,6 +219,10 @@
         "Name": "Trigger Badges on Tokens",
         "Hint": "When a token gets a trigger, a badge shows over it, with a count when more than one is waiting. Click it to open the Trigger Stack at that trigger."
       },
+      "PanToTriggers": {
+        "Name": "Pan to New Triggers",
+        "Hint": "When a trigger you can decide appears off screen, the map pans to its creature. Triggers that appear together get one pan to the middle of them."
+      },
       "BadgesFade": {
         "Name": "Fade Trigger Badges",
         "Hint": "Badges fade a few seconds after they appear. With this off, a badge stays on the token until its triggers are decided, counting down as they are."

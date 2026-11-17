@@ -168,6 +168,14 @@ Hooks.once("init", () => {
     type: Boolean,
     default: false,
   });
+  game.settings.register(MODULE_ID, "panToTriggers", {
+    name: "DS_TRIGGERS.Settings.PanToTriggers.Name",
+    hint: "DS_TRIGGERS.Settings.PanToTriggers.Hint",
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: false,
+  });
   game.settings.register(MODULE_ID, "badgesInsteadOfStack", {
     name: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Name",
     hint: "DS_TRIGGERS.Settings.BadgesInsteadOfStack.Hint",
@@ -424,7 +432,7 @@ Hooks.once("ready", () => {
   game.modules.get("draw-steel-ctlib")?.api?.registerSettingsLayout?.(MODULE_ID, [
     { label: H("General"), wiki: "How-Triggers-Work", items: ["combatOnly", "allSceneTokens", "requireLineOfEffect", "spentTracking", "chatReminders"] },
     { label: H("Stack"), wiki: "The-Trigger-Stack", items: ["damagePrompts", "conditionPrompts", "stackDecisionTimer", "skipEmptyDialogs", "skipHeldDamageWindow",
-      "autoUseMandatory", "autoUseTriggers", "tokenBadges", "badgesFade", "badgesInsteadOfStack"] },
+      "autoUseMandatory", "autoUseTriggers", "tokenBadges", "badgesFade", "badgesInsteadOfStack", "panToTriggers"] },
     { label: H("Rolls"), wiki: "Trigger-Effects#roll-modifying", items: ["rollLock", "rollLockGrace", "resolutionHolds", "holdInertTriggers", "freeStrikeCards"] },
     { label: H("DamageMovement"), wiki: "Trigger-Effects#damage-modifying", items: ["damageInterrupts", "fmInterrupts"] },
     { label: H("Turns"), items: ["turnInterrupts", "offerVillainActions"] },
