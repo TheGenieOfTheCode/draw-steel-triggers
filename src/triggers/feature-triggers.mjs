@@ -81,7 +81,7 @@ const appliedLabels = (ability) => {
   const html = abilityEffectHTML(ability);
   let labels = _labelsByHtml.get(html);
   if (!labels) {
-    labels = new Set([...html.matchAll(APPLY_LABEL)].map((m) => m[1].trim().toLowerCase()));
+    labels = new Set([...html.matchAll(APPLY_LABEL)].map((m) => m[1].trim().toLowerCase()).map((l) => (l === "mark" ? "marked" : l)));
     if (_labelsByHtml.size > 2000) _labelsByHtml.clear();
     _labelsByHtml.set(html, labels);
   }
