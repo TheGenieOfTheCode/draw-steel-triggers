@@ -60,7 +60,11 @@ export const isAbilitySource = (item) => item?.type === "ability" && !TRIGGERED.
 export const isLineSource = (item) => FEATURE_ITEM_TYPES.has(item?.type) || isAbilitySource(item);
 const appliesEffects = (item) => !!(item.effects?.some((e) => !e.transfer) || item.system?.power?.effects?.contents?.some((e) => e.type === "applied"));
 
-export const carriesEffect = (actor, origin) => !!origin && !!actor?.effects?.some((e) => e.origin === origin && e.active);
+const isTracker = (e) => !!e?.flags?.["draw-steel-combat-tools"]?.tracker;
+
+export const carriesEffect = (actor, origin) => !!origin && !!actor?.effects?.some((e) => e.origin === origin && e.active && !isTracker(e));
+
+const trackerLive = (item) => !!item.actor?.effects?.some((e) => e.origin === item.uuid && e.active && isTracker(e));
 
 function nearbyActors(owner) {
   const actors = new Set([owner]);
@@ -99,11 +103,12 @@ export function carriesMark(actor, owner, label) {
   if (!actor || !owner || !label) return false;
   const origins = new Set(labelSources(owner, label).map((i) => i.uuid));
   const ctKey = CT_KEYS[String(label).toLowerCase()];
-  return !!actor.effects?.some((e) => e.active
+  return !!actor.effects?.some((e) => e.active && !isTracker(e)
     && (origins.has(e.origin) || (!!ctKey && e.flags?.["draw-steel-combat-tools"]?.[ctKey]?.actorId === owner.id)));
 }
 
 export function abilityLineLive(item, line) {
+  if (item.effects?.some(isTracker)) return trackerLive(item);
   if (line.watchMark && labelSources(item.actor, line.watchMark).some((i) => i.id === item.id)) return nearbyActors(item.actor).some((a) => carriesMark(a, item.actor, line.watchMark));
   return abilityEffectLive(item);
 }
